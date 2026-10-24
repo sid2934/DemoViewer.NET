@@ -15,7 +15,6 @@ namespace DemoViewer.NET.Controls;
 ///     text (optionally clickable via <see cref="StatusCommand" />), middle perf
 ///     ticker, right info text. Inputs are <see cref="StyledProperty{T}" /> so
 ///     smoke-test consumers can wire it without a shell view-model.
-///     Spec: F3.4.
 /// </summary>
 public partial class StatusStrip : UserControl
 {

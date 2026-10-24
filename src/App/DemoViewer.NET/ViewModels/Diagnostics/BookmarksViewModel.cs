@@ -12,7 +12,7 @@ using DemoViewer.NET.ViewModels.Common;
 namespace DemoViewer.NET.ViewModels.Diagnostics;
 
 /// <summary>
-///     Bookmarks panel (F8.5 / A4). In-memory model with best-effort desktop persistence via
+///     Bookmarks panel. In-memory model with best-effort desktop persistence via
 ///     <see cref="BookmarkStore" /> (no-ops on WASM). Selecting a bookmark seeks to its frame through
 ///     the shared <see cref="FrameNavigationViewModel" />.
 /// </summary>

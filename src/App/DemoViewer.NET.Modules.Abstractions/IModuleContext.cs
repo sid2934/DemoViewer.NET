@@ -83,7 +83,7 @@ public interface IModuleContext
     /// </summary>
     IReadOnlyCollection<string> AvailableEventNames => Array.Empty<string>();
 
-    // ── Timeline / transport seams (Playback2D v2 A1) ──
+    // ── Timeline / transport seams (Playback2D v2) ──
     // All additive with default implementations, so every existing host and hand-rolled test double keeps
     // compiling untouched.
 

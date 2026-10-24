@@ -57,7 +57,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
     private string? _cachedFrameDetailsHeader;
     private bool _cardModeActive;
 
-    // F5.2: flat [byteRange → PayloadNode] index over the active card's PayloadNodes,
+    // Flat [byteRange → PayloadNode] index over the active card's PayloadNodes,
     // rebuilt whenever PayloadNodes changes. Coordinates are 0-based within the message
     // payload; the click handler subtracts the Frame Details shift before looking up.
     private List<ByteRangeEntry> _decompressedByteIndex = [];
@@ -135,7 +135,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
             PlaceholderText = "Select a frame to view decoded payload"
         };
 
-        // F5.2: reverse byte → node selection. Clicking a byte in the Frame Details
+        // Reverse byte → node selection. Clicking a byte in the Frame Details
         // (decompressed) view resolves the encompassing payload-tree node and selects it,
         // which drives the existing node → hex highlight + parse-chain rebuild flow.
         HexViewDecompressed.ByteClicked += OnDecompressedByteClicked;

@@ -13,7 +13,7 @@
       self-gating via IsVisible on its own snapshot signal: parse/entity panels are absent in a
       normal build; the evaluator-runtime panel always renders but is idle until the user toggles
       capture. Single layout for both states: the right column always shows the
-      idle B3 toggle, so B1/B2 self-hide with no column-collapse special case.
+      idle evaluator toggle, so the parse and entity panels self-hide with no column-collapse special case.
   -->
 
     <UserControl.Styles>
@@ -75,7 +75,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- A1 System info -->
+                    <!-- System info -->
                     <StackPanel>
                         <Border Classes="sectionHeader">
                             <TextBlock Text="SYSTEM" Classes="sectionLabel" />
@@ -83,7 +83,7 @@
                         <ui:KeyValueTable Rows="{Binding SystemRows}" Margin="0 4 0 0" />
                     </StackPanel>
 
-                    <!-- A2 Environment -->
+                    <!-- Environment -->
                     <StackPanel>
                         <Border Classes="sectionHeader">
                             <TextBlock Text="ENVIRONMENT" Classes="sectionLabel" />
@@ -91,7 +91,7 @@
                         <ui:KeyValueTable Rows="{Binding EnvironmentRows}" Margin="0 4 0 0" />
                     </StackPanel>
 
-                    <!-- A3 Session -->
+                    <!-- Session -->
                     <StackPanel>
                         <Border Classes="sectionHeader">
                             <TextBlock Text="SESSION" Classes="sectionLabel" />
@@ -238,7 +238,7 @@
                         </StackPanel>
                     </Expander>
 
-                    <!-- B1 Parse profiling (compile-gated: PROFILE_PARSE) -->
+                    <!-- Parse profiling (compile-gated: PROFILE_PARSE) -->
                     <Expander Classes="diagPanel"
                               Header="Parse pipeline"
                               IsExpanded="True"
@@ -246,7 +246,7 @@
                         <ui:KeyValueTable Rows="{Binding ParseProfilingRows}" />
                     </Expander>
 
-                    <!-- B2 Entity profiling (compile-gated: PROFILE_ENTITY) -->
+                    <!-- Entity profiling (compile-gated: PROFILE_ENTITY) -->
                     <Expander Classes="diagPanel"
                               Header="Entity decode"
                               IsExpanded="True"
@@ -254,7 +254,7 @@
                         <ui:KeyValueTable Rows="{Binding EntityProfilingRows}" />
                     </Expander>
 
-                    <!-- B3 Evaluator runtime (always rendered; idle until toggled) -->
+                    <!-- Evaluator runtime (always rendered; idle until toggled) -->
                     <Expander Classes="diagPanel"
                               Header="Analysis evaluator (runtime)"
                               IsExpanded="True">

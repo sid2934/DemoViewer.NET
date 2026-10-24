@@ -16,7 +16,7 @@
         <shell:MainViewModel />
     </Design.DataContext>
 
-    <!-- App-wide accelerators (F8.1 + v0.6.0 fit-and-finish). Ctrl+1..9 selects the Nth VISIBLE tab
+    <!-- App-wide accelerators (v0.6.0 fit-and-finish). Ctrl+1..9 selects the Nth VISIBLE tab
          (live positional over the gated Tabs set — nothing persisted, so the name-based tab-identity
          rule is untouched). Commands with CanExecute (Close Demo) stay correctly inert when disabled. -->
     <UserControl.KeyBindings>
@@ -264,7 +264,7 @@
                                   HiddenNote="{Binding HiddenFeatureNote}"
                                   HiddenNoteCommand="{Binding OpenSettingsAtCategoryCommand}" />
 
-            <!-- ── Output panel drawer (bottom, above status strip; F8.2) ──────── -->
+            <!-- ── Output panel drawer (bottom, above status strip) ──────── -->
             <controls:OutputPanel DockPanel.Dock="Bottom"
                                   Height="200"
                                   DataContext="{Binding Output}"
@@ -286,7 +286,7 @@
                 <!-- ItemsSource-driven TabControl. The built-in tabs are registered
                  descriptors (BuiltInTabsModule) alongside any module tabs — one code path for all.
                  Inactive tab content is unloaded for free: Avalonia's single content presenter keeps
-                 only the selected descriptor's realized View in the visual tree (F1.1, F2.2). The
+                 only the selected descriptor's realized View in the visual tree. The
                  descriptor sets its View's DataContext (the shell for the 3 shell-routed built-ins;
                  the per-tab VM for module tabs), so the existing bindings resolve unchanged. -->
                 <Grid>
@@ -317,7 +317,7 @@
                      Each tab owns its empty state — the Parser tab carries the "Open a .dem
                      file to begin" prompt; StatusText stays visible in the status strip. -->
 
-                    <!-- Command palette overlay (Ctrl+P, F8.1) — the popup self-centers on the window. -->
+                    <!-- Command palette overlay (Ctrl+P): the popup self-centers on the window. -->
                     <controls:CommandPalette DataContext="{Binding Palette}" />
                 </Grid>
 

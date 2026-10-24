@@ -10,8 +10,8 @@ using CS2DemoKit.Parser.EntityTracking;
 namespace DemoViewer.NET.ViewModels.EntityTracking;
 
 /// <summary>
-///     Left-rail class browser (F8.6). Lists classId → class-name pairs from
-///     <see cref="EntityTracker.ClassIdMap" /> (A2), filterable by name, with selection
+///     Left-rail class browser. Lists classId → class-name pairs from
+///     <see cref="EntityTracker.ClassIdMap" />, filterable by name, with selection
 ///     acting as a class filter on the entity list. A null selection means "all classes".
 /// </summary>
 public sealed partial class ClassBrowserViewModel : ObservableObject

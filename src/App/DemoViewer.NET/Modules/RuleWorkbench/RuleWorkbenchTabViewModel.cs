@@ -953,7 +953,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     /// <summary>
     ///     The unified check: builds the ruleset-doc set (shipped + user <c>*.rules.yaml</c>, the open
     ///     file taken from the editor buffer), collects mapping diagnostics, composes demo-less for the
-    ///     resolve/cross-ruleset diagnostics (D11a), and splits out the open-file inline set. Exception-
+    ///     resolve/cross-ruleset diagnostics, and splits out the open-file inline set. Exception-
     ///     safe, a filesystem-less host degrades to a summary line.
     /// </summary>
     private void Check()

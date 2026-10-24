@@ -123,7 +123,7 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
     /// <summary>Full unfiltered field list for the currently selected entity (for delta filter toggle).</summary>
     internal List<PayloadNode>? AllEntityFieldNodes { get; set; }
 
-    /// <summary>Left-rail class browser; selection filters the entity list (F8.6).</summary>
+    /// <summary>Left-rail class browser; selection filters the entity list.</summary>
     public ClassBrowserViewModel ClassBrowser { get; } = new();
 
     // ── Callback hooks (wired by MainViewModel) ───────────────────────────────
@@ -250,7 +250,7 @@ public sealed partial class EntityTrackingTabViewModel : ObservableObject
     /// <summary>Cancellation source for in-flight entity seeks. Mutated from three async pipelines.</summary>
     internal CancellationTokenSource? SeekCts { get; set; }
 
-    /// <summary>Bottom serializer/ServerClass schema strip for the active class (F8.6).</summary>
+    /// <summary>Bottom serializer/ServerClass schema strip for the active class.</summary>
     public SerializerSchemaViewModel SerializerSchema { get; } = new();
 
     /// <summary>Watched values.</summary>

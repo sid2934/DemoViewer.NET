@@ -63,7 +63,7 @@ public interface ILiveSyncService : IAsyncDisposable
     Task ResyncAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     F2 verify-in-CS2: suspends the sync follower, optionally spectates
+    ///     Verify-in-CS2: suspends the sync follower, optionally spectates
     ///     <paramref name="spectateName" /> (exact in-demo roster name), plays the pre/post-roll
     ///     range around <paramref name="frameClockTick" /> live in CS2 (deterministic paused
     ///     arrival), then remote-applies DV's playhead to the trigger frame and resumes the

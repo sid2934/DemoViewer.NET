@@ -15,7 +15,7 @@ namespace DemoViewer.NET.Modules.Highlights;
 public interface IHighlightHarvester
 {
     /// <summary>
-    ///     The A2 fingerprint for the CURRENT rule config at a demo's tick rate (fingerprints are
+    ///     The fingerprint for the CURRENT rule config at a demo's tick rate (fingerprints are
     ///     tickRate/profile-dependent: no global value). Cheap: YAML load + compose + hash, no
     ///     parse, no graph.
     /// </summary>
@@ -23,7 +23,7 @@ public interface IHighlightHarvester
 
     /// <summary>
     ///     Build + bare evaluate (no snapshots: the only affordable scan mode). Returns the run
-    ///     whose <c>Highlights</c> carry the A1 emission.
+    ///     whose <c>Highlights</c> carry the emission.
     /// </summary>
     AnalysisRun RunBareAnalysis(ParsedDemo demo);
 

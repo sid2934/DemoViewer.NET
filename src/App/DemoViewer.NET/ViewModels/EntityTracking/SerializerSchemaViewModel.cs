@@ -11,7 +11,7 @@ using CS2DemoKit.Parser.EntityTracking;
 namespace DemoViewer.NET.ViewModels.EntityTracking;
 
 /// <summary>
-///     Bottom-strip serializer / ServerClass schema view (F8.6). For the selected class
+///     Bottom-strip serializer / ServerClass schema view. For the selected class
 ///     it lists each field's name, declared type, encoder, bit count and encode flags,
 ///     sourced from <see cref="EntityTracker.Schema" /> (the flattened-serializer schema).
 /// </summary>

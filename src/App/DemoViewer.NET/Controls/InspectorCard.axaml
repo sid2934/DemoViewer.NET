@@ -5,7 +5,7 @@
              x:DataType="vm:HarvestCardViewModel">
 
     <!--
-      Reusable inspector card (F3.1) — the single, adopted message-card surface.
+      Reusable inspector card: the single, adopted message-card surface.
       Adopts the richer card template formerly in HarvestCardControl: accent strip,
       category badge, click-to-select header with byte-size, column header row, and
       the collapsible payload TreeView with per-row select (drives the node -> hex

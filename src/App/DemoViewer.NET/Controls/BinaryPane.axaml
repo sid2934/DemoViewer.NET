@@ -5,10 +5,10 @@
              x:DataType="vm:HarvestHexViewModel">
 
     <!--
-      Reusable hex viewer (F3.2). Adopts the windowed-virtualization implementation
+      Reusable hex viewer. Adopts the windowed-virtualization implementation
       formerly in HarvestHexControl: offset gutter, ASCII gutter, multi-range
       highlights (innermost-brush algorithm via HexSpan levels), the byte-click →
-      node loop (F5.2), and the optional header / footer / status banners.
+      node loop, and the optional header / footer / status banners.
 
       Data layer stays HarvestHexViewModel — consumers bind it as DataContext, e.g.
       <controls:BinaryPane DataContext="{Binding HexViewRaw}"/>. The VM exposes

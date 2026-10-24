@@ -37,9 +37,8 @@ public static class FfmpegDependency
     ///             The scan itself lives in
     ///             <see cref="DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.FfmpegLocator" />
     ///         </b>
-    ///         (B4 D14): the
-    ///         2D-export path needs the same resolution headlessly, where <see cref="AppPaths" /> does
-    ///         not exist. This method stays as the App-facing shim so
+    ///         because the 2D-export path needs the same resolution headlessly, where
+    ///         <see cref="AppPaths" /> does not exist. This method stays as the App-facing shim so
     ///         <see cref="FfmpegStatus" />/<see cref="FfmpegSource" /> and this namespace are unchanged
     ///         for the reel dialog, <c>App.axaml.cs</c> and <c>CsvgWebHost</c>.
     ///     </para>

@@ -167,7 +167,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public void RequestPlay() => _controller.Play();
     public void RequestPause() => _controller.Pause();
 
-    // ── Timeline / transport seams (Playback2D v2 A1) ──
+    // ── Timeline / transport seams (Playback2D v2) ──
     public int TotalFrames => _controller.TotalFrames;
 
     // Frame clock, read off the frame list the controller already holds rather than ParsedDemo.TickCount:

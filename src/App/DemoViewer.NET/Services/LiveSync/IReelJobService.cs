@@ -7,7 +7,7 @@ namespace DemoViewer.NET.Services.LiveSync;
 ///     <see cref="Start" /> and closes. Progress surfaces through the Reel status chip bound to
 ///     <see cref="Status" />/<see cref="StatusChanged" /> (no multi-minute modal). One job at a
 ///     time; while one runs, live-sync Enable/Reconnect and interactive demo loads are excluded
-///     (the F1↔F3b single-CS2 interlock + the HeavyJobGate reel session).
+///     (the single-CS2 interlock + the HeavyJobGate reel session).
 /// </summary>
 public interface IReelJobService
 {
