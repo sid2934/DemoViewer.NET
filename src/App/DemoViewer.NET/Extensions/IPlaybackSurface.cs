@@ -108,6 +108,9 @@ public interface IPlaybackSurface
     /// <returns>Removes the layer.</returns>
     IDisposable AddLayer(string layerId, Func<ISceneLayer> layer);
 
+    /// <summary>Repaints the map once, for a contributed layer whose own data changed off the playhead.</summary>
+    void RequestRender();
+
     /// <summary>
     ///     A pointer tool offered every primary press not diverted to pan, after the pointer pre-handlers and
     ///     before the drawing tools. The tool that takes a press owns the gesture.

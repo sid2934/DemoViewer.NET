@@ -125,6 +125,15 @@ public interface IPlaybackSurface
     IDisposable AddLayer(string id, Func<ISceneLayer> layer);
 
     /// <summary>
+    ///     Repaints the map once. A contributed layer calls this when its own data changes, which the
+    ///     playhead does not announce: <see cref="ISceneLayer.Advance" />'s return value arms the frame
+    ///     loop, so a layer that changes while playback is paused either never repaints or, if it keeps
+    ///     returning true, burns frames forever. A pointer tool has <c>IMapToolContext.RequestRender</c>
+    ///     for the same reason. Coalesced by the host, so calling it per changed item is fine.
+    /// </summary>
+    void RequestRender();
+
+    /// <summary>
     ///     A pointer tool on the tab's map. It is offered every primary press the tab does not turn into a pan
     ///     (Space, Control and the middle button pan), after the pointer pre-handlers and before the drawing
     ///     tools; a tool that takes the press owns the gesture until the release.

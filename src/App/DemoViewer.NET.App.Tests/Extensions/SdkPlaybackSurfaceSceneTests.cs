@@ -31,6 +31,33 @@ public class SdkPlaybackSurfaceSceneTests
         return (vm, new Playback2DSurface(vm.Timeline, () => [Floor], _ => true, frame ?? (() => Scene2DFrame.Empty)));
     }
 
+    /// <summary>
+    ///     A contributed layer's only way to repaint off the playhead. Advance's return value arms the
+    ///     frame loop, so a layer whose data changes while playback is paused has nothing else: it either
+    ///     never repaints, or it returns true forever and burns frames. The event is what Scene2DHost
+    ///     subscribes to, and it routes to the same RequestToolRender a pointer tool already reaches.
+    /// </summary>
+    [Test]
+    public async Task RequestRender_ReachesTheHostsRepaintEvent_ThroughTheGuardedSurface()
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        FaultRig rig = new();
+        using SdkPlaybackSurface surface = new(inner, rig.Guard);
+
+        int repaints = 0;
+        inner.RenderRequested += () => repaints++;
+
+        await Assert.That(repaints).IsEqualTo(0).Because("nothing has asked yet");
+
+        surface.RequestRender();
+        surface.RequestRender();
+
+        await Assert.That(repaints).IsEqualTo(2)
+            .Because("each call is one repaint request; the host coalesces, the surface does not swallow");
+
+        vm.Dispose();
+    }
+
     [Test]
     public async Task AddLayer_FilesTheLayerUnderTheExtensionsRoot_AndDisposingRemovesIt()
     {

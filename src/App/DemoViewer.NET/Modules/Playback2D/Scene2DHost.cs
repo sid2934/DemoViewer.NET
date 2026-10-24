@@ -1230,6 +1230,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         {
             _vm.FrameUpdated -= OnFrameUpdated;
             _vm.ContributedLayersChanged -= OnContributedLayersChanged;
+            _vm.ContributedRenderRequested -= RequestToolRender;
         }
 
         CancelContributedGesture();
@@ -1237,6 +1238,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         if (_vm is not null)
         {
             _vm.ContributedLayersChanged += OnContributedLayersChanged;
+            _vm.ContributedRenderRequested += RequestToolRender;
         }
 
         OnContributedLayersChanged();

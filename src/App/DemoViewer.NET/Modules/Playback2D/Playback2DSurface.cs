@@ -75,6 +75,12 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     /// <summary>A layer was added or removed. The map re-reads <see cref="Layers" />.</summary>
     public event Action? LayersChanged;
 
+    /// <summary>A contributed layer asked for a repaint. The map arms its frame loop once and redraws.</summary>
+    public event Action? RenderRequested;
+
+    /// <inheritdoc />
+    public void RequestRender() => RenderRequested?.Invoke();
+
     /// <summary>The contributed scene layers by id, in the order added.</summary>
     public IReadOnlyList<KeyValuePair<string, Func<ISceneLayer>>> Layers => _layers;
 

@@ -214,6 +214,8 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         return Own(_surface.AddLayer(filed, Build));
     }
 
+    public void RequestRender() => _surface.RequestRender();
+
     public IDisposable AddTool(IMapTool tool)
     {
         ArgumentNullException.ThrowIfNull(tool);

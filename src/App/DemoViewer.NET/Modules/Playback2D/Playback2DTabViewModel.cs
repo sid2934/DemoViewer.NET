@@ -1334,6 +1334,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         remove => Surface.LayersChanged -= value;
     }
 
+    event Action? ISceneFrameHost.ContributedRenderRequested
+    {
+        add => Surface.RenderRequested += value;
+        remove => Surface.RenderRequested -= value;
+    }
+
     private static string[] BuildMyWeaponsPaths()
     {
         string[] paths = new string[MyWeaponsSlots];
