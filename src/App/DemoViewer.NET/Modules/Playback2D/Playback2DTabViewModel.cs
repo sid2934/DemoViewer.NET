@@ -440,7 +440,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public GameInfo GameInfo { get; } = new();
 
     /// <summary>
-    ///     True when this build can export: the feature is on, a host is wired, and a demo is loaded.
+    ///     True when this build can export: the feature is on, a host is wired with its export plumbing,
+    ///     and a demo is loaded.
     ///     <para>
     ///         Re-raised from <see cref="RefreshGates" />, which is the one place every input to this
     ///         changes: the gate flip, activation, and the demo reset all land there. Without that the
@@ -450,7 +451,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public bool CanExport =>
         _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
-        _context?.GetService<Playback2DExportHost>() is not null &&
+        _context?.GetService<Playback2DExportHost>()?.Exports is not null &&
         _context.HasDemo;
 
     // OperatingSystem.IsBrowser() is a JIT-folded intrinsic, so the WASM branch of ExportUnavailableNote
@@ -883,7 +884,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [RelayCommand]
     private void OpenExport()
     {
-        if (!CanExport || _context?.GetService<Playback2DExportHost>() is not { } host)
+        if (!CanExport || _context?.GetService<Playback2DExportHost>() is not { Exports: { } exports } host)
         {
             return;
         }
@@ -904,7 +905,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             // and the fully-spelled form below compile to identical IL. An omission is not a fact about the
             // program, and nothing distinguishes "this composition chose the default" from "this
             // composition forgot the parameter".
-            _exportJob = new ExportJobService(
+            _exportJob = exports.NewJob(
                 new SceneExportRunner(
                     request => BuildExportSetup(host, request),
 
@@ -921,7 +922,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                     // Process-wide, so an app session pays for one two-frame test encode per rung rather
                     // than one per export.
                     EncoderProbeCache.Shared),
-                host.Gate,
                 host.IsLiveSyncBusy,
                 host.IsReelRunning,
                 AppendExportLog);
@@ -933,13 +933,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         ExportDialog = new Playback2DExportDialogViewModel(
             BuildExportRanges(),
-            host.Settings().Playback2D,
+            exports.Settings.Playback2D,
             _exportJob,
             CaptureExportMoment,
             OutputFrameCount,
             () => FfmpegLocationFor(FfmpegDependency.Locate()),
             host.IsLiveSyncBusy,
-            host.PersistSettings,
+            exports.PersistSettings,
 
             // Named, not positional, and not omitted. File.Exists is the right probe in the app, so this
             // seam exists for the tests alone, and a bare null here says none of that. Playback2DCompositionTests

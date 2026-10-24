@@ -5,7 +5,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -181,7 +180,7 @@ public class Playback2DMirrorLiveViewTests
                 Playback2DTimelineHarness.Pump();
 
                 Playback2DExportHost exportHost = new(
-                    () => null, null, null, null, () => new AppSettings(), _ => { });
+                    () => null, null, null, null);
 
                 await Assert.That(vm.BuildExportSetup(exportHost).DisplayMode)
                     .IsEqualTo(LevelDisplayMode.Stacked).Because("stacked is the shipping default");

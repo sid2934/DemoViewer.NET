@@ -163,7 +163,7 @@ public class App : Application
 
             // 2D video export. Everything reusable is in Core/Pipeline and
             // the 2D tab composes the job itself. What it cannot see through IModuleContext, such as the frame
-            // list, the heavy-job gate, and whether Live Sync or a reel already owns the machine, is
+            // list, the export plumbing, and whether Live Sync or a reel already owns the machine, is
             // handed to it here, the same way the live-sync HUD projection and the speed lock are.
             //
             // Not an AppHostHooks entry: every implementation involved lives in THIS project, which is
@@ -171,18 +171,19 @@ public class App : Application
             // gated off there anyway) and in the designer → the tab's Export affordance stays hidden.
             if (viewModel.ModuleContext is ModuleContext moduleContext)
             {
-                SettingsService settings = services.GetRequiredService<SettingsService>();
                 moduleContext.SetExportHost(new Playback2DExportHost(
                     () => viewModel.Playback.Frames,
-                    services.GetRequiredService<HeavyJobGate>(),
+
+                    // The gate and the export choices reach the tab through the one object the first-party
+                    // extensions render through, so a second path to either cannot drift from this one.
+                    services.GetRequiredService<FirstPartyExports>(),
+
                     // IsSessionActive only: OwnsSessionResources is internal to the desktop-only LiveSync
                     // project. The narrower predicate still refuses every case a user can create: a
                     // faulted session holding the gRPC host for retry is the gap, and the gate's own reel
                     // check covers the overlap that actually costs CPU.
                     () => liveSync?.State.IsSessionActive == true,
                     () => reelJob?.Status.IsRunning == true,
-                    () => settings.Current,
-                    settings.Write,
 
                     // The 2D tab is lazy and the shell is not, so the chip cannot be attached here the
                     // way the reel's is. The shell hands over the mount point and the tab calls it on the
