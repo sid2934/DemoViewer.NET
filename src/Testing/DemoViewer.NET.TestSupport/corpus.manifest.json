@@ -12,9 +12,10 @@
 // Hashes taken 2026-10-22 with `shasum -a 256` against the live corpus.
 //
 // NOT LISTED, deliberately: match730_003826256877184877003_0981591541_410.dem. It sits in the Steam
-// replays folder and demos/CORPUS.md records that staging it into demos/ re-points
-// Nuke_TwoFloors_MatchesGolden off the committed assets/tour sample, failing on a 14.5% pixel
-// difference. A manifest entry would make a fetch stage it, so it has none.
+// replays folder. The exclusion was recorded against a de_nuke golden test that preferred this demo
+// over the committed assets/tour sample and failed on a 14.5% pixel difference; that test is gone
+// and nothing resolves a demo by name against a golden any more, so re-admitting it is now a
+// deliberate call with no gate to catch it. A manifest entry would make a fetch stage it.
 {
   "demos": [
     {

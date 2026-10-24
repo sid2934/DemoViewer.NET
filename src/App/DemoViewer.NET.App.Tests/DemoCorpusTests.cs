@@ -126,9 +126,17 @@ public class DemoCorpusTests
     }
 
     /// <summary>
-    ///     <c>demos/CORPUS.md</c> records that staging this demo re-points
-    ///     <c>Nuke_TwoFloors_MatchesGolden</c> off the committed tour sample. A manifest entry
-    ///     would make a configured fetch stage it, so it must have none.
+    ///     This demo stays out of the manifest, so a configured fetch never stages it into a checkout
+    ///     that lacks it.
+    ///     <para>
+    ///         The exclusion was recorded against a de_nuke golden test that listed this demo as a
+    ///         candidate ahead of the committed tour sample and failed on a 14.5 percent pixel
+    ///         difference when this one won. THAT TEST NO LONGER EXISTS, and no surviving test
+    ///         resolves a demo by name to compare it against a committed golden, so the exclusion
+    ///         now rests on a capture that is gone. It is kept because re-admitting the demo is a
+    ///         deliberate decision with no gate left to catch it, not because the original failure
+    ///         can still happen. See demos/CORPUS.md.
+    ///     </para>
     /// </summary>
     [Test]
     public async Task Manifest_Excludes_TheDemoThatRepointsTheNukeGolden()

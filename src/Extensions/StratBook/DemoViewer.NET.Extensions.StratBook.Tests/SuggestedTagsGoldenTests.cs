@@ -40,9 +40,16 @@ public class SuggestedTagsGoldenTests
         }
     }
 
-    // Known failure, tracked by category rather than by eye.
+    /// <summary>
+    ///     Every detector has at least one pinned round behind it, so a detector cannot be added
+    ///     without a fixture that exercises it.
+    ///     <para>
+    ///         Unordered on purpose: the left side is a HashSet, which enumerates in first-seen order,
+    ///         and the right side is declaration order. Comparing those two as sequences asserts
+    ///         something neither side promises.
+    ///     </para>
+    /// </summary>
     [Test]
-    [Category("KnownFailure")]
     public async Task ThePinnedRounds_ExerciseEveryDetector()
     {
         string? repo = DemoTestHelper.FindRepoRoot();
