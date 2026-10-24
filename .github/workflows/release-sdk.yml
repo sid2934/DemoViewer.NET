@@ -6,6 +6,10 @@
 # Publishes only on a tag push matching sdk/v<version>, which must equal the computed version (create it with
 # `dotnet nbgv tag -p src/Sdk/DemoViewer.NET.Extensions.Sdk` on main, after scripts/ship-public-api.sh). A
 # workflow_dispatch run packs and reports without pushing. Needs the NUGET_API_KEY repository secret.
+#
+# EVERY trigger, dispatch included, is gated on verify-ci: the head SHA must already have a completed,
+# successful ci run. Dispatching from a branch therefore fails at the gate until ci has run on that
+# branch's head, so dispatch ci first and let it finish.
 name: release-sdk
 
 on:
@@ -42,7 +46,7 @@ jobs:
           fi
           echo "ci conclusions for $sha: ${runs:-<none>}"
           if [ -z "$runs" ]; then
-            echo "::error::No completed 'ci' run for $sha. Tag a commit that has landed on main and gone green." >&2
+            echo "::error::No completed 'ci' run for $sha. Dispatch ci on this ref and let it finish, or tag a commit that has already gone green." >&2
             exit 1
           fi
           case " $runs " in

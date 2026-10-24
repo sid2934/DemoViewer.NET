@@ -5,6 +5,10 @@
 # that same tag with dry_run=false. Every other trigger, including any dispatch from a branch, is a
 # dry run: build, sign, zip, verify, report; no release, no feed change.
 #
+# A dry run still has to clear verify-ci first, which requires a completed, successful ci run on the
+# head SHA. So a dispatch from a branch fails at the gate before anything is built or signed: dispatch
+# ci on that branch and let it finish, then dispatch this.
+#
 # Every value that can carry attacker-controlled text (a dispatch input, a ref-derived id) is passed
 # through env:, never interpolated into run: script text, and the id is validated against the
 # manifest id shape before it is used for anything.
@@ -61,7 +65,7 @@ jobs:
           fi
           echo "ci conclusions for $sha: ${runs:-<none>}"
           if [ -z "$runs" ]; then
-            echo "::error::No completed 'ci' run for $sha. Tag a commit that has landed on main and gone green." >&2
+            echo "::error::No completed 'ci' run for $sha. Dispatch ci on this ref and let it finish, or tag a commit that has already gone green." >&2
             exit 1
           fi
           case " $runs " in
