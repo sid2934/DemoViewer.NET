@@ -40,7 +40,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Gate: the tagged commit must already have a green `ci` run. `ci` runs on push to main and on pull
+  # requests, not on tags, so a tag whose commit never landed there has no run and fails here. It is a
+  # check, not a re-run. Same gate as release.yml.
+  verify-ci:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Require a successful ci run for ${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="${{ github.sha }}"
+          if ! runs=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$sha&status=completed" \
+                        --jq '[.workflow_runs[].conclusion] | join(" ")' 2>&1); then
+            echo "::error::Could not query ci runs for $sha. This is an API/permissions failure, not a verdict on the tests. Response: $runs" >&2
+            exit 1
+          fi
+          echo "ci conclusions for $sha: ${runs:-<none>}"
+          if [ -z "$runs" ]; then
+            echo "::error::No completed 'ci' run for $sha. Tag a commit that has landed on main and gone green." >&2
+            exit 1
+          fi
+          case " $runs " in
+            *" success "*) echo "ci is green for $sha." ;;
+            *) echo "::error::'ci' did not succeed for $sha (conclusions: $runs). Refusing to release." >&2; exit 1 ;;
+          esac
+
   build-and-pack:
+    needs: verify-ci
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -55,7 +85,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # The ext suite and CompatibilityMatrixTests both render through Avalonia.Headless + Avalonia.Skia.
+      # CompatibilityMatrixTests renders through Avalonia.Headless + Avalonia.Skia.
       - name: Install native deps
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
@@ -99,13 +129,10 @@ jobs:
       - name: Restore CLI tools (nbgv)
         run: dotnet tool restore
 
-      - name: Extension suite, standard tier
-        run: bash scripts/test.sh -t standard -p ext -c Release
-
       - name: Build App.Tests
         run: dotnet build src/App/DemoViewer.NET.App.Tests -c Release
 
-      # The release gate: the shipped manifest against this host on every
+      # The release gate (the ext suite itself is run by ci, which verify-ci requires): the shipped manifest against this host on every
       # axis, and the extension's compiled references against what this build actually loads.
       - name: CompatibilityMatrixTests
         run: >
