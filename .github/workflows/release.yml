@@ -42,8 +42,9 @@ jobs:
   # does NOT produce the release artifacts — the package matrix below builds those itself — so this
   # gate proves the commit is tested, not that it is already built.
   #
-  # `ci` triggers on push-to-main and pull_request, NOT on tags, so a tag whose commit never landed
-  # on main has no run and fails here. That is the case worth catching.
+  # `ci` triggers on push-to-main, pull_request and workflow_dispatch, NOT on tags, so a tagged commit
+  # with no completed `ci` run of its own fails here. That is the case worth catching. A dispatch on a
+  # branch counts, which is how release-sdk and release-extension expect a dry run to clear this gate.
   verify-ci:
     runs-on: ubuntu-latest
     steps:
