@@ -1394,7 +1394,7 @@ spectating has no readback. Gated by `playback2d.follow`.
   (the flyout body, resolved by the app `ViewLocator`). **Second consumer: the Reel
   job (F3b)** via `ViewModels/Highlights/ReelJobStatusViewModel` + `Views/Highlights/ReelJobStatusView`: the
   ≥2× that justifies the shared control is now realized (see [Create-Reel dialog + Reel chip](#reel-surfaces)).
-  **Third consumer (demo-processing-queue.md §12): the demo-processing queue** via
+  **Third consumer: the demo-processing queue** via
   `ViewModels/DemoProcessing/ProcessingQueueStatusViewModel` + `Views/DemoProcessing/ProcessingQueueStatusView`
   (see [Processing-queue chip + flyout](#processing-queue-surface)), the queue's live management surface.
   **The library-wide highlight scan chip was the fourth consumer and is retired.** Highlights became an
@@ -1413,7 +1413,7 @@ spectating has no readback. Gated by `playback2d.follow`.
 - **Purpose:** the app's idiom for a **persistent, stateful, background-activity indicator** in the bottom
   status strip: a **dot + label** (not a filled pill) that opens a `Border.card-flyout` for detail +
   actions. Empty `Chips` ⇒ nothing rendered, so the strip reads exactly as before.
-- **Contrast rule (computed across all 4 built-in themes, ux-design §3.2):** the **label is always neutral
+- **Contrast rule (computed across all 4 built-in themes, CSVG design notes in git history, §3.2):** the **label is always neutral
   `TextMid`**: the only token that clears AA (4.5:1) on `PanelHeaderBg` in every theme (`AccentCaution` as a
   label fails Light at 3.95). **State is word-carried; the dot is a redundant colour cue** (WCAG 1.4.1), which
   legitimises the two sub-3:1 dark dots (working `AccentInteractive` 2.72, off `TextDim` 1.96). Never tint
@@ -1425,7 +1425,7 @@ spectating has no readback. Gated by `playback2d.follow`.
   class-driving bools `IsState{Off,Working,Good,Degraded,Error}`. **Colour rule (resolved fork):** the VM
   holds **NO** `DotBrush`/`LabelBrush`: the dot colour is a **bound state→class selector whose setter is
   `{DynamicResource Token}`** (the `Border.teamChip{,.teamT,.teamCt}` pattern) in `Styles/Primitives.axaml`,
-  so it re-themes live. (The ux-design §4.1 prop-list literally named `IBrush DotBrush/LabelBrush`; that
+  so it re-themes live. (The CSVG design notes' §4.1 prop-list literally named `IBrush DotBrush/LabelBrush`; that
   contradicts the theme mandate, so the class-driven form is authoritative. This note supersedes it.)
   State→token map: working `AccentInteractive` (pulsing), good `StatPositive`, **inferred = `StatPositive`
   HOLLOW ring + `(inferred)` suffix** (distinct from Degraded), degraded `AccentCaution`, error `AccentError`,
@@ -1453,7 +1453,7 @@ spectating has no readback. Gated by `playback2d.follow`.
   - **Second surface: the 2D-tab in-context indicator** (below).
 
 <a id="processing-queue-surface"></a>
-### Processing-queue chip + flyout (demo-processing-queue.md §12)
+### Processing-queue chip + flyout (queue design notes in git history, §12)
 The live management surface for the global background demo-processing queue: the **third `StatusChip`
 consumer**, placed in the bottom status strip because a queue is exactly the "persistent, stateful,
 background-activity" the idiom exists for (out of the way for developers, present-by-default for power+dev,
@@ -1512,7 +1512,8 @@ hidden for consumers).
   text carry each theme with zero per-file changes. Pure-VM coverage: `ProcessingQueueStatusViewModelTests`;
   the start order and promotion rules: `QueueStartOrderTests`.
 
-### Live Sync 2D-tab indicator + `ILiveSyncHudState` seam (CSVG Phase-3, ux-design §5.3)
+<a id="livesync-hud-seam"></a>
+### Live Sync 2D-tab indicator + `ILiveSyncHudState` seam (CSVG Phase-3, design notes in git history, §5.3)
 - **What:** a small **display-only** CS2 chip on the 2D Playback HUD (top-right, in the walled-off `Pb2d*`
   palette via [`Ellipse.pb2dDot.*`](#pb2d-hud-dot)), present only while `chrome.livesync` is on AND the 2D
   tab is active AND the session is non-Disconnected. Following pulses (CS2 is the clock master); inferred
@@ -1530,9 +1531,9 @@ hidden for consumers).
   `OnDeactivated`. Test doubles inherit the default null → indicator absent (no test churn).
 
 <a id="reel-surfaces"></a>
-### Create-Reel dialog + Reel job chip (CSVG integration, ux-design §8/§9)
+### Create-Reel dialog + Reel job chip (CSVG integration, design notes in git history, §8/§9)
 The **Create-Highlight-Reel** flow (Highlights footer → modal dialog → background job → status chip). Two
-VMs, both `ViewModelBase` (ViewLocator-resolved), both fully token-driven: **zero new tokens** (ux-design
+VMs, both `ViewModelBase` (ViewLocator-resolved), both fully token-driven: **zero new tokens** (CSVG design notes
 §11.1: the reel palette maps onto existing accents).
 - **`HighlightReelDialogViewModel`** (`ViewModels/Highlights/`, view `Views/Highlights/HighlightReelDialogView`,
   modal host `HighlightReelDialogWindow`, the **FirstRunWizard precedent**: `Window` DataContext = VM,
@@ -2143,7 +2144,7 @@ overrides.
   Verified across **dark / light / high-contrast / e-girl**.
 
 <a id="addclips-picker"></a>
-#### Add-clips picker: the cross-demo entry point (v0.5.3 step 9, plan §4.4)
+#### Add-clips picker: the cross-demo entry point (v0.5.3 step 9, redesign plan notes in git history, §4.4)
 
 `Views/Highlights/AddClipsPickerView.axaml` + `ViewModels/Highlights/AddClipsPickerViewModel.cs`
 (`AddClipsRowViewModel` per row). A flat, **virtualized highlight-ROW list** over every cached demo: the
@@ -2251,12 +2252,12 @@ feature stays user-toggleable in Settings. `●` default-visible, `○` default-
 | NavStrip **TO BREAKPOINT** group | Chrome | ○ | ○ | ● | Dev chrome (`graphDebug` group). |
 | Parser **hex `BinaryPane`** | SubFeature | ○ | ○ | ● | Expensive; dev-only; clear buffers on disable. |
 | Analysis **graph breakpoints** | SubFeature | ○ | ○ | ● | Dev-only (`graphDebug` group). |
-| **Reels** tab (was Highlights) | Tab | ● | ● | ● | **Reel AUTHORING dashboard (v0.5.3)**: clip tray + reel config, no longer a browser; per-game highlight exploration is on Match Overview. Unchanged defaults: ux-design §2.2 reasoned that gating reel generation to power+ *"would hide the feature's headline payoff from the audience most excited by it"*. ⚠ Feature id stays **`tab.highlights`** and TabId stays **`highlights.browser`**: persisted keys; only the header string changed. Desktop full; WASM **registered + degraded** (fork 7) with authoring-specific copy. See [Reels dashboard](#reels-dashboard-v053). |
+| **Reels** tab (was Highlights) | Tab | ● | ● | ● | **Reel AUTHORING dashboard (v0.5.3)**: clip tray + reel config, no longer a browser; per-game highlight exploration is on Match Overview. Unchanged defaults: the CSVG design notes' §2.2 reasoned that gating reel generation to power+ *"would hide the feature's headline payoff from the audience most excited by it"*. ⚠ Feature id stays **`tab.highlights`** and TabId stays **`highlights.browser`**: persisted keys; only the header string changed. Desktop full; WASM **registered + degraded** (fork 7) with authoring-specific copy. See [Reels dashboard](#reels-dashboard-v053). |
 | Reels **`highlights.encoding`** | SubFeature | ○ | ● | ● | **Shipped v0.5.3 (step 9).** `ParentId: "tab.highlights"`, `Defaults(false, true, true)`, no `GroupId` (so the parserDeepDive / graphDebug leader-lock ordering is undisturbed). CRF / bitrate / FPS / container are OBS encoder knobs a consumer cannot reason about, the textbook hidden-but-enableable tier, hidden not removed: every category can switch it on in Settings. Consumer face: tray + Default/No-HUD + folder/name + Generate, which never routes through it. Consumed via `ReelConfig.IsEncodingVisible` (a gate seam, **not** an inline category check), applied from an optional `IFeatureGate` ctor arg **and re-applied on `IFeatureGate.Changed`**: a one-shot read would leave the section wrong after the user toggled it. Null gate (tests / UiCapture) ⇒ visible: a missing gate must never silently remove a section. |
 | Match Overview **highlight section** | — | ● | ● | ● | **Binds the existing `tab.highlights` gate: do NOT mint a new id.** Disabling Reels should coherently remove both surfaces. Note the axis: a *feature gate* is user-initiated and stable for a whole load, so it is legitimate `IsVisible`; gating on **load state** would violate skeleton-first. |
-| **Live Sync (CS2)** chip/flyout/2D-indicator/speed-lock/F2 Verify | Chrome | ○ | ○ | ● | `chrome.livesync`. **Desktop only** (ANDs `!IsBrowser()`). Documented fork: default-off for power-users because it temporarily modifies the real CS2 install + inferred states + DV-restart-relaunch papercut → beta-grade; one Settings toggle away. See ux-design §2.3. |
-| **Processing queue** chip/flyout | Chrome | ○ | ● | ● | `chrome.processingQueue`. **Desktop only** (ANDs `!IsBrowser()`, background work needs a filesystem). Managing the background parse/analyse queue (pause/resume, per-item remove, status) is a power-user+ concern; **opening a demo never requires it** (foreground is always awaitable). The status chip appears only while the queue has activity or is paused (idle+empty adds no strip clutter). demo-processing-queue.md §12. |
-| Reels **Generate reel** | (ungated) | ● | ● | ● | Marquee action, visible to all; guarded by the reel dialog + platform check + the single-CS2 interlock (ux-design §8/§9). Real: Win/Linux; dry-run: macOS; absent: WASM. |
+| **Live Sync (CS2)** chip/flyout/2D-indicator/speed-lock/F2 Verify | Chrome | ○ | ○ | ● | `chrome.livesync`. **Desktop only** (ANDs `!IsBrowser()`). Documented fork: default-off for power-users because it temporarily modifies the real CS2 install + inferred states + DV-restart-relaunch papercut → beta-grade; one Settings toggle away. See the CSVG design notes in git history, §2.3. |
+| **Processing queue** chip/flyout | Chrome | ○ | ● | ● | `chrome.processingQueue`. **Desktop only** (ANDs `!IsBrowser()`, background work needs a filesystem). Managing the background parse/analyse queue (pause/resume, per-item remove, status) is a power-user+ concern; **opening a demo never requires it** (foreground is always awaitable). The status chip appears only while the queue has activity or is paused (idle+empty adds no strip clutter). See [Processing-queue chip + flyout](#processing-queue-surface). |
+| Reels **Generate reel** | (ungated) | ● | ● | ● | Marquee action, visible to all; guarded by the reel dialog + platform check + the single-CS2 interlock (CSVG design notes, §8/§9). Real: Win/Linux; dry-run: macOS; absent: WASM. |
 | Reels **background scan** | setting | ○ | ○ | ○ | Opt-in for **all** categories (≈30 min churn on 200 demos), a Settings default, not a category default. Desktop only. |
 | **Visual Walkthrough** (first-run tour) | Overlay | ● | ● | ○ | `chrome.tutorial` (proposed). **Consumer-scoped content for everyone**, auto-shown **once** after first-time setup for Consumer/Power (skippable; re-runnable from Settings). Default-OFF auto-show for **Developer**: devs already know the app; never nag them (they can launch it from Settings). Not a per-tab feature; the overlay + `SpotlightScrim` are always present, the *auto-trigger default* is what this row gates. |
 
@@ -2551,7 +2552,7 @@ shared class (`ListBox.card-grid`, above).
 > per-game exploration + Verify; the Add-clips picker for the filters). What still holds: D-HL1's module +
 > persisted-id wiring, D-HL2's delegate-injection pattern, the cache/scan service contracts, and D-HL3's
 > `HighlightKey`-keyed selection set, which is exactly what the clip tray is a promotion OF.
-- **D-HL1. Registration (per ux-design §7.1).** New `IWorkspaceModule` `Modules/Highlights/HighlightsModule`
+- **D-HL1. Registration (per the CSVG design notes' §7.1).** New `IWorkspaceModule` `Modules/Highlights/HighlightsModule`
   (TabId `"highlights.browser"`, Order 3, Placement Main), **`ViewModelFactory` never `DataContext`** (the
   DataContext branch skips the `OnActivated` lifecycle the tab-activation staleness trigger needs). Registered
   in `App.BuildRegistry` (alongside Playback2D/Workbench) + `tab.highlights` `FeatureDescriptor` (verbatim
@@ -2589,7 +2590,7 @@ shared class (`ListBox.card-grid`, above).
 
 ### Decisions (CSVG Phase-3 Live Sync polish, 2026-07-18)
 - **D-CSVG3. The 2D-tab CS2 indicator is DISPLAY-ONLY / non-interactive** (`IsHitTestVisible=False` on the
-  whole top-right HUD stack it shares with the kill feed). ux-design §5.3 offered "click → focuses/opens the
+  whole top-right HUD stack it shares with the kill feed). The CSVG design notes' §5.3 offered "click → focuses/opens the
   shell sync flyout," but that flyout is owned by the `StatusChip` `Button` in the bottom `StatusStrip`;
   programmatically opening it from a control in the 2D viewport's visual tree is disproportionate wiring for
   a redundant affordance (the always-present shell chip IS the control centre, one click away). So the
@@ -2600,14 +2601,14 @@ shared class (`ListBox.card-grid`, above).
   default-null interface member) keeps `Modules.Abstractions` free of the App-layer `Services.LiveSync`
   contract and keeps every existing `IModuleContext` test double compiling untouched. The gate is folded into
   `IsActive` (not into seam presence) so a live `chrome.livesync` toggle reflows the indicator without a tab
-  re-activation. See the [seam contract](#live-sync-2d-tab-indicator--ilivesynchudstate-seam-csvg-phase-3-ux-design-53).
+  re-activation. See the [seam contract](#livesync-hud-seam).
 - **D-CSVG5. The v1.0-plugin flyout note uses the sibling caution treatment (⚠ `AccentCaution` + neutral
-  `TextMid`), not tinted body text.** ux-design §5.2 asked for an "`AccentCaution`-toned note"; the tone is
+  `TextMid`), not tinted body text.** The CSVG design notes' §5.2 asked for an "`AccentCaution`-toned note"; the tone is
   carried by the ⚠ icon (matching the existing "untested plugin/game pair" + §5.7 path notes), keeping the
   message text on the universally-AA-safe `TextMid` (a tinted `AccentCaution` message is razor-thin on the
   Light `CardBg`). Verified legible in dark / light / high-contrast renders.
 - **D-CSVG6. F2 "Verify in CS2" (the UI half) rides the Analysis graph node/edge context menu on
-  pointer-release** (ux-design §6.1's resolved fork; §12 table), a new item on the *same* imperatively-built
+  pointer-release** (the CSVG design notes' §6.1 resolved fork; §12 table), a new item on the *same* imperatively-built
   menu as the breakpoint items (`Views/Analysis/AnalysisTabView.axaml.cs` `AddVerifyInCs2Item`). It is scoped
   to the rule-trigger surface: the `!IsBreakpointable` early return means only nodes + trigger-backed edges
   reach it (un-backed logic edges are not triggers, correctly get no Verify item). **Zero new tokens /
