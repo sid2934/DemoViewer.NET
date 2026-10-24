@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Visualization.Tests.SampleGraphs;
 ///         <c>CS2DemoKit.Parser</c> and <c>CS2DemoKit.Analysis</c> 0.12.0 loads <c>rules/</c> with
 ///         <c>YamlConfigLoader.TryLoadDirectory</c>, builds with
 ///         <c>DemoAnalysis.Build(demo, rulesets, new AnalysisOptions { VisibilityEngine })</c> over
-///         <c>demos/pro/furia-vs-vitality-m1-mirage.dem</c> with the <c>de_mirage</c> collision bake
+///         <c>demos/pro-demos/furia-vs-vitality-m1-mirage.dem</c> with the <c>de_mirage</c> collision bake
 ///         loaded, evaluates with <c>DemoAnalysis.Evaluate</c>, then reproduces
 ///         <c>AnalysisViewModel.BuildGraphViewModels</c> exactly: <c>build.Nodes</c> plus the lowest
 ///         materialised slot's <c>MaterializedPlayer.Nodes</c>, then <c>build.Edges</c> plus that
