@@ -330,7 +330,7 @@ public sealed class WetStroke
 
 /// <summary>
 ///     The shared mutable seam between the pointer tools, the render layer and the UI. The "annotation
-///     session" <c>IToolServices</c> names. It owns the document, the wet stroke, the current paint and
+///     session" <c>IInkToolServices</c> names. It owns the document, the wet stroke, the current paint and
 ///     the envelope template new elements are stamped with.
 ///     <para>
 ///         Deliberately NOT a view-model: Core has no Avalonia, and the tools have to be drivable from a

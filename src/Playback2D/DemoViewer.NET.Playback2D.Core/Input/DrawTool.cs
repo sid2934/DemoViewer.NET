@@ -35,15 +35,15 @@ public sealed class DrawTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        if (e.Pane is not { } pane)
+        if (s is not IInkToolServices ink || e.Pane is not { } pane)
         {
             return false;
         }
 
-        AnnotationSession session = s.Session;
+        AnnotationSession session = ink.Session;
         _gesture = session.Document.BeginGesture("draw");
-        _envelope = session.EnvelopeForNewElement(s.CurrentTick);
-        _lastEventMs = s.NowMilliseconds;
+        _envelope = session.EnvelopeForNewElement(ink.CurrentTick);
+        _lastEventMs = ink.NowMilliseconds;
 
         // The BUTTON picks the ink, and the wet stroke carries it from here on: the toolbar can change
         // colour mid-drag and the committed element still has the paint the gesture started with.
@@ -51,12 +51,12 @@ public sealed class DrawTool : IPointerTool
         // Whether there is a CADENCE to record is captured in the same breath and for the same reason:
         // the accumulator has to start at the first sample, so a toolbar flip mid-drag must not get to
         // decide retroactively whether this stroke had one.
-        SpaceRef space = ResolveSpace(pane, in e, s);
+        SpaceRef space = ResolveSpace(pane, in e, ink);
         session.Wet.Begin(session.StyleFor(e.Button), space, pane.LevelId,
             new InkPoint(e.World.X, e.World.Y, e.Pressure),
             session.DefaultVisibility == EnvelopeMode.RealTime, _lastEventMs);
 
-        s.RequestRender();
+        ink.RequestRender();
         return true;
     }
 
@@ -65,13 +65,18 @@ public sealed class DrawTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        AnnotationSession session = s.Session;
+        if (s is not IInkToolServices ink)
+        {
+            return;
+        }
+
+        AnnotationSession session = ink.Session;
         if (!session.Wet.IsActive)
         {
             return;
         }
 
-        long nowMs = s.NowMilliseconds;
+        long nowMs = ink.NowMilliseconds;
         float spacing = session.SampleSpacingFor(session.Wet.Style);
 
         // Coalesced samples first, oldest-first: they happened BEFORE the primary point, and appending
@@ -95,7 +100,7 @@ public sealed class DrawTool : IPointerTool
         _lastEventMs = nowMs;
 
         // Unconditional: the repaint below runs whether or not the spacing filter kept the sample.
-        s.RequestRender();
+        ink.RequestRender();
     }
 
     /// <inheritdoc />
@@ -103,7 +108,12 @@ public sealed class DrawTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        AnnotationSession session = s.Session;
+        if (s is not IInkToolServices ink)
+        {
+            return;
+        }
+
+        AnnotationSession session = ink.Session;
         if (!session.Wet.IsActive)
         {
             CloseGesture();
@@ -113,7 +123,7 @@ public sealed class DrawTool : IPointerTool
         // No _lastEventMs update here: the release is the LAST event of the gesture, and the next press
         // seeds it again. Carrying it forward would be a value nothing can read.
         session.Wet.TryAppend(new InkPoint(e.World.X, e.World.Y, e.Pressure),
-            session.SampleSpacingFor(session.Wet.Style), s.NowMilliseconds);
+            session.SampleSpacingFor(session.Wet.Style), ink.NowMilliseconds);
 
         IReadOnlyList<InkPoint> samples = session.Wet.Points;
         if (samples.Count > 0)
@@ -148,7 +158,7 @@ public sealed class DrawTool : IPointerTool
 
         CloseGesture();
         session.Wet.Clear();
-        s.RequestRender();
+        ink.RequestRender();
     }
 
     /// <inheritdoc />
@@ -156,14 +166,19 @@ public sealed class DrawTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        AnnotationSession session = s.Session;
+        if (s is not IInkToolServices ink)
+        {
+            return;
+        }
+
+        AnnotationSession session = ink.Session;
 
         // BailToMark BEFORE disposing the handle: disposing first would push the (empty) gesture and
         // leave nothing for the bail to roll back.
         session.Document.BailToMark();
         CloseGesture();
         session.Wet.Clear();
-        s.RequestRender();
+        ink.RequestRender();
     }
 
     private void CloseGesture()
@@ -173,7 +188,7 @@ public sealed class DrawTool : IPointerTool
     }
 
     // Internal so the shape and text tools anchor exactly as the pen does.
-    internal static SpaceRef ResolveSpace(LevelPane pane, in ToolPointerEvent e, IToolServices s)
+    internal static SpaceRef ResolveSpace(LevelPane pane, in ToolPointerEvent e, IInkToolServices s)
     {
         AnnotationSession session = s.Session;
 

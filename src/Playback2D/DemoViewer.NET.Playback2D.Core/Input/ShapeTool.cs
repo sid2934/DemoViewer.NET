@@ -54,22 +54,22 @@ public sealed class ShapeTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        if (e.Pane is not { } pane)
+        if (s is not IInkToolServices ink || e.Pane is not { } pane)
         {
             return false;
         }
 
-        AnnotationSession session = s.Session;
+        AnnotationSession session = ink.Session;
         _gesture = session.Document.BeginGesture("shape");
-        _envelope = session.EnvelopeForNewElement(s.CurrentTick);
-        _tapSlopWorld = (float)(TapSlopPixels * s.WorldUnitsPerPixel(pane));
+        _envelope = session.EnvelopeForNewElement(ink.CurrentTick);
+        _tapSlopWorld = (float)(TapSlopPixels * ink.WorldUnitsPerPixel(pane));
 
         InkPoint first = new(e.World.X, e.World.Y, e.Pressure);
-        SpaceRef space = DrawTool.ResolveSpace(pane, in e, s);
+        SpaceRef space = DrawTool.ResolveSpace(pane, in e, ink);
         session.Wet.Begin(session.StyleFor(e.Button), space, pane.LevelId, first, kind: _kind);
         session.Wet.ReplaceLast(first);
 
-        s.RequestRender();
+        ink.RequestRender();
         return true;
     }
 
@@ -78,7 +78,12 @@ public sealed class ShapeTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        WetStroke wet = s.Session.Wet;
+        if (s is not IInkToolServices ink)
+        {
+            return;
+        }
+
+        WetStroke wet = ink.Session.Wet;
         if (!wet.IsActive)
         {
             return;
@@ -86,7 +91,7 @@ public sealed class ShapeTool : IPointerTool
 
         // Only the newest position matters to a rubber band, so the coalesced samples are ignored.
         wet.ReplaceLast(Constrain(wet.Points[0], e.World.X, e.World.Y, e.Pressure, e.Modifiers));
-        s.RequestRender();
+        ink.RequestRender();
     }
 
     /// <inheritdoc />
@@ -94,7 +99,12 @@ public sealed class ShapeTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        AnnotationSession session = s.Session;
+        if (s is not IInkToolServices ink)
+        {
+            return;
+        }
+
+        AnnotationSession session = ink.Session;
         WetStroke wet = session.Wet;
         if (!wet.IsActive)
         {
@@ -123,7 +133,7 @@ public sealed class ShapeTool : IPointerTool
 
         CloseGesture();
         wet.Clear();
-        s.RequestRender();
+        ink.RequestRender();
     }
 
     /// <inheritdoc />
@@ -131,11 +141,16 @@ public sealed class ShapeTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        AnnotationSession session = s.Session;
+        if (s is not IInkToolServices ink)
+        {
+            return;
+        }
+
+        AnnotationSession session = ink.Session;
         session.Document.BailToMark();
         CloseGesture();
         session.Wet.Clear();
-        s.RequestRender();
+        ink.RequestRender();
     }
 
     /// <summary>

@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 /// <summary>
 ///     The text label tool. Press places the anchor: it commits a
 ///     <see cref="AnnotationKind.Text" /> element with one point and an empty string, then asks the host
-///     for an editor through <see cref="IToolServices.RequestTextEdit" />. The host hands the typed string
+///     for an editor through <see cref="IInkToolServices.RequestTextEdit" />. The host hands the typed string
 ///     back through <see cref="CompleteEdit" />.
 ///     <para>
 ///         <b>The undo mark stays open across the edit.</b> The add and the typed text land in ONE
@@ -35,7 +35,7 @@ public sealed class TextTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        if (e.Pane is not { } pane)
+        if (s is not IInkToolServices ink || e.Pane is not { } pane)
         {
             return false;
         }
@@ -45,10 +45,10 @@ public sealed class TextTool : IPointerTool
         // so it is rolled back rather than left as an invisible element.
         if (EditingElementId is not null)
         {
-            CompleteEdit(s, null);
+            CompleteEdit(ink, null);
         }
 
-        AnnotationSession session = s.Session;
+        AnnotationSession session = ink.Session;
         AnnotationDocument document = session.Document;
         _gesture = document.BeginGesture("text");
         _document = document;
@@ -57,16 +57,16 @@ public sealed class TextTool : IPointerTool
             Guid.NewGuid(),
             AnnotationKind.Text,
             session.StyleFor(e.Button),
-            DrawTool.ResolveSpace(pane, in e, s),
-            session.EnvelopeForNewElement(s.CurrentTick),
+            DrawTool.ResolveSpace(pane, in e, ink),
+            session.EnvelopeForNewElement(ink.CurrentTick),
             [new InkPoint(e.World.X, e.World.Y, e.Pressure)],
             "");
 
         document.Apply(new DocDelta.Add(element, document.Elements.Count));
         EditingElementId = element.Id;
 
-        s.RequestTextEdit(element.Id);
-        s.RequestRender();
+        ink.RequestTextEdit(element.Id);
+        ink.RequestRender();
         return true;
     }
 
@@ -85,7 +85,11 @@ public sealed class TextTool : IPointerTool
     public void OnCancelled(IToolServices s)
     {
         ArgumentNullException.ThrowIfNull(s);
-        CompleteEdit(s, null);
+
+        if (s is IInkToolServices ink)
+        {
+            CompleteEdit(ink, null);
+        }
     }
 
     /// <summary>
@@ -95,7 +99,7 @@ public sealed class TextTool : IPointerTool
     /// </summary>
     /// <param name="s">Host services.</param>
     /// <param name="text">What was typed, or null to cancel.</param>
-    public bool CompleteEdit(IToolServices s, string? text)
+    public bool CompleteEdit(IInkToolServices s, string? text)
     {
         ArgumentNullException.ThrowIfNull(s);
 

@@ -1491,15 +1491,10 @@ DemoViewer.NET.Playback2D.Core.Input.ITokenEditor.MoveTo(string! slot, SkiaSharp
 DemoViewer.NET.Playback2D.Core.Input.ITokenEditor.TryHitToken(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, SkiaSharp.SKPoint world, float worldRadius, out string! slot, out DemoViewer.NET.Playback2D.Core.Input.TokenGrip grip) -> bool
 DemoViewer.NET.Playback2D.Core.Input.IToolServices
 DemoViewer.NET.Playback2D.Core.Input.IToolServices.CurrentTick.get -> int
-DemoViewer.NET.Playback2D.Core.Input.IToolServices.NowMilliseconds.get -> long
 DemoViewer.NET.Playback2D.Core.Input.IToolServices.PaneAt(SkiaSharp.SKPoint screen) -> DemoViewer.NET.Playback2D.Core.Levels.LevelPane?
 DemoViewer.NET.Playback2D.Core.Input.IToolServices.RequestRender() -> void
-DemoViewer.NET.Playback2D.Core.Input.IToolServices.RequestTextEdit(System.Guid elementId) -> void
 DemoViewer.NET.Playback2D.Core.Input.IToolServices.ScreenToWorld(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, SkiaSharp.SKPoint screen) -> SkiaSharp.SKPoint
-DemoViewer.NET.Playback2D.Core.Input.IToolServices.Session.get -> DemoViewer.NET.Playback2D.Core.Annotations.AnnotationSession!
 DemoViewer.NET.Playback2D.Core.Input.IToolServices.Tokens.get -> DemoViewer.NET.Playback2D.Core.Input.ITokenEditor?
-DemoViewer.NET.Playback2D.Core.Input.IToolServices.TryResolveDrawOffset(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Core.Annotations.AnnotationElement! element, out float offsetX, out float offsetY) -> bool
-DemoViewer.NET.Playback2D.Core.Input.IToolServices.TryResolveEntityAnchor(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, SkiaSharp.SKPoint world, float worldRadius, out ulong steamId, out float dx, out float dy) -> bool
 DemoViewer.NET.Playback2D.Core.Input.IToolServices.WorldToScreen(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, SkiaSharp.SKPoint world) -> SkiaSharp.SKPoint
 DemoViewer.NET.Playback2D.Core.Input.IToolServices.WorldUnitsPerPixel(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane) -> double
 DemoViewer.NET.Playback2D.Core.Input.TokenGrip

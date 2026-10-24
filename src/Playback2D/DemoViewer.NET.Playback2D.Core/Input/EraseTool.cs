@@ -31,14 +31,14 @@ public sealed class EraseTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        if (e.Pane is null)
+        if (s is not IInkToolServices ink || e.Pane is null)
         {
             return false;
         }
 
         _erased.Clear();
-        _gesture = s.Session.Document.BeginGesture("erase");
-        EraseAt(in e, s);
+        _gesture = ink.Session.Document.BeginGesture("erase");
+        EraseAt(in e, ink);
         return true;
     }
 
@@ -47,12 +47,12 @@ public sealed class EraseTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        if (_gesture is null)
+        if (s is not IInkToolServices ink || _gesture is null)
         {
             return;
         }
 
-        EraseAt(in e, s);
+        EraseAt(in e, ink);
     }
 
     /// <inheritdoc />
@@ -60,14 +60,19 @@ public sealed class EraseTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
+        if (s is not IInkToolServices ink)
+        {
+            return;
+        }
+
         if (_gesture is not null)
         {
-            EraseAt(in e, s);
+            EraseAt(in e, ink);
         }
 
         CloseGesture();
         _erased.Clear();
-        s.RequestRender();
+        ink.RequestRender();
     }
 
     /// <inheritdoc />
@@ -75,10 +80,15 @@ public sealed class EraseTool : IPointerTool
     {
         ArgumentNullException.ThrowIfNull(s);
 
-        s.Session.Document.BailToMark();
+        if (s is not IInkToolServices ink)
+        {
+            return;
+        }
+
+        ink.Session.Document.BailToMark();
         CloseGesture();
         _erased.Clear();
-        s.RequestRender();
+        ink.RequestRender();
     }
 
     // Only what the pane under the pointer actually DRAWS, at the position it draws it. Testing the
@@ -86,7 +96,7 @@ public sealed class EraseTool : IPointerTool
     // never visible in, could not reach an entity-anchored stroke where the user could see it, and
     // deleted strokes their envelope had faded out entirely. Topmost-first: the document draws
     // oldest-first, so the LAST element is the one the user means.
-    private void EraseAt(in ToolPointerEvent e, IToolServices s)
+    private void EraseAt(in ToolPointerEvent e, IInkToolServices s)
     {
         if (e.Pane is not { } pane)
         {

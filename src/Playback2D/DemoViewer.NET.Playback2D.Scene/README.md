@@ -32,7 +32,7 @@ zone loaders, the sidecar identity records and the content key under `DemoViewer
 | `Playback2D.Core.Overlay`, `.Query`, `.Utility` | the documents those three layers draw |
 | `Playback2D.Core.Annotations` | `AnnotationDocument`, `AnnotationElement`, `AnnotationSession`, `DocDelta` and the styles and timing they carry |
 | `Playback2D.Core.Timeline` | `ITimelineTrack`, `ITimelineData`, `TimelineMarker`, `TimelineBand`, `AnnotationTrack` |
-| `Playback2D.Core.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens or annotations needs |
+| `Playback2D.Core.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens needs. Writing ink is first-party: the session and the authoring clock are not on `IToolServices` |
 | `Playback2D.Core.Hud` | `IHudDataSource`, `HudSnapshot`, `IIconSource` |
 | `Playback2D.Core.Vision` | `IVisionSolver`, `VisionSolution` |
 | `Playback2D.Core.Zones` (overlays) | `ZoneOverlayDocument`, `ZoneOverlayApplier`: a user's zone edits over the baked set |

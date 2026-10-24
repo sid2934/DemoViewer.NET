@@ -12,7 +12,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Modules.Playback2D.Annotations;
 
 /// <summary>
-///     <see cref="IToolServices" /> over <see cref="Scene2DHost" />: the one place the pointer tools
+///     <see cref="IInkToolServices" /> over <see cref="Scene2DHost" />: the one place the pointer tools
 ///     touch Avalonia-adjacent state, and the reason the tools themselves are testable with no window.
 ///     <para>
 ///         <see cref="Session" /> is settable because the host outlives the view-model it is bound to: a
@@ -20,11 +20,11 @@ namespace DemoViewer.NET.Modules.Playback2D.Annotations;
 ///         that was in flight.
 ///     </para>
 /// </summary>
-internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession session) : IToolServices
+internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession session) : IInkToolServices
 {
     // Stopwatch, not DateTime: its timestamp counts from an arbitrary origin on a monotonic counter, so
     // an NTP correction or a DST step landing mid-stroke cannot walk it backwards and hand the cadence
-    // accumulator a negative offset. Banned in Core, which is why the clock is an IToolServices member
+    // accumulator a negative offset. Banned in Core, which is why the clock is an IInkToolServices member
     // implemented out here in the app rather than read where it is used.
     private readonly long _origin = Stopwatch.GetTimestamp();
 

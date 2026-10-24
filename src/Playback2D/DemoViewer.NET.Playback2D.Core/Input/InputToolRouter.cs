@@ -142,7 +142,13 @@ public sealed class InputToolRouter
 
         CancelActive();
         ActiveKind = kind;
-        _services.Session.ActiveTool = kind;
+
+        // Only a host that writes ink has a session to mirror the selection into. A static map view has
+        // none, and ActiveTool exists for the annotations panel, which that host does not show.
+        if (_services is IInkToolServices ink)
+        {
+            ink.Session.ActiveTool = kind;
+        }
     }
 
     /// <summary>Routes a press. Returns true when a tool took the gesture.</summary>
