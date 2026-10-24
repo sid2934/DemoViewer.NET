@@ -30,8 +30,9 @@ A folder `DEMO_PATH` (the Steam replays directory, read in place) resolves to ON
 run: `DEMO_PATH_PICK=<filename>` when set, else the reference demo when the folder holds it, else the
 `.dem` whose name sorts first by ordinal comparison, top level only. A `DEMO_PATH_PICK` that is not in
 the folder resolves to nothing rather than to the first file, and the skip reason says so. The
-pinned-name lookups (`RequireDemo("furia-vs-vitality-m1-mirage.dem")` and the golden candidate
-lists) do not look inside a folder `DEMO_PATH`, for the reason in the `_410.dem` section below.
+pinned-name lookups (`RequireDemo("furia-vs-vitality-m1-mirage.dem")` and the candidate chains that
+fall back through several names) do not look inside a folder `DEMO_PATH`, for the reason in the
+`_410.dem` section below.
 
 Absent demos are a SKIP, not a failure: with an empty corpus the App suite still passes and simply
 runs about 84 fewer tests (the count when this file was written; it drifts with the suite). CI has
@@ -105,13 +106,14 @@ It has no `corpus.manifest.json` entry, so a configured `DEMO_SOURCES` fetch nev
 checkout that lacks it, and `DemoCorpusTests` asserts that absence. The reason recorded for the
 exclusion was `Nuke_TwoFloors_MatchesGolden`, a de_nuke golden that listed this demo as a candidate
 ahead of the committed `assets/tour/sample-de_nuke.dem` its capture was taken against, and failed on
-a 14.5% pixel difference when this one won. That test is gone, and no surviving golden lists this
-demo, so the exclusion now rests on nothing a reader can check. Decide it: name the capture that
-still needs protecting, or drop the exclusion and the test that asserts it.
+a 14.5% pixel difference when this one won. That test is gone and no surviving test resolves a demo
+by name to compare it against a committed golden, so both the exclusion and the rule below rest on a
+capture that no longer exists.
 
-The pinned lookup `DemoTestHelper.FindDemoPath(name)` never looks inside a folder-shaped `DEMO_PATH`
-for the same class of reason. The Steam replays folder holds demos whose names match goldens captured
-against a different file, and pointing the pinned tests at it would silently re-point those captures.
+The rule below is that `DemoTestHelper.FindDemoPath(name)` never looks inside a folder-shaped
+`DEMO_PATH`: the Steam replays folder holds demos whose names match a pinned lookup, and letting that
+folder answer one would silently swap which demo a named test parsed. It was introduced for the same
+deleted capture, and it is cited from `DemoTestHelper`'s own summary.
 
 ## How the corpus was lost, so it does not happen twice
 

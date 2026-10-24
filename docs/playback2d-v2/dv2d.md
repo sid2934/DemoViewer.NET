@@ -553,8 +553,9 @@ across two processes, and `RenderDeterminismTests` asserts both.
 
 ## CI recipes
 
-Both live in the `playback2d-tests` job of `.github/workflows/ci.yml`, which is the one correctness
-invocation. The budget half runs in `playback2d-budget`, below.
+Both steps below live in the `playback2d-tests` job of `.github/workflows/ci.yml`, which is the one
+core and pipeline test invocation. Tests carrying `[Category("Budget")]` are not run there: they run
+across every project in the separate `playback2d-budget` job, below.
 
 ```yaml
 - name: Golden images
