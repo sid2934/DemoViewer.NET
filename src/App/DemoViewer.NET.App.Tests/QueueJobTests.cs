@@ -4,6 +4,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export.Pack;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -213,7 +214,7 @@ public class QueueJobTests
             await Assert.That(packQueuedRan).IsFalse();
             await Assert.That(packOnly.State).IsEqualTo(DemoQueueItemState.Cancelled).Because("no co-owner wanted that parse");
             await Assert.That(shared.State).IsEqualTo(DemoQueueItemState.Completed).Because("the library still owned the shared parse");
-            await Assert.That(queue.Snapshot().Single(s => s.Path == "/d/a.dem").Owners).IsEquivalentTo(["library"]);
+            await Assert.That(queue.Snapshot().Single(s => s.Path == "/d/a.dem").Owners).IsEquivalentTo(["library"], CollectionOrdering.Matching);
             await Assert.That(other.State).IsEqualTo(DemoQueueItemState.Completed);
             await Assert.That(otherOwnersJobRan).IsTrue();
         }

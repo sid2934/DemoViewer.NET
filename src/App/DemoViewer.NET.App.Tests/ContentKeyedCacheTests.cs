@@ -315,7 +315,7 @@ public class ContentKeyedCacheTests
             string pathKey = DemoCacheStore.StableKey("/m/a.dem");
             using (Assert.Multiple())
             {
-                await Assert.That(store.UnsettledRows()).IsEquivalentTo(["sha-a"]);
+                await Assert.That(store.UnsettledRows()).IsEquivalentTo(["sha-a"], CollectionOrdering.Matching);
                 await Assert.That(store.ContentKeyMigrationVersion).IsEqualTo(0);
                 await Assert.That(store.TryLoadRecord("/m/a.dem")!.Scoreboard).Count().IsEqualTo(1);
                 await Assert.That(store.TryReadSibling("/m/a.dem", Suffix)).IsEqualTo("note a");
@@ -402,7 +402,7 @@ public class ContentKeyedCacheTests
                 await Assert.That(reopened.TryLoadRecord("/m/a.dem")!.Analysis.IsPresent).IsFalse()
                     .Because("the old bytes' analysis never describes the new ones");
                 await Assert.That(reopened.TryGetIndex("/m/a.dem")!.Size).IsEqualTo(5000);
-                await Assert.That(reopened.RowsForContentId("sha-old").Select(r => r.Path)).IsEquivalentTo(["/m/copy.dem"]);
+                await Assert.That(reopened.RowsForContentId("sha-old").Select(r => r.Path)).IsEquivalentTo(["/m/copy.dem"], CollectionOrdering.Matching);
                 await Assert.That(reopened.TryLoadRecord("/m/copy.dem")!.Scoreboard.Single().Kills).IsEqualTo(21)
                     .Because("the copy still holds the old bytes and keeps everything");
                 await Assert.That(reopened.TryGetByContentId("sha-solo")).IsNull();
@@ -603,7 +603,7 @@ public class ContentKeyedCacheTests
 
             if (root is not null)
             {
-                await Assert.That(Files(root)).IsEquivalentTo(["sha-x.json.gz"]);
+                await Assert.That(Files(root)).IsEquivalentTo(["sha-x.json.gz"], CollectionOrdering.Matching);
             }
         }
         finally

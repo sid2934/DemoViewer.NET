@@ -16,6 +16,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -211,8 +212,8 @@ public class SceneViewTests
         using (Assert.Multiple())
         {
             await Assert.That(timeline.TotalFrames).IsEqualTo(100);
-            await Assert.That(timeline.Markers.Select(m => m.FrameIndex)).IsEquivalentTo([10, 40]);
-            await Assert.That(seeks).IsEquivalentTo([99, 0]);
+            await Assert.That(timeline.Markers.Select(m => m.FrameIndex)).IsEquivalentTo([10, 40], CollectionOrdering.Matching);
+            await Assert.That(seeks).IsEquivalentTo([99, 0], CollectionOrdering.Matching);
         }
 
         timeline.Rebuild(null);

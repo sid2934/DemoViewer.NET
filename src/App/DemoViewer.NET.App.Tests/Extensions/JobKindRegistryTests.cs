@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -60,7 +61,7 @@ public class JobKindRegistryTests
         ];
 
         await Assert.That(JobKindRegistry.CoreDescriptors.Select(d => d.Kind))
-            .IsEquivalentTo(expected.Select(e => e.Kind));
+            .IsEquivalentTo(expected.Select(e => e.Kind), CollectionOrdering.Matching);
 
         using (Assert.Multiple())
         {

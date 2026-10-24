@@ -19,6 +19,7 @@ using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Stats;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -265,10 +266,11 @@ public class StatsBoardScaleTests
     [Test]
     public async Task Catalogue_CarriesTheAimColumns_UnderBothChips()
     {
-        // Sorted on both sides: IsEquivalentTo matches order, and a partition has none.
+        // Sorted on both sides, so an ordered comparison holds, and a partition has no order of
+        // its own to assert.
         await Assert.That(_accuracyColumns.Concat(_aimQualityColumns).Concat(_denominatorColumns)
                 .OrderBy(c => c, StringComparer.Ordinal).ToArray())
-            .IsEquivalentTo(_aimColumns.OrderBy(c => c, StringComparer.Ordinal).ToArray())
+            .IsEquivalentTo(_aimColumns.OrderBy(c => c, StringComparer.Ordinal).ToArray(), CollectionOrdering.Matching)
             .Because("the two chips and the denominators must partition the ruleset");
 
         foreach (string column in _accuracyColumns)
@@ -315,7 +317,7 @@ public class StatsBoardScaleTests
         }
 
         // And nothing in the fixture has drifted away from the file it stands in for.
-        await Assert.That(_aimColumns).IsEquivalentTo(labels);
+        await Assert.That(_aimColumns).IsEquivalentTo(labels, CollectionOrdering.Matching);
     }
 
     /// <summary>
@@ -361,7 +363,7 @@ public class StatsBoardScaleTests
         string[] expected = chip == StatGroup.Accuracy ? _accuracyColumns : _aimQualityColumns;
 
         await Assert.That(vm.IsColumnTable).IsTrue();
-        await Assert.That(vm.Columns.Select(c => c.Label)).IsEquivalentTo(expected);
+        await Assert.That(vm.Columns.Select(c => c.Label)).IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
     /// <summary>
@@ -545,7 +547,7 @@ public class StatsBoardScaleTests
         vm.SelectedCategory = ColumnCatalogue.Resolve(column).Group;
 
         StatScaleSpec spec = ColumnCatalogue.Resolve(column).Scale!;
-        await Assert.That(spec.ColourGateColumns).IsEquivalentTo(new[] { gate });
+        await Assert.That(spec.ColourGateColumns).IsEquivalentTo(new[] { gate }, CollectionOrdering.Matching);
 
         StatCell thin = Cell(vm, starved, column);
         await Assert.That(thin.Scale).IsNotNull().Because("the bar survives the gate");
@@ -1064,7 +1066,7 @@ public class StatsBoardScaleTests
 
         await Assert.That(vm.HasPodium).IsTrue();
         await Assert.That(vm.Podium.Count).IsEqualTo(3);
-        await Assert.That(vm.Podium.Select(e => e.Name)).IsEquivalentTo(_expectedPodium);
+        await Assert.That(vm.Podium.Select(e => e.Name)).IsEquivalentTo(_expectedPodium, CollectionOrdering.Matching);
         await Assert.That(vm.Podium[0].Rank).IsEqualTo(1);
         await Assert.That(vm.Podium[0].RankLabel).IsEqualTo("1ST");
 
@@ -1082,7 +1084,7 @@ public class StatsBoardScaleTests
 
         vm.SortByColumnCommand.Execute(vm.Columns.Single(c => c.Label == "TotalD"));
 
-        await Assert.That(vm.Podium.Select(e => e.Name)).IsEquivalentTo(before);
+        await Assert.That(vm.Podium.Select(e => e.Name)).IsEquivalentTo(before, CollectionOrdering.Matching);
     }
 
     /// <summary>

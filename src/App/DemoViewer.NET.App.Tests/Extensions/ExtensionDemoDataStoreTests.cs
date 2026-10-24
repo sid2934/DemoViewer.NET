@@ -3,6 +3,7 @@
 using System.Text;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoCache;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -191,7 +192,7 @@ public class ExtensionDemoDataStoreTests
             {
                 await Assert.That(before).IsNull();
                 await Assert.That(none).IsEmpty();
-                await Assert.That(told).IsEquivalentTo([(string?)null]);
+                await Assert.That(told).IsEquivalentTo([(string?)null], CollectionOrdering.Matching);
                 await Assert.That(store.Stamp(Demo, "rounds")?.IsCurrent(1, "fp-1")).IsTrue();
             }
         }
@@ -219,7 +220,7 @@ public class ExtensionDemoDataStoreTests
                 await Assert.That(store.Stamp(Demo, "rounds")!.Sha256).IsEqualTo("cccc");
                 await Assert.That(Encoding.UTF8.GetString(store.Read(Demo, "rounds", 1, "fp-1", "positions")!)).IsEqualTo("one-positions");
                 await Assert.That(Directory.GetFiles(Path.Combine(store.Root, "rounds")).Select(f => Path.GetFileName(f)!).Order(StringComparer.Ordinal))
-                    .IsEquivalentTo(["cccc.json.gz", "cccc.positions.json.gz"]);
+                    .IsEquivalentTo(["cccc.json.gz", "cccc.positions.json.gz"], CollectionOrdering.Matching);
             }
         }
         finally

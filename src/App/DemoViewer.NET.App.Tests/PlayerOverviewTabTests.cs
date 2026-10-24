@@ -359,7 +359,7 @@ public class PlayerOverviewTabTests
             using IdentityService identity = Identity(Me, Alt);
             using PlayerOverviewTabViewModel vm = Shown(Library(2, 2), identity);
             vm.OpenPlayer(Other);
-            await Assert.That(vm.MeAccounts.Select(a => a.Title)).IsEquivalentTo(["me", "alt"]);
+            await Assert.That(vm.MeAccounts.Select(a => a.Title)).IsEquivalentTo(["me", "alt"], CollectionOrdering.Matching);
             await Assert.That(vm.MeAccounts.Single(a => a.IsActive).SteamId64).IsEqualTo(Id(Me));
 
             vm.SwitchAccountCommand.Execute(vm.MeAccounts.Single(a => a.SteamId64 == Id(Alt)));
@@ -517,7 +517,7 @@ public class PlayerOverviewTabTests
             await Assert.That(vm.Pages.Select(p => p.Kind)).IsEquivalentTo(
                 [PlayerOverviewPageKind.Overview, PlayerOverviewPageKind.History, PlayerOverviewPageKind.Stats, PlayerOverviewPageKind.Achievements],
                 CollectionOrdering.Matching);
-            await Assert.That(vm.Persistent.Select(s => s.Id)).IsEquivalentTo(["header"]);
+            await Assert.That(vm.Persistent.Select(s => s.Id)).IsEquivalentTo(["header"], CollectionOrdering.Matching);
             await Assert.That(vm.Persistent.Concat(placed).Select(s => s.Id)).IsEquivalentTo(vm.Sections.Select(s => s.Id), CollectionOrdering.Matching)
                 .Because("the registry lists the sections in page order");
             await Assert.That(vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.History).Sections.Select(s => s.Id))
@@ -658,7 +658,7 @@ public class PlayerOverviewTabTests
         using IdentityService identity = Identity(Me);
         using PlayerOverviewTabViewModel vm = Shown(TwinLibrary(), identity);
         vm.SearchText = "twin";
-        await Assert.That(vm.Candidates.Select(c => c.SteamId64).ToArray()).IsEquivalentTo(new[] { Other, Alt });
+        await Assert.That(vm.Candidates.Select(c => c.SteamId64).ToArray()).IsEquivalentTo(new[] { Other, Alt }, CollectionOrdering.Matching);
         await Assert.That(vm.Candidates[0].Demos).IsEqualTo("3 demos");
         vm.SubmitSearchCommand.Execute(null);
         await Assert.That(vm.SubjectSteamId64).IsEqualTo(Me).Because("two candidates are not opened by Enter");

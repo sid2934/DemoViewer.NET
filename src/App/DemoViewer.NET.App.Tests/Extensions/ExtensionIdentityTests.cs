@@ -7,6 +7,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Identity;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -73,7 +74,7 @@ public class ExtensionIdentityTests
             service.SetAccounts([Account(A), Account(B)]);
             using (Assert.Multiple())
             {
-                await Assert.That(identity.Accounts).IsEquivalentTo([A, B]);
+                await Assert.That(identity.Accounts).IsEquivalentTo([A, B], CollectionOrdering.Matching);
                 await Assert.That(identity.ActiveAccount).IsEqualTo(A);
                 await Assert.That(identity.IsMine(B)).IsTrue();
                 await Assert.That(identity.IsMine("76561198000000003")).IsFalse();
@@ -133,9 +134,9 @@ public class ExtensionIdentityTests
             TeamsFile file = JsonSerializer.Deserialize<TeamsFile>(File.ReadAllText(teamsPath), TeamsFile.JsonOptions)!;
             using (Assert.Multiple())
             {
-                await Assert.That(inSettings).IsEquivalentTo([A, B]);
-                await Assert.That(file.Me.SteamIds).IsEquivalentTo(inSettings);
-                await Assert.That(teams.MyAccounts).IsEquivalentTo(inSettings);
+                await Assert.That(inSettings).IsEquivalentTo([A, B], CollectionOrdering.Matching);
+                await Assert.That(file.Me.SteamIds).IsEquivalentTo(inSettings, CollectionOrdering.Matching);
+                await Assert.That(teams.MyAccounts).IsEquivalentTo(inSettings, CollectionOrdering.Matching);
                 await Assert.That(teams.GetAssignment("/d/a.dem")!.OurSide).IsEqualTo(2);
                 await Assert.That(teams.GetAssignment("/d/b.dem")!.OurSide).IsEqualTo(3);
             }
@@ -144,9 +145,9 @@ public class ExtensionIdentityTests
             file = JsonSerializer.Deserialize<TeamsFile>(File.ReadAllText(teamsPath), TeamsFile.JsonOptions)!;
             using (Assert.Multiple())
             {
-                await Assert.That(file.Me.SteamIds).IsEquivalentTo([B]);
+                await Assert.That(file.Me.SteamIds).IsEquivalentTo([B], CollectionOrdering.Matching);
                 await Assert.That(teams.GetAssignment("/d/a.dem")!.OurSide).IsNull().Because("the account that resolved it was removed");
-                await Assert.That(teams.OurDemos().Select(d => d.Path)).IsEquivalentTo(["/d/b.dem"]);
+                await Assert.That(teams.OurDemos().Select(d => d.Path)).IsEquivalentTo(["/d/b.dem"], CollectionOrdering.Matching);
             }
         }
         finally

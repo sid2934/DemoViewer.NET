@@ -9,6 +9,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -54,10 +55,10 @@ public class MatchMetaRealDemoTests
             await Assert.That(bare.GameMode).IsEqualTo(mode);
             await Assert.That(source).IsEqualTo(nameof(DemoSourceKind.GotvMatchmaking));
             await Assert.That(ruled.RankUpdates.Count).IsEqualTo(10).Because("352 is sent once, with all ten humans");
-            await Assert.That(bare.RankUpdates).IsEquivalentTo(ruled.RankUpdates);
-            await Assert.That(ruled.ControllerRanks.OrderBy(r => r.SteamId64)).IsEquivalentTo(bare.ControllerRanks.OrderBy(r => r.SteamId64))
+            await Assert.That(bare.RankUpdates).IsEquivalentTo(ruled.RankUpdates, CollectionOrdering.Matching);
+            await Assert.That(ruled.ControllerRanks.OrderBy(r => r.SteamId64)).IsEquivalentTo(bare.ControllerRanks.OrderBy(r => r.SteamId64), CollectionOrdering.Matching)
                 .Because("the last-full-packet checkpoint agrees with the full replay");
-            await Assert.That(ruled.ControllerRanks.Select(r => r.SteamId64).Order()).IsEquivalentTo(ruled.RankUpdates.Select(u => u.SteamId64).Order())
+            await Assert.That(ruled.ControllerRanks.Select(r => r.SteamId64).Order()).IsEquivalentTo(ruled.RankUpdates.Select(u => u.SteamId64).Order(), CollectionOrdering.Matching)
                 .Because("every update joins a controller by account id + 76561197960265728");
             await Assert.That(rows.Count).IsEqualTo(10);
             await Assert.That(rows.All(r => r.RankSource == RankSource.ServerRankUpdate)).IsTrue();

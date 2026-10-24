@@ -8,6 +8,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -42,10 +43,10 @@ public class FeaturePacksTests
         using (Assert.Multiple())
         {
             await Assert.That(list.IsSet).IsTrue();
-            await Assert.That(list.Value).IsEquivalentTo(["a", "b"]);
+            await Assert.That(list.Value).IsEquivalentTo(["a", "b"], CollectionOrdering.Matching);
             // A second configuration would leave an earlier reader disagreeing with the container.
             Assert.Throws<InvalidOperationException>(() => list.Set(["c"]));
-            await Assert.That(list.Value).IsEquivalentTo(["a", "b"]);
+            await Assert.That(list.Value).IsEquivalentTo(["a", "b"], CollectionOrdering.Matching);
         }
     }
 
@@ -88,7 +89,7 @@ public class FeaturePacksTests
         {
             await Assert.That(list.SetIfUnset(["a"])).IsTrue();
             await Assert.That(list.SetIfUnset(["b"])).IsFalse().Because("the previewer path yields to Main's call");
-            await Assert.That(list.Value).IsEquivalentTo(["a"]);
+            await Assert.That(list.Value).IsEquivalentTo(["a"], CollectionOrdering.Matching);
         }
 
         FrozenList<string> frozen = new();
@@ -102,10 +103,10 @@ public class FeaturePacksTests
     {
         using (Assert.Multiple())
         {
-            await Assert.That(FeaturePacks.Default.Select(p => p.FeatureId)).IsEquivalentTo([StratBookPack.PackFeatureId]);
+            await Assert.That(FeaturePacks.Default.Select(p => p.FeatureId)).IsEquivalentTo([StratBookPack.PackFeatureId], CollectionOrdering.Matching);
             Assert.Throws<InvalidOperationException>(() => FeaturePacks.Configure([]));
             await Assert.That(FeaturePacks.ConfigureIfUnset([])).IsFalse();
-            await Assert.That(FeaturePacks.Default.Select(p => p.FeatureId)).IsEquivalentTo([StratBookPack.PackFeatureId]);
+            await Assert.That(FeaturePacks.Default.Select(p => p.FeatureId)).IsEquivalentTo([StratBookPack.PackFeatureId], CollectionOrdering.Matching);
         }
     }
 
@@ -119,7 +120,7 @@ public class FeaturePacksTests
             await Assert.That(FeaturePacks.Statuses.Count).IsEqualTo(1);
             await Assert.That(FeaturePacks.Statuses[0].IsCompatible).IsTrue().Because(FeaturePacks.Statuses[0].Problem ?? "compatible");
             await Assert.That(FeaturePacks.Statuses[0].Manifest!.Id).IsEqualTo(StratBookPack.PackId);
-            await Assert.That(FeaturePacks.Compatible).IsEquivalentTo(FeaturePacks.Default);
+            await Assert.That(FeaturePacks.Compatible).IsEquivalentTo(FeaturePacks.Default, CollectionOrdering.Matching);
         }
     }
 
@@ -141,8 +142,8 @@ public class FeaturePacksTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(declared.Select(p => p.Id)).IsEquivalentTo([incompatible.Id, stratBook.Id]);
-            await Assert.That(compatible.Select(p => p.Id)).IsEquivalentTo([stratBook.Id]);
+            await Assert.That(declared.Select(p => p.Id)).IsEquivalentTo([incompatible.Id, stratBook.Id], CollectionOrdering.Matching);
+            await Assert.That(compatible.Select(p => p.Id)).IsEquivalentTo([stratBook.Id], CollectionOrdering.Matching);
             await Assert.That(statuses[0].Compatibility is PackCompatibility.HostContractMismatch).IsTrue();
             await Assert.That(statuses[0].Problem).IsEqualTo("Incompatible 2.0.0 needs app contract ^2.0; this app provides 1.2.0");
 
@@ -182,9 +183,9 @@ public class FeaturePacksTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(c1.Select(p => p.Id)).IsEquivalentTo(c2.Select(p => p.Id));
-            await Assert.That(d1.Select(p => p.Id)).IsEquivalentTo(d2.Select(p => p.Id));
-            await Assert.That(c1.Select(p => p.Id)).IsEquivalentTo([fine.Id]);
+            await Assert.That(c1.Select(p => p.Id)).IsEquivalentTo(c2.Select(p => p.Id), CollectionOrdering.Matching);
+            await Assert.That(d1.Select(p => p.Id)).IsEquivalentTo(d2.Select(p => p.Id), CollectionOrdering.Matching);
+            await Assert.That(c1.Select(p => p.Id)).IsEquivalentTo([fine.Id], CollectionOrdering.Matching);
             Assert.Throws<InvalidOperationException>(() => compatibleFirst.Set([]));
             Assert.Throws<InvalidOperationException>(() => defaultFirst.Set([]));
         }

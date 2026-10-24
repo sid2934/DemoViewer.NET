@@ -9,6 +9,7 @@ using CS2DemoKit.Analysis.Yaml;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -86,7 +87,7 @@ public class EngineRoundFactsRowSourceTests
         using (Assert.Multiple())
         {
             await Assert.That(table.Rows).IsEmpty();
-            await Assert.That(table.UnavailableColumns).IsEquivalentTo(RoundFactsColumns.Known);
+            await Assert.That(table.UnavailableColumns).IsEquivalentTo(RoundFactsColumns.Known, CollectionOrdering.Matching);
         }
     }
 
@@ -209,13 +210,13 @@ public class EngineRoundFactsRowSourceTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rows.Rounds.Select(r => r.Number)).IsEquivalentTo([1, 2, 3]);
+            await Assert.That(rows.Rounds.Select(r => r.Number)).IsEquivalentTo([1, 2, 3], CollectionOrdering.Matching);
             await Assert.That(rows.Rounds.SelectMany(r => r.ProjectionWarnings)).IsEmpty();
-            await Assert.That(first.Ct.Slots).IsEquivalentTo([0, 1, 2, 3, 4]);
+            await Assert.That(first.Ct.Slots).IsEquivalentTo([0, 1, 2, 3, 4], CollectionOrdering.Matching);
             await Assert.That(first.PlantTick).IsNull();
             await Assert.That(first.PlantSite).IsEqualTo(BombSite.Unknown);
-            await Assert.That(first.Kills.Select(k => k.VictimSide)).IsEquivalentTo([2, 3]);
-            await Assert.That(first.Kills.Select(k => (k.CtAlive, k.TAlive))).IsEquivalentTo([(5, 4), (4, 4)]);
+            await Assert.That(first.Kills.Select(k => k.VictimSide)).IsEquivalentTo([2, 3], CollectionOrdering.Matching);
+            await Assert.That(first.Kills.Select(k => (k.CtAlive, k.TAlive))).IsEquivalentTo([(5, 4), (4, 4)], CollectionOrdering.Matching);
             await Assert.That(rows.Rounds[1].PlantSite).IsEqualTo(BombSite.A);
             await Assert.That(rows.Rounds[1].PlanterSlot).IsEqualTo(0);
             await Assert.That(rows.Rounds[2].T.ScoreBefore).IsEqualTo(2);

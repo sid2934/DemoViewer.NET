@@ -7,6 +7,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -101,7 +102,7 @@ public class ExtensionShellViewTests
             Dispatcher.UIThread.RunJobs();
             vm.Playback.IsPlaying = false;
             Dispatcher.UIThread.RunJobs();
-            await Assert.That(seen.Select(s => s.Playing)).IsEquivalentTo([true, false]);
+            await Assert.That(seen.Select(s => s.Playing)).IsEquivalentTo([true, false], CollectionOrdering.Matching);
 
             seen.Clear();
             shell.PlayheadChanged -= record;

@@ -8,6 +8,7 @@ using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Highlights;
 using Microsoft.Extensions.Logging.Abstractions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -90,16 +91,16 @@ public class RulesetExclusionGuardTests
         using (Assert.Multiple())
         {
             await Assert.That(excluded.Id).IsEqualTo(BadId);
-            await Assert.That(excluded.Diagnostics.Select(d => d.Code)).IsEquivalentTo([BuildDiagnosticCodes.LoweringFailed]);
+            await Assert.That(excluded.Diagnostics.Select(d => d.Code)).IsEquivalentTo([BuildDiagnosticCodes.LoweringFailed], CollectionOrdering.Matching);
             await Assert.That(first.Build.Outputs!.Select(o => o.Id)).Contains("fixture_kills")
                 .Because("the sibling builds and its table rides the run");
-            await Assert.That(second.Build.ExcludedRulesets.Select(r => r.Id)).IsEquivalentTo([BadId]);
-            await Assert.That(third.Build.ExcludedRulesets.Select(r => r.Id)).IsEquivalentTo([BadId]);
+            await Assert.That(second.Build.ExcludedRulesets.Select(r => r.Id)).IsEquivalentTo([BadId], CollectionOrdering.Matching);
+            await Assert.That(third.Build.ExcludedRulesets.Select(r => r.Id)).IsEquivalentTo([BadId], CollectionOrdering.Matching);
             await Assert.That(state.Count).IsEqualTo(1).Because("one report per ruleset content, not one per build");
             await Assert.That(state.LastSite).IsEqualTo("ruleset " + BadId);
             await Assert.That(state.Suspended).IsFalse();
             await Assert.That(suspension.Suspensions).IsEmpty();
-            await Assert.That(asked).IsEquivalentTo([Owner]);
+            await Assert.That(asked).IsEquivalentTo([Owner], CollectionOrdering.Matching);
         }
     }
 
@@ -128,7 +129,7 @@ public class RulesetExclusionGuardTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(run.Build.ExcludedRulesets.Select(r => r.Id)).IsEquivalentTo([BadId]);
+                await Assert.That(run.Build.ExcludedRulesets.Select(r => r.Id)).IsEquivalentTo([BadId], CollectionOrdering.Matching);
                 await Assert.That(asked).IsEqualTo(0).Because("the user's file is the user's, not the extension's");
             }
         }

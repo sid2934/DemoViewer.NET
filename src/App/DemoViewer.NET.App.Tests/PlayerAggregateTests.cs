@@ -181,7 +181,7 @@ public class PlayerAggregateTests
         };
         using (Assert.Multiple())
         {
-            await Assert.That(alone).IsEquivalentTo(after).Because("a ghost on no side with no shots, deaths or damage is dropped");
+            await Assert.That(alone).IsEquivalentTo(after, CollectionOrdering.Matching).Because("a ghost on no side with no shots, deaths or damage is dropped");
             await Assert.That(PlayerAggregate.Merge([Facet(3, Grim, 0, ghost)], Grim)).IsNull();
             await Assert.That(PlayerAggregate.Merge([Facet(5, Grim + 1, 3, other)], Grim)).IsNull();
             await Assert.That(folded["rounds"]).IsEqualTo(24).Because("every row carries the match's rounds");

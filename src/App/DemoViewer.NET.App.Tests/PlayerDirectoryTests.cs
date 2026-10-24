@@ -88,7 +88,7 @@ public class PlayerDirectoryTests
             await Assert.That(match.Slots).IsEquivalentTo([2, 3, 4], CollectionOrdering.Matching).Because("the facet adds the ghost slot");
             await Assert.That(match.Side).IsEqualTo(3);
             await Assert.That(match.LeftEarly).IsFalse();
-            await Assert.That(match.Names).IsEquivalentTo(["grim"]);
+            await Assert.That(match.Names).IsEquivalentTo(["grim"], CollectionOrdering.Matching);
         }
     }
 
@@ -107,7 +107,7 @@ public class PlayerDirectoryTests
         ]));
 
         PlayerDirectory directory = new(store);
-        await Assert.That(directory.Players.Select(p => p.SteamId64)).IsEquivalentTo([Grim]);
+        await Assert.That(directory.Players.Select(p => p.SteamId64)).IsEquivalentTo([Grim], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -120,7 +120,7 @@ public class PlayerDirectoryTests
 
         List<FacetPlayer> players = PlayerMatchFacet.Players([Row(1, Id(Grim)), Row(3, "76561190000000009")], roster);
 
-        await Assert.That(players.Select(p => p.SteamId64)).IsEquivalentTo([Id(Grim)]);
+        await Assert.That(players.Select(p => p.SteamId64)).IsEquivalentTo([Id(Grim)], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -138,7 +138,7 @@ public class PlayerDirectoryTests
             await Assert.That(match.LeftEarly).IsTrue();
             await Assert.That(match.Side).IsNull();
             await Assert.That(directory.Matches(Grim).Single().LeftEarly).IsFalse();
-            await Assert.That(directory.Find("QUIT").Select(p => p.SteamId64)).IsEquivalentTo([Gone]);
+            await Assert.That(directory.Find("QUIT").Select(p => p.SteamId64)).IsEquivalentTo([Gone], CollectionOrdering.Matching);
             await Assert.That(directory.Matches(Gone, new PlayerFilter { Side = 3 })).IsEmpty().Because("a departed player has no side");
         }
     }
@@ -241,8 +241,8 @@ public class PlayerDirectoryTests
         {
             await Assert.That(Paths(null)).IsEquivalentTo(["/d/3.dem", "/d/2.dem", "/d/1.dem"], CollectionOrdering.Matching);
             await Assert.That(Paths(new PlayerFilter { Map = "DE_NUKE" })).IsEquivalentTo(["/d/2.dem", "/d/1.dem"], CollectionOrdering.Matching);
-            await Assert.That(Paths(new PlayerFilter { Side = 2, Last = 1 })).IsEquivalentTo(["/d/3.dem"]);
-            await Assert.That(Paths(new PlayerFilter { FromTicks = 2 * Day, BeforeTicks = 3 * Day })).IsEquivalentTo(["/d/2.dem"]);
+            await Assert.That(Paths(new PlayerFilter { Side = 2, Last = 1 })).IsEquivalentTo(["/d/3.dem"], CollectionOrdering.Matching);
+            await Assert.That(Paths(new PlayerFilter { FromTicks = 2 * Day, BeforeTicks = 3 * Day })).IsEquivalentTo(["/d/2.dem"], CollectionOrdering.Matching);
             await Assert.That(directory.Matches(Jeorge)).IsEmpty();
         }
     }
@@ -268,7 +268,7 @@ public class PlayerDirectoryTests
             await Assert.That(matches[0].TimeTicks).IsEqualTo(written).Because("every match time is UTC, the write time converted");
             await Assert.That(directory.Get(Grim)!.LastSeenTicks).IsEqualTo(written);
             await Assert.That(directory.Matches(Grim, new PlayerFilter { FromTicks = played + 1 }).Select(m => m.Row.Path))
-                .IsEquivalentTo(["/d/written.dem"]);
+                .IsEquivalentTo(["/d/written.dem"], CollectionOrdering.Matching);
         }
     }
 
@@ -282,7 +282,7 @@ public class PlayerDirectoryTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(directory.Find(" " + Id(Grim) + " ").Select(p => p.SteamId64)).IsEquivalentTo([Grim]);
+            await Assert.That(directory.Find(" " + Id(Grim) + " ").Select(p => p.SteamId64)).IsEquivalentTo([Grim], CollectionOrdering.Matching);
             await Assert.That(directory.Find("grim").Select(p => p.SteamId64)).IsEquivalentTo([Jeorge, Grim], CollectionOrdering.Matching)
                 .Because("every alias is searched, the account in more demos first");
             await Assert.That(directory.Find("76561190000000099")).IsEmpty();

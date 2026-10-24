@@ -6,6 +6,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.Views.Highlights;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -503,7 +504,7 @@ public class HighlightReelDialogViewModelTests
             {
                 "/d/a.dem",
                 "/d/b.dem"
-            });
+            }, CollectionOrdering.Matching);
 
         HighlightReelDialogViewModel reversed = New([b, a], out FakeReelJob jr);
         reversed.GenerateCommand.Execute(null);
@@ -512,7 +513,7 @@ public class HighlightReelDialogViewModelTests
             {
                 "/d/b.dem",
                 "/d/a.dem"
-            });
+            }, CollectionOrdering.Matching);
 
         await Assert.That(reversed.ClipsHeader).IsEqualTo(forward.ClipsHeader)
             .Because("order must not reach ClipWindows.Coalesce");

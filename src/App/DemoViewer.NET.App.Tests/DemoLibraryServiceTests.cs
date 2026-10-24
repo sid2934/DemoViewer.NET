@@ -9,6 +9,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using TimeoutException = System.TimeoutException;
 
@@ -1141,12 +1142,12 @@ public class DemoLibraryServiceTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(seenByReader).IsEquivalentTo(previous)
+                await Assert.That(seenByReader).IsEquivalentTo(previous, CollectionOrdering.Matching)
                     .Because("the save replaces library.json; it never rewrites the open file in place");
                 await Assert.That(saved?.Folders).IsNotNull();
                 await Assert.That(saved!.Folders).Contains(folder);
                 await Assert.That(Directory.GetFiles(cfgDir).Order())
-                    .IsEquivalentTo(new[] { libJson, stray }.Order())
+                    .IsEquivalentTo(new[] { libJson, stray }.Order(), CollectionOrdering.Matching)
                     .Because("a save leaves no temporary file of its own");
             }
         }

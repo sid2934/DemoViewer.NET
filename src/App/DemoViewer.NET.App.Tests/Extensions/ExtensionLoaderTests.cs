@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -48,7 +49,7 @@ public class ExtensionLoaderTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(found.Candidates.Select(c => c.Manifest.Version.ToString())).IsEquivalentTo(["1.2.0", "1.1.0-rc1", "1.0.0"]);
+                await Assert.That(found.Candidates.Select(c => c.Manifest.Version.ToString())).IsEquivalentTo(["1.2.0", "1.1.0-rc1", "1.0.0"], CollectionOrdering.Matching);
                 await Assert.That(found.Candidates.All(c => c.AssemblyPath == Path.Combine(c.Directory, "Fake.dll"))).IsTrue();
                 await Assert.That(found.Rejected.Count).IsEqualTo(4);
                 await Assert.That(found.Rejected.Count(o => o.Failure == LoadFailure.FolderMismatch)).IsEqualTo(2);
@@ -105,7 +106,7 @@ public class ExtensionLoaderTests
             using (Assert.Multiple())
             {
                 await Assert.That(staged.Outcome).IsEqualTo(StageOutcome.Installed);
-                await Assert.That(found.Candidates.Select(c => c.Directory)).IsEquivalentTo([staged.Directory!]);
+                await Assert.That(found.Candidates.Select(c => c.Directory)).IsEquivalentTo([staged.Directory!], CollectionOrdering.Matching);
                 await Assert.That(found.Rejected).IsEmpty().Because("a dot folder is skipped, not reported");
                 await Assert.That(selection.Chosen?.Manifest.Version).IsEqualTo(SemVersion.Parse("1.0.1"));
                 await Assert.That(selection.Chosen?.AssemblyPath).IsEqualTo(Path.Combine(staged.Directory!, "Fake.dll"));
@@ -149,7 +150,7 @@ public class ExtensionLoaderTests
             using (Assert.Multiple())
             {
                 await Assert.That(found.Candidates).IsEmpty();
-                await Assert.That(found.Rejected.Select(o => o.Failure)).IsEquivalentTo([LoadFailure.PathEscapes, LoadFailure.PathEscapes]);
+                await Assert.That(found.Rejected.Select(o => o.Failure)).IsEquivalentTo([LoadFailure.PathEscapes, LoadFailure.PathEscapes], CollectionOrdering.Matching);
                 await Assert.That(File.Exists(Path.Combine(outside, ExtensionManifest.FileName))).IsTrue().Because("the loader never writes or deletes");
             }
         }
@@ -177,7 +178,7 @@ public class ExtensionLoaderTests
         using (Assert.Multiple())
         {
             await Assert.That(selection.Chosen?.Manifest.Version.ToString()).IsEqualTo("1.2.0");
-            await Assert.That(selection.Rejected.Select(o => (o.Version!.ToString(), o.Failure))).IsEquivalentTo([("1.3.0", LoadFailure.Incompatible)]);
+            await Assert.That(selection.Rejected.Select(o => (o.Version!.ToString(), o.Failure))).IsEquivalentTo([("1.3.0", LoadFailure.Incompatible)], CollectionOrdering.Matching);
             await Assert.That(selection.Rejected[0].UserMessage).IsEqualTo("Update 1.3.0 was not loaded: Fake 1.3.0 needs app contract ^2.0; this app provides 1.2.0");
         }
     }
@@ -195,7 +196,7 @@ public class ExtensionLoaderTests
         using (Assert.Multiple())
         {
             await Assert.That(notNewer.Chosen).IsNull();
-            await Assert.That(notNewer.Rejected.Select(o => o.Failure)).IsEquivalentTo([LoadFailure.NotNewer, LoadFailure.NotNewer]);
+            await Assert.That(notNewer.Rejected.Select(o => o.Failure)).IsEquivalentTo([LoadFailure.NotNewer, LoadFailure.NotNewer], CollectionOrdering.Matching);
             await Assert.That(notNewer.Rejected[0].UserMessage).IsEqualTo("Update 1.2.0 was not loaded: the bundled extension is 1.2.0, which is not older");
 
             await Assert.That(untrusted.Chosen).IsNull();
@@ -412,7 +413,7 @@ public class ExtensionLoaderTests
                 await Assert.That(status.IsCompatible).IsTrue();
                 await Assert.That(status.Pack.GetType()).IsEqualTo(typeof(StratBookPack));
                 await Assert.That(created).IsEqualTo(1);
-                await Assert.That(status.Rejected.Select(o => (o.Directory, o.Failure))).IsEquivalentTo([(staged.Directory, LoadFailure.IdentityMismatch)]);
+                await Assert.That(status.Rejected.Select(o => (o.Directory, o.Failure))).IsEquivalentTo([(staged.Directory, LoadFailure.IdentityMismatch)], CollectionOrdering.Matching);
             }
         }
         finally

@@ -13,6 +13,7 @@ using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Stats;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -124,7 +125,7 @@ public class StatsTabTests
 
         await Assert.That(vm.HasStats).IsTrue();
         // Columns are in catalogue display order now: assert membership, then index by label.
-        await Assert.That(vm.Columns.Select(c => c.Label).Order()).IsEquivalentTo(_expectedColumns.Order());
+        await Assert.That(vm.Columns.Select(c => c.Label).Order()).IsEquivalentTo(_expectedColumns.Order(), CollectionOrdering.Matching);
         await Assert.That(vm.GameRows.Count).IsEqualTo(2);
         // Final snapshot kills: Alice 20, Bob 21 → Bob first under kills-desc.
         int killsIdx = vm.Columns.Single(c => c.Label == "TotalK").Index;
@@ -143,7 +144,7 @@ public class StatsTabTests
     {
         StatsTabViewModel vm = BuildUpdatedVm();
 
-        await Assert.That(vm.Rounds).IsEquivalentTo(_expectedRounds);
+        await Assert.That(vm.Rounds).IsEquivalentTo(_expectedRounds, CollectionOrdering.Matching);
 
         vm.IsRoundView = true;
         vm.SelectedRound = 1;

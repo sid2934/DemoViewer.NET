@@ -4,6 +4,7 @@ using System.Text.Json;
 using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -91,8 +92,8 @@ public class RoundFactsProjectionTests
             await Assert.That(first.GamePhase).IsEqualTo(2);
             await Assert.That(first.Ct.Side).IsEqualTo(Ct);
             await Assert.That(first.T.Side).IsEqualTo(T);
-            await Assert.That(first.Ct.Slots).IsEquivalentTo([1, 2, 3, 4, 5]);
-            await Assert.That(first.T.Slots).IsEquivalentTo([6, 7, 8, 9, 10]);
+            await Assert.That(first.Ct.Slots).IsEquivalentTo([1, 2, 3, 4, 5], CollectionOrdering.Matching);
+            await Assert.That(first.T.Slots).IsEquivalentTo([6, 7, 8, 9, 10], CollectionOrdering.Matching);
             await Assert.That(first.Ct.EquipmentFreezeEnd).IsEqualTo(1100);
             await Assert.That(first.T.EquipmentFreezeEnd).IsEqualTo(1000);
             await Assert.That(first.Ct.BuyType).IsEqualTo(BuyType.Pistol);

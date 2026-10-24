@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using AppSites = DemoViewer.NET.Services.DemoProcessing.DecodeSites;
 using StratBookSites = DemoViewer.NET.Extensions.StratBook.Services.DecodeSites;
@@ -75,7 +76,7 @@ public class RoundIndexReindexRealDemoTests
                     await Assert.That(forwardReads).IsEqualTo(1).Because("only the forward round index wanted the demo");
                     await Assert.That(sites).IsEmpty().Because("no walk and no bare run over a held parse");
                     await Assert.That(swept.Count).IsGreaterThan(0);
-                    await Assert.That(rebuilt).IsEquivalentTo(swept);
+                    await Assert.That(rebuilt).IsEquivalentTo(swept, CollectionOrdering.Matching);
                 }
 
                 return 0;

@@ -7,6 +7,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.MatchMeta;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -52,7 +53,7 @@ public class RankRowMappingTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rows.Select(r => r.SteamId64)).IsEquivalentTo(["76561198000000001", "76561198000000002"]);
+            await Assert.That(rows.Select(r => r.SteamId64)).IsEquivalentTo(["76561198000000001", "76561198000000002"], CollectionOrdering.Matching);
             await Assert.That(rows[0].RankOld).IsEqualTo(14213);
             await Assert.That(rows[0].RankNew).IsEqualTo(14402);
             await Assert.That(rows[0].RankChange).IsEqualTo(189);

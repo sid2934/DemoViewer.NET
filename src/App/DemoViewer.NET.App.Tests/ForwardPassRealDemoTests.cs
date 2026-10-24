@@ -20,6 +20,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.AppTests.Extensions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -80,7 +81,7 @@ public class ForwardPassRealDemoTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(forward.Keys).IsEquivalentTo(retained.Keys);
+            await Assert.That(forward.Keys).IsEquivalentTo(retained.Keys, CollectionOrdering.Matching);
             foreach ((string key, string value) in retained)
             {
                 await Assert.That(forward[key]).IsEqualTo(value).Because($"{key}, forward vs retained, {Path.GetFileName(path)}");

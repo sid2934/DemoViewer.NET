@@ -197,9 +197,9 @@ public class RoundFactsSourceTests
         {
             await Assert.That(all.Count).IsEqualTo(4).Because("live rounds only by default: 2 on A, 2 on B");
             await Assert.That(ctFull.Select(h => (h.Demo.Path, h.Round.Number)))
-                .IsEquivalentTo([(DemoA, 2), (DemoB, 2)]);
-            await Assert.That(tWinsOnB.Select(h => h.Round.Number)).IsEquivalentTo([1]);
-            await Assert.That(siteB.Select(h => (h.Demo.Path, h.Round.Number))).IsEquivalentTo([(DemoA, 2)]);
+                .IsEquivalentTo([(DemoA, 2), (DemoB, 2)], CollectionOrdering.Matching);
+            await Assert.That(tWinsOnB.Select(h => h.Round.Number)).IsEquivalentTo([1], CollectionOrdering.Matching);
+            await Assert.That(siteB.Select(h => (h.Demo.Path, h.Round.Number))).IsEquivalentTo([(DemoA, 2)], CollectionOrdering.Matching);
             await Assert.That(extra.Count).IsEqualTo(5).Because("every round carries the extra column; LiveOnly off admits the unfinished one");
         }
     }
@@ -314,7 +314,7 @@ public class RoundFactsSourceTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(seen).IsEquivalentTo(["/d/no-rows.dem"]);
+            await Assert.That(seen).IsEquivalentTo(["/d/no-rows.dem"], CollectionOrdering.Matching);
             await Assert.That(source.TryGet("/d/no-rows.dem")?.Rounds.Single().WinnerSide).IsEqualTo(3);
         }
     }

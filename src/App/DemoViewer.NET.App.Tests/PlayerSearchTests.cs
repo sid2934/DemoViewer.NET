@@ -3,6 +3,7 @@
 using System.Globalization;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Players;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -45,7 +46,7 @@ public class PlayerSearchTests
         using (Assert.Multiple())
         {
             await Assert.That(result.SteamId64).IsEqualTo(Grim);
-            await Assert.That(result.Candidates.Select(c => c.SteamId64).ToArray()).IsEquivalentTo([Grim]);
+            await Assert.That(result.Candidates.Select(c => c.SteamId64).ToArray()).IsEquivalentTo([Grim], CollectionOrdering.Matching);
             await Assert.That(result.IsFlagged).IsFalse();
         }
     }
@@ -80,7 +81,7 @@ public class PlayerSearchTests
         using (Assert.Multiple())
         {
             await Assert.That(result.SteamId64).IsNull();
-            await Assert.That(result.Candidates.Select(c => c.SteamId64).ToArray()).IsEquivalentTo([Other, Third]);
+            await Assert.That(result.Candidates.Select(c => c.SteamId64).ToArray()).IsEquivalentTo([Other, Third], CollectionOrdering.Matching);
             await Assert.That(result.Candidates[0].SteamId64).IsEqualTo(Other).Because("it is in two demos, the other in one");
         }
     }

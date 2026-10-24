@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -102,7 +103,7 @@ public class ExtensionIsolationTests
 
         StoreDescriptor? settings = removal.Stores.FirstOrDefault(s => s.Id == "extension-settings");
 
-        await Assert.That(settings?.Paths).IsEquivalentTo([ExtensionSettingsStore.DirectoryName + "/" + pack.Id + ".json"]);
+        await Assert.That(settings?.Paths).IsEquivalentTo([ExtensionSettingsStore.DirectoryName + "/" + pack.Id + ".json"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -205,7 +206,7 @@ public class ExtensionIsolationTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(contributions.DemoActions.Select(a => a.Action.Id)).IsEquivalentTo(["dev.example.owner.greet"]);
+            await Assert.That(contributions.DemoActions.Select(a => a.Action.Id)).IsEquivalentTo(["dev.example.owner.greet"], CollectionOrdering.Matching);
             await Assert.That(contributions.HubTabs).IsEmpty();
             await Assert.That(guard.Faults.StateOf(pack.FeatureId).Count).IsEqualTo(2);
         }

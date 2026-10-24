@@ -177,7 +177,7 @@ public class DemoCorpusTests
             {
                 await Assert.That(problem).IsNull();
                 await Assert.That(resolved).IsEqualTo(corpus.CachePath(manifest.ByName("subject")!));
-                await Assert.That(await File.ReadAllBytesAsync(resolved!)).IsEquivalentTo(bytes);
+                await Assert.That(await File.ReadAllBytesAsync(resolved!)).IsEquivalentTo(bytes, CollectionOrdering.Matching);
                 // Content addressed: the sha is the directory, the original file name is kept.
                 await Assert.That(Path.GetFileName(Path.GetDirectoryName(resolved)!))
                     .IsEqualTo(Sha256Of(bytes));
@@ -660,7 +660,7 @@ public class DemoCorpusTests
             using (Assert.Multiple())
             {
                 await Assert.That(problem).IsNull();
-                await Assert.That(demos.Select(p => Path.GetFileName(p)!)).IsEquivalentTo(OrdinalPair);
+                await Assert.That(demos.Select(p => Path.GetFileName(p)!)).IsEquivalentTo(OrdinalPair, CollectionOrdering.Matching);
                 // Ordinal, not culture: "B" before "a".
                 await Assert.That(Path.GetFileName(demos[0])).IsEqualTo("B.dem");
             }
@@ -776,7 +776,7 @@ public class DemoCorpusTests
             {
                 await Assert.That(paths.Select(p => Path.GetFileName(p)!).ToArray())
                     .IsEquivalentTo(AThenB, CollectionOrdering.Matching);
-                await Assert.That(await File.ReadAllBytesAsync(paths[0])).IsEquivalentTo(one);
+                await Assert.That(await File.ReadAllBytesAsync(paths[0])).IsEquivalentTo(one, CollectionOrdering.Matching);
                 await Assert.That(corpus.RequireSetMember("s", 1)).IsEqualTo(paths[1]);
             }
         }

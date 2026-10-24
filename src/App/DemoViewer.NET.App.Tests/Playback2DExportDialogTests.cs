@@ -15,6 +15,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -66,7 +67,7 @@ public class Playback2DExportDialogTests
 
         // GIF frame delays are whole centiseconds, so 60 does not exist there. The list is
         // SceneExportSession's, and the nearest supported rate is chosen rather than resetting to the head.
-        await Assert.That(vm.AvailableFps).IsEquivalentTo(SceneExportSession.SupportedFps(ExportFormats.Gif));
+        await Assert.That(vm.AvailableFps).IsEquivalentTo(SceneExportSession.SupportedFps(ExportFormats.Gif), CollectionOrdering.Matching);
         await Assert.That(vm.AvailableFps.Contains(vm.SelectedFps)).IsTrue();
         await Assert.That(vm.SelectedFps).IsEqualTo(50);
     }
@@ -584,7 +585,7 @@ public class Playback2DExportDialogTests
         await Assert.That(vm.IncludeVision).IsFalse();
 
         await Assert.That(vm.BuildRequest(vm.Ranges[0]).LayerIds.Order())
-            .IsEquivalentTo(FullOverlaySet().Order());
+            .IsEquivalentTo(FullOverlaySet().Order(), CollectionOrdering.Matching);
     }
 
     [Test]
@@ -597,7 +598,7 @@ public class Playback2DExportDialogTests
         // The bare `dv2d export` set. Vision must match between the CLI and the app's default, or one
         // request produces two different videos depending on which front end ran it.
         await Assert.That(vm.BuildRequest(vm.Ranges[0]).LayerIds.Order())
-            .IsEquivalentTo(BareSceneSet().Order());
+            .IsEquivalentTo(BareSceneSet().Order(), CollectionOrdering.Matching);
     }
 
     /// <summary>

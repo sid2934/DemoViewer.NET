@@ -2,6 +2,7 @@
 
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.Updates;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -45,7 +46,7 @@ public class ExtensionPackagingTests
         string merged = ExtensionFeedMerge.Merge(existing, EntryJson("1.1.0"), FakeFeeds.Id, allowDowngrade: false);
 
         ExtensionFeed feed = ExtensionFeed.Parse(merged);
-        await Assert.That(feed.Entries.Select(e => e.Version.ToString())).IsEquivalentTo(["1.1.0", "1.0.0", "0.9.0"]);
+        await Assert.That(feed.Entries.Select(e => e.Version.ToString())).IsEquivalentTo(["1.1.0", "1.0.0", "0.9.0"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -63,7 +64,7 @@ public class ExtensionPackagingTests
         using (Assert.Multiple())
         {
             await Assert.That(feed.Entries.Count).IsEqualTo(2);
-            await Assert.That(feed.Entries.Select(e => e.Version.ToString())).IsEquivalentTo(["2.0.0", "1.0.0"]);
+            await Assert.That(feed.Entries.Select(e => e.Version.ToString())).IsEquivalentTo(["2.0.0", "1.0.0"], CollectionOrdering.Matching);
             await Assert.That(feed.Entries.Single(e => e.Version.ToString() == "1.0.0").Sha256).IsEqualTo(new string('b', 64));
         }
     }
@@ -79,7 +80,7 @@ public class ExtensionPackagingTests
 
         string merged = ExtensionFeedMerge.Merge(existing, EntryJson("1.5.0"), FakeFeeds.Id, allowDowngrade: true);
         ExtensionFeed feed = ExtensionFeed.Parse(merged);
-        await Assert.That(feed.Entries.Select(e => e.Version.ToString())).IsEquivalentTo(["2.0.0", "1.5.0"]);
+        await Assert.That(feed.Entries.Select(e => e.Version.ToString())).IsEquivalentTo(["2.0.0", "1.5.0"], CollectionOrdering.Matching);
     }
 
     [Test]

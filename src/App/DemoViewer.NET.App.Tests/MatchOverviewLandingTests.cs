@@ -14,6 +14,7 @@ using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views.MatchOverview;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -1134,7 +1135,7 @@ public class MatchOverviewLandingTests
             await Assert.That(computed).IsEquivalentTo(new List<string>
             {
                 "/demos/cached_de_dust2.dem"
-            });
+            }, CollectionOrdering.Matching);
         });
     }
 
@@ -1310,7 +1311,7 @@ public class MatchOverviewLandingTests
             await Assert.That(opened).IsEquivalentTo(new List<string>
             {
                 "/demos/cached_de_dust2.dem"
-            });
+            }, CollectionOrdering.Matching);
 
             // A real open re-enables them through the normal fill path.
             vm.BeginOpening("x.dem", "Nuke", "Server", "/demos/x.dem");

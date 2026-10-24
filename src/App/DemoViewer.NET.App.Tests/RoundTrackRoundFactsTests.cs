@@ -7,6 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -88,7 +89,7 @@ public class RoundTrackRoundFactsTests
         {
             await Assert.That(track.Facts).IsNull();
             await Assert.That(bands.Count).IsEqualTo(4).Because("warmup plus three rounds");
-            await Assert.That(bands.Select(b => b.Argb)).IsEquivalentTo([0u, 0u, 0u, 0u]);
+            await Assert.That(bands.Select(b => b.Argb)).IsEquivalentTo([0u, 0u, 0u, 0u], CollectionOrdering.Matching);
             await Assert.That(bands.Any(b => b.Tooltip.Contains("won by", StringComparison.Ordinal))).IsFalse();
         }
     }

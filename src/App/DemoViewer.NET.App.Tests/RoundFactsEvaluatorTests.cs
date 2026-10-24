@@ -6,6 +6,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -149,7 +150,7 @@ public class RoundFactsEvaluatorTests
         CountingSource source = new(RoundFactsTable.Unavailable("round_facts: the ruleset produced no round_facts table"));
         RoundFactsEvaluator evaluator = new(store, source, new FakeIdentity("rf-A"));
 
-        await Assert.That(evaluator.PendingPaths()).IsEquivalentTo([Demo]).Because("one demo, one pending entry");
+        await Assert.That(evaluator.PendingPaths()).IsEquivalentTo([Demo], CollectionOrdering.Matching).Because("one demo, one pending entry");
 
         evaluator.Evaluate("/zz/copy.dem", TwoRoundDemo());
 
@@ -194,7 +195,7 @@ public class RoundFactsEvaluatorTests
         using (Assert.Multiple())
         {
             await Assert.That(source.Calls).IsEqualTo(1).Because("the second pass sees current rows and stops at the fingerprint compare");
-            await Assert.That(updates).IsEquivalentTo([Demo]);
+            await Assert.That(updates).IsEquivalentTo([Demo], CollectionOrdering.Matching);
             RoundFactsRows rows = record.RoundFacts!;
             await Assert.That(rows).IsNotNull();
             await Assert.That(rows.Rounds.Count).IsEqualTo(2);

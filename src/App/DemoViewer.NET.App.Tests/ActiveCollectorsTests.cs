@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -22,10 +23,10 @@ public class ActiveCollectorsTests
         IDisposable background = active.Begin(Demo, Set("c.a"));
         IDisposable open = active.Begin(Demo.ToUpperInvariant(), Set("c.b"));
 
-        await Assert.That(Ids(active.For(Demo))).IsEquivalentTo(["c.a", "c.b"]);
+        await Assert.That(Ids(active.For(Demo))).IsEquivalentTo(["c.a", "c.b"], CollectionOrdering.Matching);
 
         background.Dispose();
-        await Assert.That(Ids(active.For(Demo))).IsEquivalentTo(["c.b"]).Because("the open's passes are still running");
+        await Assert.That(Ids(active.For(Demo))).IsEquivalentTo(["c.b"], CollectionOrdering.Matching).Because("the open's passes are still running");
 
         open.Dispose();
         await Assert.That(active.For(Demo).IsEmpty).IsTrue();
@@ -41,7 +42,7 @@ public class ActiveCollectorsTests
 
         first.Dispose();
         first.Dispose();
-        await Assert.That(Ids(active.For(Demo))).IsEquivalentTo(["c.a"]).Because("a second end of one visit retracts nothing more");
+        await Assert.That(Ids(active.For(Demo))).IsEquivalentTo(["c.a"], CollectionOrdering.Matching).Because("a second end of one visit retracts nothing more");
 
         second.Dispose();
         await Assert.That(active.For(Demo).IsEmpty).IsTrue();
@@ -58,7 +59,7 @@ public class ActiveCollectorsTests
         using (Assert.Multiple())
         {
             await Assert.That(active.For(Demo).IsEmpty).IsTrue();
-            await Assert.That(Ids(active.For("/d/other.dem"))).IsEquivalentTo(["c.a"]);
+            await Assert.That(Ids(active.For("/d/other.dem"))).IsEquivalentTo(["c.a"], CollectionOrdering.Matching);
         }
     }
 }

@@ -6,6 +6,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -103,8 +104,8 @@ public class ProcessingQueueStatusViewModelTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(vm.Rows.Select(r => r.DisplayText)).IsEquivalentTo(["b.dem"]);
-            await Assert.That(vm.RecentRows.Select(r => r.DisplayText).ToList()).IsEquivalentTo(["a.dem", "old.dem"]);
+            await Assert.That(vm.Rows.Select(r => r.DisplayText)).IsEquivalentTo(["b.dem"], CollectionOrdering.Matching);
+            await Assert.That(vm.RecentRows.Select(r => r.DisplayText).ToList()).IsEquivalentTo(["a.dem", "old.dem"], CollectionOrdering.Matching);
             await Assert.That(vm.RecentRows[0].DisplayText).IsEqualTo("a.dem");
             await Assert.That(vm.RecentRows[0].HasError).IsTrue();
             await Assert.That(vm.RecentRows[0].Error).IsEqualTo("Unexpected end of stream");
@@ -115,7 +116,7 @@ public class ProcessingQueueStatusViewModelTests
 
         // The queue later prunes its history; Recent keeps the session's.
         q.Drop(a);
-        await Assert.That(vm.RecentRows.Select(r => r.DisplayText).ToList()).IsEquivalentTo(["a.dem", "old.dem"]);
+        await Assert.That(vm.RecentRows.Select(r => r.DisplayText).ToList()).IsEquivalentTo(["a.dem", "old.dem"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -239,7 +240,7 @@ public class ProcessingQueueStatusViewModelTests
         }
 
         Row("q.dem").PromoteCommand.Execute(null);
-        await Assert.That(q.Promoted).IsEquivalentTo([queued.Id]);
+        await Assert.That(q.Promoted).IsEquivalentTo([queued.Id], CollectionOrdering.Matching);
 
         queued.Promoted = true;
         await Assert.That(Row("q.dem").IsPromoted).IsTrue();
@@ -360,7 +361,7 @@ public class ProcessingQueueStatusViewModelTests
         q.RaiseChanged();
         ProcessingQueueStatusViewModel vm = new(q);
 
-        await Assert.That(vm.RecentRows.Select(r => r.DisplayText)).IsEquivalentTo(["Save: grenade lineups"]);
+        await Assert.That(vm.RecentRows.Select(r => r.DisplayText)).IsEquivalentTo(["Save: grenade lineups"], CollectionOrdering.Matching);
     }
 
     [Test]

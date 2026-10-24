@@ -15,6 +15,7 @@ using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
 using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -53,7 +54,7 @@ public class PlaybackContributionTests
         using (Assert.Multiple())
         {
             await Assert.That(fake.Context).IsSameReferenceAs(ctx);
-            await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo([FakeContribution.Header]);
+            await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo([FakeContribution.Header], CollectionOrdering.Matching);
             await Assert.That(vm.Surface.Panes.Count).IsEqualTo(1);
             await Assert.That(vm.Surface.SidePane).IsNull();
         }

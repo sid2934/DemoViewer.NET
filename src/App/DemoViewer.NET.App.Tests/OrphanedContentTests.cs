@@ -4,6 +4,7 @@ using System.Text.Json;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -78,7 +79,7 @@ public class OrphanedContentTests
                 await Assert.That(store.OrphanAt("/m/a.dem")).IsEqualTo("sha-a");
                 await Assert.That(store.TryGetOrphan("sha-a")!.OrphanedSinceUtcTicks).IsNotNull();
                 await Assert.That(store.TryGetOrphan("sha-a")!.Path).IsEqualTo("/m/a.dem");
-                await Assert.That(Files(root)).IsEquivalentTo(before).Because("nothing is deleted on a detach");
+                await Assert.That(Files(root)).IsEquivalentTo(before, CollectionOrdering.Matching).Because("nothing is deleted on a detach");
                 await Assert.That(changes.Single()).IsEqualTo("/m/a.dem");
             }
 

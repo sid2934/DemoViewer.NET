@@ -1,3 +1,5 @@
+using TUnit.Assertions.Enums;
+
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>The SDK packages are what third parties build against, so they may reference nothing of the app's.</summary>
@@ -13,7 +15,7 @@ public class ExtensionSdkArchitectureTests
                 .Where(n => n.StartsWith("DemoViewer.NET", StringComparison.Ordinal))
         ];
 
-        await Assert.That(ours).IsEquivalentTo(["DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.Playback2D.Scene"]);
+        await Assert.That(ours).IsEquivalentTo(["DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.Playback2D.Scene"], CollectionOrdering.Matching);
     }
 
     [Test]

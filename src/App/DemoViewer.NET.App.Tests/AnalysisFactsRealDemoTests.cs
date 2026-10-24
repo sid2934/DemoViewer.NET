@@ -6,6 +6,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -159,7 +160,7 @@ public class AnalysisFactsRealDemoTests
             {
                 await Assert.That(rules.Docs.Select(d => d.Id)).Contains(BrokenRuleset).Because("it loads, so this reaches the build");
                 await Assert.That(wanted).IsTrue();
-                await Assert.That(first).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId, AnalysisFactsTests.FactsTable })
+                await Assert.That(first).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId, AnalysisFactsTests.FactsTable }, CollectionOrdering.Matching)
                     .Because("the broken ruleset has no fingerprint, so nothing reads for it");
                 await Assert.That(library.Declared).Contains(key);
                 await Assert.That(library.Declared).Contains(new FactKey(AnalysisFactsTests.FactsRuleset, FactKey.ScoreboardOutput));

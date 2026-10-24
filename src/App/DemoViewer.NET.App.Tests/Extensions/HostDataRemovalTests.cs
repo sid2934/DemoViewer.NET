@@ -7,6 +7,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -90,7 +91,7 @@ public class HostDataRemovalTests
             .FirstOrDefault(s => s.Id == "facts:" + RulesetContribution.QualifiedId(id, "kills"));
 
         await Assert.That(facts).IsNotNull();
-        await Assert.That(facts!.Paths).IsEquivalentTo([$"demos/*.facts.{RulesetContribution.QualifiedId(id, "kills")}.json.gz"]);
+        await Assert.That(facts!.Paths).IsEquivalentTo([$"demos/*.facts.{RulesetContribution.QualifiedId(id, "kills")}.json.gz"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -114,7 +115,7 @@ public class HostDataRemovalTests
             await Assert.That(stores.Any(s => s.Id.StartsWith("facts:", StringComparison.Ordinal))).IsFalse();
             await Assert.That(contributions.Rulesets.Single().ReadBy).IsEqualTo(id + ".reader");
             await Assert.That(contributions.Rulesets.Single().ReadsUserCommands).IsTrue();
-            await Assert.That(host.TableRulesets).IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")]);
+            await Assert.That(host.TableRulesets).IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")], CollectionOrdering.Matching);
             await Assert.That(host.Needs(new VisitedDemo("/d/match.dem")).UserCommands).IsTrue()
                 .Because("the ruleset's declaration reaches the pass's needs");
         }
@@ -137,7 +138,7 @@ public class HostDataRemovalTests
         using (Assert.Multiple())
         {
             await Assert.That(contributions.Rulesets.Select(r => r.RulesetId))
-                .IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")]);
+                .IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")], CollectionOrdering.Matching);
             await Assert.That(guard.Faults.StateOf(pack.FeatureId).Count).IsEqualTo(1);
         }
     }

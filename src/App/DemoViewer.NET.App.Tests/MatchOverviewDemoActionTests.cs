@@ -5,6 +5,7 @@ using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.MatchOverview;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -53,7 +54,7 @@ public class MatchOverviewDemoActionTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(requested).IsEquivalentTo(new[] { Demo });
+            await Assert.That(requested).IsEquivalentTo(new[] { Demo }, CollectionOrdering.Matching);
             await Assert.That(row.IsVisible).IsFalse().Because("pressed once, it steps aside");
         }
     }

@@ -20,6 +20,7 @@ using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -278,7 +279,7 @@ public class Scene2DHostFrameHostTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"]);
+                await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"], CollectionOrdering.Matching);
                 await Assert.That(tool.PressedOnAPane).IsTrue();
                 await Assert.That(host.Router.IsGestureOpen).IsFalse();
             }
@@ -436,7 +437,7 @@ public class Scene2DHostFrameHostTests
                 .. SceneLayerCatalog.SceneStackIds.Where(id => !SceneLayerIds.OptIn.Contains(id)),
                 SceneLayerIds.Annotations
             ];
-            await Assert.That(mounted).IsEquivalentTo(expected.Order().ToArray());
+            await Assert.That(mounted).IsEquivalentTo(expected.Order().ToArray(), CollectionOrdering.Matching);
             await Assert.That(LayerEnabled(host, SceneLayerIds.Annotations)).IsTrue();
 
             window.Close();

@@ -3,6 +3,7 @@
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -71,7 +72,7 @@ public class ExtensionSettingsStoreTests
         await Assert.That(store.Remove("flag")).IsTrue();
         await Assert.That(store.Remove("flag")).IsFalse();
 
-        await Assert.That(told).IsEquivalentTo(["flag", "other", "flag"]);
+        await Assert.That(told).IsEquivalentTo(["flag", "other", "flag"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -161,7 +162,7 @@ public class ExtensionSettingsStoreTests
             {
                 await Assert.That(two.Get("shared", "unset")).IsEqualTo("unset");
                 await Assert.That(Directory.GetFiles(Path.Combine(root, ExtensionSettingsStore.DirectoryName)))
-                    .IsEquivalentTo([ExtensionSettingsStore.PathFor(root, "dev.example.one")]);
+                    .IsEquivalentTo([ExtensionSettingsStore.PathFor(root, "dev.example.one")], CollectionOrdering.Matching);
             }
         }
         finally

@@ -5,6 +5,7 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Views.Playback2D;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -60,7 +61,7 @@ public class SceneLayerListParityTests
             // drawing into. An export gets a frozen copy instead, so the catalog leaves the id opt-in
             // rather than making it one of the seven.
             string[] scene = [.. mounted.Where(id => !SceneLayerIds.OptIn.Contains(id))];
-            await Assert.That(scene).IsEquivalentTo(SceneIds.Order().ToArray());
+            await Assert.That(scene).IsEquivalentTo(SceneIds.Order().ToArray(), CollectionOrdering.Matching);
 
             // Not a restatement: an equivalence check would still pass against an accidentally short
             // catalog, so the count is pinned independently.
@@ -99,7 +100,7 @@ public class SceneLayerListParityTests
             "playback2d.overlay"
         ];
 
-        await Assert.That(SceneLayerCatalog.SceneStackIds.ToArray()).IsEquivalentTo(expected);
+        await Assert.That(SceneLayerCatalog.SceneStackIds.ToArray()).IsEquivalentTo(expected, CollectionOrdering.Matching);
 
         // KnownLayerIds is an alias, not a second table, so a rename only has one place to happen.
         // Asserted by reference so a future "helpful" copy of the list is caught, not just a divergence.

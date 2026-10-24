@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -29,7 +30,7 @@ public class ExtensionFaultsTests
         ExtensionFaultState state = rig.Faults.StateOf("pack.fake");
         using (Assert.Multiple())
         {
-            await Assert.That(rig.Switch.Suspensions).IsEquivalentTo(["pack.fake"]);
+            await Assert.That(rig.Switch.Suspensions).IsEquivalentTo(["pack.fake"], CollectionOrdering.Matching);
             await Assert.That(state.Suspended).IsTrue();
             await Assert.That(state.Count).IsEqualTo(3);
             await Assert.That(state.LastSite).IsEqualTo("site");
@@ -51,7 +52,7 @@ public class ExtensionFaultsTests
 
         rig.Throw();
         rig.Posts.Drain();
-        await Assert.That(rig.Switch.Suspensions).IsEquivalentTo(["pack.fake"]);
+        await Assert.That(rig.Switch.Suspensions).IsEquivalentTo(["pack.fake"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -125,7 +126,7 @@ public class ExtensionFaultsTests
         rig.Posts.Drain();
 
         rig.Faults.Resume("pack.fake");
-        await Assert.That(rig.Switch.Resumptions).IsEquivalentTo(["pack.fake"]);
+        await Assert.That(rig.Switch.Resumptions).IsEquivalentTo(["pack.fake"], CollectionOrdering.Matching);
         await Assert.That(rig.Faults.StateOf("pack.fake")).IsEqualTo(ExtensionFaultState.None);
 
         rig.Throw();
@@ -146,7 +147,7 @@ public class ExtensionFaultsTests
         faults.FailStartup(scope, "register", new InvalidOperationException("no"));
         RecordingSwitch gate = new();
         faults.AttachSwitch(gate);
-        await Assert.That(gate.Suspensions).IsEquivalentTo(["pack.fake"]).Because("attaching applies it before anything reads");
+        await Assert.That(gate.Suspensions).IsEquivalentTo(["pack.fake"], CollectionOrdering.Matching).Because("attaching applies it before anything reads");
 
         faults.Resume("pack.fake");
         using (Assert.Multiple())
@@ -216,7 +217,7 @@ public class ExtensionFaultsTests
         handlers += seen.Add;
 
         guard.Invoke(rig.Faults, handlers, 7, static (h, v) => h(v));
-        await Assert.That(seen).IsEquivalentTo([7]);
+        await Assert.That(seen).IsEquivalentTo([7], CollectionOrdering.Matching);
         await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsEqualTo(1);
 
         // List<int>.RemoveAt lives in the runtime, not in any extension: a host handler.

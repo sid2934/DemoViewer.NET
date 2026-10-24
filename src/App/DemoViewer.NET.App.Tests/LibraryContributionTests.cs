@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.ViewModels.Library;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -122,7 +123,7 @@ public class LibraryContributionTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["a.dem"])
+            await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["a.dem"], CollectionOrdering.Matching)
                 .Because("the clans come from the cache's row, which the grid entry does not carry");
             await Assert.That(seen.First(d => d.FilePath == "/demos/a.dem").Sha256).IsEqualTo(record.Sha256);
             await Assert.That(ReferenceEquals(seen.Last(d => d.FilePath == "/demos/a.dem"), library.Find("/demos/a.dem"))).IsTrue();
@@ -290,7 +291,7 @@ public class LibraryContributionTests
         await Assert.That(vm.FilteredEntries.Count).IsEqualTo(2).Because("the \"\" choice applies no predicate");
 
         filter.Selected = filter.Items.Single(i => i.Key == "keep");
-        await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["keep.dem"]);
+        await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["keep.dem"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -311,14 +312,14 @@ public class LibraryContributionTests
         using (Assert.Multiple())
         {
             await Assert.That(vm.HasBadge).IsTrue();
-            await Assert.That(vm.BadgeLabels).IsEquivalentTo(["x", "y"]);
+            await Assert.That(vm.BadgeLabels).IsEquivalentTo(["x", "y"], CollectionOrdering.Matching);
             await Assert.That(vm.BadgeResetLabel).IsEqualTo("Reset");
             await Assert.That(vm.BadgeMenuEntries.Select(e => (e.Label, e.IsReset, e.Tooltip))).IsEquivalentTo(
             [
                 ("x", false, (string?)null),
                 ("y", false, (string?)null),
                 ("Reset", true, (string?)"Back to automatic")
-            ]);
+            ], CollectionOrdering.Matching);
             await Assert.That(lib.Entries[0].BadgeLabel).IsEqualTo("a.dem");
             await Assert.That(lib.Entries[0].BadgeIsPinned).IsTrue();
             await Assert.That(lib.Entries[1].BadgeLabel).IsEqualTo("b.dem");
@@ -350,7 +351,7 @@ public class LibraryContributionTests
         {
             await Assert.That(c.BadgesForCalls).IsEqualTo(1).Because("one batch call refreshes every entry at construction");
             await Assert.That(c.BadgeForCalls).IsEqualTo(0).Because("the per-entry hook is for a single-entry update, not a full refresh");
-            await Assert.That(lib.Entries.Select(e => e.BadgeLabel!)).IsEquivalentTo(["a.dem", "b.dem", "c.dem"]);
+            await Assert.That(lib.Entries.Select(e => e.BadgeLabel!)).IsEquivalentTo(["a.dem", "b.dem", "c.dem"], CollectionOrdering.Matching);
         }
 
         // A library change (OnEntriesChanged, fired by the collection add) also refreshes through the batch hook.
@@ -416,7 +417,7 @@ public class LibraryContributionTests
             (entry, key) => key != "keep" || entry.FileName == "a.dem");
         c.RaiseChanged();
 
-        await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["a.dem"]);
+        await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["a.dem"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -475,7 +476,7 @@ public class LibraryContributionTests
                 .Because("Changed must add a filter VM, not only a gate transition");
             LibraryFilterViewModel filter = vm.Filters.Single();
             filter.Selected = filter.Items.Single(i => i.Key == "keep");
-            await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["keep.dem"]);
+            await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["keep.dem"], CollectionOrdering.Matching);
         }
     }
 

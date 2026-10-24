@@ -2,6 +2,7 @@
 
 using System.Reflection;
 using SysAssembly = System.Reflection.Assembly;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -103,7 +104,7 @@ public class Playback2DEventWiringTests
 
         await Assert.That(byName.Count).IsEqualTo(3)
             .Because("a forwarder is no contract of its own and an opaque accessor is reported, not counted");
-        await Assert.That(unanalysable).IsEquivalentTo([typeof(EventGuardCanaryOpaque).FullName + ".OpaqueCanary"])
+        await Assert.That(unanalysable).IsEquivalentTo([typeof(EventGuardCanaryOpaque).FullName + ".OpaqueCanary"], CollectionOrdering.Matching)
             .Because("the forwarder is seen through to its inner event; the opaque accessor is not");
         await Assert.That(byName["WiredCanary"].IsWired).IsTrue()
             .Because("raised in Raise() and subscribed from a different type — the shape a real event has");

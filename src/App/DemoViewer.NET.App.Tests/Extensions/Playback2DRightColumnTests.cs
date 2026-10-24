@@ -12,6 +12,7 @@ using DemoViewer.NET.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -58,8 +59,8 @@ public class Playback2DRightColumnTests
         using (Assert.Multiple())
         {
             await Assert.That(vm.Surface.Panels.Select(p => ((FakePanelViewModel)p.Content!).Name))
-                .IsEquivalentTo(["first", "second", "third"]);
-            await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([false, false, false])
+                .IsEquivalentTo(["first", "second", "third"], CollectionOrdering.Matching);
+            await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([false, false, false], CollectionOrdering.Matching)
                 .Because("the mode is off");
             await Assert.That(vm.IsReviewAvailable).IsTrue();
             await Assert.That(vm.IsCardStrip).IsFalse();
@@ -68,7 +69,7 @@ public class Playback2DRightColumnTests
         mode.IsOn = true;
         using (Assert.Multiple())
         {
-            await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([true, true, true]);
+            await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([true, true, true], CollectionOrdering.Matching);
             await Assert.That(first.IsShown).IsTrue();
             await Assert.That(vm.IsCardStrip).IsTrue();
         }
@@ -87,7 +88,7 @@ public class Playback2DRightColumnTests
             await Assert.That(free.IsShown).IsTrue();
             await Assert.That(first.IsShown).IsFalse();
             await Assert.That(vm.Surface.Panels.Select(p => ((FakePanelViewModel)p.Content!).Name))
-                .IsEquivalentTo(["free", "second", "third"]);
+                .IsEquivalentTo(["free", "second", "third"], CollectionOrdering.Matching);
         }
 
         vm.Dispose();
@@ -256,7 +257,7 @@ public class Playback2DRightColumnTests
         {
             await Assert.That(vm.Surface.TryHandleKey(Key.D1, KeyModifiers.None)).IsTrue();
             await Assert.That(vm.Surface.TryHandleKey(Key.D2, KeyModifiers.None)).IsFalse();
-            await Assert.That(keys).IsEquivalentTo([Key.D1, Key.D2]);
+            await Assert.That(keys).IsEquivalentTo([Key.D1, Key.D2], CollectionOrdering.Matching);
         }
 
         // Unfocused: the tab's own actions never reach the handler; its unknown ones do.
@@ -266,7 +267,7 @@ public class Playback2DRightColumnTests
             await Assert.That(ctx.PlayCount).IsEqualTo(1).Because("the tab played; the handler was not asked");
             await Assert.That(actions).IsEmpty();
             await Assert.That(vm.ExecuteAction("fake.TagNote")).IsTrue();
-            await Assert.That(actions).IsEquivalentTo(["fake.TagNote"]);
+            await Assert.That(actions).IsEquivalentTo(["fake.TagNote"], CollectionOrdering.Matching);
             await Assert.That(vm.Surface.HasKeyboard).IsFalse();
         }
 
@@ -279,7 +280,7 @@ public class Playback2DRightColumnTests
             await Assert.That(vm.ExecuteAction(Playback2DAction.TogglePlay)).IsTrue();
             await Assert.That(ctx.PlayCount).IsEqualTo(1).Because("the focused panel took play");
             await Assert.That(vm.ExecuteAction(Playback2DAction.StepForward)).IsTrue().Because("what it declines falls to the tab");
-            await Assert.That(actions).IsEquivalentTo([nameof(Playback2DAction.TogglePlay), nameof(Playback2DAction.StepForward)]);
+            await Assert.That(actions).IsEquivalentTo([nameof(Playback2DAction.TogglePlay), nameof(Playback2DAction.StepForward)], CollectionOrdering.Matching);
         }
 
         mode.IsOn = false;

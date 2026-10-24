@@ -14,6 +14,7 @@ using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Views.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
 using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -52,7 +53,7 @@ public class PlaybackBandMenuWindowTests
             using (Assert.Multiple())
             {
                 await Assert.That(menu.ItemsSource!.Cast<MenuItem>().Select(i => i.Header as string ?? ""))
-                    .IsEquivalentTo([FakeContribution.Header]);
+                    .IsEquivalentTo([FakeContribution.Header], CollectionOrdering.Matching);
                 await Assert.That(ctx.SeekFrames.Count).IsEqualTo(seeks).Because("a right press never seeks");
                 await Assert.That(fake.Runs).IsEqualTo(0);
             }

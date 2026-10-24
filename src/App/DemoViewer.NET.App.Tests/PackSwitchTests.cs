@@ -8,6 +8,7 @@ using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -36,7 +37,7 @@ public class PackSwitchTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(lifecycle.Enabled).IsEquivalentTo([ExtensionStartReason.Startup]);
+            await Assert.That(lifecycle.Enabled).IsEquivalentTo([ExtensionStartReason.Startup], CollectionOrdering.Matching);
             await Assert.That(lifecycle.Disabled).IsEqualTo(0);
             await Assert.That(packs.IsOn(pack)).IsTrue();
             await Assert.That(reconsidered).IsEqualTo(0).Because("startup re-polls through the library rescan, not here");
@@ -59,7 +60,7 @@ public class PackSwitchTests
         await packs.Pending;
         using (Assert.Multiple())
         {
-            await Assert.That(lifecycle.Enabled).IsEquivalentTo([ExtensionStartReason.EnabledInSession]);
+            await Assert.That(lifecycle.Enabled).IsEquivalentTo([ExtensionStartReason.EnabledInSession], CollectionOrdering.Matching);
             await Assert.That(reconsidered).IsEqualTo(1).Because("the library is re-polled once the loads are queued");
             await Assert.That(lifecycle.LastToken.IsCancellationRequested).IsFalse();
             await Assert.That(packs.IsOn(pack)).IsTrue();
@@ -98,7 +99,7 @@ public class PackSwitchTests
         waiting = false;
         gate.Raise(); // the wizard's Finish writes settings
         await packs.Pending;
-        await Assert.That(lifecycle.Enabled).IsEquivalentTo([ExtensionStartReason.EnabledInSession]);
+        await Assert.That(lifecycle.Enabled).IsEquivalentTo([ExtensionStartReason.EnabledInSession], CollectionOrdering.Matching);
     }
 
     [Test]

@@ -206,7 +206,7 @@ public class PlayerOverviewCompareTests
         {
             await Assert.That(pickedSelf).IsFalse();
             await Assert.That(pickedById).IsTrue().Because("a SteamID picks at once, as the tab's own search opens one");
-            await Assert.That(rig.Opened).IsEquivalentTo([Rival]);
+            await Assert.That(rig.Opened).IsEquivalentTo([Rival], CollectionOrdering.Matching);
             await Assert.That(rig.Section.HasOther).IsFalse();
             await Assert.That(rig.Section.Tiles).IsEmpty();
         }

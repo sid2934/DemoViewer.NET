@@ -14,6 +14,7 @@ using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Stats;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -275,12 +276,12 @@ public class PlayerDetailsTests
 
         // Achievements: only Alice's chains; the game-scoped chain never appears.
         await Assert.That(details.Achievements.Count).IsEqualTo(2);
-        await Assert.That(details.Achievements.Select(a => a.Chain)).IsEquivalentTo(_expectedChains);
+        await Assert.That(details.Achievements.Select(a => a.Chain)).IsEquivalentTo(_expectedChains, CollectionOrdering.Matching);
         await Assert.That(details.Achievements[1].IsClutch).IsTrue();
 
         // Rounds table: one row per live round for the slot.
         await Assert.That(details.RoundTableRows.Count).IsEqualTo(2);
-        await Assert.That(details.RoundTableColumns.Select(c => c.Key)).IsEquivalentTo(_expectedRoundKeys);
+        await Assert.That(details.RoundTableColumns.Select(c => c.Key)).IsEquivalentTo(_expectedRoundKeys, CollectionOrdering.Matching);
 
         // Form deep-link: selecting a round jumps the section and highlights the row.
         details.SelectRoundFromForm(2);
@@ -318,7 +319,7 @@ public class PlayerDetailsTests
         await Assert.That(details.Form.HasKast).IsTrue();
         await Assert.That(details.Form.HasDuels).IsTrue();
         await Assert.That(details.Form.KastValues.All(v => v != 0)).IsTrue();
-        await Assert.That(details.Form.DuelTicks.Select(t => t.Glyph)).IsEquivalentTo(["▲", "▼"]);
+        await Assert.That(details.Form.DuelTicks.Select(t => t.Glyph)).IsEquivalentTo(["▲", "▼"], CollectionOrdering.Matching);
 
         // Bob had no KAST / opening duels: hollow dots, no glyphs.
         details.NextPlayerCommand.Execute(null);
@@ -336,7 +337,7 @@ public class PlayerDetailsTests
         vm.OpenPlayerDetailsCommand.Execute(vm.GameRows.Single(r => r.PlayerName == "Alice"));
         WeaponBreakdownViewModel weapons = vm.PlayerDetails!.Weapons;
 
-        await Assert.That(weapons.Bars.Select(b => b.Label)).IsEquivalentTo(_expectedWeapons);
+        await Assert.That(weapons.Bars.Select(b => b.Label)).IsEquivalentTo(_expectedWeapons, CollectionOrdering.Matching);
         await Assert.That(weapons.Bars[0].ValueText).IsEqualTo("7");
         await Assert.That(weapons.Bars[0].Value > weapons.Bars[1].Value).IsTrue();
         await Assert.That(weapons.Bars[0].Max).IsEqualTo(weapons.Bars[1].Max);

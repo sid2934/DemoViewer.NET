@@ -16,6 +16,7 @@ using DemoViewer.NET.Views.Highlights;
 using DemoViewer.NET.Views.Library;
 using DemoViewer.NET.Views.MatchOverview;
 using DemoViewer.NET.Views.Playback2D;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -111,7 +112,7 @@ public class PlayerOverviewEntryPointRenderTests
 
                 MenuItem trin = Opened(Row("Trin"));
                 trin.Command!.Execute(null);
-                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (PlayerOverviewEntryPointTests.Trin, "Trin") });
+                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (PlayerOverviewEntryPointTests.Trin, "Trin") }, CollectionOrdering.Matching);
             }
             finally
             {
@@ -140,7 +141,7 @@ public class PlayerOverviewEntryPointRenderTests
                 MenuItem neo = Opened(Row("Neo"));
                 await AssertEntry(neo, true);
                 neo.Command!.Execute(null);
-                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (PlayerOverviewEntryPointTests.Neo, "Neo") });
+                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (PlayerOverviewEntryPointTests.Neo, "Neo") }, CollectionOrdering.Matching);
             }
             finally
             {
@@ -180,7 +181,7 @@ public class PlayerOverviewEntryPointRenderTests
                 Button neo = Find()!;
                 await Assert.That(neo.IsEnabled).IsTrue();
                 neo.Command!.Execute(null);
-                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (PlayerOverviewEntryPointTests.Neo, "Neo") });
+                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (PlayerOverviewEntryPointTests.Neo, "Neo") }, CollectionOrdering.Matching);
             }
             finally
             {
@@ -215,10 +216,10 @@ public class PlayerOverviewEntryPointRenderTests
                 MenuItem submenu = view.FindControl<MenuItem>("PlayerOverviewMenuItem")!;
                 MenuItem[] items = [.. ((IEnumerable<MenuItem>)submenu.ItemsSource!)];
                 await Assert.That(submenu.IsVisible).IsTrue();
-                await Assert.That(items.Select(i => i.IsEnabled)).IsEquivalentTo((bool[])[true, false, true]);
+                await Assert.That(items.Select(i => i.IsEnabled)).IsEquivalentTo((bool[])[true, false, true], CollectionOrdering.Matching);
                 await Assert.That(ToolTip.GetTip(items[1])).IsEqualTo(PlayerOverviewLink.NoSteamIdTip);
                 items[2].RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
-                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (1UL, "Alpha"), (3UL, "Charlie") });
+                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (1UL, "Alpha"), (3UL, "Charlie") }, CollectionOrdering.Matching);
             }
             finally
             {

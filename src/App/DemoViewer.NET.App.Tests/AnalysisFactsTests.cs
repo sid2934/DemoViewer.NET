@@ -17,6 +17,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -120,7 +121,7 @@ public class AnalysisFactsTests
         {
             await Assert.That(table.Rows[0].Dimensions["slot"].AsInteger()).IsEqualTo(4L);
             await Assert.That(table.Rows[0].Values["n"].AsNumber()).IsEqualTo(1.5);
-            await Assert.That(table.Rows[1].Values["n"].Items.Select(i => i.AsInteger())).IsEquivalentTo(OneTwo);
+            await Assert.That(table.Rows[1].Values["n"].Items.Select(i => i.AsInteger())).IsEquivalentTo(OneTwo, CollectionOrdering.Matching);
         }
     }
 
@@ -141,9 +142,9 @@ public class AnalysisFactsTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(all).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId, FactsTable });
-                await Assert.That(onlyFacts).IsEquivalentTo(new[] { FactsTable });
-                await Assert.That(off).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId }).Because("an owner that is off records nothing");
+                await Assert.That(all).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId, FactsTable }, CollectionOrdering.Matching);
+                await Assert.That(onlyFacts).IsEquivalentTo(new[] { FactsTable }, CollectionOrdering.Matching);
+                await Assert.That(off).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId }, CollectionOrdering.Matching).Because("an owner that is off records nothing");
                 await Assert.That(rules.Fingerprint(64).Fingerprint).IsEqualTo(MergedRulesBuildTests.ShippedFingerprint64)
                     .Because("a stamped ruleset never moves the highlights stamp");
             }
@@ -186,11 +187,11 @@ public class AnalysisFactsTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(staleRetained).IsEquivalentTo(new[] { FactsTable, RoundFactsFingerprint.RulesetId }.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal));
-                await Assert.That(staleRetained).IsEquivalentTo(staleForward);
-                await Assert.That(currentRetained).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId }.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal))
+                await Assert.That(staleRetained).IsEquivalentTo(new[] { FactsTable, RoundFactsFingerprint.RulesetId }.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal), CollectionOrdering.Matching);
+                await Assert.That(staleRetained).IsEquivalentTo(staleForward, CollectionOrdering.Matching);
+                await Assert.That(currentRetained).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId }.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal), CollectionOrdering.Matching)
                     .Because("every stamp is current, so the retained run records round_facts and the library tables alone");
-                await Assert.That(currentForward).IsEquivalentTo(LibraryTeamTables.Tables.Order(StringComparer.Ordinal));
+                await Assert.That(currentForward).IsEquivalentTo(LibraryTeamTables.Tables.Order(StringComparer.Ordinal), CollectionOrdering.Matching);
             }
         }
         finally
@@ -329,7 +330,7 @@ public class AnalysisFactsTests
             {
                 await Assert.That(shownOn).IsTrue();
                 await Assert.That(matchedOn).IsEqualTo(1);
-                await Assert.That(changes).IsEquivalentTo(new[] { new LibraryChange(null, LibraryChangeKind.Updated) });
+                await Assert.That(changes).IsEquivalentTo(new[] { new LibraryChange(null, LibraryChangeKind.Updated) }, CollectionOrdering.Matching);
                 await Assert.That(library.Find(path)?.Fact(stampId)).IsNull().Because("off looks off on the row");
                 await Assert.That(library.Demos.Single().Facts.Select(f => f.Id)).DoesNotContain(stampId);
                 await Assert.That(library.Query(hasFact).Total).IsEqualTo(0);
@@ -367,7 +368,7 @@ public class AnalysisFactsTests
             using (Assert.Multiple())
             {
                 await Assert.That(library.Find(path)?.Fact(stampId)).IsNull().Because("off looks off on the first read, with nothing to wait for");
-                await Assert.That(library.Demos.Single().Facts.Select(f => f.Id)).IsEquivalentTo(["other"]);
+                await Assert.That(library.Demos.Single().Facts.Select(f => f.Id)).IsEquivalentTo(["other"], CollectionOrdering.Matching);
                 await Assert.That(library.Query(new LibraryQuery { HasFact = stampId }).Total).IsEqualTo(0);
                 await Assert.That(posted).IsEmpty();
             }
@@ -428,7 +429,7 @@ public class AnalysisFactsTests
                 await Assert.That(afterCollecting).IsNull().Because("the next read after the packs contributed resolves the rulesets");
                 await Assert.That(readsAfterCollecting).IsEqualTo(1);
                 await Assert.That(postedAfterCollecting).IsEqualTo(1).Because("one recheck covers every deferred read");
-                await Assert.That(changes).IsEquivalentTo(new[] { new LibraryChange(null, LibraryChangeKind.Updated) })
+                await Assert.That(changes).IsEquivalentTo(new[] { new LibraryChange(null, LibraryChangeKind.Updated) }, CollectionOrdering.Matching)
                     .Because("the posted recheck tells readers that rows projected while the packs contributed moved");
                 await Assert.That(library.Find(path)?.Fact(stampId)).IsNull();
                 await Assert.That(reads).IsEqualTo(1);
@@ -495,7 +496,7 @@ public class AnalysisFactsTests
                 await Assert.That(facts.TryGet(path, key)).IsNull();
                 await Assert.That(cache.TryReadSiblingBytes(path, StampedFacts.Suffix(key))).IsNull().Because("a ruleset left out writes no table");
                 await Assert.That(wantedAfter).IsFalse().Because("a failed write under the same fingerprint is settled");
-                await Assert.That(updated).IsEquivalentTo(new[] { path }).Because("the second visit records nothing");
+                await Assert.That(updated).IsEquivalentTo(new[] { path }, CollectionOrdering.Matching).Because("the second visit records nothing");
                 await Assert.That(facts.Status(path, key)).IsEqualTo(FactStatus.Stale).Because("a changed ruleset is tried again");
                 await Assert.That(evaluator.Wants(path)).IsTrue();
             }

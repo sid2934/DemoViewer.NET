@@ -7,6 +7,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.Facts;
 using Microsoft.Extensions.Logging.Abstractions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -70,7 +71,7 @@ public class RuleLayersTests
         RuleConfigLoadResult shipped = YamlConfigLoader.LoadWithOverlay(Shipped, null);
         RuleConfigLoadResult layered = Load(null, Contributed(Id("kills"), Yaml(Id("kills"), "layer_kills")));
 
-        await Assert.That(Ids(layered)).IsEquivalentTo([.. Ids(shipped), Id("kills")]);
+        await Assert.That(Ids(layered)).IsEquivalentTo([.. Ids(shipped), Id("kills")], CollectionOrdering.Matching);
         await Assert.That(Ids(layered)[^1]).IsEqualTo(Id("kills"));
     }
 
@@ -111,7 +112,7 @@ public class RuleLayersTests
             Contributed(Id("missing"), null),
             Contributed(Id("good"), Yaml(Id("good"), "layer_good")));
 
-        await Assert.That(Ids(layered)).IsEquivalentTo([.. Ids(shipped), Id("good")]);
+        await Assert.That(Ids(layered)).IsEquivalentTo([.. Ids(shipped), Id("good")], CollectionOrdering.Matching);
     }
 
     [Test]

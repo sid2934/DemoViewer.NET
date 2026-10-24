@@ -11,6 +11,7 @@ using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.PlayerOverview.Sections;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -130,7 +131,7 @@ public class PlayerOverviewBenchmarksTests
             await Assert.That(rows.Accounts.Count).IsEqualTo(Accounts);
             await Assert.That(rows.Accounts[Account(9)].Count).IsEqualTo(2);
             await Assert.That(rows.Accounts[Account(3)].Select(d => d.Stats!["TotalK"]))
-                .IsEquivalentTo(subject.Demos.Select(d => d.Stats!["TotalK"]));
+                .IsEquivalentTo(subject.Demos.Select(d => d.Stats!["TotalK"]), CollectionOrdering.Matching);
         }
 
         DemoCacheRecord rewritten = Demo(4);
@@ -139,7 +140,7 @@ public class PlayerOverviewBenchmarksTests
         library.Store.Upsert(rewritten);
         library.FacetReads.Clear();
         await library.Rows.LoadLibraryAsync();
-        await Assert.That(library.FacetReads).IsEquivalentTo(["/lib/4.dem"]);
+        await Assert.That(library.FacetReads).IsEquivalentTo(["/lib/4.dem"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -154,7 +155,7 @@ public class PlayerOverviewBenchmarksTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(five.Select(p => p.SteamId64)).IsEquivalentTo([.. Others.Select(Account)]);
+            await Assert.That(five.Select(p => p.SteamId64)).IsEquivalentTo([.. Others.Select(Account)], CollectionOrdering.Matching);
             await Assert.That(one.Count).IsEqualTo(9);
             await Assert.That(nuke.Count).IsEqualTo(8);
             await Assert.That(nuke.All(p => p.Pool.Matches == 5)).IsTrue().Because("each player's own demos pass the subject's filter");

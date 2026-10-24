@@ -3,6 +3,7 @@
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -197,7 +198,7 @@ public class Playback2DTrajectoryTests
         await Assert.That(kinds).IsEquivalentTo(new[]
         {
             GrenadeKind.He, GrenadeKind.Flash, GrenadeKind.Smoke, GrenadeKind.Molotov, GrenadeKind.Decoy
-        });
+        }, CollectionOrdering.Matching);
     }
 
     // ── Builders ──

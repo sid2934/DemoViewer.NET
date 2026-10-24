@@ -11,6 +11,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Highlights;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -238,7 +239,7 @@ public class HighlightScanServiceTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(scanner.PendingPaths()).IsEquivalentTo(["/nfs/stale.dem"]);
+            await Assert.That(scanner.PendingPaths()).IsEquivalentTo(["/nfs/stale.dem"], CollectionOrdering.Matching);
             await Assert.That(scanner.QueueLength).IsEqualTo(1);
         }
     }
@@ -305,7 +306,7 @@ public class HighlightScanServiceTests
                 store.Upsert(IndexedRow("/demos/stale.dem", 0, fingerprint: "OLD"));
                 using HighlightScanService scanner = new(store, new RulesHighlightHarvester(rules), () => [], () => false);
 
-                await Assert.That(scanner.PendingPaths()).IsEquivalentTo(["/demos/stale.dem"]);
+                await Assert.That(scanner.PendingPaths()).IsEquivalentTo(["/demos/stale.dem"], CollectionOrdering.Matching);
             }
         }
         finally
@@ -363,7 +364,7 @@ public class HighlightScanServiceTests
         scanner.EnsureBackfillRunning();
         await WaitForAsync(() => scanner.QueueLength == 0 && !scanner.IsScanning, "queue drained");
 
-        await Assert.That(processed).IsEquivalentTo(["/d/newest.dem", "/d/mid.dem", "/d/old.dem"])
+        await Assert.That(processed).IsEquivalentTo(["/d/newest.dem", "/d/mid.dem", "/d/old.dem"], CollectionOrdering.Matching)
             .Because("newest-first drain order");
         await Assert.That(maxConcurrent).IsEqualTo(1).Because("never two demos in flight");
         await Assert.That(store.Index.All(r => r.AnalysisState == DemoAnalysisState.Indexed)).IsTrue();
@@ -492,7 +493,7 @@ public class HighlightScanServiceTests
         // Settle: give any (wrongly) enqueued auto rows a chance to run. They must not.
         await Task.Delay(100);
 
-        await Assert.That(processed).IsEquivalentTo(["/d/wanted.dem"]);
+        await Assert.That(processed).IsEquivalentTo(["/d/wanted.dem"], CollectionOrdering.Matching);
         await Assert.That(store.TryLoadRecord("/d/wanted.dem")!.AnalysisState).IsEqualTo(DemoAnalysisState.Indexed);
         await Assert.That(store.TryLoadRecord("/d/other1.dem")!.AnalysisState).IsEqualTo(DemoAnalysisState.Pending);
         await Assert.That(store.TryLoadRecord("/d/other2.dem")!.AnalysisState).IsEqualTo(DemoAnalysisState.Pending);

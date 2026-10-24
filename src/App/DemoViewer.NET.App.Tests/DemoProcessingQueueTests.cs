@@ -3,6 +3,7 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -128,7 +129,7 @@ public class DemoProcessingQueueTests
 
             await WaitForAsync(() => parser.Processed.Count == 4, "all four drained");
             await Assert.That(parser.Processed)
-                .IsEquivalentTo(["/d/urgent.dem", "/d/c.dem", "/d/b.dem", "/d/a.dem"]);
+                .IsEquivalentTo(["/d/urgent.dem", "/d/c.dem", "/d/b.dem", "/d/a.dem"], CollectionOrdering.Matching);
             await Assert.That(parser.MaxConcurrent).IsEqualTo(1).Because("default max concurrency is 1");
         }
     }
@@ -149,7 +150,7 @@ public class DemoProcessingQueueTests
 
             // Two owners, one entry.
             await Assert.That(q.Snapshot().Count).IsEqualTo(1).Because("same path coalesces to one item");
-            await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["library", "highlights"]);
+            await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["library", "highlights"], CollectionOrdering.Matching);
 
             q.Resume();
             await WaitForAsync(() => libRan == 1 && hlRan == 1, "both owners' handlers ran");
@@ -387,7 +388,7 @@ public class DemoProcessingQueueTests
             // The library cancels ITS submission. The item survives for highlights.
             libHandle.Cancel();
             await Assert.That(q.Snapshot().Count).IsEqualTo(1).Because("a co-owner keeps the item alive");
-            await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["highlights"]);
+            await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["highlights"], CollectionOrdering.Matching);
 
             q.Resume();
             await WaitForAsync(() => hlRan == 1, "highlights handler ran");

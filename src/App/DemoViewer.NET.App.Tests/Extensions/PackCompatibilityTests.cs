@@ -4,6 +4,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -141,7 +142,7 @@ public class PackCompatibilityTests
         IReadOnlyList<PackStatus> statuses = PackStatus.Evaluate([bad, good], _host);
         using (Assert.Multiple())
         {
-            await Assert.That(statuses.Select(s => s.Pack.Id)).IsEquivalentTo(["net.demoviewer.pack.bad", "net.demoviewer.pack.good"]);
+            await Assert.That(statuses.Select(s => s.Pack.Id)).IsEquivalentTo(["net.demoviewer.pack.bad", "net.demoviewer.pack.good"], CollectionOrdering.Matching);
             await Assert.That(statuses[0].IsCompatible).IsFalse();
             await Assert.That(statuses[1].IsCompatible).IsTrue();
             await Assert.That(statuses[1].Problem).IsNull();

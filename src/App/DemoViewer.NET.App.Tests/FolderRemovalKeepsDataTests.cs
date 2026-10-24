@@ -8,6 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.DemoLibraryScanTests;
 using static DemoViewer.NET.AppTests.LibraryFingerprintTests;
 
@@ -78,7 +79,7 @@ public class FolderRemovalKeepsDataTests
             using (Assert.Multiple())
             {
                 await Assert.That(tagsAfter.TryLoad(sha)?.Instances.Single().Labels.Single().Value).IsEqualTo("a-split");
-                await Assert.That(tagsAfter.Index.Single().StratIds).IsEquivalentTo(["a-split"]);
+                await Assert.That(tagsAfter.Index.Single().StratIds).IsEquivalentTo(["a-split"], CollectionOrdering.Matching);
                 await Assert.That((await new AnnotationStore(Path.Combine(config, "annotations"), _ => sha).LoadAsync(demo, clock))
                     .Elements).Count().IsEqualTo(1);
                 await Assert.That(cache.TryGetOrphan(sha)).IsNotNull();

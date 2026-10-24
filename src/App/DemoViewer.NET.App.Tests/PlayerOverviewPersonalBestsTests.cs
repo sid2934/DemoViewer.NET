@@ -7,6 +7,7 @@ using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.PlayerOverview.Sections;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -54,7 +55,7 @@ public class PlayerOverviewPersonalBestsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rows.Select(r => r.Label)).IsEquivalentTo(["Most kills", "Best HLTV", "Best ADR", "Longest win streak"]);
+            await Assert.That(rows.Select(r => r.Label)).IsEquivalentTo(["Most kills", "Best HLTV", "Best ADR", "Longest win streak"], CollectionOrdering.Matching);
             await Assert.That(rows[0].ValueText).IsEqualTo("30");
             await Assert.That(rows[0].Match.Row.Path).IsEqualTo("/lib/0.dem");
             await Assert.That((rows[1].ValueText, rows[2].ValueText)).IsEqualTo(("1.50", "5.0"));

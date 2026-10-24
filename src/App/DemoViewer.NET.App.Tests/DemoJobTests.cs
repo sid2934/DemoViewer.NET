@@ -4,6 +4,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export.Pack;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -102,7 +103,7 @@ public class DemoJobTests
         {
             await Assert.That(job.State).IsEqualTo(DemoQueueItemState.Failed);
             await Assert.That(job.Error?.Message).IsEqualTo("boom");
-            await Assert.That(library.Ran).IsEquivalentTo(["library"]);
+            await Assert.That(library.Ran).IsEquivalentTo(["library"], CollectionOrdering.Matching);
         }
     }
 
@@ -128,7 +129,7 @@ public class DemoJobTests
         {
             await Assert.That(job.State).IsEqualTo(DemoQueueItemState.Cancelled);
             await Assert.That(jobRan).IsFalse();
-            await Assert.That(library.Ran).IsEquivalentTo(["library"]).Because("the co-owner's pass keeps the visit");
+            await Assert.That(library.Ran).IsEquivalentTo(["library"], CollectionOrdering.Matching).Because("the co-owner's pass keeps the visit");
             await Assert.That(visit.State).IsEqualTo(DemoQueueItemState.Completed);
         }
     }
@@ -185,7 +186,7 @@ public class DemoJobTests
         using (Assert.Multiple())
         {
             await Assert.That(job.State).IsEqualTo(DemoQueueItemState.Cancelled);
-            await Assert.That(library.Ran).IsEquivalentTo(["library"]);
+            await Assert.That(library.Ran).IsEquivalentTo(["library"], CollectionOrdering.Matching);
         }
     }
 

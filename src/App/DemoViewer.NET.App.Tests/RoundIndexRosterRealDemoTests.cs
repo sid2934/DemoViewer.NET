@@ -7,6 +7,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -44,7 +45,7 @@ public class RoundIndexRosterRealDemoTests
         {
             await Assert.That(held.Count).IsGreaterThan(0).Because("every benchmark demo has disconnects");
             await Assert.That(read).IsNotNull();
-            await Assert.That(read!.OrderBy(kv => kv.Key)).IsEquivalentTo(held.OrderBy(kv => kv.Key));
+            await Assert.That(read!.OrderBy(kv => kv.Key)).IsEquivalentTo(held.OrderBy(kv => kv.Key), CollectionOrdering.Matching);
         }
     }
 

@@ -10,6 +10,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -81,8 +82,8 @@ public class SampleRulesetRealDemoTests
         int? kills = (int?)helloFacts.GetMethod("TotalKills", BindingFlags.Public | BindingFlags.Static)!.Invoke(null, [library, path]);
         using (Assert.Multiple())
         {
-            await Assert.That(rulesets.Select(r => r.RulesetId)).IsEquivalentTo(["dev_example_hello__kills"]);
-            await Assert.That(outputs).IsEquivalentTo(["hello_kills"]);
+            await Assert.That(rulesets.Select(r => r.RulesetId)).IsEquivalentTo(["dev_example_hello__kills"], CollectionOrdering.Matching);
+            await Assert.That(outputs).IsEquivalentTo(["hello_kills"], CollectionOrdering.Matching);
             await Assert.That(library.Declared).Contains(key);
             await Assert.That(library.IsCurrent(path, key)).IsTrue();
             await Assert.That(kills ?? 0).IsGreaterThan(0).Because("the sample's own reader sums its table back");

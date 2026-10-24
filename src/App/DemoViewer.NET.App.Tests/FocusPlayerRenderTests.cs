@@ -18,6 +18,7 @@ using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.Stats;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -116,7 +117,7 @@ public class FocusPlayerRenderTests
                 button = window.GetVisualDescendants().OfType<Button>().Single(b => Equals(b.Content, "Player overview"));
                 await Assert.That(button.IsEnabled).IsTrue();
                 button.Command!.Execute(button.CommandParameter);
-                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (FocusPlayerTests.Alice, "Alice") });
+                await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (FocusPlayerTests.Alice, "Alice") }, CollectionOrdering.Matching);
             }
             finally
             {

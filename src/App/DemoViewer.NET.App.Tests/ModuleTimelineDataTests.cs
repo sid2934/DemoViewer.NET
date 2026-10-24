@@ -3,6 +3,7 @@
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -26,7 +27,7 @@ public class ModuleTimelineDataTests
         IReadOnlyList<TimelineEventRecord> records = data.EventsOfType("player_death");
 
         int[] expectedTicks = [100, 250, 400];
-        await Assert.That(records.Select(r => r.Tick)).IsEquivalentTo(expectedTicks);
+        await Assert.That(records.Select(r => r.Tick)).IsEquivalentTo(expectedTicks, CollectionOrdering.Matching);
         await Assert.That(records[0].FrameIndex).IsEqualTo(50);
     }
 
@@ -187,7 +188,7 @@ public class ModuleTimelineDataTests
         await Assert.That(data.HasEvent("ROUND_FREEZE_END")).IsTrue();
         await Assert.That(data.HasEvent("bomb_planted")).IsFalse();
         int[] expectedFrames = [0, 300];
-        await Assert.That(data.FramesForEvent("round_freeze_end")).IsEquivalentTo(expectedFrames);
+        await Assert.That(data.FramesForEvent("round_freeze_end")).IsEquivalentTo(expectedFrames, CollectionOrdering.Matching);
         await Assert.That(data.TotalFrames).IsEqualTo(ctx.TotalFrames);
     }
 

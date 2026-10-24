@@ -3,6 +3,7 @@
 using System.Reflection;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -35,7 +36,7 @@ public class FirstPartyHostSurfaceTests
                 .Order(StringComparer.Ordinal)
         ];
 
-        await Assert.That(members).IsEquivalentTo(Allowed.Keys.Order(StringComparer.Ordinal))
+        await Assert.That(members).IsEquivalentTo(Allowed.Keys.Order(StringComparer.Ordinal), CollectionOrdering.Matching)
             .Because("FirstPartyHost grows only by something of the app's the pack reads and cannot declare as a store, with its reason in Allowed");
     }
 

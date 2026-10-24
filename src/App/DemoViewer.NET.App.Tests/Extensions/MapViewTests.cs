@@ -12,6 +12,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Tools;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -119,7 +120,7 @@ public class MapViewTests
             window.MouseDown(new Point(400, 300), MouseButton.Left);
             window.MouseMove(new Point(420, 310));
             window.MouseUp(new Point(420, 310), MouseButton.Left);
-            await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"]);
+            await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"], CollectionOrdering.Matching);
 
             tool.Accept = false;
             LevelPane pane = view.PaneAt(new Point(400, 300))!;

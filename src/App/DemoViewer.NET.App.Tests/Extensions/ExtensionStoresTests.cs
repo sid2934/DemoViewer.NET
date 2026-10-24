@@ -3,6 +3,7 @@
 using System.Text;
 using DemoViewer.NET.Extensions;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -54,12 +55,12 @@ public class ExtensionStoresTests
                 await Assert.That(folder.LastWriteTimeUtc("today.json")).IsNotNull();
                 await Assert.That(folder.LastWriteTimeUtc("missing.json")).IsNull();
                 await Assert.That(Directory.GetFiles(Path.Combine(root, Id)).Select(f => Path.GetFileName(f)).Order(StringComparer.Ordinal))
-                    .IsEquivalentTo(["log.jsonl", "today.json"])
+                    .IsEquivalentTo(["log.jsonl", "today.json"], CollectionOrdering.Matching)
                     .Because("the temporary file was moved over the target, never left beside it");
-                await Assert.That(folder.EnumerateFiles("", "*.json").Order(StringComparer.Ordinal)).IsEquivalentTo(["today.json"]);
+                await Assert.That(folder.EnumerateFiles("", "*.json").Order(StringComparer.Ordinal)).IsEquivalentTo(["today.json"], CollectionOrdering.Matching);
                 await Assert.That(folder.EnumerateFiles("deep", "*").Order(StringComparer.Ordinal))
-                    .IsEquivalentTo([Path.Combine("deep", "later.json")]);
-                await Assert.That(folder.EnumerateDirectories("")).IsEquivalentTo(["deep"]);
+                    .IsEquivalentTo([Path.Combine("deep", "later.json")], CollectionOrdering.Matching);
+                await Assert.That(folder.EnumerateDirectories("")).IsEquivalentTo(["deep"], CollectionOrdering.Matching);
                 await Assert.That(folder.EnumerateFiles("nowhere", "*")).IsEmpty().Because("a missing folder lists nothing");
             }
 
@@ -106,9 +107,9 @@ public class ExtensionStoresTests
                 await Assert.That(before).IsFalse();
                 await Assert.That(file.Exists).IsTrue();
                 await Assert.That(file.LastWriteTimeUtc).IsNotNull();
-                await Assert.That(file.Read()).IsEquivalentTo("{\"v\":2}"u8.ToArray());
+                await Assert.That(file.Read()).IsEquivalentTo("{\"v\":2}"u8.ToArray(), CollectionOrdering.Matching);
                 await Assert.That(Directory.GetFiles(root).Select(f => Path.GetFileName(f)).Order(StringComparer.Ordinal))
-                    .IsEquivalentTo([Id + ".json", "settings.json"])
+                    .IsEquivalentTo([Id + ".json", "settings.json"], CollectionOrdering.Matching)
                     .Because("the temporary file was moved over the target, never left beside it");
             }
 
@@ -242,9 +243,9 @@ public class ExtensionStoresTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(accepted).IsEquivalentTo([own]);
+            await Assert.That(accepted).IsEquivalentTo([own], CollectionOrdering.Matching);
             await Assert.That(guard.Faults.StateOf(pack.FeatureId).Count).IsEqualTo(1);
-            await Assert.That(contributions.Stores).IsEquivalentTo([own]).Because("the contributions read the context's list");
+            await Assert.That(contributions.Stores).IsEquivalentTo([own], CollectionOrdering.Matching).Because("the contributions read the context's list");
         }
     }
 

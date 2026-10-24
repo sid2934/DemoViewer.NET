@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -42,7 +43,7 @@ public class MatchInfoReaderTests
             await Assert.That(info.MatchTimeUtc).IsEqualTo(new DateTime(2026, 6, 17, 23, 17, 26, DateTimeKind.Utc));
             await Assert.That(info.ReservationId).IsEqualTo(3826256877184877003UL)
                 .Because("the reservation id rides only the last round's stats");
-            await Assert.That(info.TeamScores).IsEquivalentTo([2, 13]);
+            await Assert.That(info.TeamScores).IsEquivalentTo([2, 13], CollectionOrdering.Matching);
             await Assert.That(info.MatchResult).IsEqualTo(2);
             await Assert.That(MatchMetaPass.ParseName(CommittedName)?.Reservation).IsEqualTo(info.ReservationId)
                 .Because("the file name's first number is the same reservation");
@@ -72,7 +73,7 @@ public class MatchInfoReaderTests
         {
             await Assert.That(info.MatchTimeUtc).IsEqualTo(DateTime.UnixEpoch.AddSeconds(1));
             await Assert.That(info.ReservationId).IsEqualTo(7UL);
-            await Assert.That(info.TeamScores).IsEquivalentTo([16, 9]);
+            await Assert.That(info.TeamScores).IsEquivalentTo([16, 9], CollectionOrdering.Matching);
             await Assert.That(info.MatchResult).IsNull();
         }
     }

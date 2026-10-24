@@ -7,6 +7,7 @@ using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -153,7 +154,7 @@ public class NotificationCenterTests
 
         clock.Advance(TimeSpan.FromSeconds(2));
         center.Expire();
-        await Assert.That(center.Cards.Select(c => c.Id)).IsEquivalentTo(["kept"]);
+        await Assert.That(center.Cards.Select(c => c.Id)).IsEquivalentTo(["kept"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -206,7 +207,7 @@ public class NotificationCenterTests
         off.Post(Note("hidden"));
         on.Post(Note("shown"));
         posts.Drain();
-        await Assert.That(center.Cards.Select(c => c.Id)).IsEquivalentTo(["shown"]);
+        await Assert.That(center.Cards.Select(c => c.Id)).IsEquivalentTo(["shown"], CollectionOrdering.Matching);
 
         // A suspension for faults goes through the same gate, so it closes the cards the same way.
         gate.Answers["pack.on"] = false;
@@ -270,7 +271,7 @@ public class NotificationCenterTests
                 provider.GetExtensionContext(pack.Id).Notifications.Post(Note("composed"));
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-                await Assert.That(center.Cards.Select(c => c.Id)).IsEquivalentTo(["composed"]);
+                await Assert.That(center.Cards.Select(c => c.Id)).IsEquivalentTo(["composed"], CollectionOrdering.Matching);
             });
         }
         finally

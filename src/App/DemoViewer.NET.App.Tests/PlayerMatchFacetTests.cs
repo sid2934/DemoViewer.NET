@@ -10,6 +10,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -145,12 +146,12 @@ public class PlayerMatchFacetTests
         using (Assert.Multiple())
         {
             await Assert.That(players.Select(p => p.SteamId64))
-                .IsEquivalentTo(["76561190000000003", "76561190000000007", "76561190000000008", "76561190000000012"]);
-            await Assert.That(players[0].Slots).IsEquivalentTo([3, 4]);
-            await Assert.That(players[0].Names).IsEquivalentTo(["grim"]).Because("the forward run names slot 3 after its earlier occupant");
+                .IsEquivalentTo(["76561190000000003", "76561190000000007", "76561190000000008", "76561190000000012"], CollectionOrdering.Matching);
+            await Assert.That(players[0].Slots).IsEquivalentTo([3, 4], CollectionOrdering.Matching);
+            await Assert.That(players[0].Names).IsEquivalentTo(["grim"], CollectionOrdering.Matching).Because("the forward run names slot 3 after its earlier occupant");
             await Assert.That(players[1].Names).IsEmpty().Because("a placeholder is never a name");
-            await Assert.That(players[2].Names).IsEquivalentTo(["renamed"]).Because("with no roster name the run's name stands");
-            await Assert.That(players[3].Names).IsEquivalentTo(["jeorge"]);
+            await Assert.That(players[2].Names).IsEquivalentTo(["renamed"], CollectionOrdering.Matching).Because("with no roster name the run's name stands");
+            await Assert.That(players[3].Names).IsEquivalentTo(["jeorge"], CollectionOrdering.Matching);
         }
     }
 
@@ -170,7 +171,7 @@ public class PlayerMatchFacetTests
             await Assert.That(plain).DoesNotContain("FacetPlayers").Because("the field is additive: a record without it writes the old bytes");
             await Assert.That(plainRow).DoesNotContain("FacetPlayers");
             await Assert.That(row.FacetPlayers).IsSameReferenceAs(record.FacetPlayers);
-            await Assert.That(JsonSerializer.Deserialize<DemoCacheIndexEntry>(JsonSerializer.Serialize(row))!.FacetPlayers!.Single().Slots).IsEquivalentTo([3, 4]);
+            await Assert.That(JsonSerializer.Deserialize<DemoCacheIndexEntry>(JsonSerializer.Serialize(row))!.FacetPlayers!.Single().Slots).IsEquivalentTo([3, 4], CollectionOrdering.Matching);
             await Assert.That(copy.FacetPlayers).IsSameReferenceAs(record.FacetPlayers);
         }
     }

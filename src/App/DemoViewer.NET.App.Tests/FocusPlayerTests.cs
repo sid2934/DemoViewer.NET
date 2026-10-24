@@ -8,6 +8,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.Stats;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -124,7 +125,7 @@ public class FocusPlayerTests
         StatsTabViewModel vm = Updated();
 
         await Assert.That(vm.GameRows.Where(r => r.PlayerName == "Alice").Select(r => r.SteamId64))
-            .IsEquivalentTo(new[] { Alice, Alice });
+            .IsEquivalentTo(new[] { Alice, Alice }, CollectionOrdering.Matching);
         foreach (string name in (string[])["Bob", "BOT Kirk", "Coach"])
         {
             StatsRow row = vm.GameRows.Single(r => r.PlayerName == name);
@@ -160,7 +161,7 @@ public class FocusPlayerTests
 
         await Assert.That(opened).IsEmpty();
         vm.OpenPlayerOverviewCommand.Execute(vm.GameRows.First(r => r.PlayerName == "Alice"));
-        await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Alice, "Alice") });
+        await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Alice, "Alice") }, CollectionOrdering.Matching);
     }
 
     [Test]

@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Input;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -38,7 +39,7 @@ public class Playback2DActionDispatchTests
 
         await Assert.That(vm.ExecuteAction(Playback2DAction.StepForward)).IsTrue();
         int[] expected = [43];
-        await Assert.That(ctx.SeekFrames).IsEquivalentTo(expected);
+        await Assert.That(ctx.SeekFrames).IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -72,7 +73,7 @@ public class Playback2DActionDispatchTests
         vm.ExecuteAction(Playback2DAction.SpeedDown);
 
         double[] expected = [2.0, 4.0, 2.0];
-        await Assert.That(ctx.Speeds).IsEquivalentTo(expected);
+        await Assert.That(ctx.Speeds).IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -109,8 +110,8 @@ public class Playback2DActionDispatchTests
 
         string[] expected = ["round_freeze_end"];
         await Assert.That(ctx.NextEvents.Count).IsEqualTo(1);
-        await Assert.That(ctx.NextEvents[0]).IsEquivalentTo(expected);
-        await Assert.That(ctx.PrevEvents[0]).IsEquivalentTo(expected);
+        await Assert.That(ctx.NextEvents[0]).IsEquivalentTo(expected, CollectionOrdering.Matching);
+        await Assert.That(ctx.PrevEvents[0]).IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -121,7 +122,7 @@ public class Playback2DActionDispatchTests
         vm.ExecuteAction(Playback2DAction.NextKill);
 
         string[] expected = ["player_death"];
-        await Assert.That(ctx.NextEvents[0]).IsEquivalentTo(expected);
+        await Assert.That(ctx.NextEvents[0]).IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
     [Test]

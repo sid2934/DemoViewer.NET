@@ -128,7 +128,7 @@ public class PlayerOverviewCategoriesTests
         {
             await Assert.That(keys.Where(ColumnCatalogue.RequiresVisibility)).IsEmpty();
             await Assert.That(keys.Where(k => ColumnCatalogue.Resolve(k).Group is StatGroup.AimQuality or StatGroup.Accuracy)).IsEmpty();
-            await Assert.That(keys).IsEquivalentTo(keys.Distinct()).Because("a column sits in one category");
+            await Assert.That(keys).IsEquivalentTo(keys.Distinct(), CollectionOrdering.Matching).Because("a column sits in one category");
             await Assert.That(keys.Where(k => ColumnRules.For(k) is null or ColumnRule.NotAggregable)).IsEmpty()
                 .Because("every listed column pools across demos");
         }
@@ -175,7 +175,7 @@ public class PlayerOverviewCategoriesTests
                     await Assert.That(stat.Label).IsEqualTo(ColumnCatalogue.Resolve(stat.Key).Display);
                 }
 
-                await Assert.That(section.Aggregate!.Values).IsEquivalentTo(expected.Values);
+                await Assert.That(section.Aggregate!.Values).IsEquivalentTo(expected.Values, CollectionOrdering.Matching);
                 await Assert.That(Stat(section, "TotalFK").Detail)
                     .IsEqualTo((expected["TotalFK"]!.Value / rounds).ToString("0.00", CultureInfo.InvariantCulture) + " per round");
                 await Assert.That(Stat(section, "AWP").Detail)

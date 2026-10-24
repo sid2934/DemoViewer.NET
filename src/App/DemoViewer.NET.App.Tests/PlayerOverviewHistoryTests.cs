@@ -246,8 +246,8 @@ public class PlayerOverviewHistoryTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(shell.Opened).IsEquivalentTo(["/lib/0.dem"]);
-            await Assert.That(shell.Focused).IsEquivalentTo([("/lib/0.dem", Grim)]);
+            await Assert.That(shell.Opened).IsEquivalentTo(["/lib/0.dem"], CollectionOrdering.Matching);
+            await Assert.That(shell.Focused).IsEquivalentTo([("/lib/0.dem", Grim)], CollectionOrdering.Matching);
             await Assert.That(present.IsFileMissing).IsFalse();
             await Assert.That(missing.IsFileMissing).IsTrue();
         }

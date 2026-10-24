@@ -16,6 +16,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -58,7 +59,7 @@ public class BackgroundPlanRealDemoTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(narrow.Keys).IsEquivalentTo(full.Keys);
+            await Assert.That(narrow.Keys).IsEquivalentTo(full.Keys, CollectionOrdering.Matching);
             foreach ((string key, string value) in full)
             {
                 await Assert.That(narrow[key]).IsEqualTo(value).Because($"{key} on {Path.GetFileName(path)}");

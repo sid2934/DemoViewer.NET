@@ -11,6 +11,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -157,7 +158,7 @@ public class LibraryTeamTablesTests
         {
             await Assert.That(Show(LibraryTeamState.Of(0, 0, "A", "B", [3], false, default))).IsEqualTo(Show(LibraryTeamState.Empty()));
             await Assert.That(Show(LibraryTeamState.Of(null, 4, null, null, [3], true, default))).IsEqualTo(Show(LibraryTeamState.Empty()));
-            await Assert.That(LibraryTeamState.Of(1, 0, null, null, [3], false, default).CoachSlots).IsEquivalentTo([3]);
+            await Assert.That(LibraryTeamState.Of(1, 0, null, null, [3], false, default).CoachSlots).IsEquivalentTo([3], CollectionOrdering.Matching);
         }
     }
 
@@ -168,7 +169,7 @@ public class LibraryTeamTablesTests
         AnalysisRun run = rules.BareRun(MergedRulesBuildTests.TwoFrameDemo(), "/demos/a.dem");
 
         await Assert.That((run.Build.Outputs ?? []).Select(o => o.Id).Where(LibraryTeamTables.Tables.Contains).Order(StringComparer.Ordinal))
-            .IsEquivalentTo(LibraryTeamTables.Tables.Order(StringComparer.Ordinal));
+            .IsEquivalentTo(LibraryTeamTables.Tables.Order(StringComparer.Ordinal), CollectionOrdering.Matching);
         // Two frames, no team entity and no closed round: no score and no coach, as the replay read it.
         await Assert.That(Show(LibraryTeamTables.Read(run, [], default))).IsEqualTo(Show(LibraryTeamState.Empty()));
     }

@@ -4,6 +4,7 @@ using System.Text.Json;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Models;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -118,7 +119,7 @@ public class SessionPackStateTests
 
             SessionPayload? loaded = new SettingsService(dir).LoadSession();
 
-            await Assert.That(loaded!.Packs!.Keys).IsEquivalentTo(packs.Keys);
+            await Assert.That(loaded!.Packs!.Keys).IsEquivalentTo(packs.Keys, CollectionOrdering.Matching);
             using (Assert.Multiple())
             {
                 await Assert.That(JsonElement.DeepEquals(loaded.Packs[StratBookPack.PackId], packs[StratBookPack.PackId])).IsTrue();

@@ -12,6 +12,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
@@ -57,7 +58,7 @@ public class PackDataRemoverTests
                 await Assert.That(before.Items.First(i => i.Descriptor.Id == "teams").FileCount).IsEqualTo(1);
                 await Assert.That(before.Items.First(i => i.Descriptor.Id == "round-index").FileCount).IsEqualTo(1);
                 await Assert.That(before.TotalBytes).IsGreaterThan(0);
-                await Assert.That(before.UserWorkItems.Select(i => i.Descriptor.Id)).IsEquivalentTo(["strats", "teams"]);
+                await Assert.That(before.UserWorkItems.Select(i => i.Descriptor.Id)).IsEquivalentTo(["strats", "teams"], CollectionOrdering.Matching);
             }
 
             ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [strats, teams, roundIndex], [], "fake", "delete");
@@ -336,13 +337,13 @@ public class PackDataRemoverTests
             {
                 await Assert.That(a.Packs.ContainsKey(PackId)).IsFalse();
                 await Assert.That(a.Packs[OtherPackId].GetString()).IsEqualTo("not mine");
-                await Assert.That(a.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"]);
-                await Assert.That(aEntry.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"]);
+                await Assert.That(a.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"], CollectionOrdering.Matching);
+                await Assert.That(aEntry.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"], CollectionOrdering.Matching);
                 await Assert.That(a.Map).IsEqualTo("de_nuke");
                 await Assert.That(a.Players.Count).IsEqualTo(1).Because("core fields must survive the strip");
 
                 await Assert.That(b.Packs[OtherPackId].GetString()).IsEqualTo("also not mine");
-                await Assert.That(b.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"]);
+                await Assert.That(b.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"], CollectionOrdering.Matching);
             }
         }
         finally
@@ -369,14 +370,14 @@ public class PackDataRemoverTests
                 .DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
 
             DemoCacheStore reopened = new(cacheRoot);
-            await Assert.That(reopened.TryGetOrphan("sha-a")!.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"]);
+            await Assert.That(reopened.TryGetOrphan("sha-a")!.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"], CollectionOrdering.Matching);
             await Assert.That(reopened.Reattach("/d/a.dem", record.Size, record.ModifiedTicks)).IsTrue();
             DemoCacheRecord back = reopened.TryLoadRecord("/d/a.dem")!;
             using (Assert.Multiple())
             {
                 await Assert.That(result.RecordsUpdated).IsEqualTo(1);
                 await Assert.That(back.Packs.ContainsKey(PackId)).IsFalse();
-                await Assert.That(back.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"]);
+                await Assert.That(back.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"], CollectionOrdering.Matching);
             }
         }
         finally
@@ -685,7 +686,7 @@ public class PackDataRemoverTests
                 await Assert.That(result.RecordsUpdated).IsEqualTo(1);
                 await Assert.That(reloaded.Packs).IsEmpty();
                 await Assert.That(reloaded.RoundFacts?.Rounds.Count).IsEqualTo(2);
-                await Assert.That(reloaded.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
+                await Assert.That(reloaded.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId], CollectionOrdering.Matching);
                 await Assert.That(reopened.TryGetIndex("/d/a.dem")!.IsRoundFactsCurrent("rf-A")).IsTrue()
                     .Because("the rows stay current, so no demo is queued again");
             }
@@ -769,9 +770,9 @@ public class PackDataRemoverTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(reloaded.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
+                await Assert.That(reloaded.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId], CollectionOrdering.Matching);
                 await Assert.That(reloaded.Packs).IsEmpty().Because("the fold's payload must not come back on the next load");
-                await Assert.That(entry.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
+                await Assert.That(entry.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId], CollectionOrdering.Matching);
                 await Assert.That(reloaded.RoundFacts?.Rounds.Count).IsEqualTo(2).Because("the rows are core, not the pack's");
                 await Assert.That(entry.IsRoundFactsCurrent("rf-A")).IsTrue();
             }

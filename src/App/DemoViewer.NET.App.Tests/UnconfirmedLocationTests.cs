@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Services.DemoCache;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -57,7 +58,7 @@ public class UnconfirmedLocationTests
             await Assert.That(store.DemoKeyOf(B)).IsEqualTo(B);
             await Assert.That(store.SameDemo(A, B)).IsFalse();
             await Assert.That(store.TryGetByContentId(Sha)?.Path).IsEqualTo(A);
-            await Assert.That(store.RowsForContentId(Sha).Select(r => r.Path)).IsEquivalentTo([A]);
+            await Assert.That(store.RowsForContentId(Sha).Select(r => r.Path)).IsEquivalentTo([A], CollectionOrdering.Matching);
             await Assert.That(store.TryGetPrimary(B)?.Path).IsEqualTo(B).Because("an unconfirmed path is not the primary's demo");
             await Assert.That(store.TryGetPrimary(B)?.Sha256).IsNull();
             await Assert.That(store.TryGetPrimary(A)?.Path).IsEqualTo(A);
@@ -156,7 +157,7 @@ public class UnconfirmedLocationTests
             await Assert.That(store.TryLoadRecord(B)?.Scoreboard).IsEmpty();
             await Assert.That(store.TryLoadRecord(B)?.Server).IsEqualTo("from b");
             await Assert.That(store.TryLoadRecord(A)?.Scoreboard.Count).IsEqualTo(1);
-            await Assert.That(store.TryGetByContentId(Sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([A]);
+            await Assert.That(store.TryGetByContentId(Sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([A], CollectionOrdering.Matching);
         }
     }
 
@@ -239,7 +240,7 @@ public class UnconfirmedLocationTests
             await Assert.That(store.LocationOf(B)?.Location.Confirmed).IsTrue();
             await Assert.That(store.TryGetIndex(B)?.Sha256).IsEqualTo(Sha);
             await Assert.That(store.DemoKeyOf(B)).IsEqualTo(Sha);
-            await Assert.That(store.RowsForContentId(Sha).Select(r => r.Path)).IsEquivalentTo([A, B]);
+            await Assert.That(store.RowsForContentId(Sha).Select(r => r.Path)).IsEquivalentTo([A, B], CollectionOrdering.Matching);
             await Assert.That(store.TryLoadRecord(B)?.Scoreboard?.Count).IsEqualTo(1);
             await Assert.That(store.TryLoadRecord(A)?.Server).IsEqualTo("from b");
         }
@@ -267,7 +268,7 @@ public class UnconfirmedLocationTests
             await Assert.That(atB?.Analysis.IsPresent).IsFalse();
             await Assert.That(atB?.Map).IsEqualTo("de_mirage");
             await Assert.That(store.TryLoadRecord(A)?.Scoreboard?.Count).IsEqualTo(1);
-            await Assert.That(store.TryGetByContentId(Sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([A]);
+            await Assert.That(store.TryGetByContentId(Sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([A], CollectionOrdering.Matching);
         }
     }
 
