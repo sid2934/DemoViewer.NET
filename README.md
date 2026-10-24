@@ -113,8 +113,7 @@ parser or engine change belongs there, followed by a version bump here.
 
 ## Licence
 
-MIT; see [`LICENSE`](LICENSE). Portions of the demo decoder are adapted from
-[demofile-net](https://github.com/saul/demofile-net), also MIT; see
+MIT; see [`LICENSE`](LICENSE). Third-party components and their licences are listed in
 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
 Counter-Strike and Counter-Strike 2 are trademarks of Valve Corporation. This project is not

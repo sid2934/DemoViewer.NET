@@ -172,10 +172,11 @@ Findings worth keeping:
 - **Icons need neither ValveResourceFormat nor SkiaSharp 3.** A `.vsvg_c` is a Source 2 header, a
   block table, and the SVG text sitting in the `DATA` block after a 6-byte prefix — about 30 lines to
   read. VRF is only needed for *texture* decoding, which icons never touch. Rasterising with
-  Svg.Skia 1.x runs on the app's own SkiaSharp 2.88.9 pin and produced output byte-identical to the
+  Svg.Skia 1.x ran on the SkiaSharp 2.88.9 pin current when this was measured, and produced output byte-identical to the
   shipped bake for 4 of 7 sampled icons, and within a mean of 1/255 per pixel for the other three
   (the gradient ones).
-- **Two SkiaSharp majors can share one publish folder**, because 187 of the baker's 221 files are the
+- **Two SkiaSharp majors can share one publish folder** (moot since the baker and the app are both on
+  major 3), because 187 of the baker's 221 files are the
   same .NET runtime the app already ships and only four differ. The four go in a private
   subdirectory, and the tool redirects to them with `NativeLibrary.SetDllImportResolver` registered
   against the SkiaSharp assembly as it loads. `AssemblyLoadContext.ResolvingUnmanagedDll` does **not**

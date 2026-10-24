@@ -29,7 +29,10 @@ jobs:
         with:
           native: skia
 
+      # -b skip for the same reason ci.yml's correctness lanes use it: this is a thread-affinity
+      # regression gate, and StratBook's four Budget benchmarks would run here in parallel with no
+      # DV2D_BUDGET_SCALE, measuring nothing and able to fail the lane on timing alone.
       - name: Extension suite, full tier, PerAssembly isolation
         env:
           DV_HEADLESS_ISOLATION: PerAssembly
-        run: bash scripts/test.sh -t full -p ext -c Release
+        run: bash scripts/test.sh -t full -p ext -c Release -b skip

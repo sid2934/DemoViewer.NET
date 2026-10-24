@@ -4,11 +4,11 @@
         Extensions.Sdk, Extensions.Sdk.Ui, GameIcons and Playback2D.Scene.
 
         This file is imported into every project in the repo, but every element below is gated on
-        IsPackable=true — which Directory.Build.props defaults to false and only those five projects
-        turn back on. A .targets file (not .props)
-        is required: IsPackable is set in the csproj body, which .props files are evaluated before.
+        IsPackable=true, which Directory.Build.props defaults to false and only those five projects
+        turn back on. A .targets file is required rather than a .props: IsPackable is set in the
+        csproj body, and .props files are evaluated before that.
 
-        Per-package metadata — PackageId, Description, PackageTags — stays in the csproj, because
+        Per-package metadata (PackageId, Description, PackageTags) stays in the csproj, because
         that is the part a reader needs to see next to the code it describes.
 
         Deliberately absent: RepositoryUrl / PublishRepositoryUrl / SourceLink. Add them together.
