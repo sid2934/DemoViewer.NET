@@ -110,7 +110,7 @@
                 <Button Content="★ Bookmark"
                         Command="{Binding BookmarkCurrentFrameCommand}"
                         IsVisible="{Binding HasFile}"
-                        ToolTip.Tip="Bookmark the current frame (F8.5)"
+                        ToolTip.Tip="Bookmark the current frame"
                         FontSize="11" Padding="8,3" />
                 <Button Content="Bookmarks ▾"
                         IsVisible="{Binding HasFile}"
