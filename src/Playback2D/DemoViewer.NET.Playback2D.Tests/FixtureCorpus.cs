@@ -39,19 +39,13 @@ internal static class FixtureCorpus
     // golden written into artifacts/bin is a golden nobody can commit.
     private static string ResolveRoot()
     {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
+        if (TestTiers.FindRepoRoot() is { } repo)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
+            string candidate = Path.Combine(repo, "tests", "fixtures", "playback2d");
+            if (Directory.Exists(Path.Combine(candidate, "scenes")))
             {
-                string candidate = Path.Combine(dir.FullName, "tests", "fixtures", "playback2d");
-                if (Directory.Exists(Path.Combine(candidate, "scenes")))
-                {
-                    return candidate;
-                }
+                return candidate;
             }
-
-            dir = dir.Parent;
         }
 
         return Path.Combine(AppContext.BaseDirectory, "fixtures");

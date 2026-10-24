@@ -393,6 +393,8 @@ public static class DemoTestHelper
     ///     none. The slnx is the sentinel on purpose: a <c>.git</c> match resolves to a different
     ///     directory inside a worktree. Tests that need the repo call <see cref="RequireRepoRoot" />.
     /// </summary>
+    // Restated in tests/shared/TestTiers.cs for the suites that reference no test-support assembly.
+    // Keep the two walks identical.
     public static string? FindRepoRoot()
     {
         string? dir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);

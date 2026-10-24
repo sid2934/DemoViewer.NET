@@ -41,7 +41,9 @@ public class RenderPurposeTests
     [Test]
     public async Task TheEnumDeclaresItselfReserved_AndNamesThumbnailAsNeverProduced()
     {
-        string path = Path.Combine(RepoRoot(), "src", "Playback2D",
+        // Falls back to the output directory rather than skipping: a run detached from a checkout
+        // should fail on the missing source file, not report green.
+        string path = Path.Combine(TestTiers.FindRepoRoot() ?? AppContext.BaseDirectory, "src", "Playback2D",
             "DemoViewer.NET.Playback2D.Scene", "RenderPurpose.cs");
 
         await Assert.That(File.Exists(path)).IsTrue()
@@ -122,14 +124,6 @@ public class RenderPurposeTests
         stage.Renderer.Render();
 
         return Convert.ToHexString(SHA256.HashData(stage.Renderer.SnapshotPng()));
-    }
-
-    private static string RepoRoot()
-    {
-        // The corpus root is <repo>/tests/fixtures/playback2d, resolved by walking up to the .slnx.
-        // Reusing it keeps one answer to "where is the repo" in this assembly.
-        DirectoryInfo dir = new(FixtureCorpus.Root);
-        return dir.Parent?.Parent?.Parent?.FullName ?? AppContext.BaseDirectory;
     }
 }
 

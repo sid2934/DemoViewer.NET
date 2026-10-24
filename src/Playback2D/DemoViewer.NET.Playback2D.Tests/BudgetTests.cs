@@ -413,19 +413,6 @@ public class BudgetTests
 
     // bench-reports/ at the repo root, next to the existing convention. Falls back to the test output
     // directory when the repo is not on disk (a packaged run).
-    private static string BenchReportDirectory()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return Path.Combine(dir.FullName, "bench-reports");
-            }
-
-            dir = dir.Parent;
-        }
-
-        return Path.Combine(AppContext.BaseDirectory, "bench-reports");
-    }
+    private static string BenchReportDirectory() =>
+        Path.Combine(TestTiers.FindRepoRoot() ?? AppContext.BaseDirectory, "bench-reports");
 }
