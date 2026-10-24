@@ -1224,7 +1224,6 @@ DemoViewer.NET.Playback2D.Core.Annotations.AnnotationSession.Style.set -> void
 DemoViewer.NET.Playback2D.Core.Annotations.AnnotationSession.StyleFor(DemoViewer.NET.Playback2D.Core.Input.ToolPointerButton button) -> DemoViewer.NET.Playback2D.Core.Annotations.AnnotationStyle
 DemoViewer.NET.Playback2D.Core.Annotations.AnnotationSession.TicksPerSecond.get -> int
 DemoViewer.NET.Playback2D.Core.Annotations.AnnotationSession.TicksPerSecond.set -> void
-DemoViewer.NET.Playback2D.Core.Annotations.AnnotationSession.Wet.get -> DemoViewer.NET.Playback2D.Core.Annotations.WetStroke!
 DemoViewer.NET.Playback2D.Core.Annotations.AnnotationStyle
 DemoViewer.NET.Playback2D.Core.Annotations.AnnotationStyle.AnnotationStyle() -> void
 DemoViewer.NET.Playback2D.Core.Annotations.AnnotationStyle.AnnotationStyle(uint ColorArgb, float WidthWorld, float Opacity, bool RevealOnFadeIn = false) -> void
@@ -1340,23 +1339,6 @@ DemoViewer.NET.Playback2D.Core.Annotations.TimingRun.TickOffset.get -> int
 DemoViewer.NET.Playback2D.Core.Annotations.TimingRun.TickOffset.init -> void
 DemoViewer.NET.Playback2D.Core.Annotations.TimingRun.TimingRun() -> void
 DemoViewer.NET.Playback2D.Core.Annotations.TimingRun.TimingRun(int SampleIndex, int TickOffset) -> void
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.Append(DemoViewer.NET.Playback2D.Core.Annotations.InkPoint point, long atMs = 0) -> void
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.Begin(in DemoViewer.NET.Playback2D.Core.Annotations.AnnotationStyle style, DemoViewer.NET.Playback2D.Core.Annotations.SpaceRef! space, DemoViewer.NET.Playback2D.Core.Levels.MapLevelId? paneLevelId, DemoViewer.NET.Playback2D.Core.Annotations.InkPoint first, bool recordCadence = false, long atMs = 0, DemoViewer.NET.Playback2D.Core.Annotations.AnnotationKind kind = DemoViewer.NET.Playback2D.Core.Annotations.AnnotationKind.Freehand) -> void
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.BuildTiming(int ticksPerSecond) -> DemoViewer.NET.Playback2D.Core.Annotations.StrokeTiming!
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.Clear() -> void
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.IsActive.get -> bool
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.IsRecordingCadence.get -> bool
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.Kind.get -> DemoViewer.NET.Playback2D.Core.Annotations.AnnotationKind
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.PaneLevelId.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId?
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.Points.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Annotations.InkPoint>!
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.RemapWorldLevel(System.Collections.Generic.IReadOnlyDictionary<double, double>! zMinMap) -> void
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.ReplaceLast(DemoViewer.NET.Playback2D.Core.Annotations.InkPoint point) -> void
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.Space.get -> DemoViewer.NET.Playback2D.Core.Annotations.SpaceRef!
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.Style.get -> DemoViewer.NET.Playback2D.Core.Annotations.AnnotationStyle
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.TryAppend(DemoViewer.NET.Playback2D.Core.Annotations.InkPoint point, float minDistanceWorld, long atMs = 0) -> bool
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.Version.get -> int
-DemoViewer.NET.Playback2D.Core.Annotations.WetStroke.WetStroke() -> void
 DemoViewer.NET.Playback2D.Core.GuidePin
 DemoViewer.NET.Playback2D.Core.GuidePin.<Clone>$() -> DemoViewer.NET.Playback2D.Core.GuidePin!
 DemoViewer.NET.Playback2D.Core.GuidePin.At.get -> DemoViewer.NET.Playback2D.Core.GuideToken

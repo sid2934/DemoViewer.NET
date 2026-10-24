@@ -59,7 +59,6 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Core.Annotations.StrokeTiming",
         "DemoViewer.NET.Playback2D.Core.Annotations.TimeEnvelope",
         "DemoViewer.NET.Playback2D.Core.Annotations.TimingRun",
-        "DemoViewer.NET.Playback2D.Core.Annotations.WetStroke",
         "DemoViewer.NET.Playback2D.Core.AreaEffect",
         "DemoViewer.NET.Playback2D.Core.AreaEffectKind",
         "DemoViewer.NET.Playback2D.Core.BombMarker",
