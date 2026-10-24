@@ -34,8 +34,8 @@ public interface IExportJobService
     Task CancelAsync();
 }
 
-// Scene2DExportRequest itself now lives in Pipeline (Export/Scene2DExportRequest.cs), still in this
-// namespace: `dv2d pack` builds one without referencing src/App/*. See the note on that file.
+// Scene2DExportRequest itself lives in Pipeline (Export/Scene2DExportRequest.cs), still in this
+// namespace. See the note on that file.
 
 /// <summary>A point-in-time export status. The chip and the flyout render from this.</summary>
 /// <param name="Phase">Where the export is.</param>

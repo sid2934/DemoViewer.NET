@@ -40,8 +40,7 @@
              internal profiler types; the perf output of dv2d is their one consumer. -->
         <InternalsVisibleTo Include="dv2d"/>
         <!-- PackExportTests (App.Tests) white-box-tests PackSegmentSink and PackTitleCardRenderer,
-             internal here since Pack Export's plan-then-stitch logic (Export/Pack/*.cs) moved into
-             Pipeline for dv2d pack; see the note on PackExporter.cs. -->
+             internal to Pipeline; see the note on PackExporter.cs. -->
         <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
     </ItemGroup>
 

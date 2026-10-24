@@ -6,11 +6,9 @@ using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 #endregion
 
-// In Pipeline, namespace kept as DemoViewer.NET.Services.Review, so every App using stays valid:
-// `dv2d pack` (Headless Packs) reads a review-queue.json file with this exact shape
-// without the CLI referencing src/App/*, and this is the one definition both sides deserialize with.
-// ReviewQueue itself (the mutable, app-config-rooted store) stays in the App; only the plain schema
-// moved.
+// In Pipeline, namespace kept as DemoViewer.NET.Services.Review, so every App using stays valid.
+// Only the plain schema is here: ReviewQueue itself (the mutable, app-config-rooted store) stays
+// in the App.
 namespace DemoViewer.NET.Services.Review;
 
 /// <summary>What a queue entry is: a clip to watch, or the title card that opens a section.</summary>
