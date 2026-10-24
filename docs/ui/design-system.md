@@ -1946,7 +1946,7 @@ mockup, never a promised headless before/after.
 > [Match Overview redesign](#match-overview-redesign-v053) directly below for what shipped.
 
 <a id="match-overview-redesign-v053"></a>
-### Match Overview redesign: the per-demo page (v0.5.3, plan `highlights-matchoverview-redesign.md` §3)
+### Match Overview redesign: the per-demo page (v0.5.3, redesign plan notes in git history, §3)
 
 **Two jobs, one layout.** `OverviewMode { Empty, Live, Cached }`. **Live** is the push-fed landing (shell
 calls `BeginOpening` → `SetSummary` → `BeginAnalysis` → `SetAnalysis`). **Cached** renders any indexed demo
@@ -2047,7 +2047,7 @@ loading → parsed summary** (or **failure**). Pattern rules, all reused elsewhe
   then.
 
 <a id="reels-dashboard-v053"></a>
-### Reels dashboard: the Highlights tab, promoted (v0.5.3, plan `highlights-matchoverview-redesign.md` §4)
+### Reels dashboard: the Highlights tab, promoted (v0.5.3, redesign plan notes in git history, §4)
 
 `Views/Highlights/HighlightsTabView.axaml` + `ViewModels/Highlights/HighlightsTabViewModel.cs`.
 The library-wide demo **card grid is gone**; the tab is an *authoring* surface: an ordered **clip tray**
