@@ -45,9 +45,9 @@ public class PackBoundaryTests
     }
 
     /// <summary>
-    ///     Half of the boundary: the strat-only types moved out of the scene contract and
-    ///     Pipeline (the keyframe track, the strat frame source, the token tool, the guides layer) must not
-    ///     pull the extension back in as a dependency of the two assemblies they left.
+    ///     Half of the boundary: the strat-only types that moved into the extension (the keyframe
+    ///     track, the strat frame source, the token tool, the guides layer) must not pull it back in as
+    ///     a dependency of the two Playback2D assemblies they left, Scene and Pipeline.
     /// </summary>
     [Test]
     [Arguments(Playback2DSceneProject, "DemoViewer.NET.Playback2D.Scene.csproj")]

@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
 ///     The Pipeline facade. The load-bearing assertion is that its two paths agree: the whole-image
-///     <c>Render</c> delegates to Core's <c>SceneRenderer</c>, while the split
+///     <c>Render</c> delegates to <c>SceneRenderer</c>, while the split
 ///     <c>Advance</c>/<c>Render(surface, …)</c> pair the bench command needs is a re-statement of the
 ///     same body without the surface creation. Pinning them together stops the CLI growing a second
 ///     render path by accident.

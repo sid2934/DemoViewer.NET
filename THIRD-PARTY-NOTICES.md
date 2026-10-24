@@ -119,7 +119,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 ## f. perfect-freehand (MIT)
 
-Two files in the Playback2D core assembly ship code adapted from
+Two files in the Playback2D pipeline assembly ship code adapted from
 [perfect-freehand](https://github.com/steveruizok/perfect-freehand) v1.2.2, an MIT-licensed
 pressure-sensitive stroke outliner by Steve Ruiz. The adaptation is a direct C# port of
 `packages/perfect-freehand/src/getStrokePoints.ts` and

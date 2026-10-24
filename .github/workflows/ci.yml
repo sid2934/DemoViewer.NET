@@ -177,7 +177,7 @@ jobs:
         with:
           native: skia
 
-      - name: Playback2D core + pipeline tests (direct execution, no Avalonia)
+      - name: Playback2D scene + pipeline tests (direct execution, no Avalonia)
         run: bash scripts/test.sh -t full -b skip -p playback2d -c Release
 
       - name: Build dv2d

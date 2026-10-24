@@ -2,8 +2,8 @@
 
     <!--
       The dv2d suite. Direct execution (TUnit's own host): no Avalonia platform, no HeadlessSession,
-      no dispatcher. NoAvaloniaArchitectureTests asserts that, for this assembly, for the CLI and for
-      Pipeline, from both the deps graph and the runtime loaded-assembly set of a real dv2d subprocess.
+      no dispatcher. NoAvaloniaArchitectureTests asserts that, for this assembly, for the CLI, for the
+      scene contract and for Pipeline, from both the deps graph and the runtime loaded-assembly set of a real dv2d subprocess.
       Do not add an Avalonia package here; it would make the assertion vacuous.
     -->
     <PropertyGroup>
