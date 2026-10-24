@@ -101,7 +101,6 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Core.Input.TokenGrip",
         "DemoViewer.NET.Playback2D.Core.Input.TokenHitTest",
         "DemoViewer.NET.Playback2D.Core.Input.ToolKind",
-        "DemoViewer.NET.Playback2D.Core.Input.ToolKinds",
         "DemoViewer.NET.Playback2D.Core.Input.ToolModifiers",
         "DemoViewer.NET.Playback2D.Core.Input.ToolPointerButton",
         "DemoViewer.NET.Playback2D.Core.Input.ToolPointerEvent",

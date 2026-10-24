@@ -1517,7 +1517,6 @@ DemoViewer.NET.Playback2D.Core.Input.ToolKind.PanZoom = 0 -> DemoViewer.NET.Play
 DemoViewer.NET.Playback2D.Core.Input.ToolKind.Rect = 6 -> DemoViewer.NET.Playback2D.Core.Input.ToolKind
 DemoViewer.NET.Playback2D.Core.Input.ToolKind.Text = 8 -> DemoViewer.NET.Playback2D.Core.Input.ToolKind
 DemoViewer.NET.Playback2D.Core.Input.ToolKind.Token = 9 -> DemoViewer.NET.Playback2D.Core.Input.ToolKind
-DemoViewer.NET.Playback2D.Core.Input.ToolKinds
 DemoViewer.NET.Playback2D.Core.Input.ToolModifiers
 DemoViewer.NET.Playback2D.Core.Input.ToolModifiers.Alt = 4 -> DemoViewer.NET.Playback2D.Core.Input.ToolModifiers
 DemoViewer.NET.Playback2D.Core.Input.ToolModifiers.Control = 2 -> DemoViewer.NET.Playback2D.Core.Input.ToolModifiers
@@ -2078,8 +2077,6 @@ static DemoViewer.NET.Playback2D.Core.Hud.HudStyle.operator !=(DemoViewer.NET.Pl
 static DemoViewer.NET.Playback2D.Core.Hud.HudStyle.operator ==(DemoViewer.NET.Playback2D.Core.Hud.HudStyle? left, DemoViewer.NET.Playback2D.Core.Hud.HudStyle? right) -> bool
 static DemoViewer.NET.Playback2D.Core.Input.TokenHitTest.Classify(float tokenX, float tokenY, float yawDegrees, SkiaSharp.SKPoint world, float worldRadius, bool cone = false) -> DemoViewer.NET.Playback2D.Core.Input.TokenGrip?
 static DemoViewer.NET.Playback2D.Core.Input.TokenHitTest.WorldRadius(double worldUnitsPerPixel) -> float
-static DemoViewer.NET.Playback2D.Core.Input.ToolKinds.IsAnnotationTool(DemoViewer.NET.Playback2D.Core.Input.ToolKind kind) -> bool
-static DemoViewer.NET.Playback2D.Core.Input.ToolKinds.ShapeKindOf(DemoViewer.NET.Playback2D.Core.Input.ToolKind kind) -> DemoViewer.NET.Playback2D.Core.Annotations.AnnotationKind?
 static DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent.operator !=(DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent left, DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent right) -> bool
 static DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent.operator ==(DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent left, DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent right) -> bool
 static DemoViewer.NET.Playback2D.Core.Layers.QueryTokenLayer.ScreenPosition(in DemoViewer.NET.Playback2D.Core.Query.QueryToken token, DemoViewer.NET.Playback2D.Core.ViewportTransform transform) -> SkiaSharp.SKPoint
