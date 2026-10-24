@@ -2,8 +2,6 @@
 
 using DemoViewer.NET.TestSupport;
 using System.Globalization;
-using System.Runtime.CompilerServices;
-using Avalonia.Threading;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Library;
@@ -111,7 +109,7 @@ public class MatchOverviewScoreSourceTests
                     await vm.LoadDemoFromPathAsync(demo);
 
                     // The score resolves off the load path (library entry, or a gated replay). Wait for it.
-                    await WaitForScoreAsync(() => vm.MatchOverviewTab.HasScore);
+                    await vm.MatchOverviewTab.UntilAsync(() => vm.MatchOverviewTab.HasScore, 60_000);
                     MatchOverviewTabViewModel o = vm.MatchOverviewTab;
                     string name = Path.GetFileName(demo);
 
@@ -169,25 +167,6 @@ public class MatchOverviewScoreSourceTests
             // authoritative score from the analysis-derived one that used to be wrong.
             Console.WriteLine("[score-sweep] WARNING: no clan-carrying (pro/HLTV) demo was available — this "
                               + "run could not discriminate the authoritative score from the analysis-derived one.");
-        }
-    }
-
-    // 200 x 50 ms, not the suite's usual 200 x 25 ms: the score resolves off the load funnel
-    // (library entry, or a gated replay), which outlasts the shorter budget.
-    private static async Task WaitForScoreAsync(Func<bool> condition,
-        [CallerArgumentExpression(nameof(condition))] string? expression = null)
-    {
-        for (int i = 0; i < 200 && !condition(); i++)
-        {
-            Dispatcher.UIThread.RunJobs();
-            await Task.Delay(50);
-        }
-
-        Dispatcher.UIThread.RunJobs();
-
-        if (!condition())
-        {
-            throw new System.TimeoutException($"timed out waiting for `{expression}`");
         }
     }
 }

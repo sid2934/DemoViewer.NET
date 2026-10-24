@@ -1,6 +1,5 @@
 #region
 
-using System.Runtime.CompilerServices;
 using Avalonia.Threading;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
@@ -66,7 +65,7 @@ public class Playback2DModuleLifecycleTests
             // Establish the authoritative tracker at a mid-match frame (players spread across the map).
             int mid = vm.Frames.Count / 2;
             vm.Navigation.SeekToFrame(mid);
-            await WaitUntil(() => vm.Playback.AuthoritativeTracker?.CurrentFrameIndex == mid);
+            await vm.Playback.TrackerAtFrameAsync(mid);
 
             // Activate the 2D tab. The ViewModelFactory path must build the VM AND fire OnActivated, which
             // pulls context.CurrentPlayers, proving the host player-join is reachable end-to-end.
@@ -137,22 +136,5 @@ public class Playback2DModuleLifecycleTests
         }
 
         Dispatcher.UIThread.RunJobs();
-    }
-
-    private static async Task WaitUntil(Func<bool> condition,
-        [CallerArgumentExpression(nameof(condition))] string? expression = null)
-    {
-        for (int i = 0; i < 200 && !condition(); i++)
-        {
-            Dispatcher.UIThread.RunJobs();
-            await Task.Delay(25);
-        }
-
-        Dispatcher.UIThread.RunJobs();
-
-        if (!condition())
-        {
-            throw new TimeoutException($"timed out waiting for `{expression}`");
-        }
     }
 }

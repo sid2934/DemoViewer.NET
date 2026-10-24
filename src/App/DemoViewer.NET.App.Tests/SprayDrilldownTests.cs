@@ -1,6 +1,5 @@
 #region
 
-using System.Runtime.CompilerServices;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Visibility;
@@ -44,7 +43,7 @@ public class SprayDrilldownTests
         vm.OpenPlayerDetailsCommand.Execute(row);
         PlayerDetailsViewModel details = vm.PlayerDetails!;
 
-        await Wait(() => !details.Spray.IsBusy && details.Spray.Weapons.Count > 0);
+        await details.Spray.UntilAsync(() => !details.Spray.IsBusy && details.Spray.Weapons.Count > 0);
 
         await Assert.That(details.Spray.HasData).IsTrue()
             .Because($"slot {slot} has {model.Players.First(p => p.Slot == slot).Runs.Count} runs");
@@ -66,11 +65,11 @@ public class SprayDrilldownTests
         vm.OpenPlayerDetailsCommand.Execute(vm.GameRows.First(r => r.PlayerSlot == slot));
         PlayerDetailsViewModel details = vm.PlayerDetails!;
 
-        await Wait(() => !details.Spray.IsBusy && details.Spray.Weapons.Count > 0);
+        await details.Spray.UntilAsync(() => !details.Spray.IsBusy && details.Spray.Weapons.Count > 0);
         float anchoredFirst = details.Spray.Shots[0].OffsetYawDeg;
 
         details.Spray.TrackTarget = true;
-        await Wait(() => !details.Spray.IsBusy && details.Spray.Weapons.Count > 0);
+        await details.Spray.UntilAsync(() => !details.Spray.IsBusy && details.Spray.Weapons.Count > 0);
 
         // The anchored mode's first shot IS the origin, so its offset is zero by construction. The
         // tracking mode measures from the victim, so it cannot also be zero unless the bullet landed
@@ -88,20 +87,6 @@ public class SprayDrilldownTests
         // TargetCentre and so never is.
         await Assert.That(Math.Abs(details.Spray.Shots[0].OffsetYawDeg)).IsGreaterThan(0.001f)
             .Because("the run list must be rebuilt from the tracking model, not left on the anchored one");
-    }
-
-    private static async Task Wait(Func<bool> until,
-        [CallerArgumentExpression(nameof(until))] string? expression = null)
-    {
-        for (int i = 0; i < 200 && !until(); i++)
-        {
-            await Task.Delay(25);
-        }
-
-        if (!until())
-        {
-            throw new TimeoutException($"timed out waiting for `{expression}`");
-        }
     }
 
     private static (StatsTabViewModel Vm, ParsedDemo Demo) BuildTab()

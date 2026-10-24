@@ -1,6 +1,5 @@
 #region
 
-using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
@@ -133,7 +132,7 @@ public class ModuleFrameworkPhase3Tests
             // Establish the authoritative tracker at a mid-match frame (players spread on the map).
             int mid = vm.Frames.Count / 2;
             vm.Navigation.SeekToFrame(mid);
-            await WaitUntil(() => vm.Playback.AuthoritativeTracker?.CurrentFrameIndex == mid);
+            await vm.Playback.TrackerAtFrameAsync(mid);
 
             // Activate the sandbox. Its OnActivated pulls context.CurrentPlayers, proving the host
             // player-join (PawnLookup reverse m_hController + PositionUtil) is reachable end-to-end.
@@ -176,22 +175,5 @@ public class ModuleFrameworkPhase3Tests
         }
 
         Dispatcher.UIThread.RunJobs();
-    }
-
-    private static async Task WaitUntil(Func<bool> condition,
-        [CallerArgumentExpression(nameof(condition))] string? expression = null)
-    {
-        for (int i = 0; i < 200 && !condition(); i++)
-        {
-            Dispatcher.UIThread.RunJobs();
-            await Task.Delay(25);
-        }
-
-        Dispatcher.UIThread.RunJobs();
-
-        if (!condition())
-        {
-            throw new TimeoutException($"timed out waiting for `{expression}`");
-        }
     }
 }
