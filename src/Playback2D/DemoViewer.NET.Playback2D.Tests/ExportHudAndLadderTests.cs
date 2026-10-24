@@ -16,6 +16,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -85,7 +86,7 @@ public class KillFeedTimelineTests
         // AllGameEvents order is not guaranteed to be by tick, so the window sorts what it keeps.
         KillFeedTimeline.Window(shuffled, 1060, 64, window);
 
-        await Assert.That(window.Select(r => r.Tick)).IsEquivalentTo(_expectedOrder);
+        await Assert.That(window.Select(r => r.Tick)).IsEquivalentTo(_expectedOrder, CollectionOrdering.Matching);
     }
 
     /// <summary>

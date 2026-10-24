@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using SysAssembly = System.Reflection.Assembly;
 
@@ -70,7 +71,7 @@ public partial class TestTierContractTests
         // Full is not empty: a known, deterministic failure is dropped everywhere, including a pre-push
         // full run, rather than tracked by eye. This is the one tag full excludes; a second would mean
         // the taxonomy is growing a second escape hatch and deserves a look.
-        await Assert.That(full).IsEquivalentTo([TestTiers.KnownFailure]);
+        await Assert.That(full).IsEquivalentTo([TestTiers.KnownFailure], CollectionOrdering.Matching);
         // Strictly widening: two tiers that ran the same set would be one tier with two names.
         await Assert.That(fast.Length).IsGreaterThan(standard.Length);
         await Assert.That(standard.Length).IsGreaterThan(full.Length);

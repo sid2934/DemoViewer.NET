@@ -10,6 +10,7 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -61,7 +62,7 @@ public class ExportRequestValidationTests
     [Test]
     public async Task SupportedFps_ForGif_IsTheDivisorsOfOneHundred()
     {
-        await Assert.That(SceneExportSession.SupportedFps(ExportFormats.Gif)).IsEquivalentTo(_gifFps);
+        await Assert.That(SceneExportSession.SupportedFps(ExportFormats.Gif)).IsEquivalentTo(_gifFps, CollectionOrdering.Matching);
 
         foreach (int fps in SceneExportSession.SupportedFps(ExportFormats.Gif))
         {

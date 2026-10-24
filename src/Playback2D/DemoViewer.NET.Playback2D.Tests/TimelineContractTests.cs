@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -48,7 +49,7 @@ public class TimelineContractTests
         await Assert.That(declared).IsEquivalentTo(
         [
             "BuildBands", "BuildMarkers", "DisplayName", "Id", "IsAvailable", "MarkersChanged"
-        ]);
+        ], CollectionOrdering.Matching);
     }
 
     /// <summary>

@@ -9,6 +9,7 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Playback2D.Pipeline.Query;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -41,7 +42,7 @@ public class QueryCanvasTests
             await Assert.That(document.IsPlaced(QuerySide.T, 4)).IsTrue();
             await Assert.That(document.IsPlaced(QuerySide.T, 0)).IsFalse();
             await Assert.That(document.Placed.Select(t => (t.Side, t.Slot)).ToArray())
-                .IsEquivalentTo([(QuerySide.Ct, 0), (QuerySide.T, 4)]);
+                .IsEquivalentTo([(QuerySide.Ct, 0), (QuerySide.T, 4)], CollectionOrdering.Matching);
             await Assert.That(changes).IsEqualTo(3);
             await Assert.That(document.Version).IsEqualTo(3);
         }
@@ -67,8 +68,8 @@ public class QueryCanvasTests
         document.Place(Token(QuerySide.Ct, 0, place: "BombsiteA"));
         document.Place(Token(QuerySide.T, 0, place: "Ramp"));
 
-        await Assert.That(document.ResolvedPlaces(QuerySide.Ct)).IsEquivalentTo(["BombsiteA", "Outside"]);
-        await Assert.That(document.ResolvedPlaces(QuerySide.T)).IsEquivalentTo(["Ramp"]);
+        await Assert.That(document.ResolvedPlaces(QuerySide.Ct)).IsEquivalentTo(["BombsiteA", "Outside"], CollectionOrdering.Matching);
+        await Assert.That(document.ResolvedPlaces(QuerySide.T)).IsEquivalentTo(["Ramp"], CollectionOrdering.Matching);
         await Assert.That(document.Get(QuerySide.Ct, 1)!.Value.IsResolved).IsFalse();
     }
 
@@ -167,13 +168,13 @@ public class QueryCanvasTests
         using (Assert.Multiple())
         {
             await Assert.That(again.MapName).IsEqualTo("de_nuke");
-            await Assert.That(again.Placed).IsEquivalentTo(document.Placed);
+            await Assert.That(again.Placed).IsEquivalentTo(document.Placed, CollectionOrdering.Matching);
             await Assert.That(again.Get(QuerySide.T, 4)!.Value.Place).IsNull();
         }
 
         using MemoryStream second = new();
         QueryFixtureStore.Write(again, second);
-        await Assert.That(second.ToArray()).IsEquivalentTo(first.ToArray()).Because("a fixture round-trips byte for byte");
+        await Assert.That(second.ToArray()).IsEquivalentTo(first.ToArray(), CollectionOrdering.Matching).Because("a fixture round-trips byte for byte");
         await Assert.That(System.Text.Encoding.UTF8.GetString(first.ToArray())).DoesNotContain("\r\n");
 
         const string partial = """

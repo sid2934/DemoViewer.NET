@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -108,7 +109,7 @@ public class SceneRendererTests
         byte[] first = RenderToPng(fixtureA);
         byte[] second = RenderToPng(FixtureCorpus.Load("synthetic-tenplayers"));
 
-        await Assert.That(second).IsEquivalentTo(first);
+        await Assert.That(second).IsEquivalentTo(first, CollectionOrdering.Matching);
     }
 
     private static byte[] RenderToPng(SceneFixture fixture)

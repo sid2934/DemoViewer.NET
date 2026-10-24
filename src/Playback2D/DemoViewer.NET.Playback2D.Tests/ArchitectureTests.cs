@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SysAssembly = System.Reflection.Assembly;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -293,7 +294,7 @@ public class ArchitectureTests
         using (Assert.Multiple())
         {
             await Assert.That(properties).IsEmpty();
-            await Assert.That(constructorArities).IsEquivalentTo([0]);
+            await Assert.That(constructorArities).IsEquivalentTo([0], CollectionOrdering.Matching);
         }
     }
 

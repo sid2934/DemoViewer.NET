@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Tools;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -526,7 +527,7 @@ public class InputToolRouterTests
         using (Assert.Multiple())
         {
             await Assert.That(taken).IsTrue();
-            await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"]);
+            await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"], CollectionOrdering.Matching);
             await Assert.That(tool.FirstButton).IsEqualTo(MapToolButton.Left);
             await Assert.That(tool.FirstModifiers).IsEqualTo(MapToolModifiers.Shift | MapToolModifiers.Alt);
             await Assert.That(tool.FirstPane).IsSameReferenceAs(pane);
@@ -552,7 +553,7 @@ public class InputToolRouterTests
         using (Assert.Multiple())
         {
             await Assert.That(refused).IsFalse();
-            await Assert.That(tool.Calls).IsEquivalentTo(["press", "press", "cancel"]);
+            await Assert.That(tool.Calls).IsEquivalentTo(["press", "press", "cancel"], CollectionOrdering.Matching);
             await Assert.That(router.IsGestureOpen).IsFalse();
         }
     }
