@@ -52,8 +52,6 @@
         <!-- The SDK's UI kit: the shared controls and theme names the app's own views use too. -->
         <ProjectReference Include="..\..\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
         <ProjectReference
-                Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
-        <ProjectReference
                 Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Pipeline\DemoViewer.NET.Playback2D.Pipeline.csproj"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>

@@ -11,7 +11,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///     </para>
 ///     <para>
 ///         Kept as the seam a future fidelity/latency split would attach to, rather than re-threading
-///         three types through Core, Pipeline, the CLI and the export session later. <c>RenderPurposeTests</c>
+///         three types through the scene contract, Pipeline, the CLI and the export session later. <c>RenderPurposeTests</c>
 ///         asserts that <see cref="Interactive" />, <see cref="Export" /> and <see cref="Thumbnail" />
 ///         render byte-identical pixels for the same scene, so this paragraph and the code cannot drift
 ///         apart.

@@ -15,7 +15,7 @@
     <PropertyGroup>
         <!--
             Relink the native runtime so the @(NativeFileReference) set is actually linked in.
-            libSkiaSharp.a arrives through Avalonia.Browser (and again through Playback2D.Core's
+            libSkiaSharp.a arrives through Avalonia.Browser (and again through Playback2D.Pipeline's
             SkiaSharp reference, at the centrally pinned version), and WITHOUT the relink the head fails at boot
             with `System.DllNotFoundException: libSkiaSharp` out of SKImageInfo's static constructor,
             whether or not anything of ours touches SkiaSharp, because Avalonia's own browser renderer

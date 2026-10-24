@@ -11,11 +11,11 @@ namespace DemoViewer.NET.Playback2D.Core.Rendering.Interop;
 /// <summary>
 ///     A hand-bound EGL, ~15 entry points wide.
 ///     <para>
-///         <b>Why by hand.</b> Core references SkiaSharp and nothing else: that constraint is what lets
-///         export, the CLI and CI render without a window, and it is enforced by
-///         <c>ArchitectureTests</c>. Silk.NET or OpenTK would break it, and would then have to be fought
-///         anyway over the non-standard library name: on Windows the EGL we link is Avalonia's merged
-///         <c>av_libglesv2.dll</c>, not <c>libEGL.dll</c>.
+///         <b>Why by hand.</b> Silk.NET or OpenTK would have to be fought over the non-standard library
+///         name anyway: on Windows the EGL we link is Avalonia's merged <c>av_libglesv2.dll</c>, not
+///         <c>libEGL.dll</c>. Native only, so it costs this assembly no managed Avalonia reference,
+///         which <c>ArchitectureTests</c> enforces and which is what lets export, the CLI and CI render
+///         without a window.
 ///     </para>
 ///     <para>
 ///         <b>Why not <c>DllImport</c>.</b> A missing DLL must be a clean probe failure reported as data,

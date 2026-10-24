@@ -461,7 +461,7 @@ surfaceless first so containers work; macOS is deferred. Run `dv2d probe` to see
 ## SkiaSharp version policy
 
 `SkiaSharp` is pinned to exactly what `Avalonia.Skia` resolves (2.88.9 today), because the app loads
-Core in the same process as Avalonia's Skia and two `libSkiaSharp` natives in one process is a hard
+Pipeline in the same process as Avalonia's Skia and two `libSkiaSharp` natives in one process is a hard
 crash. `dv2d` additionally pulls `SkiaSharp.NativeAssets.{Win32,Linux,macOS}`, since it has no
 Avalonia to bring the natives along. Verify before changing anything:
 

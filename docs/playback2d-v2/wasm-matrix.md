@@ -47,7 +47,7 @@ defaults today and a default that flips takes the app with it, silently, at runt
 
 | Property | Why |
 |---|---|
-| `WasmBuildNative=true` | Relinks the native runtime so `@(NativeFileReference)` items are linked in. `libSkiaSharp.a` arrives through **Avalonia.Browser** (and again through Playback2D.Core's SkiaSharp reference, at the same 2.88.9 pin). Without the relink the head throws `System.DllNotFoundException: libSkiaSharp` out of `SKImageInfo`'s static constructor at boot, whether or not *our* code touches Skia, because Avalonia's own browser renderer needs the same native. B0 D11 finding 1. |
+| `WasmBuildNative=true` | Relinks the native runtime so `@(NativeFileReference)` items are linked in. `libSkiaSharp.a` arrives through **Avalonia.Browser** (and again through Playback2D.Pipeline's SkiaSharp reference, at the same 2.88.9 pin). Without the relink the head throws `System.DllNotFoundException: libSkiaSharp` out of `SKImageInfo`'s static constructor at boot, whether or not *our* code touches Skia, because Avalonia's own browser renderer needs the same native. B0 D11 finding 1. |
 | `PublishTrimmed=false` | A trimmed publish fails outright: ~30 `IL2026` sites plus `IL2104` for `CS2DemoKit.Parser`, `CS2DemoKit.Analysis` and `FFMpegCore`. They are three whole mechanisms, not incidental call sites: reflection-based `System.Text.Json` in eleven stores, `ConfigurationBinder.Get<AppSettings>()` (which *is* the settings layer), and Avalonia's reflection `ViewLocator` (which resolves every view). Suppressing the warnings produces a head that builds and then throws `JsonSerializerIsReflectionDisabled` on the way up. B0 D11 finding 3 saw exactly that. |
 
 **The `wasm-tools` manifest must match the SDK's runtime pack.** Installing the newest manifest (10.0.111
@@ -185,7 +185,7 @@ everything correctly. On a real browser with a GPU, mode 3 succeeds. **No consol
 | Lane | What it proves |
 |---|---|
 | `wasm-build` (CI) | The head still restores, compiles, relinks its native runtime and survives ILLink, and the boot-critical artefacts are in the payload. |
-| `Playback2DWasmBudgetTests` (Core suite) | A **browser-shaped proxy**: the browser's CPU path at the browser's viewport (1280×720), with relaxed timings and the allocation gate still at zero. Measured: advance p99 **0.014 ms**, render p99 **1.254 ms**, combined **1.268 ms** (ceilings 4 / 24 / 32), **0 B/frame**. |
+| `Playback2DWasmBudgetTests` (Playback2D suite) | A **browser-shaped proxy**: the browser's CPU path at the browser's viewport (1280×720), with relaxed timings and the allocation gate still at zero. Measured: advance p99 **0.014 ms**, render p99 **1.254 ms**, combined **1.268 ms** (ceilings 4 / 24 / 32), **0 B/frame**. |
 | `SettingsWasmRoundTripTests` (App suite) | No `Playback2DSettings` property can be added without a `WriteInMemory` row: the WASM data-loss trap, closed mechanically. |
 | `ShellModuleFeatureGateTests` | `playback2d.export` resolves false on the browser branch and the other four are untouched. |
 

@@ -208,9 +208,9 @@ public sealed class VisionSolution
 }
 
 /// <summary>
-///     Where the line-of-sight solve happens. Core declares it and draws the answer; Pipeline's
-///     <c>VisibilityEngineSolver</c> implements it, because the visibility engine is a CS2DemoKit type
-///     and Core references SkiaSharp only.
+///     Where the line-of-sight solve happens. The scene contract declares it; Pipeline's
+///     <c>VisibilityEngineSolver</c> implements it and <c>VisionLayer</c> draws the answer, because the
+///     visibility engine is a CS2DemoKit type and the contract references SkiaSharp only.
 ///     <para>
 ///         This is also the escape hatch for the budget risk: if the solve is too slow on baseline
 ///         hardware, a <c>DeferredVisionSolver</c> wraps this interface to compute into the next frame's

@@ -16,8 +16,8 @@ namespace DemoViewer.NET.Playback2D.Cli;
 /// <summary>
 ///     <c>dv2d bench</c>: frame-time and allocation numbers CI can gate on.
 ///     <para>
-///         <b>The clock lives in Pipeline, not Core.</b> Core is banned from wall-clock APIs so
-///         that motion is a function of the injected <c>SceneTime</c>; the harness measures from
+///         <b>The clock lives outside the render path.</b> The renderer is banned from wall-clock APIs
+///         so that motion is a function of the injected <c>SceneTime</c>; the harness measures from
 ///         outside.
 ///     </para>
 ///     <para>

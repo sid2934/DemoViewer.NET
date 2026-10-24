@@ -125,8 +125,8 @@ pressure-sensitive stroke outliner by Steve Ruiz. The adaptation is a direct C# 
 `packages/perfect-freehand/src/getStrokePoints.ts` and
 `packages/perfect-freehand/src/getStrokeOutlinePoints.ts`:
 
-- `src/Playback2D/DemoViewer.NET.Playback2D.Core/Ink/FreehandOutline.cs`
-- `src/Playback2D/DemoViewer.NET.Playback2D.Core/Ink/FreehandOptions.cs`
+- `src/Playback2D/DemoViewer.NET.Playback2D.Pipeline/Ink/FreehandOutline.cs`
+- `src/Playback2D/DemoViewer.NET.Playback2D.Pipeline/Ink/FreehandOptions.cs`
 
 Both files carry a header comment pointing at this section. The port is pinned against reference
 vectors generated from the upstream package and committed under

@@ -64,7 +64,7 @@ public static class CameraAdvancer
 }
 
 /// <summary>
-///     Maps the App's camera-mode vocabulary onto rigs. Lives in Core so export camera scripts (B4)
+///     Maps the App's camera-mode vocabulary onto rigs. Lives in Pipeline so export camera scripts (B4)
 ///     and the CLI can build the same rigs without the App's <c>CameraMode</c> enum.
 /// </summary>
 public static class CameraRigFactory

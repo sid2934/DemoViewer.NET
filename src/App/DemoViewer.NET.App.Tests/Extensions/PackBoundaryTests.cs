@@ -21,7 +21,6 @@ public class PackBoundaryTests
     private const string AppProject = "src/App/DemoViewer.NET";
     private const string PackProject = "src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook";
     private const string Playback2DSceneProject = "src/Playback2D/DemoViewer.NET.Playback2D.Scene";
-    private const string Playback2DCoreProject = "src/Playback2D/DemoViewer.NET.Playback2D.Core";
     private const string Playback2DPipelineProject = "src/Playback2D/DemoViewer.NET.Playback2D.Pipeline";
 
     /// <summary>Known mentions of a pack-owned namespace in core text, with the item that removes each.</summary>
@@ -46,13 +45,12 @@ public class PackBoundaryTests
     }
 
     /// <summary>
-    ///     Half of the boundary: the strat-only types moved out of Playback2D.Core and
+    ///     Half of the boundary: the strat-only types moved out of the scene contract and
     ///     Pipeline (the keyframe track, the strat frame source, the token tool, the guides layer) must not
     ///     pull the extension back in as a dependency of the two assemblies they left.
     /// </summary>
     [Test]
     [Arguments(Playback2DSceneProject, "DemoViewer.NET.Playback2D.Scene.csproj")]
-    [Arguments(Playback2DCoreProject, "DemoViewer.NET.Playback2D.Core.csproj")]
     [Arguments(Playback2DPipelineProject, "DemoViewer.NET.Playback2D.Pipeline.csproj")]
     public async Task Playback2DProject_HasNoProjectReferenceToAnExtension(string projectDir, string csprojName)
     {
@@ -79,7 +77,7 @@ public class PackBoundaryTests
         System.Reflection.Assembly[] granting =
         [
             typeof(App).Assembly, typeof(Playback2D.Core.Scene2DFrame).Assembly,
-            typeof(Playback2D.Core.Layers.RadarLayer).Assembly, typeof(Playback2D.Pipeline.Assets.LoadedMapAsset).Assembly
+            typeof(Playback2D.Pipeline.Assets.LoadedMapAsset).Assembly
         ];
 
         string[] grants =

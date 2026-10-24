@@ -655,7 +655,7 @@ public class InputToolRouterTests
         public void OnCancelled(IMapToolContext context) => Calls.Add("cancel");
     }
 
-    // Stands in for a tool that lives outside Core (the query canvas's), so every kind can be selected.
+    // Stands in for a tool that lives outside the renderer (the query canvas's), so every kind can be selected.
     private sealed class InertTool(ToolKind kind) : IPointerTool
     {
         public ToolKind Kind => kind;

@@ -4,7 +4,6 @@ using System.Reflection;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SysAssembly = System.Reflection.Assembly;
 
@@ -13,10 +12,10 @@ using SysAssembly = System.Reflection.Assembly;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The layering rules that make Core and the scene contract a runtime instead of a UI helper, and the
-///     scene contract's published surface. These are
-///     asserted against assembly metadata rather than csproj text, because a transitive edge added three
-///     projects away is exactly the kind of regression a reference-graph reading of the csproj misses.
+///     The layering rules that make the scene contract a runtime instead of a UI helper, and its published
+///     surface. These are asserted against assembly metadata rather than csproj text, because a transitive
+///     edge added three projects away is exactly the kind of regression a reference-graph reading of the
+///     csproj misses.
 /// </summary>
 public class ArchitectureTests
 {
@@ -24,12 +23,6 @@ public class ArchitectureTests
     private static readonly string[] _sceneAllowedPrefixes =
     [
         "SkiaSharp", "System", "netstandard", "mscorlib", "Microsoft.CSharp"
-    ];
-
-    // Core adds the scene contract it is built over, and nothing else.
-    private static readonly string[] _coreAllowedPrefixes =
-    [
-        .. _sceneAllowedPrefixes, "DemoViewer.NET.Playback2D.Scene"
     ];
 
     // Published types that kept the namespace they had in Pipeline: the demo content key, the sidecar
@@ -216,23 +209,13 @@ public class ArchitectureTests
 
     private static SysAssembly Scene => typeof(Scene2DFrame).Assembly;
 
-    private static SysAssembly Core => typeof(RadarLayer).Assembly;
-
     [Test]
     public async Task Scene_ReferencesOnlySkiaSharpAndBcl() =>
         await Assert.That(DisallowedReferences(Scene, _sceneAllowedPrefixes)).IsEmpty();
 
     [Test]
-    public async Task Core_ReferencesOnlySkiaSharpBclAndTheScene() =>
-        await Assert.That(DisallowedReferences(Core, _coreAllowedPrefixes)).IsEmpty();
-
-    [Test]
     public async Task Scene_TransitiveClosure_ContainsNoAvalonia() =>
         await AssertNoAvaloniaIn(Scene);
-
-    [Test]
-    public async Task Core_TransitiveClosure_ContainsNoAvalonia() =>
-        await AssertNoAvaloniaIn(Core);
 
     [Test]
     public async Task Scene_PublicTypes_AreExactlyThePublishedList()
@@ -326,16 +309,6 @@ public class ArchitectureTests
     [Test]
     public async Task ModulesAbstractions_TransitiveClosure_ContainsNoAvalonia() =>
         await AssertNoAvaloniaIn(typeof(IPlayerState).Assembly);
-
-    [Test]
-    public async Task Core_DoesNotReferencePipeline()
-    {
-        string pipeline = typeof(SceneFrameBuilder).Assembly.GetName().Name!;
-        bool referenced = Core.GetReferencedAssemblies()
-            .Any(a => string.Equals(a.Name, pipeline, StringComparison.Ordinal));
-
-        await Assert.That(referenced).IsFalse();
-    }
 
     private static List<string> DisallowedReferences(SysAssembly assembly, string[] allowedPrefixes) =>
     [

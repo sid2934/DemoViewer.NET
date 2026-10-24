@@ -17,8 +17,9 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 ///         inside <c>Control.Render</c>, once per pane, so a two-floor Nuke paid for them twice, and
 ///         called into the visibility engine from the render thread. Solving once in Advance is
 ///         pixel-identical (same rays, same eye, same range), strictly cheaper, and the only way the
-///         Advance/Render purity split can hold. The solve itself lives in Pipeline:
-///         <c>VisibilityEngine</c> is a CS2DemoKit type and Core references SkiaSharp only.
+///         Advance/Render purity split can hold. The solve itself sits behind the
+///         <see cref="IVisionSolver" /> seam: <c>VisibilityEngine</c> is a CS2DemoKit type and the scene
+///         contract that declares the seam references SkiaSharp only.
 ///     </para>
 ///     <para>
 ///         <b>Two sources, and it draws whichever one has data.</b> An <see cref="IVisionSolver" /> is the

@@ -172,7 +172,7 @@ public interface IPointerTool
 ///     window, no dispatcher and no platform.
 ///     <para>
 ///         Writing ink needs more than this: the session, the authoring clock, the anchor lookups and the
-///         text-editor request live on <c>IInkToolServices</c> in Core, which the playback tab's host
+///         text-editor request live on <c>IInkToolServices</c> in Pipeline, which the playback tab's host
 ///         implements and a static map view does not.
 ///     </para>
 /// </summary>

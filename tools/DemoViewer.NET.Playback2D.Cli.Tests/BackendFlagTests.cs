@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     <para>
 ///         Everything that depends on the environment runs as a <b>subprocess</b>. It has to:
 ///         <c>RenderSurfaceProviderFactory</c> caches its probe for the life of a process and its
-///         <c>ResetForTests</c> is internal to Core, so an in-process case would be answered by
+///         <c>ResetForTests</c> is internal to Pipeline, so an in-process case would be answered by
 ///         whichever environment probed first, and would pass alone while lying in a suite.
 ///     </para>
 /// </summary>

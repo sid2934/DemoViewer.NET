@@ -46,9 +46,9 @@ internal sealed record EventContract(
 public class Playback2DEventWiringTests
 {
     /// <summary>
-    ///     The guard. Every event contract in the module (App-side view-models and services, Core, and
-    ///     Pipeline) must have both halves, with no exceptions: no event may be allow-listed out instead
-    ///     of wired.
+    ///     The guard. Every event contract in the module (App-side view-models and services, the scene
+    ///     contract, and Pipeline) must have both halves, with no exceptions: no event may be
+    ///     allow-listed out instead of wired.
     /// </summary>
     [Test]
     public async Task EveryModuleEvent_HasAProductionRaiser_AndAProductionSubscriber()

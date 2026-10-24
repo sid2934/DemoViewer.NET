@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     A manual audit, encoded as a test. Guards the two failure modes a feature id has once it is in the catalog:
 ///     <b>declared but never consumed</b> (nothing gates on it), and
-///     <b>consumed in the wrong assembly</b>: Core / Pipeline / <c>dv2d</c> must read
+///     <b>consumed in the wrong assembly</b>: the scene contract / Pipeline / <c>dv2d</c> must read
 ///     no gates at all, because a headless renderer takes explicit flags and must produce the same picture
 ///     whatever a user's Settings screen says.
 ///     <para>
@@ -83,27 +83,26 @@ public class Playback2DFeatureWiringTests
     }
 
     /// <summary>
-    ///     The render core, the pipeline and the CLI take explicit flags, never gates. A
+    ///     The scene contract, the pipeline and the CLI take explicit flags, never gates. A
     ///     <c>dv2d render</c> whose output depended on the invoking user's Settings would be unusable as a
     ///     golden source.
     /// </summary>
     [Test]
-    public async Task CoreAndPipelineAndCli_NeverReferenceFeatureGating()
+    public async Task SceneAndPipelineAndCli_NeverReferenceFeatureGating()
     {
         string[] roots =
         [
             Path.Combine(DemoTestHelper.RequireRepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Scene"),
-            Path.Combine(DemoTestHelper.RequireRepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Core"),
             Path.Combine(DemoTestHelper.RequireRepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Pipeline"),
             Path.Combine(DemoTestHelper.RequireRepoRoot(), "tools", "DemoViewer.NET.Playback2D.Cli")
         ];
 
         // "playback2d.annotations" is deliberately absent: the layer registry gives the ink LAYER that exact
-        // id, so the literal legitimately appears in Core as SceneLayerIds.Annotations. The two registries
-        // collide on one string by coincidence, which AnnotationTrack's own doc comment records: banning
-        // the literal would flag the layer, not a gate. The GATING TYPES below are the real test: a
-        // renderer that could read IFeatureGate is a renderer whose output depends on the caller's
-        // Settings screen.
+        // id, so the literal legitimately appears in the scene contract as SceneLayerIds.Annotations. The
+        // two registries collide on one string by coincidence, which AnnotationTrack's own doc comment
+        // records: banning the literal would flag the layer, not a gate. The GATING TYPES below are the
+        // real test: a renderer that could read IFeatureGate is a renderer whose output depends on the
+        // caller's Settings screen.
         string[] banned =
         [
             "IFeatureGate", "FeatureCatalog", "IModuleFeatureGate",

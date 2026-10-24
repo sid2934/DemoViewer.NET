@@ -9,10 +9,11 @@ namespace DemoViewer.NET.Playback2D.Core.Hud;
 /// <summary>
 ///     Supplies rasterised icon artwork to HUD layers.
 ///     <para>
-///         <b>An interface rather than a reference, because Core is not allowed one.</b> Core's contract
-///         is SkiaSharp, the BCL and the scene contract, nothing else (<c>ArchitectureTests.Core_ReferencesOnlySkiaSharpBclAndTheScene</c>),
-///         so the assembly that owns the baked CS2 artwork cannot appear in its graph. Core states the
-///         shape it needs; the heads that have the artwork hand one in.
+///         <b>An interface rather than a reference, because this package is not allowed one.</b> Its
+///         graph is SkiaSharp and the BCL, nothing else
+///         (<c>ArchitectureTests.Scene_ReferencesOnlySkiaSharpAndBcl</c>), so the assembly that owns the
+///         baked CS2 artwork cannot appear in it. The scene contract states the shape it needs; the heads
+///         that have the artwork hand one in.
 ///     </para>
 ///     <para>
 ///         <b>Optional by design.</b> A layer given no source falls back to its text tokens, which is what

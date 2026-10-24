@@ -14,9 +14,9 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Vision;
 ///     The only <see cref="IVisionSolver" /> implementation. Port of <c>RebuildSightlines</c> (viewport lines
 ///     933-984) and the 26 raycasts inside <c>DrawOneCone</c> (1037-1046), both verbatim.
 ///     <para>
-///         It lives in Pipeline because <see cref="VisibilityEngine" /> and
-///         <see cref="VisibilityAnalyzer" /> are CS2DemoKit types and Core references SkiaSharp only
-///         Core owns the seam and draws the answer.
+///         It lives behind a seam the scene contract declares, because <see cref="VisibilityEngine" />
+///         and <see cref="VisibilityAnalyzer" /> are CS2DemoKit types and that contract references
+///         SkiaSharp only.
 ///     </para>
 ///     <para>
 ///         <b>Could-see uses the same <c>VisibilityAnalyzer.EvaluatePair</c> the statistic uses</b>, so

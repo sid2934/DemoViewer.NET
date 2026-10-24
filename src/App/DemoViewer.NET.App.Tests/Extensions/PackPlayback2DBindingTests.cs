@@ -10,8 +10,8 @@ namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
 ///     The pack draws through the published scene package. What it still binds in the unpublished Playback2D
-///     assemblies, and in the app itself, is read from its metadata, not its source: the scene package declares
-///     the same namespaces as Core, so only the assembly reference tells the two apart.
+///     assembly, and in the app itself, is read from its metadata, not its source: the scene package and
+///     Pipeline declare the same namespaces, so only the assembly reference tells the two apart.
 /// </summary>
 public class PackPlayback2DBindingTests
 {
@@ -20,8 +20,7 @@ public class PackPlayback2DBindingTests
     private const string ShellState = "Live Sync and reel state, which an export must not start beside";
     private const string UserFolders = "the user's Strat Book work, which stays where users have it, one member per store (FirstPartyHostSurfaceTests pins them)";
 
-    private static readonly string[] UnpublishedAssemblies =
-        ["DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Pipeline"];
+    private static readonly string[] UnpublishedAssemblies = ["DemoViewer.NET.Playback2D.Pipeline"];
 
     /// <summary>Every app type the pack may bind, with the reason. Anything else of the app goes through the SDK.</summary>
     private static readonly (string Type, string Reason)[] AllowedApp =
@@ -47,19 +46,19 @@ public class PackPlayback2DBindingTests
         ("DemoViewer.NET.ViewModels.Playback2D.Playback2DExportStatusViewModel", Export),
     ];
 
-    /// <summary>Every type the pack may bind in an unpublished Playback2D assembly, with the reason.</summary>
+    /// <summary>Every type the pack may bind in the unpublished Playback2D assembly, with the reason.</summary>
     private static readonly (string Assembly, string Type, string Reason)[] Allowed =
     [
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Export.CameraScript", Export),
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Export.CameraScript+Fixed", Export),
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Export.CameraScript+FollowPlayer", Export),
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Export.ExportProgress", Export),
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Export.ExportRequest", Export),
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Export.IFrameSink", Export),
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Export.ISceneFrameSource", Export),
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Rendering.CpuSurfaceProvider", Export),
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Rendering.IRenderSurfaceProvider", Export),
-        ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Rendering.RenderSurfaceProviderFactory", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.CameraScript", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.CameraScript+Fixed", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.CameraScript+FollowPlayer", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.ExportProgress", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.ExportRequest", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.IFrameSink", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.ISceneFrameSource", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Rendering.CpuSurfaceProvider", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Rendering.IRenderSurfaceProvider", Export),
+        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Rendering.RenderSurfaceProviderFactory", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Assets.LoadedMapAsset", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Assets.MapAssetPipeline", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.SceneExportSession", Export),

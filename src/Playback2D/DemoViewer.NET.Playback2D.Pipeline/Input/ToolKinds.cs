@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 namespace DemoViewer.NET.Playback2D.Core.Input;
 
 /// <summary>
-///     What each <see cref="ToolKind" /> means to the annotation document. Lives in Core, not in the
+///     What each <see cref="ToolKind" /> means to the annotation document. Lives in Pipeline, not in the
 ///     published scene contract: the two tables answer questions only the app's own toolbar and the ink
 ///     tools ask, and no extension names a shape tool.
 /// </summary>

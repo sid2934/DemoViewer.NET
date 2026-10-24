@@ -1,15 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      Demo-domain adaptation for the scene core: frame building, map-asset decode, fixtures, and
-      (from B4) the private tracker replay and encoder sinks. References Core + the CS2DemoKit parser
-      packages + the (now Avalonia-free) module abstractions. Still NO Avalonia — enforced by test.
+      The 2D map renderer over the published scene contract (DemoViewer.NET.Playback2D.Scene), plus the
+      demo-domain adaptation it feeds: the concrete layers, input tools, annotations, render backends and
+      export requests, frame building, map-asset decode, fixtures, the private tracker replay and the
+      encoder sinks. References the scene contract, SkiaSharp, the CS2DemoKit parser packages and the
+      (Avalonia-free) module abstractions. Still NO Avalonia, enforced by test: that is what lets export,
+      the CLI and CI render without a window.
     -->
     <PropertyGroup>
         <RootNamespace>DemoViewer.NET.Playback2D.Pipeline</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="SkiaSharp"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
         <!-- Export sinks. FFMpegCore only builds arguments and pipes rawvideo to an ffmpeg
@@ -23,8 +27,9 @@
         <!-- The baked CS2 iconography, for SkiaIconSource. Asset-only and dependency-free,
              so it cannot reintroduce Avalonia into the headless graph. -->
         <ProjectReference Include="..\..\GameIcons\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
+        <!-- The published scene contract: frame, layer interface, compositor, floors, places, viewport. -->
         <ProjectReference
-                Include="..\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
+                Include="..\DemoViewer.NET.Playback2D.Scene\DemoViewer.NET.Playback2D.Scene.csproj"/>
         <ProjectReference
                 Include="..\..\App\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
     </ItemGroup>

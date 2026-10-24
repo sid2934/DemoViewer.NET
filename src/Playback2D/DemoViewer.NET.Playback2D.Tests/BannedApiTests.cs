@@ -4,7 +4,6 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SysAssembly = System.Reflection.Assembly;
 
@@ -41,8 +40,8 @@ public class BannedApiTests
 
     /// <summary>
     ///     The measurement harness. It exists to time the pipeline from OUTSIDE it, so a stopwatch and a
-    ///     timestamp are the deliverable, not a leak, which is exactly why it lives in Pipeline
-    ///     rather than Core in the first place.
+    ///     timestamp are the deliverable, not a leak, which is why the exemption is scoped to its two
+    ///     namespaces rather than to the assembly.
     /// </summary>
     private static readonly string[] _exemptNamespacePrefixes =
     [
@@ -56,15 +55,11 @@ public class BannedApiTests
     ];
 
     [Test]
-    public async Task Core_ContainsNo_DateTimeNow_Stopwatch_Or_Random()
+    public async Task Scene_ContainsNo_DateTimeNow_Stopwatch_Or_Random()
     {
-        // Core and the scene contract have NO exemption: nothing in the render core has a legitimate reason
-        // to know the time.
-        List<string> offenders =
-        [
-            .. ScanForBannedUses(typeof(Scene2DFrame).Assembly, []),
-            .. ScanForBannedUses(typeof(RadarLayer).Assembly, [])
-        ];
+        // The scene contract has NO exemption: nothing a third party composes a frame with has a
+        // legitimate reason to know the time.
+        List<string> offenders = ScanForBannedUses(typeof(Scene2DFrame).Assembly, []);
         Report(offenders);
         await Assert.That(offenders).IsEmpty();
     }

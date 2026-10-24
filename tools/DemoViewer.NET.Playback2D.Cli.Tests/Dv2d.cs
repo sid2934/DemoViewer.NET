@@ -101,7 +101,7 @@ internal static class Dv2d
     ///     <para>
     ///         A subprocess is not a convenience for the backend cases, it is a requirement:
     ///         <c>RenderSurfaceProviderFactory</c> caches its probe for the life of the process and its
-    ///         <c>ResetForTests</c> is internal to Core, so an in-process run would answer every later
+    ///         <c>ResetForTests</c> is internal to Pipeline, so an in-process run would answer every later
     ///         case from whichever environment happened to probe first.
     ///     </para>
     /// </summary>
