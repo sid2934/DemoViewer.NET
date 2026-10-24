@@ -1201,7 +1201,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool IsLiveSyncEnabled => (_gate?.IsEnabled("chrome.livesync") ?? false) && !OperatingSystem.IsBrowser();
 
     /// <summary>
-    ///     Gate shim: the demo-processing-queue chip / flyout (<c>chrome.processingQueue</c>). <b>Fail-CLOSED</b> like Live Sync (a null gate returns <c>false</c>) and ANDed with
+    ///     Gate shim: the demo-processing-queue chip / flyout (<c>chrome.processingQueue</c>).
+    ///     <b>Fail-CLOSED</b> like Live Sync (a null gate returns <c>false</c>) and ANDed with
     ///     <c>!OperatingSystem.IsBrowser()</c>: background parse/analyse work needs a filesystem, so a browser
     ///     build never surfaces the queue surface. Power-user+ default; the chip appears only while the queue
     ///     has activity or is paused (see <see cref="ReconcileQueueChip" />).

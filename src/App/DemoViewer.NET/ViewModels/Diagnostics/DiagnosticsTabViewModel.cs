@@ -842,7 +842,10 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
 
     // ── Copy-to-clipboard text builder ────────────────────────────────────────
 
-    /// <summary>Builds the plain-text diagnostics block (system, environment and session) for the clipboard / fallback TextBox.</summary>
+    /// <summary>
+    ///     Builds the plain-text diagnostics block (system, environment and session) for the
+    ///     clipboard / fallback TextBox.
+    /// </summary>
     public string BuildCopyText()
     {
         StringBuilder sb = new();

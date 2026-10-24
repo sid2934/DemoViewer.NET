@@ -113,8 +113,8 @@ public readonly record struct ScenePalette(
 {
     /// <summary>
     ///     The Dark-variant fallbacks the pre-v2 control's palette builder hard-coded,
-    ///     colour for colour and in the same order. The App builds a palette from its theme tokens
-    ///     and <c>CanvasPalette</c> becomes a factory over this; a test then asserts the two agree.
+    ///     colour for colour and in the same order. The App's <c>ScenePaletteFactory</c> resolves the
+    ///     same colours from its theme tokens, and a test asserts the two agree.
     /// </summary>
     public static readonly ScenePalette Dark = new(
         SKColor.Parse("#15181C"),

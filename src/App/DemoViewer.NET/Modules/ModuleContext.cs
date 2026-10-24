@@ -282,7 +282,8 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public void SetFaults(ExtensionFaults? faults) => _faults = faults;
 
     /// <summary>
-    ///     Host-side relay for <see cref="IModuleContext.NotifySpectateTarget" /> (the spectate seam): module surfaces report the user's follow pick; the live-sync engine
+    ///     Host-side relay for <see cref="IModuleContext.NotifySpectateTarget" /> (the spectate seam):
+    ///     module surfaces report the user's follow pick; the live-sync engine
     ///     subscribes here (the module-owned tab VMs are lazily built, so this context, which
     ///     always exists, is the reachable seam).
     /// </summary>

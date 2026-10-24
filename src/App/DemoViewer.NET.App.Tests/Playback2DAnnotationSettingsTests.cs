@@ -54,7 +54,7 @@ public class Playback2DAnnotationSettingsTests
             await Assert.That(prefs.AnnotationCustomFromTick).IsEqualTo(0);
             await Assert.That(prefs.AnnotationCustomUntilTick).IsEqualTo(320);
 
-            // P2. `auto` is the only encoder value that cannot fail for an environment reason: it walks
+            // `auto` is the only encoder value that cannot fail for an environment reason: it walks
             // the ladder and lands on tuned software where no hardware verifies, so it is the only one
             // that can be a default. `standard` is the product goal: decent bitrate, quick encoding.
             await Assert.That(prefs.ExportEncoder).IsEqualTo("auto");
@@ -152,7 +152,7 @@ public class Playback2DAnnotationSettingsTests
         await Assert.That(prefs.AnnotationCustomFromTick).IsEqualTo(1500);
         await Assert.That(prefs.AnnotationCustomUntilTick).IsEqualTo(2500);
 
-        // P2's two keys, through the same fileless path as the rest: a Playback2D property missing from
+        // The two export keys, through the same fileless path as the rest: a Playback2D property missing from
         // SettingsService.WriteInMemory binds fine, writes fine, and forgets itself on the next reload.
         await Assert.That(prefs.ExportEncoder).IsEqualTo("av1_nvenc");
         await Assert.That(prefs.ExportQuality).IsEqualTo("best");
