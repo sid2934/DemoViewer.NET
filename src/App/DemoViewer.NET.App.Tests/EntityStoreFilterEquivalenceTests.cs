@@ -26,16 +26,17 @@ public class EntityStoreFilterEquivalenceTests
         "CCSTeam"
     };
 
+    private static readonly string[] _demoNames =
+    [
+        "match730_003826256877184877003_0981591541_410.dem",
+        "vitality-vs-fut-m2-dust2.dem",
+        "furia-vs-vitality-m3-nuke.dem"
+    ];
+
     [Test]
     public async Task CcsTeamOnlyFilter_ProducesIdenticalScore_ToFullReplay()
     {
-        string[] demos =
-        [
-            "/Users/austingray/Development/DemoViewer.NET/demos/match730_003826256877184877003_0981591541_410.dem",
-            "/Users/austingray/Development/DemoViewer.NET/demos/pro-demos/vitality-vs-fut-m2-dust2.dem",
-            "/Users/austingray/Development/DemoViewer.NET/demos/pro-demos/furia-vs-vitality-m3-nuke.dem"
-        ];
-        string[] present = demos.Where(File.Exists).ToArray();
+        string[] present = _demoNames.Select(DemoTestHelper.FindDemoPath).OfType<string>().ToArray();
         if (present.Length == 0)
         {
             throw new SkipTestException("no equivalence demo present");
