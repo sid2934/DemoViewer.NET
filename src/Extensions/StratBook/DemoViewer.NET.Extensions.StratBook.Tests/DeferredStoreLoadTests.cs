@@ -158,7 +158,20 @@ public class DeferredStoreLoadTests
 
         queued.Single().Change();
         landed.SetResult();
-        await Task.Delay(50);
+
+        // The tab clears its busy state on a continuation off `landed.Task`, so the wait is on that and
+        // not on a fixed delay: the 50 ms this replaces was a bet that the continuation had already run.
+        for (int i = 0; !vm.IsIdle; i++)
+        {
+            if (i >= 400)
+            {
+                throw new System.TimeoutException(
+                    $"waited 10s for the teams tab to go idle after the command landed; BusyLine was \"{vm.BusyLine}\"");
+            }
+
+            await Task.Delay(25);
+        }
+
         using (Assert.Multiple())
         {
             await Assert.That(busy).IsTrue();
