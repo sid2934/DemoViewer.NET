@@ -36,8 +36,8 @@ public class HostDataRemovalTests
         ExtensionContext context = new(pack, sp);
         sp.GetRequiredService<DemoCacheStore>().Update("/demos/a.dem", 1, 1, r => r.Sha256 = "aaaa");
 
-        await context.Storage.WriteAtomicAsync(StoreRoot.Config, "notes.json", Encoding.UTF8.GetBytes("{}"));
-        await context.Storage.WriteAtomicAsync(StoreRoot.Cache, "index.bin", new byte[] { 1 });
+        context.Stores.Own(StoreRoot.Config)!.WriteAtomic("notes.json", Encoding.UTF8.GetBytes("{}"));
+        context.Stores.Own(StoreRoot.Cache)!.WriteAtomic("index.bin", new byte[] { 1 });
         context.Data.Write("/demos/a.dem", new DemoDataWrite("rounds", 1, "fp", new byte[] { 1, 2 }));
         string declared = Path.Combine(configRoot, id + "-legacy.json");
         await File.WriteAllTextAsync(declared, "{}");

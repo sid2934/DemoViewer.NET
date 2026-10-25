@@ -1,8 +1,10 @@
 #region
 
 using System.Text;
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.ViewModels.Diagnostics;
 
 #endregion
 
@@ -10,14 +12,15 @@ namespace DemoViewer.NET.Extensions;
 
 /// <summary>
 ///     The host's <see cref="IExtensionStores" />: each store the pack declares, resolved against the root its
-///     descriptor names. The list is <see cref="PackContributions.AcceptedStores" />, so what is handed out is
-///     what the pack may also delete.
+///     descriptor names, and the extension's own two folders. The declared list is
+///     <see cref="PackContributions.AcceptedStores" />, so what is handed out is what the pack may also delete.
 /// </summary>
 internal sealed class ExtensionStores : IExtensionStores
 {
     private readonly string _extensionId;
     private readonly string? _configRoot;
     private readonly string? _cacheRoot;
+    private readonly Lazy<ExtensionFolder?> _ownCache;
 
     /// <param name="extensionId">The extension the stores belong to.</param>
     /// <param name="configRoot">The config root, or null for a build with no filesystem.</param>
@@ -29,6 +32,7 @@ internal sealed class ExtensionStores : IExtensionStores
         _configRoot = configRoot;
         _cacheRoot = cacheRoot;
         Declared = declared;
+        _ownCache = new Lazy<ExtensionFolder?>(OpenOwnCache);
     }
 
     /// <summary>The stores, in declaration order.</summary>
@@ -57,6 +61,99 @@ internal sealed class ExtensionStores : IExtensionStores
             ? throw new InvalidOperationException($"Store '{storeId}' of '{_extensionId}' is a folder; Open opens it.")
             : new ExtensionFile(full);
     }
+
+    public IExtensionFolder? Own(StoreRoot root)
+    {
+        if (root == StoreRoot.Cache)
+        {
+            return _ownCache.Value;
+        }
+
+        return _configRoot is { } config ? new ExtensionFolder(OwnFolder(config)) : null;
+    }
+
+    // The cache side is handed out through a Lazy because opening it runs the move below, and that must
+    // happen before any read of the folder: a pack that read it first would find nothing, fall back to the
+    // layout an older build used, and write a copy the move then declines to overwrite.
+    private ExtensionFolder? OpenOwnCache()
+    {
+        if (_cacheRoot is not { } cache)
+        {
+            return null;
+        }
+
+        string own = OwnFolder(cache);
+        string files = System.IO.Path.Combine(own, ExtensionFolders.OwnCacheDirectoryName);
+        MoveIntoFilesFolder(own, files);
+        return new ExtensionFolder(files);
+    }
+
+    private string OwnFolder(string root) =>
+        System.IO.Path.Combine(root, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(_extensionId));
+
+    // Builds through v0.9.0 handed the extension its cache folder itself, so what they wrote sits beside the
+    // per-demo data the host keeps there. Every such entry moves down into the folder handed out now, except
+    // one whose target is already taken: that is the newer copy and overwriting it would lose user work. A
+    // sweep rather than a one-shot, so a run a crash cut short finishes on the next one.
+    private void MoveIntoFilesFolder(string own, string files)
+    {
+        if (!Directory.Exists(own))
+        {
+            return;
+        }
+
+        string[] entries;
+        try
+        {
+            // The whole listing up front, not an enumerator: the loop renames entries out of this folder and
+            // creates one inside it, and readdir under concurrent modification may skip an entry. A skipped
+            // lineups file is the loss this move exists to prevent.
+            entries = Directory.GetFileSystemEntries(own);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Swallowed rather than thrown: the folder is handed out through a Lazy, which would cache the
+            // throw and fail every later Own(Cache) inside the extension's own factories.
+            NotMoved(own, e);
+            return;
+        }
+
+        foreach (string entry in entries)
+        {
+            string name = System.IO.Path.GetFileName(entry);
+            if (string.Equals(name, ExtensionDemoDataStore.DirectoryName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, ExtensionFolders.OwnCacheDirectoryName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string target = System.IO.Path.Combine(files, name);
+            if (File.Exists(target) || Directory.Exists(target))
+            {
+                continue;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(files);
+                if (Directory.Exists(entry))
+                {
+                    Directory.Move(entry, target);
+                }
+                else
+                {
+                    File.Move(entry, target);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                NotMoved(name, e);
+            }
+        }
+    }
+
+    private void NotMoved(string entry, Exception e) =>
+        AppLog.ExtensionCacheEntryNotMoved(DiagnosticsLog.CreateLogger(AppLog.ExtensionsCategory), _extensionId, entry, e.Message);
 
     // The one path a store declares, under its root; null when the build has no roots.
     private string? Resolve(string storeId)
@@ -153,9 +250,13 @@ internal sealed class ExtensionFolder : IExtensionFolder
         ArgumentNullException.ThrowIfNull(line);
         string path = ResolveFile(relativePath);
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
-        using StreamWriter writer = new(path, append: true, Utf8);
-        writer.Write(line);
-        writer.Write('\n');
+
+        // Opened for append and never rewritten. A log whose last line was torn by a crash gets a
+        // newline first, so the torn line stays alone and is skipped rather than swallowing this one.
+        using FileStream stream = new(path, FileMode.Append, FileAccess.Write, FileShare.Read);
+        byte[] bytes = Utf8.GetBytes((EndsTorn(path, stream.Position) ? "\n" : "") + line + "\n");
+        stream.Write(bytes);
+        stream.Flush(true);
     }
 
     public void Move(string fromRelativePath, string toRelativePath, bool overwrite)
@@ -172,6 +273,20 @@ internal sealed class ExtensionFolder : IExtensionFolder
         {
             File.Delete(path);
         }
+    }
+
+    // The read handle must be FileShare.ReadWrite: the append handle above is still open with
+    // FileShare.Read, and anything narrower here fails the whole append with an IOException.
+    private static bool EndsTorn(string path, long length)
+    {
+        if (length == 0)
+        {
+            return false;
+        }
+
+        using FileStream reader = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        reader.Seek(-1, SeekOrigin.End);
+        return reader.ReadByte() != '\n';
     }
 
     // A file's path inside the folder.

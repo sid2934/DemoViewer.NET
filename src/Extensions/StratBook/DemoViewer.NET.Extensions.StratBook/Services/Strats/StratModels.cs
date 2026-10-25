@@ -575,10 +575,10 @@ public sealed class StepPosition
 /// <summary>
 ///     A grenade a step throws. <see cref="LineupId" /> is opaque here by design: this model does
 ///     not dereference it, only stores and round-trips it. Lineup On A Strat Step fills it from the Utility
-///     Book's <c>GrenadeLineup.Id</c>, a deterministic key over the map, kind, landing cell and rounded
-///     origin (not a persisted row, as docs/strat-format.md notes, since this field was originally expected
-///     to carry a minted <c>Lineup.Id</c>), and resolves it back through
-///     <c>GrenadeIndex.DescribeLineup</c> for display on the step and in LAN Print.
+///     Book's <c>GrenadeLineup.Id</c>, which is a minted <c>LineupAnchor.Id</c> persisted in the extension's
+///     own cache folder and never re-derived, and resolves it back through <c>GrenadeIndex.DescribeLineup</c>
+///     for display on the step and in LAN Print. Nothing may re-mint those anchors: the ids written here and
+///     the names of the user's rendered clips are what would be orphaned.
 /// </summary>
 public sealed class UtilityRef
 {

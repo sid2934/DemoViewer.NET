@@ -34,10 +34,7 @@ public interface IExtensionContext
     /// <summary>The open demo and the shell's navigation.</summary>
     IExtensionShell Shell { get; }
 
-    /// <summary>The extension's own files.</summary>
-    IExtensionStorage Storage { get; }
-
-    /// <summary>The stores the extension declared in <see cref="IExtension.Stores" />, as folders.</summary>
+    /// <summary>The stores the extension declared in <see cref="IExtension.Stores" />, and its own folders.</summary>
     IExtensionStores Stores { get; }
 
     /// <summary>The extension's own settings, which a <see cref="SettingsSchema" /> page edits.</summary>
@@ -139,41 +136,6 @@ public interface IExtensionShell
 
     /// <summary>Shows <paramref name="path" /> in the system file manager.</summary>
     void RevealInFileManager(string path);
-}
-
-/// <summary>
-///     Files of the extension's own, in two folders the host keeps for it: one for the user's work, one for
-///     what the extension can rebuild. The extension names a file by its path under the folder and never sees
-///     where the folder is. The browser build has no folders: writes keep nothing and reads find nothing.
-/// </summary>
-public interface IExtensionStorage
-{
-    /// <summary>
-    ///     Writes <paramref name="content" /> to a file under one of the extension's folders, whole or not at
-    ///     all: the bytes go to a temporary file beside the target, which then replaces it. A crash mid-write
-    ///     leaves the previous file. The safe way to write the extension's data.
-    /// </summary>
-    /// <param name="root">Which of the extension's folders.</param>
-    /// <param name="relativePath">The file under that folder, with '/' or '\' between folders. Missing folders are created.</param>
-    /// <param name="content">The file's new contents.</param>
-    /// <param name="cancellationToken">Stops the write before the file is replaced.</param>
-    /// <returns>False on the browser build, which has no folders; true once the file is replaced.</returns>
-    /// <exception cref="ArgumentException">
-    ///     <paramref name="relativePath" /> is empty, rooted, has a ".." segment, resolves outside the folder, or
-    ///     enters the cache folder's <c>demo-data</c> folder, which holds <see cref="IExtensionContext.Data" />.
-    /// </exception>
-    Task<bool> WriteAtomicAsync(StoreRoot root, string relativePath, ReadOnlyMemory<byte> content,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>Reads a file under one of the extension's folders, by the same path rule as <see cref="WriteAtomicAsync" />.</summary>
-    /// <param name="root">Which of the extension's folders.</param>
-    /// <param name="relativePath">The file under that folder.</param>
-    /// <param name="cancellationToken">Stops the read.</param>
-    /// <returns>The file's contents, or null when it does not exist or the build has no folders.</returns>
-    /// <exception cref="ArgumentException">
-    ///     <paramref name="relativePath" /> is empty, rooted, has a ".." segment, or resolves outside the folder.
-    /// </exception>
-    Task<byte[]?> ReadAsync(StoreRoot root, string relativePath, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Resolves an extension's <see cref="IExtensionContext" />.</summary>

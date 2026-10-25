@@ -186,17 +186,17 @@ extension and pass your own id; any other caller is refused. It returns the exte
   thread. The browser build keeps them for the session.
 - `Data`: per-demo data the host keeps for you. See below.
 - `Library`: the demo library, read only. See "Reading the library".
-- `Storage`: files of your own in two folders the host keeps for you, one for the user's work and one for what
-  you can rebuild. You name a file by its path under the folder (`StoreRoot.Config` or `StoreRoot.Cache`) and
-  never see where the folder is. Write with `WriteAtomicAsync` and read with `ReadAsync`: the path must stay
-  inside the folder, and a crash mid-write leaves the previous file instead of a torn one. The browser build
-  has no folders.
-- `Stores`: the stores your entry type declares in `IExtension.Stores`, which is where data lives that a user
-  is meant to find, or that an older build left where the user has it. `Open(storeId)` hands a store that
-  declares one folder back as an `IExtensionFolder`: list, read, write whole, append, move and delete under
+- `Stores`: every folder of yours on disk. `Open(storeId)` hands a store your entry type declared in
+  `IExtension.Stores` back as an `IExtensionFolder`: list, read, write whole, append, move and delete under
   it by relative path, or take its `Path` for a process or the file manager. `OpenFile(storeId)` hands a
-  store that declares one file back as an `IExtensionFile`. The host resolves both from the descriptor, so
-  the same rule that bounds "Delete extension data" bounds what you can open. Null on the browser build.
+  store that declares one file back as an `IExtensionFile`. A declared store is where data lives that a user
+  is meant to find, or that an older build left where the user has it; the host resolves it from the
+  descriptor, so the same rule that bounds "Delete extension data" bounds what you can open. `Own(root)`
+  hands back a folder of your own for everything else, one per root (`StoreRoot.Config` for the user's work,
+  `StoreRoot.Cache` for what you can rebuild), with the same `IExtensionFolder` on it. Every write replaces
+  the file whole or leaves the previous one, so a crash mid-write never leaves a torn file; `Append` is the
+  one in-place write, and it reaches the disk before it returns. All three are null on the browser build,
+  which has no folders, and a path that would leave the folder it is relative to is refused.
 - `Notifications`: short messages to the user, drawn as a small stack above the status strip. See below.
 - `Keymap`: the app's one keymap, read only. `Bindings` is every default binding with its scope, and
   `ShellReserved` and `BrowserReserved` the gestures the shell and the browser take first; check a key your

@@ -2,6 +2,7 @@
 
 using System.Numerics;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 
@@ -139,21 +140,57 @@ public class GrenadeStoreTests
             old.For(Map).Anchors.Add(anchor);
             old.Save();
 
-            DemoViewer.NET.Extensions.ExtensionContext.StorageView storage = new("dev.example.lineups", Path.Combine(root, "config"),
-                Path.Combine(root, "cache"));
-            GrenadeLineupStore copied = GrenadeLineupStore.In(storage, () => File.ReadAllBytes(legacy));
+            DemoViewer.NET.Extensions.ExtensionStores stores = new("dev.example.lineups", Path.Combine(root, "config"),
+                Path.Combine(root, "cache"), []);
+            IExtensionFolder folder = stores.Own(DemoViewer.NET.Extensions.Sdk.StoreRoot.Cache)!;
+            GrenadeLineupStore copied = GrenadeLineupStore.In(folder, () => File.ReadAllBytes(legacy));
             using (Assert.Multiple())
             {
                 await Assert.That(copied.For(Map).Anchors.Single()).IsEqualTo(anchor);
-                await Assert.That(await storage.ReadAsync(DemoViewer.NET.Extensions.Sdk.StoreRoot.Cache, GrenadeLineupStore.FileName)).IsNotNull()
+                await Assert.That(folder.Read(GrenadeLineupStore.FileName)).IsNotNull()
                     .Because("the copy lands in the extension's own cache folder");
             }
 
             // The copy is the store now: a change there is what the next start reads, not the old file.
             copied.For(Map).Anchors.Clear();
             copied.Save();
-            GrenadeLineupStore reopened = GrenadeLineupStore.In(storage, () => File.ReadAllBytes(legacy));
+            GrenadeLineupStore reopened = GrenadeLineupStore.In(folder, () => File.ReadAllBytes(legacy));
             await Assert.That(reopened.For(Map).Anchors).IsEmpty();
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task TheLineupsAnOlderBuildWroteInTheCacheFolder_WinOverTheOnesBesideIt()
+    {
+        string root = TempRoot();
+        try
+        {
+            // The two layouts v0.9.0 left behind: the oldest copy at the cache root, which the pack still
+            // offers as a declared store, and the one the extension's own cache folder holds now. Re-rooting
+            // that folder must not leave the newer file stranded, since its anchor ids are what the user's
+            // strat steps and rendered clips are named by.
+            string oldest = Path.Combine(root, "cache");
+            string own = Path.Combine(oldest, ExtensionFolders.DataDirectoryName, "dev.example.lineups");
+            Directory.CreateDirectory(own);
+            GrenadeLineupStore oldestStore = new(oldest);
+            oldestStore.For(Map).Anchors.Add(new LineupAnchor(Guid.NewGuid(), GrenadeKind.Smoke, new WorldPoint(1, 2, 3),
+                new WorldPoint(4, 5, 6), "oldest"));
+            oldestStore.Save();
+            LineupAnchor current = new(Guid.NewGuid(), GrenadeKind.Smoke, new WorldPoint(7, 8, 9), new WorldPoint(10, 11, 12), "current");
+            GrenadeLineupStore currentStore = new(own);
+            currentStore.For(Map).Anchors.Add(current);
+            currentStore.Save();
+
+            DemoViewer.NET.Extensions.ExtensionStores stores = new("dev.example.lineups", Path.Combine(root, "config"), oldest, []);
+            GrenadeLineupStore opened = GrenadeLineupStore.In(stores.Own(DemoViewer.NET.Extensions.Sdk.StoreRoot.Cache),
+                () => File.ReadAllBytes(Path.Combine(oldest, GrenadeLineupStore.FileName)));
+
+            await Assert.That(opened.For(Map).Anchors.Single()).IsEqualTo(current)
+                .Because("the move runs before the first read, so the legacy copy is never consulted");
         }
         finally
         {

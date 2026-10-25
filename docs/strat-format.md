@@ -235,10 +235,10 @@ clock. Optional and not written when absent, so a file without it loads and save
   names where the grenade should land, as a place and (once Step Authoring writes it) a world point.
 
   **`lineupId` (Lineup On A Strat Step).** This model does not dereference the id itself, only stores and
-  round-trips it; the value and the lookup are the Utility Book's. It is not a row a "Lineup Cards" table
-  minted (there is no such table): it is `GrenadeLineup.Id`, computed deterministically from the strat's
-  map, the utility `kind`, the throw's landing cell and its rounded origin, so the same throw position
-  gets the same id from every process and every reindex with nothing persisted. `GrenadeIndex.DescribeLineup(map,
+  round-trips it; the value and the lookup are the Utility Book's. It is `GrenadeLineup.Id`, a minted
+  `LineupAnchor.Id` the Utility Book persists in `grenade-lineups.json.gz` under the extension's own cache
+  folder. It is not re-derived from the throw's position: an anchor keeps its id for the life of that file,
+  so a reindex, a regrouping or a newly walked demo never renames it. `GrenadeIndex.DescribeLineup(map,
   id)` resolves it back to a card title, a throw count and the representative throw's console line; a
   step whose id no longer resolves (every throw at that position left the corpus) still opens and still
   shows the raw id rather than losing the reference, the same fallback a branch's unresolved target uses.

@@ -316,7 +316,7 @@ public sealed class StratBookPack : IExtension
             // first-run wizard has not asked yet.
             TeamIdentityService teams = new(
                 new TeamIdentityFiles(StoredFile.In(StoresOf(sp).OpenFile(StratBookStores.Teams)),
-                    StoredFile.In(Host(sp).Storage, StoreRoot.Cache, TeamIdentityService.IndexFileName)),
+                    StoredFile.In(StoresOf(sp).Own(StoreRoot.Cache), TeamIdentityService.IndexFileName)),
                 Library(sp),
                 RoundFactsOf(sp),
                 Host(sp).Post,
@@ -667,7 +667,7 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 sp.GetRequiredService<GrenadeIndexEvaluator>(),
                 Host(sp).Post,
-                lineups: GrenadeLineupStore.In(Host(sp).Storage,
+                lineups: GrenadeLineupStore.In(StoresOf(sp).Own(StoreRoot.Cache),
                     () => StoresOf(sp).OpenFile(StratBookStores.GrenadeLineups)?.Read()),
                 scheduleSave: drain => Job(sp, "Save: grenade lineups", drain,
                     new JobOptions(BuiltInJobKinds.Save, Key: "save:grenade-lineups")));
@@ -798,12 +798,12 @@ public sealed class StratBookPack : IExtension
     // user's dismissed and promoted patterns are copied once from where an older build kept them.
     private static StratMiningFiles MiningFiles(IServiceProvider sp)
     {
-        IExtensionStorage storage = Host(sp).Storage;
+        IExtensionStores stores = StoresOf(sp);
         return new StratMiningFiles(
-            StoredFile.In(storage, StoreRoot.Cache, StratMiningFiles.DetectedPath),
-            StoredFile.In(storage, StoreRoot.Cache, StratMiningFiles.SignaturesPath),
-            StoredFile.In(storage, StoreRoot.Config, StratMiningFiles.StatePath,
-                () => StoresOf(sp).OpenFile(StratBookStores.StratMiningState)?.Read()));
+            StoredFile.In(stores.Own(StoreRoot.Cache), StratMiningFiles.DetectedPath),
+            StoredFile.In(stores.Own(StoreRoot.Cache), StratMiningFiles.SignaturesPath),
+            StoredFile.In(stores.Own(StoreRoot.Config), StratMiningFiles.StatePath,
+                () => stores.OpenFile(StratBookStores.StratMiningState)?.Read()));
     }
 
     // The demo library, read only.

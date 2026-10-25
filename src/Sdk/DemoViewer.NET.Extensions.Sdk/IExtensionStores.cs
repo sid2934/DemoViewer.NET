@@ -3,9 +3,9 @@ namespace DemoViewer.NET.Extensions.Sdk;
 /// <summary>
 ///     The stores the extension declared in <see cref="IExtension.Stores" />, each opened as a folder it can
 ///     work in. A declared store is where the extension keeps data a user is meant to find, or
-///     data an older build left where the user has it; <see cref="IExtensionContext.Storage" /> is for
-///     everything else. The host resolves each store from its descriptor, so no path the extension builds
-///     reaches another extension's files or the app's own.
+///     data an older build left where the user has it; <see cref="Own" /> is for everything else. The host
+///     resolves each store from its descriptor, so no path the extension builds reaches another extension's
+///     files or the app's own.
 /// </summary>
 public interface IExtensionStores
 {
@@ -32,6 +32,21 @@ public interface IExtensionStores
     /// </exception>
     /// <exception cref="InvalidOperationException">The store's path is a folder; <see cref="Open" /> opens it.</exception>
     IExtensionFile? OpenFile(string storeId);
+
+    /// <summary>
+    ///     The extension's own folder under <paramref name="root" />, for everything no user is meant to find
+    ///     by hand, or null on a build with no filesystem. The folder need not exist yet, and nothing the host
+    ///     or another extension owns is reachable from it.
+    ///     <para>
+    ///         The two roots are not mirror images of each other, by design. <see cref="StoreRoot.Config" /> is
+    ///         the extension's config folder itself: nothing host-owned sits under it, and what is there is the
+    ///         user's own work. <see cref="StoreRoot.Cache" /> is a subfolder of the extension's cache folder,
+    ///         because the host keeps the extension's per-demo data (<see cref="IExtensionContext.Data" />)
+    ///         beside it and no relative path may reach that.
+    ///     </para>
+    /// </summary>
+    /// <param name="root">Which of the extension's two folders.</param>
+    IExtensionFolder? Own(StoreRoot root);
 }
 
 /// <summary>
@@ -136,8 +151,10 @@ public interface IExtensionFolder
 
     /// <summary>
     ///     Adds <paramref name="line" /> and a '\n' to the end of the file at <paramref name="relativePath" />,
-    ///     creating it and its folders when missing. Not atomic: a crash can leave a partial last line, which is
-    ///     the trade an append-only log makes.
+    ///     creating it and its folders when missing. The line is on the disk before the call returns, so a log
+    ///     appended ahead of the file it describes is never behind that file after a crash. A last line a crash
+    ///     tore gets a '\n' of its own first, leaving the torn record alone to be skipped rather than joined to
+    ///     this one.
     /// </summary>
     void Append(string relativePath, string line);
 

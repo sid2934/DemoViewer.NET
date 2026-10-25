@@ -119,7 +119,6 @@ internal sealed class ExtensionContext : IExtensionContext
             () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default, _guard, Post, Dispatcher.UIThread.CheckAccess);
         Passes = new ExtensionPasses(extension.Id, () => services.GetService<DemoScheduler>(), Post);
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
-        Storage = new StorageView(extension.Id);
         Stores = new ExtensionStores(extension.Id, AppPaths.ConfigRoot, AppPaths.DemoCacheDir, PackContributions.AcceptedStores(extension, _guard));
         Settings = new ExtensionSettingsStore(extension.Id, AppPaths.ConfigRoot, Post);
         Notifications = services.GetService<NotificationCenter>()?.For(_guard, CreateLogger("Notifications"))
@@ -161,8 +160,6 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionPasses Passes { get; }
 
     public IExtensionShell Shell { get; }
-
-    public IExtensionStorage Storage { get; }
 
     public IExtensionStores Stores { get; }
 
@@ -302,63 +299,6 @@ internal sealed class ExtensionContext : IExtensionContext
         {
             ArgumentException.ThrowIfNullOrEmpty(path);
             _hub.Shell?.OpenOutputFolder(path);
-        }
-    }
-
-    internal sealed class StorageView(string extensionId, string? configRoot = null, string? cacheRoot = null) : IExtensionStorage
-    {
-        private readonly string? _configRoot = configRoot ?? AppPaths.ConfigRoot;
-        private readonly string? _cacheRoot = cacheRoot ?? AppPaths.DemoCacheDir;
-
-        private string? ConfigFolder => _configRoot is { } root
-            ? Path.Combine(root, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extensionId))
-            : null;
-
-        private string? CacheFolder => _cacheRoot is { } cache
-            ? Path.Combine(cache, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extensionId))
-            : null;
-
-        public async Task<bool> WriteAtomicAsync(StoreRoot root, string relativePath, ReadOnlyMemory<byte> content,
-            CancellationToken cancellationToken = default)
-        {
-            if (Resolve(root, relativePath) is not { } target)
-            {
-                return false;
-            }
-
-            await AtomicFile.WriteAllBytesAsync(target, content, cancellationToken).ConfigureAwait(false);
-            return true;
-        }
-
-        public async Task<byte[]?> ReadAsync(StoreRoot root, string relativePath, CancellationToken cancellationToken = default)
-        {
-            if (Resolve(root, relativePath) is not { } target || !File.Exists(target))
-            {
-                return null;
-            }
-
-            return await File.ReadAllBytesAsync(target, cancellationToken).ConfigureAwait(false);
-        }
-
-        // Null when the build has no folders; throws for a path that would leave the extension's folder.
-        private string? Resolve(StoreRoot root, string relativePath)
-        {
-            ArgumentNullException.ThrowIfNull(relativePath);
-            if ((root == StoreRoot.Config ? ConfigFolder : CacheFolder) is not { } folder)
-            {
-                return null;
-            }
-
-            string target = PackDataRemover.ResolveSafe(folder, relativePath)
-                            ?? throw new ArgumentException($"'{relativePath}' is not a file inside the extension's folder.", nameof(relativePath));
-            string host = Path.Combine(folder, ExtensionDemoDataStore.DirectoryName);
-            if (root == StoreRoot.Cache && (string.Equals(target, host, StringComparison.OrdinalIgnoreCase)
-                                            || target.StartsWith(host + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new ArgumentException($"'{relativePath}' is inside the per-demo data the host keeps.", nameof(relativePath));
-            }
-
-            return target;
         }
     }
 }

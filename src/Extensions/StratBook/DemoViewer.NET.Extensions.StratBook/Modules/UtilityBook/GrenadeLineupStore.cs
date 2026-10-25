@@ -77,25 +77,29 @@ public sealed class GrenadeLineupStore
 
     /// <summary>
     ///     The store in the extension's own cache folder. When that has no file yet and <paramref name="legacy" />
-    ///     returns a lineup document, its bytes are copied over first. The browser build, which has no folders,
-    ///     keeps the lineups in memory.
+    ///     returns a lineup document, its bytes are copied over first. No folder (the browser build) keeps the
+    ///     lineups in memory for the session.
     /// </summary>
-    /// <param name="storage">The extension's files.</param>
+    /// <param name="folder">The extension's own cache folder, as <see cref="IExtensionStores.Own" /> returned it.</param>
     /// <param name="legacy">Reads the file where an older build kept it, or null when there is none.</param>
-    public static GrenadeLineupStore In(IExtensionStorage storage, Func<byte[]?>? legacy)
+    public static GrenadeLineupStore In(IExtensionFolder? folder, Func<byte[]?>? legacy)
     {
-        ArgumentNullException.ThrowIfNull(storage);
+        if (folder is null)
+        {
+            return new GrenadeLineupStore(static () => null, null);
+        }
+
         return new GrenadeLineupStore(() =>
         {
-            byte[]? bytes = storage.ReadAsync(StoreRoot.Cache, FileName).GetAwaiter().GetResult();
+            byte[]? bytes = folder.Read(FileName);
             if (bytes is not null || legacy is null || ReadLegacy(legacy) is not { } old || Parse(old) is null)
             {
                 return bytes;
             }
 
-            storage.WriteAtomicAsync(StoreRoot.Cache, FileName, old).GetAwaiter().GetResult();
+            folder.WriteAtomic(FileName, old);
             return old;
-        }, bytes => storage.WriteAtomicAsync(StoreRoot.Cache, FileName, bytes).GetAwaiter().GetResult());
+        }, bytes => folder.WriteAtomic(FileName, bytes));
     }
 
     // Read on first use, not in the constructor: the file holds every flight and the index is built on the UI thread.

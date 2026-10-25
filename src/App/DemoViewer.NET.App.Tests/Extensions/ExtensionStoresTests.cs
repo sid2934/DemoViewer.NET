@@ -12,7 +12,9 @@ namespace DemoViewer.NET.AppTests.Extensions;
 /// <summary>
 ///     A declared store opens as the folder its descriptor names and nothing wider: a one-folder store is that
 ///     folder, a one-file store admits that file alone, and a path that would leave either is refused. Writes
-///     land whole, and the one in-place write, <see cref="IExtensionFolder.Append" />, adds a line.
+///     land whole, and the one in-place write, <see cref="IExtensionFolder.Append" />, adds a durable line. The
+///     extension's own folders open the same way, with the host's per-demo data out of reach of the cache one
+///     and whatever an older build left beside it moved down into it.
 /// </summary>
 public class ExtensionStoresTests
 {
@@ -226,7 +228,175 @@ public class ExtensionStoresTests
     {
         ExtensionStores stores = new(Id, null, null, [new StoreDescriptor("s", "S", StoreRoot.Config, [Id], IsUserWork: true)]);
 
-        await Assert.That(stores.Open("s")).IsNull();
+        using (Assert.Multiple())
+        {
+            await Assert.That(stores.Open("s")).IsNull();
+            await Assert.That(stores.Own(StoreRoot.Config)).IsNull();
+            await Assert.That(stores.Own(StoreRoot.Cache)).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task TheExtensionsOwnFolders_AreTheConfigFolderItself_AndTheCacheFoldersFilesSubfolder()
+    {
+        string root = NewRoot();
+        try
+        {
+            ExtensionStores stores = Declared(root, Path.Combine(root, "cache"));
+
+            IExtensionFolder config = stores.Own(StoreRoot.Config)!;
+            IExtensionFolder cache = stores.Own(StoreRoot.Cache)!;
+            config.WriteAtomic("notes/today.json", "one"u8);
+            cache.WriteAtomic("index.bin", new byte[] { 1, 2, 3 });
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(config.Path).IsEqualTo(Path.Combine(root, ExtensionFolders.DataDirectoryName, Id));
+                await Assert.That(cache.Path).IsEqualTo(Path.Combine(root, "cache", ExtensionFolders.DataDirectoryName, Id,
+                    ExtensionFolders.OwnCacheDirectoryName));
+                await Assert.That(Encoding.UTF8.GetString(config.Read("notes/today.json")!)).IsEqualTo("one");
+                await Assert.That(cache.Read("index.bin")).IsEquivalentTo(new byte[] { 1, 2, 3 }, CollectionOrdering.Matching);
+                await Assert.That(config.Read("missing.json")).IsNull();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task ThePerDemoDataTheHostKeeps_IsNotReachableFromTheOwnCacheFolder()
+    {
+        string root = NewRoot();
+        try
+        {
+            string cacheRoot = Path.Combine(root, "cache");
+            ExtensionStores stores = Declared(root, cacheRoot);
+            string hostData = Path.Combine(cacheRoot, ExtensionFolders.DataDirectoryName, Id, ExtensionDemoDataStore.DirectoryName);
+            Directory.CreateDirectory(hostData);
+            await File.WriteAllTextAsync(Path.Combine(hostData, "index.json.gz"), "host");
+
+            IExtensionFolder cache = stores.Own(StoreRoot.Cache)!;
+            IExtensionFolder config = stores.Own(StoreRoot.Config)!;
+            cache.WriteAtomic("demo-data/index.json.gz", "mine"u8);
+            config.WriteAtomic("demo-data/mine.json", "mine"u8);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(await File.ReadAllTextAsync(Path.Combine(hostData, "index.json.gz"))).IsEqualTo("host")
+                    .Because("the extension's own demo-data is a folder of its own, under files");
+                await Assert.That(Encoding.UTF8.GetString(cache.Read("demo-data/index.json.gz")!)).IsEqualTo("mine");
+                await Assert.That(() => cache.Read("../" + ExtensionDemoDataStore.DirectoryName + "/index.json.gz")).Throws<ArgumentException>();
+                await Assert.That(() => cache.Read(Path.Combine(hostData, "index.json.gz"))).Throws<ArgumentException>()
+                    .Because("a rooted path is refused whether or not it names something real");
+                await Assert.That(Encoding.UTF8.GetString(config.Read("demo-data/mine.json")!)).IsEqualTo("mine")
+                    .Because("the config folder has no host-owned part");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task WhatAnOlderBuildLeftInTheCacheFolder_MovesIntoFiles_AndNeverOverTheNewerCopy()
+    {
+        string root = NewRoot();
+        try
+        {
+            string cacheRoot = Path.Combine(root, "cache");
+            string own = Path.Combine(cacheRoot, ExtensionFolders.DataDirectoryName, Id);
+            string files = Path.Combine(own, ExtensionFolders.OwnCacheDirectoryName);
+            Directory.CreateDirectory(Path.Combine(own, "strat-mining"));
+            Directory.CreateDirectory(Path.Combine(own, ExtensionDemoDataStore.DirectoryName));
+            Directory.CreateDirectory(files);
+            await File.WriteAllTextAsync(Path.Combine(own, "grenade-lineups.json.gz"), "lineups");
+            await File.WriteAllTextAsync(Path.Combine(own, "strat-mining", "detected.json"), "detected");
+            await File.WriteAllTextAsync(Path.Combine(own, ExtensionDemoDataStore.DirectoryName, "index.json.gz"), "host");
+            await File.WriteAllTextAsync(Path.Combine(own, "team-index.json"), "stale");
+            await File.WriteAllTextAsync(Path.Combine(files, "team-index.json"), "current");
+
+            IExtensionFolder cache = Declared(root, cacheRoot).Own(StoreRoot.Cache)!;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(Encoding.UTF8.GetString(cache.Read("grenade-lineups.json.gz")!)).IsEqualTo("lineups")
+                    .Because("the file holding hand-tuned state moves rather than being left behind and re-minted");
+                await Assert.That(Encoding.UTF8.GetString(cache.Read("strat-mining/detected.json")!)).IsEqualTo("detected")
+                    .Because("a folder moves whole, not just the files beside it");
+                await Assert.That(Encoding.UTF8.GetString(cache.Read("team-index.json")!)).IsEqualTo("current")
+                    .Because("a target already there is the newer copy");
+                await Assert.That(await File.ReadAllTextAsync(Path.Combine(own, "team-index.json"))).IsEqualTo("stale")
+                    .Because("the one entry that could not move stays where it was rather than being dropped");
+                await Assert.That(File.Exists(Path.Combine(own, "grenade-lineups.json.gz"))).IsFalse();
+                await Assert.That(Directory.Exists(Path.Combine(own, "strat-mining"))).IsFalse();
+                await Assert.That(await File.ReadAllTextAsync(Path.Combine(own, ExtensionDemoDataStore.DirectoryName, "index.json.gz")))
+                    .IsEqualTo("host").Because("the per-demo data is the host's and stays beside files");
+            }
+
+            // A later start sweeps again and finds nothing left to do: the move is idempotent, so a crash
+            // part-way through one run cannot strand an entry.
+            IExtensionFolder second = Declared(root, cacheRoot).Own(StoreRoot.Cache)!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(Encoding.UTF8.GetString(second.Read("team-index.json")!)).IsEqualTo("current");
+                await Assert.That(Directory.EnumerateFileSystemEntries(own).Select(e => Path.GetFileName(e)).Order(StringComparer.Ordinal))
+                    .IsEquivalentTo([ExtensionDemoDataStore.DirectoryName, ExtensionFolders.OwnCacheDirectoryName, "team-index.json"],
+                        CollectionOrdering.Matching);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task WithNothingToMove_TheOwnCacheFolder_IsNotCreatedUntilSomethingIsWritten()
+    {
+        string root = NewRoot();
+        try
+        {
+            string cacheRoot = Path.Combine(root, "cache");
+            IExtensionFolder cache = Declared(root, cacheRoot).Own(StoreRoot.Cache)!;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(cache.Read("anything.json")).IsNull();
+                await Assert.That(Directory.Exists(cacheRoot)).IsFalse().Because("a read of an empty store leaves no folders behind");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task AnAppendedLine_IsOnTheDisk_AndATornLastLineIsNotJoinedToIt()
+    {
+        string root = NewRoot();
+        try
+        {
+            IExtensionFolder folder = Declared(root, root).Own(StoreRoot.Config)!;
+            folder.Append("fresh.jsonl", "{\"a\":1}");
+            folder.Append("fresh.jsonl", "{\"a\":2}");
+            folder.WriteAtomic("torn.jsonl", "{\"a\":1}\n{\"a\":2"u8);
+            folder.Append("torn.jsonl", "{\"a\":3}");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(Encoding.UTF8.GetString(folder.Read("fresh.jsonl")!)).IsEqualTo("{\"a\":1}\n{\"a\":2}\n");
+                await Assert.That(Encoding.UTF8.GetString(folder.Read("torn.jsonl")!)).IsEqualTo("{\"a\":1}\n{\"a\":2\n{\"a\":3}\n")
+                    .Because("the torn record keeps a line of its own, so a reader skips it instead of this one");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     [Test]
