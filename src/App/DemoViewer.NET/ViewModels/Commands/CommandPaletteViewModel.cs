@@ -117,10 +117,10 @@ public sealed partial class CommandPaletteViewModel(
         foreach (ProtoResult proto in protoIndexSource().Search(query).Take(10))
         {
             ProtoResult captured = proto;
-            Results.Add(new CommandPaletteItem("⤴", captured.MessageName, captured.RelativeFilePath,
+            Results.Add(new CommandPaletteItem("⤴", captured.MessageName, captured.ProtoFile,
                 new RelayCommand(() =>
                 {
-                    OpenExternal.TryOpenInVsCode(captured.LocalPath, captured.Line);
+                    OpenExternal.OpenUri(captured.Url);
                     IsOpen = false;
                 })));
         }

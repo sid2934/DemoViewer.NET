@@ -787,9 +787,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         _repoRoot = FindRepoRoot();
-        _protoIndex = _repoRoot != null
-            ? ProtoIndex.Build(Path.Combine(_repoRoot, "cs2-opendocs", "data", "Protobufs"))
-            : new ProtoIndex();
+        _protoIndex = ProtoIndex.Build();
 
         // Command palette. Sources read live so the palette always reflects
         // the loaded demo: tracker from EntityTab, the startup ProtoIndex, current frame count.

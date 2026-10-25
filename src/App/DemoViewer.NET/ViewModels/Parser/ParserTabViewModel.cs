@@ -226,7 +226,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
     /// <summary>
     ///     Source of the <see cref="ProtoIndex" /> singleton built at startup. The parse-chain
-    ///     methods read field / message source locations from it.
+    ///     methods read the declaring .proto file of each message and field from it.
     /// </summary>
     public Func<ProtoIndex>? ProtoIndexSource { get; set; }
 
@@ -574,7 +574,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
     private void Add(ParseChainEntry entry) => ParseChain.Add(entry);
 
-    private void AddPayloadNodeSteps(string? parentMsgName, PayloadNode node, string ghBase, int indent)
+    private void AddPayloadNodeSteps(string? parentMsgName, PayloadNode node, int indent)
     {
         string? pbBuilderPath = SrcPath("src", "App", "DemoViewer.NET", "Models", "PayloadNodeBuilder.cs");
         ProtoIndex protoIndex = ProtoIndexSource?.Invoke() ?? new ProtoIndex();
@@ -591,8 +591,6 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
         foreach (PayloadNode ancestor in path)
         {
-            protoIndex.TryGetField(currentMsg ?? "", ancestor.Name, out SourceLocation fieldLoc);
-
             string wireDetail = ancestor.WireTypeName.Length > 0
                 ? $"[{ancestor.WireTypeName}]"
                 : "";
@@ -604,10 +602,8 @@ public sealed partial class ParserTabViewModel : ObservableObject
             Add(ParseChainEntry.Linked(
                 $"{ancestor.Name}",
                 wireDetail.Length > 0 ? $"({wireDetail})" : null,
-                fieldLoc.Line > 0 ? ProtoPath(fieldLoc.RelativeFile) : null,
-                fieldLoc.Line > 0 ? fieldLoc.Line : null,
-                fieldLoc.Line > 0 ? $"{ghBase}{fieldLoc.RelativeFile}#L{fieldLoc.Line}" : null,
-                indent + 2 + ancestor.Depth));
+                webUrl: protoIndex.FieldUrl(currentMsg, ancestor.Name),
+                indent: indent + 2 + ancestor.Depth));
 
             if (ancestor is { Name: "entity_data", HasChildren: true } && ancestor == node)
             {
@@ -868,22 +864,18 @@ public sealed partial class ParserTabViewModel : ObservableObject
 
     private void BuildChainForFrame(DemoFrame frame, NetMessage? message, PayloadNode? node)
     {
-        const string GhBase = "https://github.com/SteamDatabase/GameTracking-CS2/blob/master/Protobufs/";
         ProtoIndex protoIndex = ProtoIndexSource?.Invoke() ?? new ProtoIndex();
 
         Add(ParseChainEntry.Linked("DemoParser.Parse()",
             webUrl: KitUrl(DemoParserSourcePath, 20), indent: 0));
 
         string frameCmd = frame.Command;
-        protoIndex.TryGetField("EDemoCommands", frameCmd, out SourceLocation cmdLoc);
 
         Add(ParseChainEntry.Linked(
             $"Frame: {frameCmd}",
             $"(tick={frame.GameTick ?? frame.ServerTick})",
-            cmdLoc.Line > 0 ? ProtoPath(cmdLoc.RelativeFile) : null,
-            cmdLoc.Line > 0 ? cmdLoc.Line : null,
-            cmdLoc.Line > 0 ? $"{GhBase}{cmdLoc.RelativeFile}#L{cmdLoc.Line}" : null,
-            2));
+            webUrl: protoIndex.FieldUrl("EDemoCommands", frameCmd),
+            indent: 2));
 
         bool isPacketFrame = frameCmd is "DEM_Packet" or "DEM_SignonPacket" or "DEM_FullPacket";
 
@@ -894,12 +886,9 @@ public sealed partial class ParserTabViewModel : ObservableObject
                 : null;
             if (directTypeName is not null)
             {
-                protoIndex.TryGetMessage(directTypeName, out SourceLocation directLoc);
                 Add(ParseChainEntry.Linked(
                     $"{directTypeName}.Parser.ParseFrom(data)",
-                    localPath: directLoc.Line > 0 ? ProtoPath(directLoc.RelativeFile) : null,
-                    localLine: directLoc.Line > 0 ? directLoc.Line : null,
-                    webUrl: directLoc.Line > 0 ? $"{GhBase}{directLoc.RelativeFile}#L{directLoc.Line}" : null,
+                    webUrl: protoIndex.TypeUrl(directTypeName),
                     indent: 3));
             }
 
@@ -908,7 +897,7 @@ public sealed partial class ParserTabViewModel : ObservableObject
                 return;
             }
 
-            AddPayloadNodeSteps(directTypeName, node, GhBase, 4);
+            AddPayloadNodeSteps(directTypeName, node, 4);
         }
 
         Add(ParseChainEntry.Linked("ParseInnerMessages()",
@@ -921,7 +910,6 @@ public sealed partial class ParserTabViewModel : ObservableObject
         }
 
         string msgTypeName = message.Payload.Descriptor.Name;
-        protoIndex.TryGetMessage(msgTypeName, out SourceLocation msgLoc);
 
         int typeId = GetNetMessageTypeId(message.MessageTypeName);
 
@@ -933,14 +921,12 @@ public sealed partial class ParserTabViewModel : ObservableObject
         Add(ParseChainEntry.Linked(
             $"{msgTypeName}.Parser.ParseFrom(data)",
             message.DecompressedLength is { } dLen ? $"({dLen} bytes)" : null,
-            msgLoc.Line > 0 ? ProtoPath(msgLoc.RelativeFile) : null,
-            msgLoc.Line > 0 ? msgLoc.Line : null,
-            msgLoc.Line > 0 ? $"{GhBase}{msgLoc.RelativeFile}#L{msgLoc.Line}" : null,
-            6));
+            webUrl: protoIndex.TypeUrl(msgTypeName),
+            indent: 6));
 
         if (node is not null)
         {
-            AddPayloadNodeSteps(msgTypeName, node, GhBase, 7);
+            AddPayloadNodeSteps(msgTypeName, node, 7);
         }
     }
 
@@ -1574,14 +1560,6 @@ public sealed partial class ParserTabViewModel : ObservableObject
                 ShowRawHex = true;
             })
         });
-    }
-
-    private string? ProtoPath(string relativeFile)
-    {
-        string? root = RepoRootSource?.Invoke();
-        return root is not null
-            ? Path.Combine(root, "cs2-opendocs", "data", "Protobufs", relativeFile)
-            : null;
     }
 
     // ── Reverse byte → node mapping ───────────────────────────────────────────
