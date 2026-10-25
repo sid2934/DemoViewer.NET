@@ -1,12 +1,14 @@
 #region
 
 using System.Reflection;
+using System.Text.RegularExpressions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SysAssembly = System.Reflection.Assembly;
 using TUnit.Assertions.Enums;
+using TUnit.Core.Exceptions;
 
 #endregion
 
@@ -192,6 +194,43 @@ public class ArchitectureTests
     ];
 
     // Tooling, export, rendering backends and keyframes: none of it is published.
+    // The ex-Core namespaces, which the Core/Pipeline merge left intact inside Pipeline. Listed one by
+    // one rather than matched on a ".Core." prefix so a namespace rename cannot make the guard below
+    // match nothing and pass: ExCoreNamespaces_AllStillExist fails and names the entry to re-key.
+    private static readonly string[] _exCoreNamespaces =
+    [
+        "DemoViewer.NET.Playback2D.Core.Annotations",
+        "DemoViewer.NET.Playback2D.Core.Cameras",
+        "DemoViewer.NET.Playback2D.Core.Export",
+        "DemoViewer.NET.Playback2D.Core.Ink",
+        "DemoViewer.NET.Playback2D.Core.Input",
+        "DemoViewer.NET.Playback2D.Core.Layers",
+        "DemoViewer.NET.Playback2D.Core.Levels",
+        "DemoViewer.NET.Playback2D.Core.Rendering",
+        "DemoViewer.NET.Playback2D.Core.Rendering.Interop",
+        "DemoViewer.NET.Playback2D.Core.Timeline"
+    ];
+
+    // What the render code may touch. An allow-list rather than a list of banned names, so a dependency
+    // nobody has thought of yet is refused by default: CS2OpenDev arriving under a new name would pass a
+    // denylist. Pipeline itself is absent on purpose, which is what stops the one-hop bypass, a Core type
+    // calling a Pipeline type that wraps the parser.
+    private static readonly string[] _exCoreAllowedAssemblies =
+    [
+        .. _sceneAllowedPrefixes, "DemoViewer.NET.Playback2D.Scene"
+    ];
+
+    // Roots the ex-Core sources must not name. The allow-list above cannot see a call inside a method
+    // body, because reflection reads signatures; this half reads the sources, so between them a field,
+    // a signature, a generic argument and a call are all covered. DemoViewer.NET.Playback2D.Pipeline. is
+    // here for the one-hop, with the trailing dot so the assembly's own name in a comment-free using
+    // does not count.
+    private static readonly string[] _exCoreForbiddenRoots =
+    [
+        "CS2DemoKit", "CS2OpenDev", "FFMpegCore", "Avalonia",
+        "DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.Playback2D.Pipeline."
+    ];
+
     private static readonly string[] _unpublishedNamespaces =
     [
         "DemoViewer.NET.Playback2D.Core.Export", "DemoViewer.NET.Playback2D.Core.Keyframes",
@@ -199,6 +238,9 @@ public class ArchitectureTests
     ];
 
     private static SysAssembly Scene => typeof(Scene2DFrame).Assembly;
+
+    // The same assembly Pipeline_TransitiveClosure_ContainsNoAvalonia reads, named once.
+    private static SysAssembly Pipeline => typeof(SceneFrameBuilder).Assembly;
 
     [Test]
     public async Task Scene_ReferencesOnlySkiaSharpAndBcl() =>
@@ -288,6 +330,99 @@ public class ArchitectureTests
         }
     }
 
+    /// <summary>
+    ///     Every entry in <see cref="_exCoreNamespaces" /> still names types. The guards below are keyed on
+    ///     that list, so a rename that empties one would silently stop checking it.
+    /// </summary>
+    [Test]
+    public async Task ExCoreNamespaces_AllStillExist()
+    {
+        List<string> empty = [.. _exCoreNamespaces.Where(ns => !Pipeline.GetTypes().Any(t => t.Namespace == ns))];
+
+        await Assert.That(empty).IsEmpty()
+            .Because("an ex-Core namespace was renamed or emptied; re-key the arch guards on its new name in the same commit");
+    }
+
+    /// <summary>
+    ///     Restores, as a namespace rule, the one guard the Core/Pipeline merge dropped. Core used to be its
+    ///     own assembly with a reference allow-list, which is what kept the render layers off the parser, the
+    ///     analysis layer and the encoder. Merging it into Pipeline deleted that, and Pipeline references all
+    ///     of them because its frame sources and its export path legitimately need them. So the rule cannot
+    ///     be an allow-list on Pipeline: it is an allow-list on the types still in the ex-Core namespaces.
+    ///     <para>
+    ///         Reflection half: every assembly reachable from those types' base types, interfaces, generic
+    ///         arguments, fields, signatures and attributes.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task ExCoreTypes_TouchOnlySkiaSharpBclAndTheScene()
+    {
+        List<string> offenders = [];
+        foreach (Type type in Pipeline.GetTypes().Where(t => _exCoreNamespaces.Contains(t.Namespace, StringComparer.Ordinal)))
+        {
+            foreach (Type referenced in SurfaceTypes(type))
+            {
+                string name = referenced.Assembly.GetName().Name ?? "";
+                if (name == PipelineAssemblyName
+                    && _exCoreNamespaces.Contains(referenced.Namespace, StringComparer.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!_exCoreAllowedAssemblies.Any(p => name.StartsWith(p, StringComparison.Ordinal)))
+                {
+                    offenders.Add($"{type.FullName} -> {referenced.FullName} ({name})");
+                }
+            }
+        }
+
+        await Assert.That(offenders.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList()).IsEmpty()
+            .Because("a type in an ex-Core namespace reached outside SkiaSharp, the BCL and the scene contract");
+    }
+
+    /// <summary>
+    ///     The source half of the same rule, which is what catches a call inside a method body: reflection
+    ///     reads signatures, so a parser call in a body leaves no trace in the surface above.
+    /// </summary>
+    [Test]
+    public async Task ExCoreSources_NameNoneOfTheForbiddenRoots()
+    {
+        string repoRoot = TestTiers.FindRepoRoot()
+            ?? throw new SkipTestException("repo root not found (no DemoViewer.NET.slnx above the test binary)");
+        string pipelineRoot = Path.Combine(repoRoot, "src", "Playback2D", "DemoViewer.NET.Playback2D.Pipeline");
+
+        List<string> offenders = [];
+        foreach (string file in Directory.EnumerateFiles(pipelineRoot, "*.cs", SearchOption.AllDirectories))
+        {
+            if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                || file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string text = File.ReadAllText(file);
+            Match declared = Regex.Match(text, @"^namespace\s+([\w.]+)\s*;", RegexOptions.Multiline);
+            if (!declared.Success || !_exCoreNamespaces.Contains(declared.Groups[1].Value, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            // Comments are stripped first. VisionLayer's own summary explains that VisibilityEngine is a
+            // CS2DemoKit type and that IVisionSolver exists to keep it out, which is the opposite of a
+            // violation and would otherwise be read as one.
+            string code = Regex.Replace(text, @"//.*?$", "", RegexOptions.Multiline);
+            code = Regex.Replace(code, @"/\*.*?\*/", "", RegexOptions.Singleline);
+
+            foreach (string root in _exCoreForbiddenRoots.Where(r => code.Contains(r, StringComparison.Ordinal)))
+            {
+                offenders.Add($"{Path.GetRelativePath(repoRoot, file).Replace('\\', '/')} -> {root}");
+            }
+        }
+
+        await Assert.That(offenders.Order(StringComparer.Ordinal).ToList()).IsEmpty()
+            .Because("an ex-Core source names the parser, the encoder, Avalonia, the module abstractions or a Pipeline namespace");
+    }
+
     [Test]
     public async Task Pipeline_TransitiveClosure_ContainsNoAvalonia() =>
         await AssertNoAvaloniaIn(typeof(SceneFrameBuilder).Assembly);
@@ -300,6 +435,73 @@ public class ArchitectureTests
     [Test]
     public async Task ModulesAbstractions_TransitiveClosure_ContainsNoAvalonia() =>
         await AssertNoAvaloniaIn(typeof(IPlayerState).Assembly);
+
+    private static string PipelineAssemblyName => Pipeline.GetName().Name ?? "";
+
+    // Every type a type's own surface names: base, interfaces, fields, signatures, attributes, and the
+    // generic arguments of each, recursively. new List<ParsedDemo>() declares on CoreLib, so without the
+    // recursion the interesting type is the one that gets missed.
+    private static List<Type> SurfaceTypes(Type type)
+    {
+        List<Type> found = [];
+        void Add(Type? t)
+        {
+            if (t is null)
+            {
+                return;
+            }
+
+            Type bare = t.IsByRef || t.IsPointer || t.IsArray ? t.GetElementType() ?? t : t;
+            if (bare.IsGenericParameter)
+            {
+                return;
+            }
+
+            found.Add(bare);
+            foreach (Type argument in bare.IsGenericType ? bare.GetGenericArguments() : [])
+            {
+                Add(argument);
+            }
+        }
+
+        Add(type.BaseType);
+        foreach (Type i in type.GetInterfaces())
+        {
+            Add(i);
+        }
+
+        const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+        foreach (FieldInfo f in type.GetFields(All))
+        {
+            Add(f.FieldType);
+        }
+
+        foreach (PropertyInfo p in type.GetProperties(All))
+        {
+            Add(p.PropertyType);
+        }
+
+        foreach (EventInfo e in type.GetEvents(All))
+        {
+            Add(e.EventHandlerType);
+        }
+
+        foreach (MethodBase m in type.GetMethods(All).Cast<MethodBase>().Concat(type.GetConstructors(All)))
+        {
+            Add((m as MethodInfo)?.ReturnType);
+            foreach (ParameterInfo parameter in m.GetParameters())
+            {
+                Add(parameter.ParameterType);
+            }
+        }
+
+        foreach (CustomAttributeData a in type.GetCustomAttributesData())
+        {
+            Add(a.AttributeType);
+        }
+
+        return found;
+    }
 
     private static List<string> DisallowedReferences(SysAssembly assembly, string[] allowedPrefixes) =>
     [
