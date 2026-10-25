@@ -11,10 +11,12 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2D.Pipeline.Headless;
 
 /// <summary>
-///     Everything <see cref="SceneRenderPlan.Build" /> needs, already resolved: no argument vector, no
-///     environment variable, no walk-up probe. Reading process state is the caller's half of the job,
-///     so <c>dv2d</c>'s parser does not come along with the plan and the test lane can build the same
-///     stack without inventing one.
+///     Everything <see cref="SceneRenderPlan.Build" /> needs, already resolved: no argument vector and
+///     no walk-up probe. Reading process state is the caller's half of the job, so <c>dv2d</c>'s parser
+///     does not come along with the plan and the test lane can build the same stack without inventing
+///     one. The one hole is <see cref="RenderBackendPreference.Auto" />, which the surface factory
+///     resolves against <c>DV2D_RENDER_BACKEND</c> itself; a caller that must not be overridden from a
+///     shell states the backend outright.
 /// </summary>
 internal sealed record ScenePlanOptions
 {

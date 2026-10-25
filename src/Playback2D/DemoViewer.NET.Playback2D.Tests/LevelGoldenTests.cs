@@ -5,6 +5,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
 using TUnit.Core.Exceptions;
 
@@ -143,7 +144,7 @@ public class LevelGoldenTests
         GlyphAttribution ink = GlyphAttribution.Measure(goldenPng, Render(name, fixture, true),
             Render(name, fixture, false));
 
-        int labels = LabelCount(fixture);
+        int labels = GoldenEntryPlan.LabelCount(fixture);
         Console.WriteLine($"[attribution] {ink.Describe(name, labels)}");
 
         // GlyphAttribution.InkPixels: an empty mask makes every assertion under it vacuous.
@@ -165,12 +166,6 @@ public class LevelGoldenTests
     }
 
     private static int TopMostIndex(MapSpace space) => space.Levels.Count - 1;
-
-    // The glyph budget's denominator: how many marker labels the frame draws. The twin of
-    // SceneGoldenTests.LabelCount and GoldenCommand.LabelCount, which denominate the same budget for
-    // their own readers of the corpus: one definition, three assemblies that must not share code.
-    private static int LabelCount(SceneFixture fixture) =>
-        fixture.Frame.Markers.Count(static m => !string.IsNullOrEmpty(m.Label));
 
     private static string GoldenPath(string name, SKSizeI size) =>
         Path.Combine(FixtureCorpus.Root, "goldens", "cpu", $"{name}@{size.Width}x{size.Height}.png");
@@ -252,7 +247,7 @@ public class LevelGoldenTests
         // platform that authored the corpus the two tolerances are the same value. The label count comes
         // off the scene, never a manifest field; EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk above
         // is what licenses the allowance.
-        int labels = LabelCount(fixture);
+        int labels = GoldenEntryPlan.LabelCount(fixture);
         GoldenTolerance tolerance = GoldenTolerance.ForLabelledFrame(size.Width, size.Height, labels);
         GoldenComparison result = GoldenImageComparer.Compare(expected, actual, tolerance);
         Console.WriteLine($"[golden] {name} labels={labels} " +
