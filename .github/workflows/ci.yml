@@ -318,15 +318,12 @@ jobs:
         with:
           native: skia
 
-      # One test at a time, and still set. The off-UI-thread control construction that made this
-      # suite fail 1 to 2 tests per run (Dispatcher.VerifyAccess via DataValidationErrors.SetError,
-      # a different set each time) is now inside HeadlessSession.RunOnUi throughout, and
-      # headless-isolation.yml is the nightly guard that keeps it there. What is outstanding is the
-      # measurement: nobody has run this suite green without the flag. Drop it only after that run.
-      # Cost while it stays: about 12 s on the standard tier (24.5 s to 37 s).
+      # This lane ran one test at a time until the full tier proved it did not need to. The
+      # off-UI-thread control construction that made it fail 1 to 2 tests per run
+      # (Dispatcher.VerifyAccess via DataValidationErrors.SetError, a different set each time) is
+      # inside HeadlessSession.RunOnUi throughout, and headless-isolation.yml is the nightly guard
+      # that keeps it there. The measurement the flag was waiting on is the run below.
       - name: Extension (Strat Book) suite, full tier
-        env:
-          DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
         run: bash scripts/test.sh -t full -b skip -p ext -c Release
 
   # The suites no lane above names. LiveSync's web-host tests are the slow half the `fast` and
