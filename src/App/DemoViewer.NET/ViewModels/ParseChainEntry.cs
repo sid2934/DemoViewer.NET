@@ -1,6 +1,7 @@
 #region
 
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Avalonia;
 using CommunityToolkit.Mvvm.Input;
 
@@ -12,7 +13,7 @@ namespace DemoViewer.NET.ViewModels;
 ///     One row in the Parse Chain panel.  Carries display text, optional source-link metadata,
 ///     and an open command that navigates to VS Code (local) or a browser (web) on click.
 /// </summary>
-public sealed class ParseChainEntry
+public sealed partial class ParseChainEntry
 {
     /// <summary>Secondary detail shown in a lighter style after the label, e.g. "(cmd=4, tick=1234)".</summary>
     public string? Detail { get; init; }
@@ -59,7 +60,7 @@ public sealed class ParseChainEntry
         string? badge = localPath != null
             ? $"{Path.GetFileName(localPath)}{(localLine.HasValue ? $":{localLine}" : "")}"
             : webUrl != null
-                ? TryGetHostBadge(webUrl)
+                ? TryGetWebBadge(webUrl)
                 : null;
 
         RelayCommand? cmd = localPath != null || webUrl != null
@@ -117,17 +118,31 @@ public sealed class ParseChainEntry
         }
     }
 
-    private static string? TryGetHostBadge(string url)
+    // The file name, not the host. Every web link here is a blob URL, so the host is "github.com" on all
+    // of them and says nothing; the last segment says which file the row opens. Keeps the "name:line" shape
+    // the local-path badge above uses, reading the line out of the URL's own #L anchor.
+    private static string? TryGetWebBadge(string url)
     {
         try
         {
-            return new Uri(url).Host;
+            Uri uri = new(url);
+            string file = uri.Segments.Length > 0 ? uri.Segments[^1].Trim('/') : "";
+            if (file.Length == 0)
+            {
+                return uri.Host;
+            }
+
+            Match line = WebLineAnchor().Match(uri.Fragment);
+            return line.Success ? $"{file}:{line.Groups[1].Value}" : file;
         }
-        catch
+        catch (UriFormatException)
         {
             return null;
         }
     }
+
+    [GeneratedRegex(@"^#L(\d+)$")]
+    private static partial Regex WebLineAnchor();
 
     private static bool TryOpenVsCode(string path, int? line)
     {
