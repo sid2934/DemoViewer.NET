@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>
 ///     Per-entity level assignment with change detection, so anything holding temporal state can drop it

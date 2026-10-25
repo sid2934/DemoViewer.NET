@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>One clipped ray end on a view cone's fan, in world space.</summary>
 /// <param name="X">World X.</param>

@@ -22,7 +22,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.Diagnostics;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Diagnostics;

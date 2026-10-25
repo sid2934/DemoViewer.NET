@@ -3,6 +3,7 @@
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;

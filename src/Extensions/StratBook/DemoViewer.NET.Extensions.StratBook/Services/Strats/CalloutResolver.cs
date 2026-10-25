@@ -3,7 +3,7 @@
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion

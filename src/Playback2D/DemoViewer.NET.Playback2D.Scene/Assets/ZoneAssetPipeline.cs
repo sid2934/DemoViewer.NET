@@ -2,11 +2,11 @@
 
 using System.IO.Compression;
 using System.Text.Json;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
+namespace DemoViewer.NET.Playback2D.Assets;
 
 /// <summary>What one zones load produced. <see cref="Resolver" /> is null when the map has no zones file.</summary>
 /// <param name="Resolver">The resolver over the effective set, or null.</param>

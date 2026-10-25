@@ -1,16 +1,14 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
 
 #endregion
 
-// In Pipeline, namespace kept as DemoViewer.NET.Services.Export (split out of IExportJobService.cs,
-// which stays in the App): the record itself carries nothing App-only, and PackPlanner.BuildClipRequest
-// (Services.Export.Pack, moved here for the same reason) returns one. Every existing `using
-// DemoViewer.NET.Services.Export;` in the App keeps resolving it unchanged.
-namespace DemoViewer.NET.Services.Export;
+// Split out of IExportJobService.cs, which stays in the App: the record itself carries nothing
+// App-only, and PackPlanner.BuildClipRequest returns one.
+namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>
 ///     A render request over one demo range: the Core request plus what a source needs to build the

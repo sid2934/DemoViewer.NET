@@ -3,8 +3,8 @@
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Timeline;
 using TUnit.Assertions.Enums;
 
 #endregion

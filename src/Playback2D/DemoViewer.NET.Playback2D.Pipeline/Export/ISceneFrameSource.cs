@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Export;
+namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>
 ///     A finite sequence of frames to render.

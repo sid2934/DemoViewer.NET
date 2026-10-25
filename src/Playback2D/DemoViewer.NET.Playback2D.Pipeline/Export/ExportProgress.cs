@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Export;
+namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>The phases an export moves through. The last three are terminal.</summary>
 public enum ExportPhase

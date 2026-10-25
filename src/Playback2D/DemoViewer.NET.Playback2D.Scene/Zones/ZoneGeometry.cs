@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>
 ///     Flat-polygon helpers shared by the areas, the overlay and the outline builder. Polygons are

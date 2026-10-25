@@ -4,7 +4,7 @@ using System.Text;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>
 ///     The IEEE CRC-32 the baker stamps <c>zonesVersion</c> with, restated here so

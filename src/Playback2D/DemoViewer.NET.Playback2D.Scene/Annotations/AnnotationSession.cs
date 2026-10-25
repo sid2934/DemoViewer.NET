@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Annotations;
+namespace DemoViewer.NET.Playback2D.Annotations;
 
 /// <summary>
 ///     The in-flight ("wet") stroke: raw samples the user is still drawing, not yet committed to the

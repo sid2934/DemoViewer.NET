@@ -2,12 +2,12 @@
 
 using CS2DemoKit.Parser;
 using CS2OpenSchema.Protos;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Services.Export;
-using DemoViewer.NET.Services.Export.Pack;
+using DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
+using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 

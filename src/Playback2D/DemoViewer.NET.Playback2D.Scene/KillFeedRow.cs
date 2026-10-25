@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>
 ///     One kill in the scene's kill feed, with the modifiers the event factory enriched. Tick-granular

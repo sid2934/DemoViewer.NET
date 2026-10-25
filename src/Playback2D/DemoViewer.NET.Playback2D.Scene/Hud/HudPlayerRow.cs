@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Hud;
+namespace DemoViewer.NET.Playback2D.Hud;
 
 /// <summary>
 ///     One player card in the export HUD's roster.

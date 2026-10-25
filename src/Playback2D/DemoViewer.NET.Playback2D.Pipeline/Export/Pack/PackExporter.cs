@@ -1,15 +1,14 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
 
 #endregion
 
-// In Pipeline, namespace kept as DemoViewer.NET.Services.Export.Pack, so every App call site's
-// `using` still resolves. The plumbing that touches App-only concerns (the heavy-job gate, the
-// app-managed ffmpeg directory) stays in DemoViewer.NET/Services/Export/Pack/PackClipRenderer.cs.
-namespace DemoViewer.NET.Services.Export.Pack;
+// The plumbing that touches App-only concerns (the heavy-job gate, the app-managed ffmpeg
+// directory) stays in the App, under DemoViewer.NET.Services.Export.Pack.
+namespace DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
 
 /// <summary>Renders one pack clip into a sink. The seam every Pack Export test replaces.</summary>
 public interface IPackClipRenderer

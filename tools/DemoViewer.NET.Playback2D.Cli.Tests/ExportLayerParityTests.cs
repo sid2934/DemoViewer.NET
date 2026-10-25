@@ -1,6 +1,7 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Pipeline.Layers;
 using TUnit.Assertions.Enums;
 
 #endregion

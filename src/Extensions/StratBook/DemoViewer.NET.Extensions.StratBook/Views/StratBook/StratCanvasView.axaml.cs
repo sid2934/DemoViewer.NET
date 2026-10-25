@@ -10,9 +10,9 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Layers;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Layers;
 
 #endregion
 

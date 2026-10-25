@@ -2,7 +2,7 @@
 
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 

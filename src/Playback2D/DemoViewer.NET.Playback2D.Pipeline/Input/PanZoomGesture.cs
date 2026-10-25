@@ -1,11 +1,11 @@
 #region
 
 using System.Diagnostics.CodeAnalysis;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Input;
+namespace DemoViewer.NET.Playback2D.Pipeline.Input;
 
 /// <summary>
 ///     Drag-to-pan and wheel-to-zoom, hit-tested to the pane under the cursor. Port of the four pointer

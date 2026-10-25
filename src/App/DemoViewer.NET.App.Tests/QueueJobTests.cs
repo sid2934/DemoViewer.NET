@@ -3,6 +3,7 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
 using DemoViewer.NET.Services.Export.Pack;
 using TUnit.Assertions.Enums;
 

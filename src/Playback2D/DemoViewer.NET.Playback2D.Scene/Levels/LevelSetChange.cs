@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>
 ///     What one <see cref="MapSpace.Rebuild" /> did to the level set. <c>PaneSet</c> reconciles against

@@ -1,4 +1,10 @@
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+#region
+
+using DemoViewer.NET.Playback2D.Levels;
+
+#endregion
+
+namespace DemoViewer.NET.Playback2D.Pipeline.Levels;
 
 /// <summary>How the active level is being chosen.</summary>
 public enum LevelSelectionMode

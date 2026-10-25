@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Playback2D.Layers;
 
 /// <summary>
 ///     The stable layer ids. <b>Persisted keys</b>: feature gates, settings and the layer panel all

@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CS2DemoKit.Analysis.Diagnostics;
-using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.Playback2D;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -339,7 +339,7 @@ public sealed class DemoCacheStore
 
     /// <summary>
     ///     The primary index row for a content id, or null when no indexed row carries it. A content id is
-    ///     <see cref="Playback2D.Pipeline.DemoContentHash" />'s lowercase-hex SHA-256 of the whole file; a row that has not been
+    ///     <see cref="Playback2D.DemoContentHash" />'s lowercase-hex SHA-256 of the whole file; a row that has not been
     ///     hashed yet is invisible here and only reachable by <see cref="TryGetIndex" />, and so is a row no
     ///     path of which has been confirmed to hold those bytes.
     ///     <para>

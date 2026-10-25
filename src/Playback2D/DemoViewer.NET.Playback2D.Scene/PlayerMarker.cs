@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>The event-driven ring state of a marker, highest precedence first.</summary>
 public enum RingState

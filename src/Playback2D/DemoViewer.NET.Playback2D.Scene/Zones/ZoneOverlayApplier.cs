@@ -5,7 +5,7 @@ using System.Numerics;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>The effective set an overlay produced, and what the loader skipped on the way.</summary>
 /// <param name="Effective">The set every consumer sees.</param>

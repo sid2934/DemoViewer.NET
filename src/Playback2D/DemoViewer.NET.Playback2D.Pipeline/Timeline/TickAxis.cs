@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Timeline;
+namespace DemoViewer.NET.Playback2D.Pipeline.Timeline;
 
 /// <summary>
 ///     A pure tick ↔ pixel mapping, used <b>inside</b> envelope drag math.

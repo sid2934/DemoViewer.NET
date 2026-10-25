@@ -4,7 +4,7 @@ using System.Numerics;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>Which step of the resolver's cascade answered.</summary>
 public enum PlaceHitKind

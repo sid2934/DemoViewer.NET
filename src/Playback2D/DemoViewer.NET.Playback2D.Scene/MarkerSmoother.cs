@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>Reads a slot's smoothed draw position. Implemented by <see cref="MarkerSmoother" />.</summary>
 public interface ISmoothedPositionSource

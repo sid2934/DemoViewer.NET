@@ -59,7 +59,7 @@ public class ExtensionSdkArchitectureTests
         {
             await Assert.That(ReleaseVersion(typeof(Modules.Abstractions.IModuleContext).Assembly)).IsEqualTo(sdk);
             await Assert.That(ReleaseVersion(typeof(DisplayText).Assembly)).IsEqualTo(sdk);
-            await Assert.That(ReleaseVersion(typeof(Playback2D.Core.Scene2DFrame).Assembly)).IsEqualTo(sdk);
+            await Assert.That(ReleaseVersion(typeof(Playback2D.Scene2DFrame).Assembly)).IsEqualTo(sdk);
             await Assert.That(ReleaseVersion(typeof(GameIcons.IconCatalogue).Assembly)).IsEqualTo(sdk);
         }
     }
@@ -69,7 +69,7 @@ public class ExtensionSdkArchitectureTests
     {
         string[] ours =
         [
-            .. typeof(Playback2D.Core.Scene2DFrame).Assembly.GetReferencedAssemblies()
+            .. typeof(Playback2D.Scene2DFrame).Assembly.GetReferencedAssemblies()
                 .Select(a => a.Name!)
                 .Where(n => n.StartsWith("DemoViewer.NET", StringComparison.Ordinal) || n.StartsWith("Avalonia", StringComparison.Ordinal))
         ];

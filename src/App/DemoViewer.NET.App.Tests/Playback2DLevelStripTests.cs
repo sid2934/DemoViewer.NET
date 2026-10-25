@@ -4,7 +4,8 @@ using Avalonia;
 using Avalonia.Controls;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Levels;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Levels;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion

@@ -18,17 +18,18 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Hud;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Core.Timeline;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Hud;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
+using DemoViewer.NET.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
@@ -1323,10 +1324,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <param name="press">The press, resolved to a pane and world coordinates.</param>
     public bool TryPointerPreHandler(ScenePointer press) => Surface.TryHandlePointerPress(press);
 
-    IReadOnlyList<KeyValuePair<string, Func<global::DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer>>> ISceneFrameHost.ContributedLayers =>
+    IReadOnlyList<KeyValuePair<string, Func<global::DemoViewer.NET.Playback2D.Compositing.ISceneLayer>>> ISceneFrameHost.ContributedLayers =>
         Surface.Layers;
 
-    IReadOnlyList<global::DemoViewer.NET.Playback2D.Core.Tools.IMapTool> ISceneFrameHost.ContributedTools => Surface.Tools;
+    IReadOnlyList<global::DemoViewer.NET.Playback2D.Tools.IMapTool> ISceneFrameHost.ContributedTools => Surface.Tools;
 
     event Action? ISceneFrameHost.ContributedLayersChanged
     {

@@ -1,7 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using SkiaSharp;

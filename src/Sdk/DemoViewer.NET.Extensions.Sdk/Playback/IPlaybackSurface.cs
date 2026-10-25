@@ -1,8 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Tools;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Tools;
 
 namespace DemoViewer.NET.Extensions.Sdk.Playback;
 

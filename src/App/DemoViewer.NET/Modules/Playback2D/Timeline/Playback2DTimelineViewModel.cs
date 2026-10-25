@@ -9,7 +9,7 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Timeline;
 using DemoViewer.NET.Theming;
 using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 

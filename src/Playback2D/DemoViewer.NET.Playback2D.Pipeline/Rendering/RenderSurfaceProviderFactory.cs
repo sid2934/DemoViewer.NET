@@ -5,7 +5,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Rendering;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering;
 
 /// <summary>
 ///     The single construction site for render surfaces. Export, the

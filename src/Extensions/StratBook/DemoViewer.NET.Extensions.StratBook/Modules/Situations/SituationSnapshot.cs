@@ -2,8 +2,8 @@
 
 using System.Numerics;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion

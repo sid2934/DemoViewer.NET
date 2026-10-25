@@ -2,7 +2,7 @@
 
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using TUnit.Assertions.Enums;
 
 #endregion

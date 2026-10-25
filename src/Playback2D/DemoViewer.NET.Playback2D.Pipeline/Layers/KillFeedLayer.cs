@@ -1,13 +1,14 @@
 #region
 
-using System.Text;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Hud;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Hud;
+using DemoViewer.NET.Playback2D.Layers;
 using SkiaSharp;
+using System.Text;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Playback2D.Pipeline.Layers;
 
 /// <summary>
 ///     The export HUD's kill feed: up to six rows in the top-right corner, carrying the same modifiers the

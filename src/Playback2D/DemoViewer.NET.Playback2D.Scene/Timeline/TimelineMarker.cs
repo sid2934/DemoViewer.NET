@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Timeline;
+namespace DemoViewer.NET.Playback2D.Timeline;
 
 /// <summary>
 ///     A point event on the timeline. ARGB 0 = "use the track/kind default" (the host themes it): a track

@@ -3,7 +3,7 @@
 using System.Globalization;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
 
 #endregion

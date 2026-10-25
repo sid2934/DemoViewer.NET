@@ -2,7 +2,7 @@
 
 using System.Collections.Concurrent;
 using DemoViewer.NET.GameIcons;
-using DemoViewer.NET.Playback2D.Core.Hud;
+using DemoViewer.NET.Playback2D.Hud;
 using SkiaSharp;
 
 #endregion

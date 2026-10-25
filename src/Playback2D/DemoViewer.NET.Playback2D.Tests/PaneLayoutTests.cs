@@ -1,8 +1,8 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Cameras;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Cameras;
+using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
 
 #endregion

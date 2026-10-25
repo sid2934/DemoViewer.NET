@@ -4,7 +4,7 @@ using System.Numerics;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>A token drawn hollow: where a dragged token stood, or where a step sends one.</summary>
 /// <param name="X">World X.</param>

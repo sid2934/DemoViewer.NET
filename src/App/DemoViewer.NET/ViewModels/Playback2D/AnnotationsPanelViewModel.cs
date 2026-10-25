@@ -8,9 +8,9 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Pipeline.Input;
 using Playback2DAction = DemoViewer.NET.Modules.Playback2D.Playback2DAction;
 using Playback2DKeymapProfile = DemoViewer.NET.Modules.Playback2D.Playback2DKeymapProfile;
 

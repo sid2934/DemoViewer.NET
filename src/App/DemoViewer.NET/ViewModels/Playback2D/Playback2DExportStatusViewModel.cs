@@ -5,7 +5,7 @@ using System.Text;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Services.Export;
 
 #endregion

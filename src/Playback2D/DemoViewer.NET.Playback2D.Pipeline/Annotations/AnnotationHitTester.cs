@@ -1,11 +1,12 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Ink;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Pipeline.Ink;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Annotations;
+namespace DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 /// <summary>
 ///     Stroke-level hit-testing for the eraser. Erase removes WHOLE elements; there is no pixel erase

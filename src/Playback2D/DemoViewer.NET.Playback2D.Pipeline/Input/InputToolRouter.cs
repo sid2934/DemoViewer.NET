@@ -1,4 +1,10 @@
-namespace DemoViewer.NET.Playback2D.Core.Input;
+#region
+
+using DemoViewer.NET.Playback2D.Input;
+
+#endregion
+
+namespace DemoViewer.NET.Playback2D.Pipeline.Input;
 
 /// <summary>
 ///     Routes pointer events to exactly one <see cref="IPointerTool" />.

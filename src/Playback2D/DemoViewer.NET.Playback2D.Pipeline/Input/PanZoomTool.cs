@@ -1,4 +1,10 @@
-namespace DemoViewer.NET.Playback2D.Core.Input;
+#region
+
+using DemoViewer.NET.Playback2D.Input;
+
+#endregion
+
+namespace DemoViewer.NET.Playback2D.Pipeline.Input;
 
 /// <summary>
 ///     Drag-to-pan / wheel-to-zoom as an <see cref="IPointerTool" />. A thin wrapper over

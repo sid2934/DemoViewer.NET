@@ -1,7 +1,7 @@
 #region
 
 using System.Numerics;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 using TUnit.Assertions.Enums;
 
 #endregion

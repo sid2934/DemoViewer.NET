@@ -1,8 +1,8 @@
 #region
 
 using System.Text.Json;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Ink;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Pipeline.Ink;
 using SkiaSharp;
 using TUnit.Core.Exceptions;
 

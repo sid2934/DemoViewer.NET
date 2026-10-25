@@ -2,7 +2,7 @@
 // See THIRD-PARTY-NOTICES.md § "perfect-freehand (MIT)" for the full licence text and the list of
 // adapted files. Upstream: https://github.com/steveruizok/perfect-freehand
 
-namespace DemoViewer.NET.Playback2D.Core.Ink;
+namespace DemoViewer.NET.Playback2D.Pipeline.Ink;
 
 /// <summary>
 ///     Stroke-shaping options, matching perfect-freehand's <c>StrokeOptions</c> for the subset this port

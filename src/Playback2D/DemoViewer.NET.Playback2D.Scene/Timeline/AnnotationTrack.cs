@@ -1,11 +1,11 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Timeline;
+namespace DemoViewer.NET.Playback2D.Timeline;
 
 /// <summary>
 ///     Puts one timeline marker on the scrub bar per time-anchored annotation, so a telestration made at

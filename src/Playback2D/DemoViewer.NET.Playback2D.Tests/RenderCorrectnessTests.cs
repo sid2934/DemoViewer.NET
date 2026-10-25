@@ -1,13 +1,14 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Cameras;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Hud;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Cameras;
+using DemoViewer.NET.Playback2D.Pipeline.Cameras;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Hud;
+using DemoViewer.NET.Playback2D.Pipeline.Layers;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
@@ -388,7 +389,7 @@ public class RenderCorrectnessTests
         // in whatever order they happened to run.
         using SKTypeface standIn = LoadEmbeddedFace();
 
-        using (TextBlobCache orphan = new(16, "DemoViewer.NET.Playback2D.Core.Assets.NoSuchFace.ttf",
+        using (TextBlobCache orphan = new(16, "DemoViewer.NET.Playback2D.Assets.NoSuchFace.ttf",
                    standIn))
         {
             await Assert.That(ReferenceEquals(orphan.Typeface, standIn)).IsTrue();
@@ -397,7 +398,7 @@ public class RenderCorrectnessTests
         }
 
         // Disposed twice over, exactly as several layers sharing one fallback would.
-        using (TextBlobCache second = new(16, "DemoViewer.NET.Playback2D.Core.Assets.NoSuchFace.ttf",
+        using (TextBlobCache second = new(16, "DemoViewer.NET.Playback2D.Assets.NoSuchFace.ttf",
                    standIn))
         {
             _ = second.Typeface;

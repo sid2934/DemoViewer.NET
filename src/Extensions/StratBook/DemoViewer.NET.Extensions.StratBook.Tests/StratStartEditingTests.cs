@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
@@ -261,7 +261,7 @@ public class StratStartEditingTests
             canvas.BeginDrag("A", TokenGrip.Body);
             canvas.MoveTo("A", new SKPoint(40, 60), Floor);
             canvas.MoveTo("A", new SKPoint(50, 70), Floor);
-            Playback2D.Core.PlayerMarker marker = canvas.CurrentFrame.Markers.Single(m => m.Slot == 0);
+            Playback2D.PlayerMarker marker = canvas.CurrentFrame.Markers.Single(m => m.Slot == 0);
             using (Assert.Multiple())
             {
                 await Assert.That((marker.WorldX, marker.WorldY)).IsEqualTo((50f, 70f));

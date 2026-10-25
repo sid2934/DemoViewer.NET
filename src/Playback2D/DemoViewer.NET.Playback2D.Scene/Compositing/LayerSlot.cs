@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Compositing;
+namespace DemoViewer.NET.Playback2D.Compositing;
 
 /// <summary>
 ///     The coarse z-band a layer draws in. Layer order is one interleaved

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Overlay;
+namespace DemoViewer.NET.Playback2D.Overlay;
 
 /// <summary>
 ///     The Overlay View's input: every alive position of every matched state of a result set, on one

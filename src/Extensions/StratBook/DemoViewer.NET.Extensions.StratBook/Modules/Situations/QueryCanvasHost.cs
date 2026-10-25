@@ -3,7 +3,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
-using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 #endregion

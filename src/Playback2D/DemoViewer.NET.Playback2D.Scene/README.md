@@ -14,32 +14,32 @@ only, no UI framework. It is versioned with `DemoViewer.NET.Extensions.Sdk`.
 The app ships this assembly and SkiaSharp, so copies in your extension's folder are never loaded. Build
 against the SkiaSharp version this package depends on.
 
-The types keep the namespaces the app uses for them: most are under `DemoViewer.NET.Playback2D.Core`, and the
-zone loaders, the sidecar identity records and the content key under `DemoViewer.NET.Playback2D.Pipeline`.
+Every type sits under `DemoViewer.NET.Playback2D`, matching the package's root namespace: the scene
+contract, the zone loaders, the sidecar identity records and the content key alike.
 
 ## What is in it
 
 | Namespace | Types |
 |---|---|
-| `Playback2D.Core` | `Scene2DFrame` and what it carries (`PlayerMarker`, `GrenadeTrail`, `AreaEffect`, `BombMarker`, `KillFeedRow`, `SceneGameInfo`, `SceneMapInfo`, `SceneVision`), `SceneTime`, `ViewportTransform`, `SliceCamera`, `ScenePalette`, `WorldBounds`, `TextBlobCache` |
-| `Playback2D.Core.Compositing` | `ISceneLayer`, `LayerSlot`, `LayerCacheHint`, `SceneRenderContext`, `SceneSubmission`, `SceneCompositor`, `SceneRenderGate` |
-| `Playback2D.Core.Layers` | `SceneLayerIds`, the ids of the app's own layers |
-| `Playback2D.Core.Levels` | `MapSpace`, `MapLevel`, `MapLevelId`, `PaneSet`, `LevelPane`, `StackedLayout`, `SingleLayout`, `IMapAsset` (a loaded map's floors, radar images and places) |
-| `Playback2D.Core.Zones` | `PlaceResolver`, `ZoneSet`, `PlaceHit` and the zone geometry |
-| `Playback2D.Core.Cameras` | `ICameraRig` and the built-in rigs |
-| `Playback2D.Core.Tools` | `IMapTool`, `MapToolEvent`, `IMapToolContext`, `MapToolButton`, `MapToolModifiers` |
-| `Playback2D.Core.Layers` (drawing) | `OverlayHeatmapLayer`, `QueryTokenLayer` |
-| `Playback2D.Core.Overlay`, `.Query` | the documents those two layers draw |
-| `Playback2D.Core.Annotations` | `AnnotationDocument`, `AnnotationElement`, `AnnotationSession`, `DocDelta` and the styles and timing they carry |
-| `Playback2D.Core.Timeline` | `ITimelineTrack`, `ITimelineData`, `TimelineMarker`, `TimelineBand`, `AnnotationTrack` |
-| `Playback2D.Core.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens needs. Writing ink is first-party: the session and the authoring clock are not on `IToolServices` |
-| `Playback2D.Core.Hud` | `IHudDataSource`, `HudSnapshot`, `IIconSource` |
-| `Playback2D.Core.Vision` | `IVisionSolver`, `VisionSolution` |
-| `Playback2D.Core.Zones` (overlays) | `ZoneOverlayDocument`, `ZoneOverlayApplier`: a user's zone edits over the baked set |
-| `Playback2D.Pipeline.Assets` | `ZoneAssetPipeline`, `ZoneLoadResult`: a map's places loaded from its bundle directory |
-| `Playback2D.Pipeline.Annotations` | `DemoIdentity`, `ClockIdentity`: which demo and which parse a sidecar was written against |
-| `Playback2D.Pipeline` | `DemoContentHash`, the demo content key every store joins on |
-| `Playback2D.Core` (more) | `MarkerSmoother`, `SceneGuides`, `TrailGeometry`, `SceneDefaults`; `Levels.MapSpaceFactory`; `Zones.NavPathfinder` |
+| `Playback2D` | `Scene2DFrame` and what it carries (`PlayerMarker`, `GrenadeTrail`, `AreaEffect`, `BombMarker`, `KillFeedRow`, `SceneGameInfo`, `SceneMapInfo`, `SceneVision`), `SceneTime`, `ViewportTransform`, `SliceCamera`, `ScenePalette`, `WorldBounds`, `TextBlobCache` |
+| `Playback2D.Compositing` | `ISceneLayer`, `LayerSlot`, `LayerCacheHint`, `SceneRenderContext`, `SceneSubmission`, `SceneCompositor`, `SceneRenderGate` |
+| `Playback2D.Layers` | `SceneLayerIds`, the ids of the app's own layers |
+| `Playback2D.Levels` | `MapSpace`, `MapLevel`, `MapLevelId`, `PaneSet`, `LevelPane`, `StackedLayout`, `SingleLayout`, `IMapAsset` (a loaded map's floors, radar images and places) |
+| `Playback2D.Zones` | `PlaceResolver`, `ZoneSet`, `PlaceHit` and the zone geometry |
+| `Playback2D.Cameras` | `ICameraRig` and the built-in rigs |
+| `Playback2D.Tools` | `IMapTool`, `MapToolEvent`, `IMapToolContext`, `MapToolButton`, `MapToolModifiers` |
+| `Playback2D.Layers` (drawing) | `OverlayHeatmapLayer`, `QueryTokenLayer` |
+| `Playback2D.Overlay`, `.Query` | the documents those two layers draw |
+| `Playback2D.Annotations` | `AnnotationDocument`, `AnnotationElement`, `AnnotationSession`, `DocDelta` and the styles and timing they carry |
+| `Playback2D.Timeline` | `ITimelineTrack`, `ITimelineData`, `TimelineMarker`, `TimelineBand`, `AnnotationTrack` |
+| `Playback2D.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens needs. Writing ink is first-party: the session and the authoring clock are not on `IToolServices` |
+| `Playback2D.Hud` | `IHudDataSource`, `HudSnapshot`, `IIconSource` |
+| `Playback2D.Vision` | `IVisionSolver`, `VisionSolution` |
+| `Playback2D.Zones` (overlays) | `ZoneOverlayDocument`, `ZoneOverlayApplier`: a user's zone edits over the baked set |
+| `Playback2D.Assets` | `ZoneAssetPipeline`, `ZoneLoadResult`: a map's places loaded from its bundle directory |
+| `Playback2D.Annotations` | `DemoIdentity`, `ClockIdentity`: which demo and which parse a sidecar was written against |
+| `Playback2D` | `DemoContentHash`, the demo content key every store joins on |
+| `Playback2D` (more) | `MarkerSmoother`, `SceneGuides`, `TrailGeometry`, `SceneDefaults`; `Levels.MapSpaceFactory`; `Zones.NavPathfinder` |
 
 The app's own layers (radar, markers, roster and the rest), the drawing tools, video export, keyframes and the
 render backends are not published. `IMapTool` is the contract to write a new tool against; `IPointerTool`

@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>
 ///     A map's baked art, loaded for drawing: its floors, its radar images and the world rectangle they cover,

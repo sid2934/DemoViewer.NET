@@ -3,7 +3,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion

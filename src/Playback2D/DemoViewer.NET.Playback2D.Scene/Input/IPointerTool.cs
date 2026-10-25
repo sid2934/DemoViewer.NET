@@ -1,12 +1,12 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Input;
+namespace DemoViewer.NET.Playback2D.Input;
 
 /// <summary>Which pointer tool owns the surface. Persisted by name in <c>Playback2DSettings.LastTool</c>.</summary>
 public enum ToolKind

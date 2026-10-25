@@ -1,13 +1,13 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Query;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Playback2D.Layers;
 
 /// <summary>
 ///     The Query Canvas tokens: one team-coloured disc per placed <see cref="QueryToken" />, drawn on

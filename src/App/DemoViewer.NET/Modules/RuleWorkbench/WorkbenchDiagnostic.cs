@@ -1,7 +1,7 @@
 #region
 
 using CS2DemoKit.Analysis.RulesetsV2.Model;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 
 #endregion
 

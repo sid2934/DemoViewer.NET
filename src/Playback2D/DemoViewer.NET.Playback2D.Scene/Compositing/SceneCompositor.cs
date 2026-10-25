@@ -1,12 +1,12 @@
 #region
 
 using System.Diagnostics;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Compositing;
+namespace DemoViewer.NET.Playback2D.Compositing;
 
 /// <summary>
 ///     Owns the layer stack, its draw order, and the picture caches. Layers are kept sorted by

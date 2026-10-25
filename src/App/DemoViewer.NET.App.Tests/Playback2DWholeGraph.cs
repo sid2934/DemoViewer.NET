@@ -6,7 +6,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;

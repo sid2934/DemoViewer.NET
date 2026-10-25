@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Timeline;
+namespace DemoViewer.NET.Playback2D.Timeline;
 
 /// <summary>
 ///     What a <see cref="TimelineMarker" /> represents. The host maps a kind to a theme token, so a track

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Pipeline.Annotations;
+namespace DemoViewer.NET.Playback2D.Annotations;
 
 /// <summary>
 ///     Which demo a sidecar belongs to. <see cref="Sha256" /> is lowercase hex of the <c>.dem</c> bytes,

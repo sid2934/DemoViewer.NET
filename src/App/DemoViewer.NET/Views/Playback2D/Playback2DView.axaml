@@ -9,7 +9,7 @@
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:lv="using:DemoViewer.NET.Modules.Playback2D.Levels"
              xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
-             xmlns:scene="using:DemoViewer.NET.Playback2D.Core"
+             xmlns:scene="using:DemoViewer.NET.Playback2D"
              controls:TutorialAnchor.Target="PlaybackTab"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="650"
              x:Class="DemoViewer.NET.Views.Playback2D.Playback2DView"

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>
 ///     An axis-aligned world-space X/Y rectangle. Deliberately not <c>SKRect</c>: world Y is up and

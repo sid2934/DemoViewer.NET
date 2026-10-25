@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Timeline;
+namespace DemoViewer.NET.Playback2D.Timeline;
 
 /// <summary>
 ///     Normalized field keys an <see cref="ITimelineData" /> adapter writes and tracks read. The adapter owns

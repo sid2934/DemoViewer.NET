@@ -1,10 +1,11 @@
 #region
 
+using DemoViewer.NET.Playback2D.Annotations;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Annotations;
+namespace DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 /// <summary>
 ///     How a <see cref="AnnotationKind.Text" /> element is sized and where its box lies, in one place, so

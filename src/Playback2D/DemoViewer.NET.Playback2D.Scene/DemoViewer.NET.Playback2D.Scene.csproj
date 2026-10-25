@@ -6,12 +6,11 @@
       contracts, the query and overlay layers an extension draws with, the zone loaders and the demo
       content key. SkiaSharp and the BCL only, enforced by ArchitectureTests, which also pins its public types
       to an allow-list.
-      The types keep the namespaces they had in Core and Pipeline; the app's own layers, the drawing tools,
-      export and the rendering backends stay in DemoViewer.NET.Playback2D.Pipeline, which is not
-      published.
+      Every type sits under DemoViewer.NET.Playback2D; the app's own layers, the drawing tools, export
+      and the rendering backends stay under DemoViewer.NET.Playback2D.Pipeline, which is not published.
     -->
     <PropertyGroup>
-        <RootNamespace>DemoViewer.NET.Playback2D.Core</RootNamespace>
+        <RootNamespace>DemoViewer.NET.Playback2D</RootNamespace>
         <!-- Published with the extension SDK at the SDK's version: the SDK's version.json path filters
              include this project. Its public API is pinned by the PublicAPI files. -->
         <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
@@ -42,7 +41,7 @@
           THIRD-PARTY-NOTICES.md §d (SIL OFL 1.1).
         -->
         <EmbeddedResource Include="Assets\Inter-Regular.ttf"
-                          LogicalName="DemoViewer.NET.Playback2D.Core.Assets.Inter-Regular.ttf"/>
+                          LogicalName="DemoViewer.NET.Playback2D.Assets.Inter-Regular.ttf"/>
     </ItemGroup>
 
     <ItemGroup>

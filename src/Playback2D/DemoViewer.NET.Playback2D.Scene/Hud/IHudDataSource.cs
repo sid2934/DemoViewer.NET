@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Hud;
+namespace DemoViewer.NET.Playback2D.Hud;
 
 /// <summary>
 ///     Round-level HUD state as a <b>pure function of tick</b>. No wall clock, no playback

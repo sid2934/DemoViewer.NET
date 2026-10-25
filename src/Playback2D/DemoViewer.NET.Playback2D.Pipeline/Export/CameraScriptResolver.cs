@@ -1,12 +1,13 @@
 #region
 
 using System.Collections.Immutable;
-using DemoViewer.NET.Playback2D.Core.Cameras;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Cameras;
+using DemoViewer.NET.Playback2D.Pipeline.Cameras;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Export;
+namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>
 ///     Turns a <see cref="CameraScript" /> into the panes' cameras for one export frame.

@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.Sdk.Playback;
-using Core = DemoViewer.NET.Playback2D.Core.Timeline;
+using Core = DemoViewer.NET.Playback2D.Timeline;
 
 #endregion
 

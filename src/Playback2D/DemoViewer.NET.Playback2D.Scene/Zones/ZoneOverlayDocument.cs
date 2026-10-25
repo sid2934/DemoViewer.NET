@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>
 ///     The parsed user overlay, <c>&lt;config&gt;/zones/&lt;map&gt;.zones.json</c>: what differs from the

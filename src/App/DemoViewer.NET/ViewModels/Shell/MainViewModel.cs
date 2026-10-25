@@ -31,7 +31,7 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.Services.DemoCache;

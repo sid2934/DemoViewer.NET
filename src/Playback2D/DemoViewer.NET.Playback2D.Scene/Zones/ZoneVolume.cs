@@ -4,7 +4,7 @@ using System.Numerics;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>What a volume in <c>zones.json</c> is, by the entity class the baker read it from.</summary>
 public enum ZoneVolumeKind

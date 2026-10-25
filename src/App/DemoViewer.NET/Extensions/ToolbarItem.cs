@@ -2,7 +2,7 @@
 
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 
 #endregion
 

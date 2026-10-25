@@ -2,7 +2,7 @@
 
 using System.Globalization;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Timeline;
 
 #endregion
 

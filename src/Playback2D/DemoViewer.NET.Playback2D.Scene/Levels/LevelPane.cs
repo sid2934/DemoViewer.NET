@@ -1,12 +1,12 @@
 #region
 
 using System.Diagnostics.CodeAnalysis;
-using DemoViewer.NET.Playback2D.Core.Cameras;
+using DemoViewer.NET.Playback2D.Cameras;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>
 ///     One level's on-screen band: which level it shows, where on the host it sits, which camera rig

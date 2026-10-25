@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Cameras;
+namespace DemoViewer.NET.Playback2D.Pipeline.Cameras;
 
 /// <summary>
 ///     A policy that owns every pane's camera for a whole run, applied once per frame <b>after</b> pane

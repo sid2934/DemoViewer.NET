@@ -1,8 +1,8 @@
 #region
 
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Zones;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion

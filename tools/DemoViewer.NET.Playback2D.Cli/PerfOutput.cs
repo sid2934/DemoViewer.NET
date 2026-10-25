@@ -2,7 +2,7 @@
 
 using System.Text.Json.Nodes;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 
 #endregion

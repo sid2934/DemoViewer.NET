@@ -1,9 +1,9 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Hud;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Overlay;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Hud;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Overlay;
 using SkiaSharp;
 
 #endregion

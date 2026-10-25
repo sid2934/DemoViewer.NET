@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Compositing;
+namespace DemoViewer.NET.Playback2D.Compositing;
 
 /// <summary>
 ///     How cacheable a layer's drawing is. Declared rather than inferred so caching is

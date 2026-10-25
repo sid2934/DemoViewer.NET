@@ -1,16 +1,15 @@
 #region
 
 using System.Runtime.InteropServices;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
 using SkiaSharp;
 
 #endregion
 
-// In Pipeline, namespace kept as DemoViewer.NET.Services.Export.Pack: see the note on PackExporter.cs.
 // PackSegmentSink and PackTitleCardRenderer stay internal; DemoViewer.NET.App.Tests reaches them
 // through this project's InternalsVisibleTo for its white-box Pack Export tests.
-namespace DemoViewer.NET.Services.Export.Pack;
+namespace DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
 
 /// <summary>
 ///     One segment's view of the pack's one sink. It forwards every frame, and its dispose ends the segment

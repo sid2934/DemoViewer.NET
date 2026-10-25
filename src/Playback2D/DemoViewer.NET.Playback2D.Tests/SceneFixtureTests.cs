@@ -4,7 +4,7 @@ using System.Collections;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SkiaSharp;
 

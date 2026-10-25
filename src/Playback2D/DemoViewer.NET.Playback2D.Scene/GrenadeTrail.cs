@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>Grenade-projectile kind, drives the trail colour.</summary>
 public enum GrenadeKind

@@ -1,11 +1,11 @@
 #region
 
 using System.Numerics;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>
 ///     Resolves a world point to a place over one <see cref="ZoneSet" />: the volumes first (exact,

@@ -76,7 +76,7 @@ public class PackBoundaryTests
     {
         System.Reflection.Assembly[] granting =
         [
-            typeof(App).Assembly, typeof(Playback2D.Core.Scene2DFrame).Assembly,
+            typeof(App).Assembly, typeof(Playback2D.Scene2DFrame).Assembly,
             typeof(Playback2D.Pipeline.Assets.LoadedMapAsset).Assembly
         ];
 

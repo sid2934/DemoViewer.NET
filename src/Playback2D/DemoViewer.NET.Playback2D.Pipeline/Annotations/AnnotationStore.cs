@@ -2,7 +2,7 @@
 
 using System.Globalization;
 using System.Text.Json;
-using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 
 #endregion
 

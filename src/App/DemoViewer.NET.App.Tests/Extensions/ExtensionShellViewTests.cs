@@ -44,7 +44,7 @@ public class ExtensionShellViewTests
             {
                 await Assert.That(first).IsNotNull().Because("the change fires after the parse is in place");
                 await Assert.That(path).IsEqualTo(sample);
-                await Assert.That(hash).IsEqualTo(Playback2D.Pipeline.DemoContentHash.Compute(sample))
+                await Assert.That(hash).IsEqualTo(Playback2D.DemoContentHash.Compute(sample))
                     .Because("the content key is the library's lowercase-hex SHA-256 of the file");
                 await Assert.That(shell.CurrentDemo).IsSameReferenceAs(first);
             }

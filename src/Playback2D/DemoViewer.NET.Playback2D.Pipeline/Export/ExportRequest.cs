@@ -4,7 +4,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Export;
+namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>
 ///     Everything an export renders.
@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Playback2D.Core.Export;
 /// <param name="FormatId">One of <see cref="ExportFormats" />. A persisted key.</param>
 /// <param name="LayerIds">
 ///     Which layers to draw. <b>Empty means "every enabled layer"</b>, minus
-///     <see cref="Layers.SceneLayerIds.OptIn" />: those render only when named explicitly, so an export
+///     <see cref="DemoViewer.NET.Playback2D.Layers.SceneLayerIds.OptIn" />: those render only when named explicitly, so an export
 ///     never silently burns in a scoreboard or someone else's telestration. That set is the one place the
 ///     opt-in ids are listed.
 /// </param>

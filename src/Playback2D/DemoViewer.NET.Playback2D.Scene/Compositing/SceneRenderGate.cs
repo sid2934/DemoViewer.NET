@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Compositing;
+namespace DemoViewer.NET.Playback2D.Compositing;
 
 /// <summary>
 ///     Serializes the UI thread's advance-and-submit against the render thread's draw op.
