@@ -23,7 +23,11 @@ on:
   workflow_dispatch:
     inputs:
       beta:
-        description: 'Pack into the <os>-beta channels (dry run; a manual run never publishes)'
+        description: 'Pack into the <os>-beta channels'
+        type: boolean
+        default: false
+      publish:
+        description: 'Publish the GitHub Release. Off means pack only, which is what a dry run wants.'
         type: boolean
         default: false
 
@@ -150,7 +154,11 @@ jobs:
   # each OS channel (win/osx/linux) land in the same release; the first creates it, the rest merge.
   publish:
     needs: package
-    if: startsWith(github.ref, 'refs/tags/v')
+    # The ref alone is not enough. workflow_dispatch can select a TAG, so a manual run against an
+    # existing v* tag used to satisfy this gate and upload into that live release with no opt-in.
+    # A tag push is always a real release; a dispatch must say so. inputs.publish is the string
+    # "true" or "false" on a dispatch and empty otherwise, so compare against 'true'.
+    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || github.event.inputs.publish == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create the GitHub Release + upload assets
