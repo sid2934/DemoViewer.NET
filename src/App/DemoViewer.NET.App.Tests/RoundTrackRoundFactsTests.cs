@@ -99,7 +99,7 @@ public class RoundTrackRoundFactsTests
     {
         RoundTrack track = new();
         int raised = 0;
-        track.MarkersChanged += () => raised++;
+        track.Changed += () => raised++;
 
         track.Facts = [Round(1, 3)];
         track.RefreshTints();

@@ -628,7 +628,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _keymapWatch?.Dispose();
         _keymapWatch = null;
         Timeline.TrackVisibilityChanged -= SaveTimelineSettings;
-        Timeline.Dispose(); // the tracks' MarkersChanged subscriptions, taken in RegisterTrack
+        Timeline.Dispose(); // the tracks' Changed subscriptions, taken in RegisterTrack
         LevelStrip.SettingsChanged -= SaveLevelSettings;
         _annotationController.Flush();
         Annotations.Dispose();

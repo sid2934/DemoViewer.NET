@@ -112,10 +112,10 @@ public sealed class RoundTrack : ITimelineTrack
     /// <inheritdoc />
     // Raised only by RefreshTints: the band LAYOUT is fixed after parse, but the tint can arrive later,
     // when the round facts evaluator finishes on the open demo.
-    public event Action? MarkersChanged;
+    public event Action? Changed;
 
     /// <summary>Asks the timeline to re-query this track after <see cref="Facts" /> changed.</summary>
-    public void RefreshTints() => MarkersChanged?.Invoke();
+    public void RefreshTints() => Changed?.Invoke();
 
     // Repaints each band with its winner's wash. Round facts first, by round number (the band label is
     // the same 1-based ordinal); otherwise each round_end is matched to the band containing it. A demo

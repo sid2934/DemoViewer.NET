@@ -61,7 +61,7 @@ public sealed class AnnotationTrack : ITimelineTrack, IDisposable
     public string DisplayName => "Annotations";
 
     /// <inheritdoc />
-    public event Action? MarkersChanged;
+    public event Action? Changed;
 
     /// <inheritdoc />
     public bool IsAvailable(ITimelineData data)
@@ -111,7 +111,7 @@ public sealed class AnnotationTrack : ITimelineTrack, IDisposable
     /// <inheritdoc />
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => _noBands;
 
-    private void OnDocumentChanged() => MarkersChanged?.Invoke();
+    private void OnDocumentChanged() => Changed?.Invoke();
 
     private static string Tooltip(AnnotationElement element)
     {

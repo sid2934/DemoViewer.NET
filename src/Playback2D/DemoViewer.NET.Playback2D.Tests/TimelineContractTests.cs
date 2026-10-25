@@ -48,7 +48,7 @@ public class TimelineContractTests
 
         await Assert.That(declared).IsEquivalentTo(
         [
-            "BuildBands", "BuildMarkers", "DisplayName", "Id", "IsAvailable", "MarkersChanged"
+            "BuildBands", "BuildMarkers", "Changed", "DisplayName", "Id", "IsAvailable"
         ], CollectionOrdering.Matching);
     }
 

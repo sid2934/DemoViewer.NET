@@ -76,13 +76,13 @@ public class AnnotationTrackTests
     }
 
     [Test]
-    public async Task DocumentChanged_RaisesMarkersChanged()
+    public async Task DocumentChanged_RaisesChanged()
     {
         AnnotationDocument doc = new();
         using AnnotationTrack track = new(doc);
 
         int raised = 0;
-        track.MarkersChanged += () => raised++;
+        track.Changed += () => raised++;
 
         doc.Apply(new DocDelta.Add(AnnotationFakes.Stroke(time: new TimeEnvelope(100, null, 0, 0)), 0));
         await Assert.That(raised).IsEqualTo(1);
@@ -98,7 +98,7 @@ public class AnnotationTrackTests
         AnnotationTrack track = new(doc);
 
         int raised = 0;
-        track.MarkersChanged += () => raised++;
+        track.Changed += () => raised++;
         track.Dispose();
 
         doc.Apply(new DocDelta.Add(AnnotationFakes.Stroke(), 0));

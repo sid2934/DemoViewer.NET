@@ -347,7 +347,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
 
         public string DisplayName { get; }
 
-        public event Action? MarkersChanged;
+        public event Action? Changed;
 
         public bool IsAvailable(Core.ITimelineData data) =>
             _guard.Run("timeline track", () => _track.IsAvailable(new TimelineData(data)), false);
@@ -369,7 +369,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
 
         public void Detach() => _guard.Run("timeline track", () => _track.Changed -= OnChanged);
 
-        private void OnChanged() => MarkersChanged?.Invoke();
+        private void OnChanged() => Changed?.Invoke();
     }
 
     private sealed class LaneBehaviour(SdkP.ILaneBehaviour inner, ExtensionGuard guard) : IHostLaneBehaviour

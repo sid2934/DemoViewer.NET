@@ -1623,11 +1623,11 @@ DemoViewer.NET.Playback2D.Timeline.AnnotationTrack
 DemoViewer.NET.Playback2D.Timeline.AnnotationTrack.AnnotationTrack(DemoViewer.NET.Playback2D.Annotations.AnnotationDocument! document) -> void
 DemoViewer.NET.Playback2D.Timeline.AnnotationTrack.BuildBands(DemoViewer.NET.Playback2D.Timeline.ITimelineData! data) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Timeline.TimelineBand>!
 DemoViewer.NET.Playback2D.Timeline.AnnotationTrack.BuildMarkers(DemoViewer.NET.Playback2D.Timeline.ITimelineData! data) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Timeline.TimelineMarker>!
+DemoViewer.NET.Playback2D.Timeline.AnnotationTrack.Changed -> System.Action?
 DemoViewer.NET.Playback2D.Timeline.AnnotationTrack.DisplayName.get -> string!
 DemoViewer.NET.Playback2D.Timeline.AnnotationTrack.Dispose() -> void
 DemoViewer.NET.Playback2D.Timeline.AnnotationTrack.Id.get -> string!
 DemoViewer.NET.Playback2D.Timeline.AnnotationTrack.IsAvailable(DemoViewer.NET.Playback2D.Timeline.ITimelineData! data) -> bool
-DemoViewer.NET.Playback2D.Timeline.AnnotationTrack.MarkersChanged -> System.Action?
 DemoViewer.NET.Playback2D.Timeline.ITimelineData
 DemoViewer.NET.Playback2D.Timeline.ITimelineData.EventsOfType(string! eventName) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Timeline.TimelineEventRecord>!
 DemoViewer.NET.Playback2D.Timeline.ITimelineData.FrameIndexAtTick(int tick) -> int
@@ -1638,10 +1638,10 @@ DemoViewer.NET.Playback2D.Timeline.ITimelineData.TotalFrames.get -> int
 DemoViewer.NET.Playback2D.Timeline.ITimelineTrack
 DemoViewer.NET.Playback2D.Timeline.ITimelineTrack.BuildBands(DemoViewer.NET.Playback2D.Timeline.ITimelineData! data) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Timeline.TimelineBand>!
 DemoViewer.NET.Playback2D.Timeline.ITimelineTrack.BuildMarkers(DemoViewer.NET.Playback2D.Timeline.ITimelineData! data) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Timeline.TimelineMarker>!
+DemoViewer.NET.Playback2D.Timeline.ITimelineTrack.Changed -> System.Action?
 DemoViewer.NET.Playback2D.Timeline.ITimelineTrack.DisplayName.get -> string!
 DemoViewer.NET.Playback2D.Timeline.ITimelineTrack.Id.get -> string!
 DemoViewer.NET.Playback2D.Timeline.ITimelineTrack.IsAvailable(DemoViewer.NET.Playback2D.Timeline.ITimelineData! data) -> bool
-DemoViewer.NET.Playback2D.Timeline.ITimelineTrack.MarkersChanged -> System.Action?
 DemoViewer.NET.Playback2D.Timeline.TimelineBand
 DemoViewer.NET.Playback2D.Timeline.TimelineBand.Argb.get -> uint
 DemoViewer.NET.Playback2D.Timeline.TimelineBand.Argb.init -> void
@@ -1651,6 +1651,8 @@ DemoViewer.NET.Playback2D.Timeline.TimelineBand.EndFrameIndex.init -> void
 DemoViewer.NET.Playback2D.Timeline.TimelineBand.Equals(DemoViewer.NET.Playback2D.Timeline.TimelineBand other) -> bool
 DemoViewer.NET.Playback2D.Timeline.TimelineBand.Label.get -> string!
 DemoViewer.NET.Playback2D.Timeline.TimelineBand.Label.init -> void
+DemoViewer.NET.Playback2D.Timeline.TimelineBand.Lane.get -> int
+DemoViewer.NET.Playback2D.Timeline.TimelineBand.Lane.init -> void
 DemoViewer.NET.Playback2D.Timeline.TimelineBand.StartFrameIndex.get -> int
 DemoViewer.NET.Playback2D.Timeline.TimelineBand.StartFrameIndex.init -> void
 DemoViewer.NET.Playback2D.Timeline.TimelineBand.TimelineBand() -> void

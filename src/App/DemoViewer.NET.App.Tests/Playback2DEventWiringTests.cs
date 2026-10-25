@@ -33,8 +33,8 @@ internal sealed record EventContract(
 ///     A unit test subscribes directly, so it proves nothing about whether production does; a producer
 ///     wired to no consumer passes every one of them.
 ///     <para>
-///         <b>Asked of the CONTRACT, not the implementation.</b> The four <c>MarkersChanged</c>
-///         implementations are one <c>ITimelineTrack.MarkersChanged</c>, and three of them (round, kill,
+///         <b>Asked of the CONTRACT, not the implementation.</b> The four <c>Changed</c>
+///         implementations are one <c>ITimelineTrack.Changed</c>, and three of them (round, kill,
 ///         bomb) legitimately never raise it because their data is fixed for the whole demo.
 ///     </para>
 ///     <para>
@@ -131,11 +131,12 @@ public class Playback2DEventWiringTests
         await Assert.That(Playback2DWholeGraph.EventContractTypes.Count()).IsGreaterThan(100);
         await Assert.That(contracts.Count).IsGreaterThanOrEqualTo(12);
 
-        // StatusChanged and MarkersChanged, pinned by key: a rename that silently drops them from the
-        // scan is caught here rather than by the absence of a failure.
+        // StatusChanged and the track contract's Changed, pinned by key: a rename that silently drops
+        // them from the scan is caught here rather than by the absence of a failure. The track's key is
+        // the interface's, not a bare ".Changed", which other contracts also end in.
         await Assert.That(contracts.Any(c => c.Key.EndsWith(".StatusChanged", StringComparison.Ordinal)))
             .IsTrue();
-        await Assert.That(contracts.Any(c => c.Key.EndsWith(".MarkersChanged", StringComparison.Ordinal)))
+        await Assert.That(contracts.Any(c => c.Key.EndsWith("ITimelineTrack.Changed", StringComparison.Ordinal)))
             .IsTrue();
     }
 

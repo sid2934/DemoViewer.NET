@@ -138,7 +138,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     public Thickness PlayheadOffset => new(PlayheadX, 0, 0, 0);
 
     /// <summary>
-    ///     Drops the <see cref="ITimelineTrack.MarkersChanged" /> subscriptions taken in
+    ///     Drops the <see cref="ITimelineTrack.Changed" /> subscriptions taken in
     ///     <see cref="RegisterTrack" />. Idempotent.
     /// </summary>
     public void Dispose()
@@ -151,7 +151,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         _disposed = true;
         for (int i = 0; i < _trackHandlers.Count; i++)
         {
-            _tracks[i].MarkersChanged -= _trackHandlers[i];
+            _tracks[i].Changed -= _trackHandlers[i];
         }
     }
 
@@ -164,7 +164,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     /// <summary>
     ///     Registers a track. Registration order is display order; re-registering an id is ignored.
     ///     <para>
-    ///         Subscribes to <see cref="ITimelineTrack.MarkersChanged" />, which the interface documents as
+    ///         Subscribes to <see cref="ITimelineTrack.Changed" />, which the interface documents as
     ///         "the host must re-query it". <see cref="Rebuild" /> runs only on activation and demo-reset,
     ///         so without this a track whose content grows while the demo sits still
     ///         (<c>AnnotationTrack</c>, on every stroke) is never re-queried, and its toggle never becomes
@@ -197,7 +197,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         // track outlives this view-model in the tab that owns both.
         Action handler = () => OnTrackContentChanged(track);
         _trackHandlers.Add(handler);
-        track.MarkersChanged += handler;
+        track.Changed += handler;
 
         // A track registered after the build (a pack turned on in session) shows without waiting for a
         // re-query, and the footer's toggle list learns of it.
@@ -251,7 +251,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
 
         if (!_disposed)
         {
-            track.MarkersChanged -= _trackHandlers[index];
+            track.Changed -= _trackHandlers[index];
         }
 
         _toggles[index].PropertyChanged -= OnToggleChanged;

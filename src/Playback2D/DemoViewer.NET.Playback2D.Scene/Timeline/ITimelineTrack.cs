@@ -49,6 +49,6 @@ public interface ITimelineTrack
     /// <summary>Range bands, ascending and non-overlapping. Empty for point-only tracks.</summary>
     IReadOnlyList<TimelineBand> BuildBands(ITimelineData data);
 
-    /// <summary>Raised when the track's content changed and the host must re-query it.</summary>
-    event Action? MarkersChanged;
+    /// <summary>Raised when the track's markers OR bands changed and the host must re-query both.</summary>
+    event Action? Changed;
 }

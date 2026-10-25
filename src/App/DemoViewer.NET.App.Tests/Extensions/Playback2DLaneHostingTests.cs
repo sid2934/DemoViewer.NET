@@ -75,7 +75,7 @@ public class Playback2DLaneHostingTests
             await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).IsEquivalentTo([.. CoreTracks, "lane-b"], CollectionOrdering.Matching);
             await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id)).IsEquivalentTo(["lane-b"], CollectionOrdering.Matching);
             await Assert.That(vm.Timeline.LaneBands.Select(band => band.TrackId)).IsEquivalentTo(["lane-b"], CollectionOrdering.Matching);
-            await Assert.That(a.Subscribers).IsEqualTo(0).Because("the MarkersChanged subscription left with the track");
+            await Assert.That(a.Subscribers).IsEqualTo(0).Because("the Changed subscription left with the track");
             await Assert.That(trackListChanges).IsEqualTo(3);
             await Assert.That(saves).IsEqualTo(0);
         }
@@ -441,7 +441,7 @@ public class Playback2DLaneHostingTests
 
     private sealed class FakeLaneTrack(string id, params (int Start, int End)[] bands) : ITimelineTrack
     {
-        private Action? _markersChanged;
+        private Action? _changed;
 
         public int Subscribers { get; private set; }
 
@@ -449,16 +449,16 @@ public class Playback2DLaneHostingTests
 
         public string DisplayName => id;
 
-        public event Action? MarkersChanged
+        public event Action? Changed
         {
             add
             {
-                _markersChanged += value;
+                _changed += value;
                 Subscribers++;
             }
             remove
             {
-                _markersChanged -= value;
+                _changed -= value;
                 Subscribers--;
             }
         }
@@ -470,7 +470,7 @@ public class Playback2DLaneHostingTests
 
         public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => [];
 
-        public void Raise() => _markersChanged?.Invoke();
+        public void Raise() => _changed?.Invoke();
     }
 
     private sealed class FakeBehaviour(string name) : IHostLaneBehaviour

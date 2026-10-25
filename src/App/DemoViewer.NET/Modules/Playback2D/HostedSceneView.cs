@@ -353,14 +353,14 @@ internal sealed class GuardedTimelineTrack : ITimelineTrack
         _guard = guard;
         Id = guard.Run("timeline track", () => inner.Id, guard.Scope.Id + ".track");
         DisplayName = guard.Run("timeline track", () => inner.DisplayName, guard.Scope.Name);
-        guard.Run("timeline track", () => _inner.MarkersChanged += OnChanged);
+        guard.Run("timeline track", () => _inner.Changed += OnChanged);
     }
 
     public string Id { get; }
 
     public string DisplayName { get; }
 
-    public event Action? MarkersChanged;
+    public event Action? Changed;
 
     public bool IsAvailable(ITimelineData data) =>
         _guard.Run("timeline track", () => _inner.IsAvailable(data), false);
@@ -371,9 +371,9 @@ internal sealed class GuardedTimelineTrack : ITimelineTrack
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) =>
         _guard.Run("timeline track", () => _inner.BuildBands(data), []);
 
-    public void Detach() => _guard.Run("timeline track", () => _inner.MarkersChanged -= OnChanged);
+    public void Detach() => _guard.Run("timeline track", () => _inner.Changed -= OnChanged);
 
-    private void OnChanged() => UiThreadMarshal.Run(() => MarkersChanged?.Invoke());
+    private void OnChanged() => UiThreadMarshal.Run(() => Changed?.Invoke());
 }
 
 /// <summary>Installs the renderers the SDK's map, scene and timeline controls are built over.</summary>

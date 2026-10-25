@@ -366,7 +366,7 @@ public class SceneViewTests
 
         public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => throw new InvalidOperationException("bands");
 
-        public event Action? MarkersChanged
+        public event Action? Changed
         {
             add { }
             remove { }
@@ -386,7 +386,7 @@ public class SceneViewTests
 
         public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => [];
 
-        public event Action? MarkersChanged
+        public event Action? Changed
         {
             add { }
             remove { }

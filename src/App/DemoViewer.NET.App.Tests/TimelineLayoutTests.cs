@@ -339,7 +339,7 @@ public class TimelineLayoutTests
 
     /// <summary>
     ///     <b>
-    ///         <see cref="ITimelineTrack.MarkersChanged" /> is documented "the host must re-query it",
+    ///         <see cref="ITimelineTrack.Changed" /> is documented "the host must re-query it",
     ///         and the host never subscribed.
     ///     </b>
     ///     <see cref="Playback2DTimelineViewModel.Rebuild" /> runs on
