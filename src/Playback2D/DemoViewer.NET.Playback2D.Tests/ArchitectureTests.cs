@@ -220,13 +220,15 @@ public class ArchitectureTests
 
     // Roots the ex-Core sources must not name. The allow-list above cannot see a call inside a method
     // body, because reflection reads signatures; this half reads the sources, so between them a field,
-    // a signature, a generic argument and a call are all covered. DemoViewer.NET.Playback2D.Pipeline. is
-    // here for the one-hop, with the trailing dot so the assembly's own name in a comment-free using
-    // does not count.
+    // a signature, a generic argument and a call are all covered. The Pipeline namespace carries no
+    // trailing dot on purpose: `using DemoViewer.NET.Playback2D.Pipeline;` ends in a semicolon, and that
+    // import is the one-hop itself, since SceneFrameBuilder and SceneFrameInput live in the root
+    // namespace and both wrap the parser. No ex-Core file names that string in code, so it cannot
+    // false-positive.
     private static readonly string[] _exCoreForbiddenRoots =
     [
         "CS2DemoKit", "CS2OpenDev", "FFMpegCore", "Avalonia",
-        "DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.Playback2D.Pipeline."
+        "DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.Playback2D.Pipeline"
     ];
 
     private static readonly string[] _unpublishedNamespaces =
