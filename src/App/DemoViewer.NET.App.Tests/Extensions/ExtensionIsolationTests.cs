@@ -14,8 +14,9 @@ namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
 ///     What keeps one extension out of another's stores and out of the host's: a context resolves only for its
-///     own code, Register cannot replace a registration it does not own, a declared store cannot name another
-///     owner's files, and a third-party build against the app's own assembly does not load.
+///     own code, by either route and in the composed container, Register cannot replace a registration it does
+///     not own, a declared store cannot name another owner's files, and a third-party build against the app's
+///     own assembly does not load.
 /// </summary>
 public class ExtensionIsolationTests
 {
@@ -32,16 +33,101 @@ public class ExtensionIsolationTests
 
         InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() =>
             access.Resolve(stub.Id, typeof(StratBookPack).Assembly));
+        InvalidOperationException app = Assert.Throws<InvalidOperationException>(() =>
+            access.Resolve(stub.Id, typeof(App).Assembly));
 
         using (Assert.Multiple())
         {
             await Assert.That(refused.Message).Contains(stratBook.Id);
             await Assert.That(access.Resolve(stub.Id, typeof(StubExtension).Assembly)).IsSameReferenceAs(stubContext)
                 .Because("the extension's own code resolves its context");
-            await Assert.That(access.Resolve(stub.Id, typeof(App).Assembly)).IsSameReferenceAs(stubContext)
-                .Because("the app's own code is no extension");
+            await Assert.That(app.Message).Contains("owns no extension");
+            await Assert.That(ExtensionContextAccess.ForHost(provider, stub.Id)).IsSameReferenceAs(stubContext)
+                .Because("the host is the composition root, not an assembly, so it has its own door");
             await Assert.That(provider.GetKeyedService<IExtensionContext>(stub.Id)).IsNull()
                 .Because("a lookup by the plain id skips the owner check, so it finds nothing");
+        }
+    }
+
+    // The bystander: Scene's assembly owns no pack in any container, and is not the app either.
+    [Test]
+    public async Task AnAssemblyThatOwnsNoExtension_IsRefusedByName()
+    {
+        StubExtension stub = new("pack.isolation");
+        ServiceCollection services = new();
+        IExtensionContext stubContext = DispatchProxy.Create<IExtensionContext, NullProxy>();
+        services.AddKeyedSingleton(ExtensionContextAccess.KeyFor(stub.Id), stubContext);
+        using ServiceProvider provider = services.BuildServiceProvider();
+        ExtensionContextAccess access = new(provider, [stub]);
+        Assembly bystander = typeof(Playback2D.Scene2DFrame).Assembly;
+
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() =>
+            access.Resolve(stub.Id, bystander));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(refused.Message).Contains(bystander.GetName().Name!);
+            await Assert.That(ExtensionContextAccess.ForHost(provider, stub.Id)).IsSameReferenceAs(stubContext);
+        }
+    }
+
+    // The real container, not a hand-built one: a ServiceCollection with no IExtensionContextAccess takes
+    // the SDK's no-access fallback, where neither the public call nor the reflected one is checked at all.
+    [Test]
+    [NotInParallel]
+    public async Task InTheComposedContainer_ACallerThatOwnsNoPack_IsRefused_ByEitherRoute()
+    {
+        // The temp config root is for ForHost: constructing a context reads AppPaths.ConfigRoot.
+        string root = Path.Combine(Path.GetTempPath(), "dv-ctxdoor-" + Guid.NewGuid().ToString("N"));
+        string? previous = Environment.GetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, root);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                // The one pack lives in ThirdPartyFake, so this test assembly owns no scope in this container.
+                ThirdPartyFake.FakeExtension pack = new();
+                ServiceCollection services = App.ComposeServices(new Services.DesktopWindowService(() => null), [pack]);
+                await using ServiceProvider provider = services.BuildServiceProvider();
+
+                Exception? direct = Caught(() => provider.GetExtensionContext(pack.Id));
+                // DoNotWrapExceptions: a TargetInvocationException would hide which refusal fired.
+                Exception? reflected = Caught(() => typeof(ExtensionServiceProviderExtensions)
+                    .GetMethod(nameof(ExtensionServiceProviderExtensions.GetExtensionContext))!
+                    .Invoke(null, BindingFlags.DoNotWrapExceptions, null, [provider, pack.Id], null));
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(direct).IsTypeOf<InvalidOperationException>();
+                    await Assert.That(direct?.Message).Contains(typeof(ExtensionIsolationTests).Assembly.GetName().Name!);
+                    await Assert.That(reflected).IsTypeOf<InvalidOperationException>()
+                        .Because("a reflected call still arrives from an assembly that owns no pack");
+                    await Assert.That(ExtensionContextAccess.ForHost(provider, pack.Id))
+                        .IsSameReferenceAs(provider.GetRequiredKeyedService<IExtensionContext>(ExtensionContextAccess.KeyFor(pack.Id)));
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, previous);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    // Captured, not asserted in place: each refusal has to be able to fail without aborting the others.
+    private static Exception? Caught(Action body)
+    {
+        try
+        {
+            body();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
         }
     }
 

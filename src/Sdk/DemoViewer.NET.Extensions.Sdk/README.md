@@ -162,7 +162,8 @@ For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extens
 
 ## The host
 
-`services.GetExtensionContext(Id)` returns the extension's `IExtensionContext`:
+`services.GetExtensionContext(Id)` resolves only for your own extension's code, so call it from inside your
+extension and pass your own id; any other caller is refused. It returns the extension's `IExtensionContext`:
 
 - `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files, and opening a player in the
   Player Overview tab (`OpenPlayerOverview`, false when the tab is off or the host has none). `CurrentDemo` is the open

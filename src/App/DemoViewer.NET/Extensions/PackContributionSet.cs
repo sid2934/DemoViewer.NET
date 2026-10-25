@@ -51,7 +51,7 @@ internal sealed class PackContributionSet
         foreach (IExtension pack in packs)
         {
             ExtensionGuard guard = faults.GuardFor(pack);
-            PackContributions contributions = new(pack, () => sp.GetExtensionContext(pack.Id), UiThreadMarshal.Run, guard);
+            PackContributions contributions = new(pack, () => ExtensionContextAccess.ForHost(sp, pack.Id), UiThreadMarshal.Run, guard);
 
             // A pack whose registration failed has no services to contribute from.
             if (faults.StartupFailed(pack.Id))
@@ -69,7 +69,7 @@ internal sealed class PackContributionSet
                 // One extension failing its Contribute must not stop the app: it contributes nothing.
                 AppLog.OperationFailed(Log, "contribute extension " + pack.Id, ex);
                 guard.Report("contribute", ex);
-                contributions = new PackContributions(pack, () => sp.GetExtensionContext(pack.Id), UiThreadMarshal.Run, guard);
+                contributions = new PackContributions(pack, () => ExtensionContextAccess.ForHost(sp, pack.Id), UiThreadMarshal.Run, guard);
             }
 
             collected.Add(contributions);

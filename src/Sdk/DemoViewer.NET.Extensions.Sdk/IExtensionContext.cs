@@ -186,7 +186,7 @@ public static class ExtensionServiceProviderExtensions
     /// <param name="services">The host's services.</param>
     /// <param name="extensionId">Your extension's id.</param>
     /// <exception cref="InvalidOperationException">
-    ///     No extension has that id, or the calling code belongs to a different extension.
+    ///     No extension has that id, or the calling code belongs to a different extension or to none.
     /// </exception>
     [MethodImpl(MethodImplOptions.NoInlining)]
     public static IExtensionContext GetExtensionContext(this IServiceProvider services, string extensionId)
@@ -202,14 +202,15 @@ public static class ExtensionServiceProviderExtensions
 
 /// <summary>
 ///     The key the host registers each context under. A lookup by the plain id string finds nothing, so
-///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" /> and its owner check are the only way in.
+///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" /> and its owner check are how an
+///     extension gets in. Code that reflects this type out of the SDK resolves the keyed service itself.
 /// </summary>
 /// <param name="ExtensionId">The extension's id.</param>
 internal sealed record ExtensionContextKey(string ExtensionId);
 
 /// <summary>
 ///     The host's check on <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" />: resolves the
-///     context only for code that belongs to that extension, or to no extension.
+///     context only for code that belongs to that extension.
 /// </summary>
 internal interface IExtensionContextAccess
 {
