@@ -76,10 +76,20 @@ public interface IPlaybackSurface
     /// <summary>
     ///     A lane under the rounds row, drawn from <paramref name="track" />'s bands and markers. The track
     ///     is a <see cref="ITimelineTrack" /> from <c>DemoViewer.NET.Playback2D.Scene</c>, the same contract
-    ///     the tab's own tracks and <c>SceneTimeline</c> use. The host files every band and mark it builds
-    ///     under the lane's id, so <see cref="TimelineBand.TrackId" /> and
-    ///     <see cref="TimelineMarker.TrackId" /> need not be set.
+    ///     the tab's own tracks and <c>SceneTimeline</c> use. The host files the lane as
+    ///     <c>ext.&lt;extension id&gt;.&lt;track id&gt;</c>, so it can never collide with the tab's own tracks or
+    ///     another extension's, and stamps that id on every band and mark the track builds:
+    ///     <see cref="TimelineBand.TrackId" /> and <see cref="TimelineMarker.TrackId" /> need not be set, and
+    ///     <see cref="ILaneHandle.TrackId" /> is the id they carry.
     /// </summary>
+    /// <param name="track">
+    ///     The track. Its <see cref="ITimelineTrack.Id" /> is the lane's id within the extension: letters,
+    ///     digits, '.', '-' and '_'.
+    /// </param>
+    /// <param name="behaviour">What the lane does, or null for a display-only lane.</param>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="track" />'s id is empty or has a character outside that alphabet.
+    /// </exception>
     ILaneHandle AddLane(ITimelineTrack track, ILaneBehaviour? behaviour = null);
 
     /// <summary>Entries for the right-click menu of any timeline band.</summary>
@@ -162,7 +172,10 @@ public interface IPlaybackSurface
 public sealed record PlaybackLevel(string Name, double ZMin, double ZMax);
 
 /// <summary>A band on the timeline.</summary>
-/// <param name="TrackId">The track that drew it. Round bands come from the <c>"round"</c> track.</param>
+/// <param name="TrackId">
+///     The track that drew it. Round bands come from the tab's own <c>"round"</c> track; an extension's lane
+///     carries the filed id <see cref="ILaneHandle.TrackId" /> reports, never the track's own.
+/// </param>
 /// <param name="StartFrameIndex">Its first frame.</param>
 /// <param name="EndFrameIndex">Its last frame.</param>
 /// <param name="Label">Its label; a round band's is the round number.</param>

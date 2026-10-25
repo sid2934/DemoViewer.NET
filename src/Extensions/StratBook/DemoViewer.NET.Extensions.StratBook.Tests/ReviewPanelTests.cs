@@ -10,7 +10,6 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
-using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
@@ -264,7 +263,7 @@ public class ReviewPanelTests
             await Assert.That(vm.Timeline.HasEditSpan).IsFalse();
             Playback2DTimelineHarness.Pump();
 
-            TimelineBandViewModel band = vm.Timeline.LaneBands.Single(b => b.TrackId == TagTrack.TrackId);
+            TimelineBandViewModel band = vm.Timeline.LaneBands.Single(b => b.TrackId == review.TagLane!.TrackId);
             IReadOnlyList<MenuEntry> menu = vm.Timeline.MenuFor(band);
             await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo(["Edit A execute", "Delete A execute"], CollectionOrdering.Matching);
             menu[1].Run();

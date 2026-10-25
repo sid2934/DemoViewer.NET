@@ -30,6 +30,13 @@ public interface ILaneHandle : IDisposable
     /// <summary>The track it draws, as handed to <see cref="IPlaybackSurface.AddLane" />.</summary>
     ITimelineTrack Track { get; }
 
+    /// <summary>
+    ///     The id the host filed the lane under, <c>ext.&lt;extension id&gt;.&lt;track id&gt;</c>, which every band
+    ///     and mark of the lane carries as <see cref="PlaybackBand.TrackId" />. <see cref="Track" />'s own
+    ///     <see cref="ITimelineTrack.Id" /> is the unfiled id within the extension.
+    /// </summary>
+    string TrackId { get; }
+
     /// <summary>Hidden for a mode, without touching the user's own track toggle.</summary>
     bool IsSuppressed { get; set; }
 

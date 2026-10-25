@@ -62,8 +62,6 @@ public class ReviewPanelsPlaybackContributionTests
                 await Assert.That(review.Palette).IsNull().Because("no view model is constructed while the pack is off");
                 await Assert.That(review.Queue).IsNull();
                 await Assert.That(review.Review).IsNull();
-                await Assert.That(coreTracks).DoesNotContain(TagTrack.TrackId);
-                await Assert.That(coreTracks).DoesNotContain(ProposalTrack.TrackId);
                 await Assert.That(vm.IsReviewAvailable).IsFalse();
                 await Assert.That(vm.ExecuteAction(StratBookActions.FocusTagPalette)).IsFalse();
                 await Assert.That(vm.ExecuteAction(StratBookActions.ToggleReviewMode)).IsFalse();
@@ -72,17 +70,21 @@ public class ReviewPanelsPlaybackContributionTests
             gate.On = true;
             gate.Raise();
             TagTrack lane = review.Tags!;
+            string tagId = review.TagLane!.TrackId;
+            string proposalId = review.ProposalLane!.TrackId;
             using (Assert.Multiple())
             {
                 await Assert.That(review.Session).IsNotNull();
                 await Assert.That(lane.Session).IsSameReferenceAs(review.Session).Because("the lane reads the contribution's session");
-                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).IsEquivalentTo([.. coreTracks, TagTrack.TrackId, ProposalTrack.TrackId], CollectionOrdering.Matching)
+                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).IsEquivalentTo([.. coreTracks, tagId, proposalId], CollectionOrdering.Matching)
                     .Because("the tag lane comes first, then the suggestions, after the tab's own tracks");
-                await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id)).IsEquivalentTo([TagTrack.TrackId, ProposalTrack.TrackId], CollectionOrdering.Matching);
+                await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id)).IsEquivalentTo([tagId, proposalId], CollectionOrdering.Matching);
+                await Assert.That(coreTracks).DoesNotContain(tagId);
+                await Assert.That(coreTracks).DoesNotContain(proposalId);
                 await Assert.That(vm.Surface.ModeToggles.Select(t => t.Id)).IsEquivalentTo([ReviewPanelsPlaybackContribution.ReviewModeId], CollectionOrdering.Matching);
                 await Assert.That(review.ReviewMode!.ActionId).IsEqualTo(StratBookActions.ToggleReviewMode);
                 await Assert.That(review.ReviewMode.IsOn).IsFalse();
-                await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsTrue().Because("the lanes are the mode's");
+                await Assert.That(vm.Timeline.IsTrackSuppressed(tagId)).IsTrue().Because("the lanes are the mode's");
                 await Assert.That(vm.Surface.Panels.Select(p => p.Content!.GetType()))
                     .IsEquivalentTo([typeof(TagPaletteViewModel), typeof(ReviewPanelViewModel), typeof(SuggestionQueueViewModel)], CollectionOrdering.Matching);
                 await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([false, false, false], CollectionOrdering.Matching);
@@ -100,8 +102,8 @@ public class ReviewPanelsPlaybackContributionTests
             {
                 await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([true, true, true], CollectionOrdering.Matching);
                 await Assert.That(vm.IsCardStrip).IsTrue();
-                await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsFalse();
-                await Assert.That(vm.Timeline.IsTrackSuppressed(ProposalTrack.TrackId)).IsFalse();
+                await Assert.That(vm.Timeline.IsTrackSuppressed(tagId)).IsFalse();
+                await Assert.That(vm.Timeline.IsTrackSuppressed(proposalId)).IsFalse();
             }
 
             review.ReviewMode.IsOn = false;
@@ -300,6 +302,14 @@ public class ReviewPanelsPlaybackContributionTests
             await session.AttachAsync(Demo, Clock, DemoPath);
             review.ReviewMode!.IsOn = true;
             TagTrack lane = review.Tags!;
+            string tagId = review.TagLane!.TrackId;
+            string proposalId = review.ProposalLane!.TrackId;
+            using (Assert.Multiple())
+            {
+                // The DoesNotContain pair after the teardown must have something to lose.
+                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).Contains(tagId);
+                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).Contains(proposalId);
+            }
 
             review.Review!.LabelHereCommand.Execute(null);
             ReviewPanelsHarness.Press(vm, Key.C);
@@ -329,8 +339,8 @@ public class ReviewPanelsPlaybackContributionTests
                 await Assert.That(vm.Timeline.HasEditSpan).IsFalse();
                 await Assert.That(vm.Timeline.IsLaneEditable).IsFalse();
                 await Assert.That(vm.Timeline.Lanes).IsEmpty();
-                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).DoesNotContain(TagTrack.TrackId);
-                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).DoesNotContain(ProposalTrack.TrackId);
+                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).DoesNotContain(tagId);
+                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).DoesNotContain(proposalId);
                 await Assert.That(vm.Timeline.LaneBands).IsEmpty();
                 await Assert.That(lane.Session.Document).IsNull().Because("the session went with the pack");
                 await Assert.That(vm.IsReviewAvailable).IsFalse();

@@ -319,12 +319,14 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         private readonly Core.ITimelineTrack _track;
         private readonly ExtensionGuard _guard;
 
-        // The id and name are read once: the timeline reads them on every rebuild.
+        // The id and name are read once: the timeline reads them on every rebuild. Composing OUTSIDE the
+        // guard is deliberate: a bad local id must throw out of AddLane the way AddLayer's does, not be
+        // swallowed as a fault and leave two of the extension's lanes sharing the fallback id.
         public CoreTrack(Core.ITimelineTrack track, ExtensionGuard guard)
         {
             _track = track;
             _guard = guard;
-            Id = guard.Run("timeline track", () => track.Id, guard.Scope.Id + ".track");
+            Id = ExtensionLayerIds.Compose(guard.Scope.Id, guard.Run("timeline track", () => track.Id, "track"));
             DisplayName = guard.Run("timeline track", () => track.DisplayName, guard.Scope.Name);
             guard.Run("timeline track", () => _track.Changed += OnChanged);
         }
@@ -369,6 +371,8 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     private sealed class LaneHandle(Core.ITimelineTrack track, CoreTrack core, IHostLaneHandle handle) : SdkP.ILaneHandle
     {
         public Core.ITimelineTrack Track => track;
+
+        public string TrackId => core.Id;
 
         public bool IsSuppressed
         {

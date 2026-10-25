@@ -11,6 +11,7 @@ using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Tools;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 using SdkP = DemoViewer.NET.Extensions.Sdk.Playback;
 
 #endregion
@@ -223,11 +224,13 @@ public class SdkPlaybackSurfaceSceneTests
 
         using SdkP.ILaneHandle lane = surface.AddLane(new MarkingTrack());
 
-        TimelineMarkerViewModel mark = vm.Timeline.Markers.Single(m => m.TrackId == "marking");
-        TimelineBandViewModel band = vm.Timeline.LaneBands.Single(b => b.TrackId == "marking");
+        TimelineMarkerViewModel mark = vm.Timeline.Markers.Single(m => m.TrackId == lane.TrackId);
+        TimelineBandViewModel band = vm.Timeline.LaneBands.Single(b => b.TrackId == lane.TrackId);
 
         using (Assert.Multiple())
         {
+            await Assert.That(lane.TrackId).IsEqualTo("ext.pack.fake.marking")
+                .Because("a lane is filed under its extension exactly as a layer is");
             await Assert.That(mark.Glyph).IsEqualTo("*");
             await Assert.That(mark.Tooltip).IsEqualTo("a mark");
             await Assert.That(mark.Kind).IsEqualTo(TimelineMarkerKind.Kill).Because("the kind is the track's to choose");
@@ -236,6 +239,53 @@ public class SdkPlaybackSurfaceSceneTests
                 .Because("the track stamped \"round\" on it and the host overwrote that with the lane's id");
         }
 
+        vm.Dispose();
+    }
+
+    /// <summary>
+    ///     Two extensions adding the same local id get two lanes. The timeline dedups lanes by id and hands
+    ///     back the existing registration, so the ids must already differ by owner when it is asked.
+    /// </summary>
+    [Test]
+    public async Task TwoExtensions_AddingTheSameLocalId_GetTwoLanes_AndNeitherDrivesTheOther()
+    {
+        (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+        using SdkPlaybackSurface first = new(vm.Surface, new FaultRig("pack.a").Guard);
+        using SdkPlaybackSurface second = new(vm.Surface, new FaultRig("pack.b").Guard);
+
+        SdkP.ILaneHandle a = first.AddLane(new LabelledTrack("tag", "A"));
+        SdkP.ILaneHandle b = second.AddLane(new LabelledTrack("tag", "B"));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(b).IsNotSameReferenceAs(a).Because("the host's id dedup must not join two owners");
+            await Assert.That(a.TrackId).IsEqualTo("ext.pack.a.tag");
+            await Assert.That(b.TrackId).IsEqualTo("ext.pack.b.tag");
+            await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id))
+                .IsEquivalentTo(["ext.pack.a.tag", "ext.pack.b.tag"], CollectionOrdering.Matching);
+            await Assert.That(vm.Timeline.LaneBands.Select(band => band.Label))
+                .IsEquivalentTo(["A", "B"], CollectionOrdering.Matching);
+        }
+
+        b.IsSuppressed = true;
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Timeline.IsTrackSuppressed(b.TrackId)).IsTrue();
+            await Assert.That(a.IsSuppressed).IsFalse().Because("one owner's handle reaches its own lane only");
+        }
+
+        b.IsSuppressed = false;
+        a.Dispose();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id))
+                .IsEquivalentTo(["ext.pack.b.tag"], CollectionOrdering.Matching).Because("disposing one leaves the other registered");
+            await Assert.That(vm.Timeline.LaneBands.Select(band => band.Label))
+                .IsEquivalentTo(["B"], CollectionOrdering.Matching).Because("and still drawing");
+        }
+
+        b.Dispose();
         vm.Dispose();
     }
 
@@ -274,6 +324,26 @@ public class SdkPlaybackSurfaceSceneTests
 
         public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) =>
             [new TimelineMarker("round", 15, 30, TimelineMarkerKind.Kill, "*", "a mark", 0xFFFF0000)];
+    }
+
+    // One labelled band, so two of these from two owners are told apart in the lane row.
+    private sealed class LabelledTrack(string id, string label) : ITimelineTrack
+    {
+        public string Id => id;
+
+        public string DisplayName => id;
+
+        public event Action? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public bool IsAvailable(ITimelineData data) => true;
+
+        public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => [new TimelineBand(id, 10, 20, label, "", 0)];
+
+        public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => [];
     }
 
     private sealed class RecordingLayer(string id) : ISceneLayer

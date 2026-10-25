@@ -766,6 +766,7 @@ DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsEditable.set -> void
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsSuppressed.get -> bool
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsSuppressed.set -> void
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.Track.get -> DemoViewer.NET.Playback2D.Timeline.ITimelineTrack!
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.TrackId.get -> string!
 DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle
 DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle.Close() -> void
 DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle.Closed -> System.Action?

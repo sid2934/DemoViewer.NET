@@ -92,6 +92,12 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
     /// <summary>The tag lane's track while attached. For tests.</summary>
     public TagTrack? Tags => _tagTrack;
 
+    /// <summary>The tag lane while attached, whose TrackId is the id its bands carry. For tests.</summary>
+    internal ILaneHandle? TagLane => _tagLane;
+
+    /// <summary>The suggestion lane while attached. For tests.</summary>
+    internal ILaneHandle? ProposalLane => _proposalLane;
+
     /// <summary>The open demo's tag session while attached.</summary>
     public TagSession? Session => _session;
 

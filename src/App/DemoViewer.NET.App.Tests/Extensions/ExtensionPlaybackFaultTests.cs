@@ -106,7 +106,7 @@ public class ExtensionPlaybackFaultTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(lanes).Contains("pack.fake.track").Because("a throwing Id reads as the extension's fallback id");
+            await Assert.That(lanes).Contains("ext.pack.fake.track").Because("a throwing Id reads as the extension's fallback id");
             await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsGreaterThanOrEqualTo(1);
         }
 

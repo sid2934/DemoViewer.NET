@@ -252,9 +252,9 @@ public class TagTrackTests
             data.EventFrames["round_freeze_end"] = [0, 500];
 
             using Playback2DTimelineViewModel timeline = new() { PixelWidth = 1000 };
+            SdkPlaybackSurface.CoreTrack filed = new(track, ExtensionGuard.Standalone(new StratBookPack()));
             timeline.RegisterTrack(new RoundTrack());
-            timeline.RegisterTrack(new SdkPlaybackSurface.CoreTrack(track, ExtensionGuard.Standalone(new StratBookPack())),
-                TimelineBandRow.Lane);
+            timeline.RegisterTrack(filed, TimelineBandRow.Lane);
             timeline.Rebuild(data);
             timeline.UpdatePlayhead(600, 1_200);
 
@@ -266,14 +266,14 @@ public class TagTrackTests
                 await Assert.That(timeline.HasLaneBands).IsTrue();
                 await Assert.That(timeline.CurrentRoundLabel).IsEqualTo("2")
                     .Because("a tag spanning the playhead must not become the round label");
-                await Assert.That(timeline.Markers.Count(m => m.TrackId == TagTrack.TrackId)).IsEqualTo(1);
+                await Assert.That(timeline.Markers.Count(m => m.TrackId == filed.Id)).IsEqualTo(1);
             }
 
             session.Apply(new TagDelta.Remove(session.Document!.Instances[0].Id));
 
             await Assert.That(timeline.LaneBands).IsEmpty();
             await Assert.That(timeline.HasLaneBands).IsFalse();
-            await Assert.That(timeline.Tracks.Single(t => t.Id == TagTrack.TrackId).IsAvailable).IsFalse();
+            await Assert.That(timeline.Tracks.Single(t => t.Id == filed.Id).IsAvailable).IsFalse();
         });
     }
 

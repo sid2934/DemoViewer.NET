@@ -34,7 +34,11 @@ public enum TimelineMarkerKind
 /// </summary>
 public interface ITimelineTrack
 {
-    /// <summary>Stable key: feature gates, settings, track toggles. Never renamed once shipped.</summary>
+    /// <summary>
+    ///     The key the track's toggle is kept under, unique among the tracks the host has registered. A host
+    ///     may file a contributed track under an id of its own making, which is then the id the track's bands
+    ///     and marks carry. Never renamed once shipped.
+    /// </summary>
     string Id { get; }
 
     /// <summary>Human-readable name for the track-toggle chrome.</summary>

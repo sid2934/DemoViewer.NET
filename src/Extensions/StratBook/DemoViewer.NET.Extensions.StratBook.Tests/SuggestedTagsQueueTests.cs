@@ -492,7 +492,7 @@ public class SuggestedTagsQueueTests
                 await Assert.That(review.QueuePanel!.IsShown).IsTrue();
                 await Assert.That(vm.ExecuteAction(StratBookActions.SuggestionAccept)).IsFalse();
                 await Assert.That(vm.Surface.TryHandleKey(Key.J, KeyModifiers.None)).IsFalse();
-                await Assert.That(vm.Timeline.Tracks.Any(t => t.Id == ProposalTrack.TrackId)).IsTrue();
+                await Assert.That(vm.Timeline.Tracks.Any(t => t.Id == review.ProposalLane!.TrackId)).IsTrue();
             }
 
             ctx.Gate!.SetEnabled(SuggestedTagsService.FeatureId, false);
