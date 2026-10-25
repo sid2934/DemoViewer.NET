@@ -264,10 +264,10 @@ public static class SceneLayerCatalog
     private static bool Starved(string id, IHudDataSource? hud, AnnotationSession? annotations,
         PlaceResolver? zones, QueryCanvasDocument? query, OverlayDocument? overlay) => id switch
     {
-        SceneLayerIds.Annotations => annotations is null,
-        SceneLayerIds.Zones => zones is null,
-        SceneLayerIds.Query => query is null,
-        SceneLayerIds.Overlay => overlay is null,
+        _ when id == SceneLayerIds.Annotations => annotations is null,
+        _ when id == SceneLayerIds.Zones => zones is null,
+        _ when id == SceneLayerIds.Query => query is null,
+        _ when id == SceneLayerIds.Overlay => overlay is null,
         _ => hud is null
     };
 
@@ -275,19 +275,19 @@ public static class SceneLayerCatalog
         AnnotationSession? annotations, MarkerSmoother smoother, TextBlobCache text,
         IIconSource? icons, PlaceResolver? zones, QueryCanvasDocument? query, OverlayDocument? overlay) => id switch
     {
-        SceneLayerIds.Radar => new RadarLayer(),
-        SceneLayerIds.Trails => new TrailLayer(),
-        SceneLayerIds.AreaEffects => new AreaEffectLayer(),
-        SceneLayerIds.Vision => new VisionLayer(vision, smoother),
-        SceneLayerIds.Markers => new MarkerLayer(smoother, text),
-        SceneLayerIds.Bomb => new BombLayer(),
-        SceneLayerIds.FloorLabel => new FloorLabelLayer(text),
-        SceneLayerIds.Annotations => new AnnotationLayer(annotations!),
-        SceneLayerIds.Zones => new ZoneOutlineLayer(zones!, text),
-        SceneLayerIds.HudRoster => new RosterLayer(hud!, text: text),
-        SceneLayerIds.HudClock => new ClockLayer(hud!, text: text),
-        SceneLayerIds.Query => new QueryTokenLayer(query!),
-        SceneLayerIds.Overlay => new OverlayHeatmapLayer(overlay!),
+        _ when id == SceneLayerIds.Radar => new RadarLayer(),
+        _ when id == SceneLayerIds.Trails => new TrailLayer(),
+        _ when id == SceneLayerIds.AreaEffects => new AreaEffectLayer(),
+        _ when id == SceneLayerIds.Vision => new VisionLayer(vision, smoother),
+        _ when id == SceneLayerIds.Markers => new MarkerLayer(smoother, text),
+        _ when id == SceneLayerIds.Bomb => new BombLayer(),
+        _ when id == SceneLayerIds.FloorLabel => new FloorLabelLayer(text),
+        _ when id == SceneLayerIds.Annotations => new AnnotationLayer(annotations!),
+        _ when id == SceneLayerIds.Zones => new ZoneOutlineLayer(zones!, text),
+        _ when id == SceneLayerIds.HudRoster => new RosterLayer(hud!, text: text),
+        _ when id == SceneLayerIds.HudClock => new ClockLayer(hud!, text: text),
+        _ when id == SceneLayerIds.Query => new QueryTokenLayer(query!),
+        _ when id == SceneLayerIds.Overlay => new OverlayHeatmapLayer(overlay!),
         _ => new KillFeedLayer(hud!, text: text, icons: icons)
     };
 }

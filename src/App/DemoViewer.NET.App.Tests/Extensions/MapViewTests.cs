@@ -91,9 +91,16 @@ public class MapViewTests
         });
     }
 
+    // A data source rather than [Arguments]: the ids are static readonly, so an attribute argument
+    // cannot take them, and a literal here would stop referencing the type this test is about.
+    public static IEnumerable<string> ViewOwnLayerIds()
+    {
+        yield return SceneLayerIds.Radar;
+        yield return SceneLayerIds.FloorLabel;
+    }
+
     [Test]
-    [Arguments(SceneLayerIds.Radar)]
-    [Arguments(SceneLayerIds.FloorLabel)]
+    [MethodDataSource(nameof(ViewOwnLayerIds))]
     public async Task AddLayer_RefusesTheViewsOwnLayers(string id)
     {
         await HeadlessSession.RunOnUi(() =>

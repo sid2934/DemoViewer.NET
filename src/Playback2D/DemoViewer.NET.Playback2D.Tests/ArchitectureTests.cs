@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SysAssembly = System.Reflection.Assembly;
 using TUnit.Assertions.Enums;
@@ -327,6 +328,28 @@ public class ArchitectureTests
         {
             await Assert.That(properties).IsEmpty();
             await Assert.That(constructorArities).IsEquivalentTo([0], CollectionOrdering.Matching);
+        }
+    }
+
+    /// <summary>
+    ///     The layer ids must not be constants. A const is copied into every assembly that reads it, so
+    ///     an extension compiled against one keeps passing the old string after an id changes here: the
+    ///     layer never registers, and the consumer holds no reference to this type for a binding test to
+    ///     notice. Verified on the real extension when the ids were converted: StratBook.dll went from
+    ///     carrying its own copies of the literals to carrying none and a reference to SceneLayerIds.
+    ///     This is the guard against someone tidying them back.
+    /// </summary>
+    [Test]
+    public async Task SceneLayerIds_AreNotConstants()
+    {
+        FieldInfo[] fields = typeof(SceneLayerIds).GetFields(BindingFlags.Public | BindingFlags.Static);
+        List<string> literals = [.. fields.Where(f => f.IsLiteral).Select(f => f.Name).Order(StringComparer.Ordinal)];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(fields.Length).IsGreaterThan(0).Because("reflection found no ids, so the check below is vacuous");
+            await Assert.That(literals).IsEmpty()
+                .Because("a const id is inlined into every consumer, so an extension keeps the old string after a rename");
         }
     }
 

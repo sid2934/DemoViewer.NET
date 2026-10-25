@@ -1,20 +1,20 @@
 #nullable enable
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Annotations = "playback2d.annotations" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.AreaEffects = "playback2d.areaeffects" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Bomb = "playback2d.bomb" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.FloorLabel = "playback2d.floorlabel" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Guides = "playback2d.guides" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.HudClock = "hud.clock" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.HudKillFeed = "hud.killfeed" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.HudRoster = "hud.roster" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Markers = "playback2d.markers" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Overlay = "playback2d.overlay" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Query = "playback2d.query" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Radar = "playback2d.radar" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Trails = "playback2d.trails" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Utility = "playback2d.utility" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Vision = "playback2d.vision" -> string!
-const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Zones = "playback2d.zones" -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Annotations -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.AreaEffects -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Bomb -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.FloorLabel -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Guides -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.HudClock -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.HudKillFeed -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.HudRoster -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Markers -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Overlay -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Query -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Radar -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Trails -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Utility -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Vision -> string!
+static readonly DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Zones -> string!
 const DemoViewer.NET.Playback2D.Core.Levels.MapSpace.LevelQuantum = 64 -> double
 const DemoViewer.NET.Playback2D.Core.Levels.MapSpace.MatchThreshold = 0.5 -> double
 const DemoViewer.NET.Playback2D.Core.TextBlobCache.DefaultCapacity = 512 -> int

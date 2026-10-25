@@ -124,9 +124,15 @@ public class SceneViewTests
         });
     }
 
+    // A data source rather than [Arguments], for the reason in MapViewTests.ViewOwnLayerIds.
+    public static IEnumerable<string> SceneOwnLayerIds()
+    {
+        yield return SceneLayerIds.Radar;
+        yield return SceneLayerIds.Annotations;
+    }
+
     [Test]
-    [Arguments(SceneLayerIds.Radar)]
-    [Arguments(SceneLayerIds.Annotations)]
+    [MethodDataSource(nameof(SceneOwnLayerIds))]
     public async Task AddLayer_RefusesTheScenesOwnLayers(string id)
     {
         await HeadlessSession.RunOnUi(() =>

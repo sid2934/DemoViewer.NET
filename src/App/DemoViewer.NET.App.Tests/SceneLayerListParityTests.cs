@@ -75,11 +75,50 @@ public class SceneLayerListParityTests
             await Assert.That(optIn.Length).IsLessThanOrEqualTo(2);
             foreach (string id in optIn)
             {
-                await Assert.That(id is SceneLayerIds.Annotations or SceneLayerIds.Zones).IsTrue();
+                await Assert.That(id == SceneLayerIds.Annotations || id == SceneLayerIds.Zones).IsTrue();
             }
 
             window.Close();
         });
+    }
+
+    /// <summary>
+    ///     Every id's literal value, which nothing else pins in full. The catalog table below pins
+    ///     fourteen of them, but <c>Guides</c> and <c>Utility</c> are in no scene stack, so their only
+    ///     guard used to be the public API baseline: a <c>const</c> records its value there, and the
+    ///     <c>static readonly</c> these became does not. These are persisted keys, so a changed value is
+    ///     a silent data migration rather than a compile error.
+    /// </summary>
+    [Test]
+    public async Task EveryLayerId_KeepsItsPersistedValue()
+    {
+        (string Actual, string Expected)[] ids =
+        [
+            (SceneLayerIds.Radar, "playback2d.radar"),
+            (SceneLayerIds.Trails, "playback2d.trails"),
+            (SceneLayerIds.AreaEffects, "playback2d.areaeffects"),
+            (SceneLayerIds.Vision, "playback2d.vision"),
+            (SceneLayerIds.Markers, "playback2d.markers"),
+            (SceneLayerIds.Bomb, "playback2d.bomb"),
+            (SceneLayerIds.Guides, "playback2d.guides"),
+            (SceneLayerIds.FloorLabel, "playback2d.floorlabel"),
+            (SceneLayerIds.Annotations, "playback2d.annotations"),
+            (SceneLayerIds.Zones, "playback2d.zones"),
+            (SceneLayerIds.HudRoster, "hud.roster"),
+            (SceneLayerIds.HudClock, "hud.clock"),
+            (SceneLayerIds.HudKillFeed, "hud.killfeed"),
+            (SceneLayerIds.Query, "playback2d.query"),
+            (SceneLayerIds.Overlay, "playback2d.overlay"),
+            (SceneLayerIds.Utility, "playback2d.utility")
+        ];
+
+        using (Assert.Multiple())
+        {
+            foreach ((string actual, string expected) in ids)
+            {
+                await Assert.That(actual).IsEqualTo(expected);
+            }
+        }
     }
 
     /// <summary>

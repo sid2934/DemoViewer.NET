@@ -42,7 +42,7 @@ namespace DemoViewer.NET.Playback2D.Core.Layers;
 public sealed class AnnotationLayer : ISceneLayer
 {
     /// <summary>The stable, persisted layer id. An export toggles annotations by this string.</summary>
-    public const string LayerId = SceneLayerIds.Annotations;
+    public static readonly string LayerId = SceneLayerIds.Annotations;
 
     // How many alpha steps a real-time stroke's fading tail is drawn in.
     //
