@@ -3,9 +3,7 @@
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
-using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Shell;

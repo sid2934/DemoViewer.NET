@@ -69,7 +69,7 @@ public sealed record LineupClipJob(
 /// </summary>
 public static class LineupClipPlanner
 {
-    /// <summary>The GIF's rate: one of <see cref="SceneExportSession.SupportedFps" />'s GIF rates, the Strat Export default.</summary>
+    /// <summary>The GIF's rate: one of <c>SceneExportSession.SupportedFps</c>'s GIF rates, the Strat Export default.</summary>
     public const int Fps = 20;
 
     /// <summary>The GIF's side, square like a Lineup Card's radar.</summary>

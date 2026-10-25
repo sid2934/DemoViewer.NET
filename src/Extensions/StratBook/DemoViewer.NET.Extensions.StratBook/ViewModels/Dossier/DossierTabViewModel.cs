@@ -19,7 +19,6 @@ using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.ViewModels;
 
 #endregion
 

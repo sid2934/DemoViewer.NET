@@ -1166,7 +1166,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
 
 /// <summary>
 ///     The production <see cref="ILineupClipRenderer" />: renders each clip of one demo, on the parse the demo's
-///     visit holds, through <see cref="SceneExportRunner" />, the 2D export's own runner and
+///     visit holds, through <c>SceneExportRunner</c>, the 2D export's own runner and
 ///     <c>SceneExportSession</c>, as a GIF (the managed encoder when no ffmpeg is installed). Its own map bundle,
 ///     compositor and surface, as every export.
 /// </summary>

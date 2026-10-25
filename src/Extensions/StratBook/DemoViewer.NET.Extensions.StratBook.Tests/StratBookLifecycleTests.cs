@@ -15,7 +15,6 @@ using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;

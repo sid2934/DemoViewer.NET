@@ -12,7 +12,6 @@ using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
-using DemoViewer.NET.ViewModels;
 
 #endregion
 

@@ -9,7 +9,6 @@ using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
-using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using SkiaSharp;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;

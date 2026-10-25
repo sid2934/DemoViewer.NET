@@ -8,13 +8,11 @@ using Avalonia;
 using Avalonia.Threading;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
-using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
@@ -585,7 +583,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         CloseExport();
         ExportDialog = FirstPartySceneExport.NewDialog(
             host.Exports,
-            new SceneExportDefaults(ExportFormats.Gif, StratExportJob.DefaultFps, StratExportJob.DefaultWidth,
+            new SceneExportDefaults("gif", StratExportJob.DefaultFps, StratExportJob.DefaultWidth,
                 StratExportJob.DefaultHeight, IncludeHud: true, IncludeHudClock: true, IncludeAnnotations: true,
                 IncludeVision: false),
             StratExportJob.Ranges(projection),

@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 ///     <para>
 ///         A map with no baked bundle on this host draws nothing (<see langword="null" />): the card
 ///         then shows the landing point as text, the same "never load-bearing" rule the library card's
-///         radar background follows (<see cref="DemoViewer.NET.ViewModels.Library.MapRadarConverter" />).
+///         radar background follows (<c>MapRadarConverter</c>).
 ///     </para>
 ///     <para>
 ///         One instance serves a batch of cards on the Utility Book tab: map bundles are loaded once

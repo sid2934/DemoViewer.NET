@@ -6,7 +6,6 @@ using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Modules.Highlights;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.TestSupport;
 using TUnit.Assertions.Enums;

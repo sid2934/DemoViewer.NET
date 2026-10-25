@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.Review;
 /// <summary>
 ///     The Review Queue module: the Review section of the Strat Book tab's rail (<c>"review.queue"</c>,
 ///     after Utility) over the shared
-///     <see cref="ReviewQueue" /> that the Reels tray, Result Cards, a Matrix cell and a
+///     <c>ReviewQueue</c> that the Reels tray, Result Cards, a Matrix cell and a
 ///     pick at the playhead all send clips to.
 ///     <para>
 ///         <b>The ids are persisted keys.</b> <c>TabId "review.queue"</c> and <see cref="TabFeatureId" />

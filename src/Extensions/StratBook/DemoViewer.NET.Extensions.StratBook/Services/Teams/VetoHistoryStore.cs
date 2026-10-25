@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 ///     <para>
 ///         <b>Persistence.</b> <c>veto-history.json</c> beside <c>teams.json</c>, written whole through its
 ///         <see cref="StoredFile" /> after every mutation, the same small-file rule
-///         <see cref="DemoViewer.NET.Services.Review.ReviewQueue" /> follows. No file (the browser, tests) keeps the
+///         <c>ReviewQueue</c> follows. No file (the browser, tests) keeps the
 ///         history for the session; a file that cannot be read, or is at a newer schema, is refused and
 ///         never overwritten.
 ///     </para>

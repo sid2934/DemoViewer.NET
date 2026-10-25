@@ -9,20 +9,19 @@ using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
 using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.ViewModels;
 
 #endregion
 
 namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 
 /// <summary>
-///     The Review tab: the <see cref="ReviewQueue" /> as a list a reviewer walks top to bottom. Title
+///     The Review tab: the <c>ReviewQueue</c> as a list a reviewer walks top to bottom. Title
 ///     cards open sections; each clip shows its demo, its range on the demo's clock, the note the
 ///     surface that queued it wrote, and the one-line question the reviewer answers. A click opens 2D
 ///     playback at the clip's first tick through the same seek seam Result Cards use.
 ///     <para>
 ///         <b>Rows are reconciled, not rebuilt.</b> Every edit in a row writes through to the queue,
-///         and the queue's <see cref="ReviewQueue.Changed" /> comes back here. When the ids are the
+///         and the queue's <c>ReviewQueue.Changed</c> comes back here. When the ids are the
 ///         same ones in the same order, each row takes its entry in place, so the text box being typed
 ///         in keeps its focus and caret; only a structural change (an add, a remove, a move) rebuilds
 ///         the list.

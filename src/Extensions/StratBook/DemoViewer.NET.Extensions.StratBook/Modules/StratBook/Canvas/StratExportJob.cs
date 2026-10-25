@@ -12,7 +12,6 @@ using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
@@ -44,12 +43,12 @@ public sealed record StratExportCapture(
 
 /// <summary>
 ///     Strat Export: the strat rendered to GIF or video through
-///     <see cref="SceneExportSession" /> with a <see cref="StratFrameSource" /> and no demo behind it.
+///     <c>SceneExportSession</c> with a <see cref="StratFrameSource" /> and no demo behind it.
 ///     <para>
-///         <b>The 2D export's job with a different source.</b> This is the <see cref="IExportRunner" /> an
-///         <see cref="ExportJobService" /> runs, so the refusals, the heavy-job gate, single-flight, the status
+///         <b>The 2D export's job with a different source.</b> This is the <c>IExportRunner</c> an
+///         <c>ExportJobService</c> runs, so the refusals, the heavy-job gate, single-flight, the status
 ///         chip and cancel are that service's; the encoder ladder, the managed GIF floor and the ffmpeg sink are
-///         <see cref="ExportEncoding" />'s. What is here is the strat's half: the spec, the layer stack and the map.
+///         <c>ExportEncoding</c>'s. What is here is the strat's half: the spec, the layer stack and the map.
 ///     </para>
 ///     <para>
 ///         <b>The capture rides the request.</b> The dialog only knows how to freeze an ink session at Start, so

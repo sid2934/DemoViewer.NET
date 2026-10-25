@@ -11,7 +11,6 @@ using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Zones;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
 using TUnit.Assertions.Enums;

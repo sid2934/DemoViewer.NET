@@ -9,7 +9,6 @@ using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
-using DemoViewer.NET.Services.Zones;
 using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratStepMotionTests;

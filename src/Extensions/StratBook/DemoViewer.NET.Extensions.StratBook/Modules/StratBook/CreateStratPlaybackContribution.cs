@@ -9,7 +9,6 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
-using DemoViewer.NET.Modules;
 
 #endregion
 

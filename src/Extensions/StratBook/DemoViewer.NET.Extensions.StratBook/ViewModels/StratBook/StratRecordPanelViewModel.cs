@@ -9,7 +9,6 @@ using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
-using DemoViewer.NET.ViewModels;
 
 #endregion
 
@@ -284,7 +283,7 @@ public sealed partial class StratRecordPanelViewModel : ExtensionViewModel, IDis
     ///     Sends the runs behind one number to the Review Queue under one title card, then shows the Review
     ///     tab. A run whose demo is not in the library is not queued as a dead link; the status line counts
     ///     it instead. Tick rate is left at 0 (the surface does not know it, the same "did not know it" case
-    ///     <see cref="ReviewEntry" /> already carries for other callers), so a queued clip's length is unknown
+    ///     <c>ReviewEntry</c> already carries for other callers), so a queued clip's length is unknown
     ///     until the reviewer opens it.
     /// </summary>
     /// <param name="scope">What the number is, for the section title ("total · All runs", "provenance · scrim").</param>

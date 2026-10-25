@@ -8,7 +8,6 @@ using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;

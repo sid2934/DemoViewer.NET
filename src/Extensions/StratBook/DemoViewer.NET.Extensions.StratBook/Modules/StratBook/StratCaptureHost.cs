@@ -3,7 +3,6 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.Modules;
 
 #endregion
 
