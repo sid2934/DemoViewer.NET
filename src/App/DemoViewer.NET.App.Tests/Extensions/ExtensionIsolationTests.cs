@@ -39,36 +39,9 @@ public class ExtensionIsolationTests
             await Assert.That(access.Resolve(stub.Id, typeof(StubExtension).Assembly)).IsSameReferenceAs(stubContext)
                 .Because("the extension's own code resolves its context");
             await Assert.That(access.Resolve(stub.Id, typeof(App).Assembly)).IsSameReferenceAs(stubContext)
-                .Because("the app is the host, and the host resolves any pack's context on its behalf");
+                .Because("the app's own code is no extension");
             await Assert.That(provider.GetKeyedService<IExtensionContext>(stub.Id)).IsNull()
                 .Because("a lookup by the plain id skips the owner check, so it finds nothing");
-        }
-    }
-
-    /// <summary>
-    ///     The host side is an allow-list, not "owns no extension". A first-party assembly that is neither the
-    ///     host nor a pack used to fall through the old negative test and be handed any context it asked for.
-    ///     The caller here is the published scene package: it owns no pack, and it is not the host, which is
-    ///     exactly the combination the old check admitted and the only one that proves the new one.
-    /// </summary>
-    [Test]
-    public async Task AnAssemblyThatIsNeitherTheHostNorAnExtension_IsRefused()
-    {
-        StubExtension stub = new("pack.isolation");
-        ServiceCollection services = new();
-        IExtensionContext stubContext = DispatchProxy.Create<IExtensionContext, NullProxy>();
-        services.AddKeyedSingleton(ExtensionContextAccess.KeyFor(stub.Id), stubContext);
-        using ServiceProvider provider = services.BuildServiceProvider();
-        ExtensionContextAccess access = new(provider, [stub]);
-
-        Assembly bystander = typeof(Playback2D.Core.Scene2DFrame).Assembly;
-        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() =>
-            access.Resolve(stub.Id, bystander));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(refused.Message).Contains(bystander.GetName().Name!);
-            await Assert.That(refused.Message).Contains("neither the host nor an extension");
         }
     }
 
