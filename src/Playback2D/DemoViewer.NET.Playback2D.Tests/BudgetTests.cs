@@ -204,7 +204,12 @@ public class BudgetTests
             Console.WriteLine($"[budget] VIOLATION {violation}");
         }
 
-        await Assert.That(violations).IsEmpty();
+        // The violation strings name the budget and the number that missed it. A bare IsEmpty throws them
+        // away and reports "Expected to be empty", which is unactionable exactly where it matters: the
+        // console lines above do not reach a CI log, so a red lane there said nothing about whether a TIME
+        // budget slipped on a loaded runner or the UNSCALED allocation budget regressed.
+        await Assert.That(violations).IsEmpty()
+            .Because("over the CI budget: " + string.Join("; ", violations));
     }
 
     /// <summary>
@@ -289,7 +294,12 @@ public class BudgetTests
             Console.WriteLine($"[budget-ink] VIOLATION {violation}");
         }
 
-        await Assert.That(violations).IsEmpty();
+        // The violation strings name the budget and the number that missed it. A bare IsEmpty throws them
+        // away and reports "Expected to be empty", which is unactionable exactly where it matters: the
+        // console lines above do not reach a CI log, so a red lane there said nothing about whether a TIME
+        // budget slipped on a loaded runner or the UNSCALED allocation budget regressed.
+        await Assert.That(violations).IsEmpty()
+            .Because("over the CI budget: " + string.Join("; ", violations));
     }
 
     // The ink a real session leaves behind, at the budget fixture's tick. Sample counts are in the
