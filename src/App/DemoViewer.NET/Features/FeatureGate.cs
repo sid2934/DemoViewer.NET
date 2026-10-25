@@ -255,7 +255,7 @@ public sealed class FeatureGate : IFeatureGate, IFeatureSuspension, IDisposable
             return overridden;
         }
 
-        return descriptor.Defaults.TryGetValue(category, out bool byDefault) && byDefault;
+        return PlatformFeatureDefaults.DefaultFor(descriptor.Id, descriptor.Defaults, category);
     }
 
     private void RaiseChanged()

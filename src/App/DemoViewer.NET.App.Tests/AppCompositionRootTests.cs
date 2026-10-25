@@ -184,20 +184,29 @@ public class AppCompositionRootTests
     //
     // The Highlights tab is the concrete instance (its OnActivated reads a shell-bound delegate), so this
     // seeds it as the persisted active tab and drives the REAL container the way the composition root does:
-    // resolve the shell, THEN restore. tab.highlights defaults visible to every user category, so it is
-    // genuinely present in Tabs here: the SelectedTab assertion below fails loudly if that ever stops
-    // being true, because a gated-out id silently falls back to Tabs[0] and would make this test vacuous.
+    // resolve the shell, THEN restore. The seed below carries an explicit tab.highlights override so the
+    // tab is genuinely present in Tabs on every platform: the SelectedTab assertion fails loudly if that
+    // stops being true, because a gated-out id silently falls back to Tabs[0] and would make this vacuous.
     [Test]
     public async Task RestoringASessionWhoseActiveTabResolvesTheShell_DoesNotRecurse()
     {
         // Deliberately an OLD-shaped payload: "ActiveTabIndex" no longer exists on SessionPayload (tab
         // restore is name-based only), so this doubles as the forward-compat check that a session.json
         // written by an earlier build still deserializes: STJ ignores the unknown property.
+        // The override is load-bearing, not decoration: tab.highlights defaults OFF on macOS now, and a
+        // gated-out id silently falls back to Tabs[0], which would make the SelectedTab assertion vacuous
+        // on this platform rather than fail. An override is read before any default, so this pins the tab
+        // present everywhere.
         const string seed = """
                             {
                               "Session": {
                                 "ActiveTabIndex": 3,
                                 "ActiveTabId": "highlights.browser"
+                              },
+                              "Features": {
+                                "Overrides": {
+                                  "tab.highlights": true
+                                }
                               }
                             }
                             """;
