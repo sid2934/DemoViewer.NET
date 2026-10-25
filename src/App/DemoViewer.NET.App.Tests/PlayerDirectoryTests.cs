@@ -317,7 +317,8 @@ public class PlayerDirectoryTests
     }
 
     // Alone, so the suite's parallel tests do not share the cores it times: measured at 132 ms under a full
-    // run and about 65 ms on its own (Release).
+    // run and about 65 ms on its own (Release). That 132 against a 100 ms bound is why the bound is scaled:
+    // on CI's two shared cores it failed on load rather than on a regression, after passing three runs.
     [Test]
     [Category("Budget")]
     [NotInParallel]
@@ -338,9 +339,20 @@ public class PlayerDirectoryTests
         }
 
         double median = runs.Order().ElementAt(2);
-        Console.WriteLine($"10k rows, {accounts} accounts: median {median:F1} ms of [{string.Join(", ", runs.Select(r => r.ToString("F1", CultureInfo.InvariantCulture)))}]");
-        await Assert.That(median).IsLessThan(100);
+        double budget = 100 * CiBudgetScale();
+        Console.WriteLine($"10k rows, {accounts} accounts: median {median:F1} ms of [{string.Join(", ", runs.Select(r => r.ToString("F1", CultureInfo.InvariantCulture)))}] against {budget:F0} ms");
+        await Assert.That(median).IsLessThan(budget);
     }
+
+    // The multiplier ci.yml already sets on the budget lane, which the Playback2D budget policy reads as
+    // BenchmarkReport.ScaleEnvironmentVariable. Read by name here rather than shared, because this project
+    // does not reference the assembly that owns the constant and one test does not earn that edge. Default
+    // 1, so a local run keeps the bound it has always had and only a shared runner gets the headroom.
+    private static double CiBudgetScale() =>
+        double.TryParse(Environment.GetEnvironmentVariable("DV2D_BUDGET_SCALE"), NumberStyles.Float,
+            CultureInfo.InvariantCulture, out double scale) && scale > 0
+            ? scale
+            : 1.0;
 
     private static DemoCacheIndexEntry Row(int i, Random random)
     {
