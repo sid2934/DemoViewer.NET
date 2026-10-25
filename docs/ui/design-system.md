@@ -296,9 +296,8 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 > (`BuildPalette` + `ActualThemeVariantChanged`; the remaining hex are fallbacks) and a follow-up deleted
 > `PlayerAttributes.TeamColor`. The correction block below covers the theme-reactivity half.
 
-> **Correction (CSVG Phase-3, 2026-07-18): the `Pb2d*` palette is now fully THEME-REACTIVE: the
-> deferred 2D re-theme has shipped; the "kept dark in every theme" / `{StaticResource}` phrasing above
-> is stale.** The `[Light]`
+> **Correction (2026-07-18): the `Pb2d*` palette is now fully THEME-REACTIVE: the deferred 2D re-theme
+> has shipped; the "kept dark in every theme" / `{StaticResource}` phrasing above is stale.** The `[Light]`
 > `ThemeDictionaries` block re-authors the 2D tokens (`Pb2dOverlayBg #CC15181C→#E6EDEFF3`, `Pb2dTextBright
 > #C0C8D0→#363D47`, `Pb2dPositive #86C786→#2A7530`, `Pb2dCanvasBg #15181C→#E7E9ED`, …) and the Skia
 > surface re-resolves them on `ActualThemeVariantChanged` (`Scene2DHost` via `ScenePaletteFactory.Build`). So the 2D
@@ -308,8 +307,8 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 > a `Pb2d*` token is "held identical to Dark" is superseded by this.
 
 <a id="pb2d-hud-dot"></a>
-**`Ellipse.pb2dDot.*`: the walled-off HUD-dot styles (CSVG Phase-3, §5.3).** The 2D Playback tab's
-in-context CS2 live-sync indicator (`Views/Playback2D/Playback2DView.axaml`, top-right HUD stack above the
+**`Ellipse.pb2dDot.*`: the walled-off HUD-dot styles (CSVG design notes in git history, §5.3).**
+The 2D Playback tab's in-context CS2 live-sync indicator (`Views/Playback2D/Playback2DView.axaml`, top-right HUD stack above the
 kill feed) uses a **Pb2d-domain sibling of the app-chrome `Ellipse.dot.*`**: same bound-class→token
 mechanism, but resolving `Pb2d*` tokens so it stays in the walled-off HUD palette (D21), NOT the
 blue-purple chrome ramp. Defined in the view's local `UserControl.Styles` (a Pb2d-domain style belongs
@@ -950,7 +949,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
 ### NavStrip
 - **File:** `Controls/NavStrip.axaml` (+ `.axaml.cs`). **DataContext:** `MainViewModel` (shell).
-- **Purpose:** the single shell navigation surface (navigation-review **Option 1**, Phase C),
+- **Purpose:** the single shell navigation surface (navigation-review **Option 1**),
   rendered **once** as a docked row in `MainView`. Three groups in a **responsive `DockPanel`**
   (see [Responsive layout](#navstrip-responsive) below):
   1. **CLOCK**: `◀` frame · editable `frame N / MAX · tick T` readout pill · `▶` · play/pause
@@ -1355,13 +1354,13 @@ therefore validates, **drops, and reports** instead. `FromOverrides(rows, out re
 | `Shift+Q` / `Shift+E` | Always | Previous / next kill | |
 | `F` / `Shift+F` | Always | Cycle the follow target | |
 | `D` | Always | Draw tool (press again for pan) | |
-| `X` | Always | **Erase** tool (press again for pan) | **Not `E`.** Design §7.5 assigned `E` to both round-nav and erase; the keybind audit resolved it in favour of round nav (market parity), and erase pairs coherently with `Ctrl+X` below. The values are pinned by `Playback2DKeymapTests`; that the two never collide again, whatever keys they carry, by `Playback2DKeybindConflictTests.Erase_AndRoundNav_AreDifferentGestures`. |
+| `X` | Always | **Erase** tool (press again for pan) | **Not `E`.** The design notes in git history (§7.5) assigned `E` to both round-nav and erase; the keybind audit resolved it in favour of round nav (market parity), and erase pairs coherently with `Ctrl+X` below. The values are pinned by `Playback2DKeymapTests`; that the two never collide again, whatever keys they carry, by `Playback2DKeybindConflictTests.Erase_AndRoundNav_AreDifferentGestures`. |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Always | Undo / redo an annotation edit | Refused while a stroke is in flight; the gesture is the user's current intent. |
 | `Ctrl+X` | Always | Clear every annotation | CS:DM parity. Collides with Cut inside a focused `TextBox`, which the text-input rule below resolves. |
 | `Esc` | Always | Clear follow + re-fit the camera | |
 | `Esc` | WhenToolActive | Cancel the in-progress gesture | |
-| `Ctrl+F` | Always | Find rounds like this | **A `StratBookCommands` row, not a `Playback2DKeymap` one** (item 19). Snapshots the current tick's alive players by side onto the Situations tab's Query Canvas, through the same place source the round index mints its rows with, and switches to that tab. Not `F`: bare `F` is follow cycling. A pack-contributed toolbar item (item 20, `IPlaybackSurface.AddToolbarItem`): the button beside the kill nav, the mode menu's last entry and the key all run the one `ToolbarItem`, read from `Surface.ToolbarItems`. Present only with a demo's map open; unhandled (and the toolbar item gone) with nobody alive, no map, no seam (a host without the Situations module), or the pack off. |
-| `J` / `K` | Always | Next / previous situation result | **A `StratBookCommands` row, not a `Playback2DKeymap` one** (item 19). Walks the Situations tab's result set from inside playback: each step seeks to the next card ten seconds before its matched tick through the same shell funnels a card click takes (the shared load core for another demo, the controller's `SeekToTick`, the tab by id). Unhandled with no result set, and the ends of the set do not wrap. Strat Room, Result Cards And Walking. |
+| `Ctrl+F` | Always | Find rounds like this | **A `StratBookCommands` row, not a `Playback2DKeymap` one**. Snapshots the current tick's alive players by side onto the Situations tab's Query Canvas, through the same place source the round index mints its rows with, and switches to that tab. Not `F`: bare `F` is follow cycling. A pack-contributed toolbar item (`IPlaybackSurface.AddToolbarItem`): the button beside the kill nav, the mode menu's last entry and the key all run the one `ToolbarItem`, read from `Surface.ToolbarItems`. Present only with a demo's map open; unhandled (and the toolbar item gone) with nobody alive, no map, no seam (a host without the Situations module), or the pack off. |
+| `J` / `K` | Always | Next / previous situation result | **A `StratBookCommands` row, not a `Playback2DKeymap` one**. Walks the Situations tab's result set from inside playback: each step seeks to the next card ten seconds before its matched tick through the same shell funnels a card click takes (the shared load core for another demo, the controller's `SeekToTick`, the tab by id). Unhandled with no result set, and the ends of the set do not wrap. Strat Room, Result Cards And Walking. |
 | `Home` | Always | Fit the camera (**reserved**, unbound) | Declared so the conflict checker guards the gesture before anything claims it. |
 
 **Text-input suppression is one global rule, not a per-binding flag.** The tunnelling handler bails
@@ -1439,7 +1438,7 @@ spectating has no readback. Gated by `playback2d.follow`.
   `Border.card-flyout`. Click (not hover) opens the flyout; the chip is focusable (Enter opens, since a
   `Button` auto-opens its `Flyout`). The **flyout body reuses the same `Ellipse.dot.*` header dot**. No new
   palette entries.
-- **CSVG Phase-3 additions to the Live Sync consumer (2026-07-18, `LiveSyncStatusViewModel` +
+- **Additions to the Live Sync consumer (2026-07-18, `LiveSyncStatusViewModel` +
   `LiveSyncStatusView`):**
   - **v1.0-plugin capability note (CSVG design notes in git history, §5.2 + §6.6).** When `ILiveSyncService.Capabilities?.IsV10Baseline`
     (the plugin advertised nothing), the Synced **and** Degraded flyout sections show a verbatim caution
@@ -1516,7 +1515,7 @@ hidden for consumers).
   the start order and promotion rules: `QueueStartOrderTests`.
 
 <a id="livesync-hud-seam"></a>
-### Live Sync 2D-tab indicator + `ILiveSyncHudState` seam (CSVG Phase-3, design notes in git history, §5.3)
+### Live Sync 2D-tab indicator + `ILiveSyncHudState` seam (CSVG design notes in git history, §5.3)
 - **What:** a small **display-only** CS2 chip on the 2D Playback HUD (top-right, in the walled-off `Pb2d*`
   palette via [`Ellipse.pb2dDot.*`](#pb2d-hud-dot)), present only while `chrome.livesync` is on AND the 2D
   tab is active AND the session is non-Disconnected. Following pulses (CS2 is the clock master); inferred
@@ -2234,7 +2233,7 @@ feature stays user-toggleable in Settings. `●` default-visible, `○` default-
 | **Match Overview** tab | Tab | ● | ● | ● | **THE per-demo page (v0.5.3)**, two modes: *Live* (shown the instant a demo opens, before parse, so a double-click has instant feedback) and *Cached* (any indexed demo rendered from `DemoCacheRecord`, parse-free). A completeness chip names the tier and offers the one action that advances it. See [Match Overview redesign](#match-overview-redesign-v053). Cached mode is desktop-only (the cache needs a filesystem), guarded at the **entry point**, never with an `IsBrowser` branch in the view. |
 | **Stats** tab | Tab | ● | ● | ● | Player-facing scoreboard: core viewing. |
 | **2D Playback** tab | Tab | ● | ● | ● | Core viewing; module tab (gate at registration). Its five v2 sub-features follow immediately below, as one contiguous `_catalog` block. They are the rows Settings renders indented under this one. |
-| 2D Playback **`playback2d.annotations`** | SubFeature | ● | ● | ● | **Playback2D v2.** Draw and erase over the surface; static or clock-anchored ink. `ParentId "tab.playback2d"`, no `GroupId`, `Defaults(true, true, true)`. Default-ON for every category for the `tab.highlights` reason: gating a release's headline payoff away from the audience most excited by it is the wrong trade. Reached through `IModuleContext.Features`, never a `IFeatureGate` injected into the tab VM. Note the id is *also* the ink LAYER id (registry §3.3): deliberate, and pinned by `Playback2DFeatureWiringTests`. |
+| 2D Playback **`playback2d.annotations`** | SubFeature | ● | ● | ● | **Playback2D v2.** Draw and erase over the surface; static or clock-anchored ink. `ParentId "tab.playback2d"`, no `GroupId`, `Defaults(true, true, true)`. Default-ON for every category for the `tab.highlights` reason: gating a release's headline payoff away from the audience most excited by it is the wrong trade. Reached through `IModuleContext.Features`, never a `IFeatureGate` injected into the tab VM. Note the id is *also* the ink LAYER id: deliberate, and pinned by `Playback2DFeatureWiringTests`. |
 | 2D Playback **`playback2d.timeline`** | SubFeature | ● | ● | ● | **Playback2D v2.** The scrubbable round / kill / bomb timeline under the viewport. The VM folds gate AND has-demo into `IsVisible`; the row is `Auto`-sized, so an off gate leaves no layout hole. Per-track visibility is a *setting* (`Playback2D:TimelineShow*`), not a second gate. |
 | 2D Playback **`playback2d.levels.auto`** | SubFeature | ● | ● | ● | **Playback2D v2.** Auto-switch the shown floor to the followed player's, with hysteresis. With it off, manual floor picking and the level strip stay available; the gate removes the automation, not the feature. |
 | 2D Playback **`playback2d.follow`** | SubFeature | ● | ● | ● | **Playback2D v2.** Selecting a player card follows them in the 2D camera, and mirrors to CS2 through `NotifySpectateTarget` while Live Sync is active. The wording is always "requested". CS2 spectating has no readback. |
@@ -2254,7 +2253,7 @@ feature stays user-toggleable in Settings. `●` default-visible, `○` default-
 | NavStrip **TO BREAKPOINT** group | Chrome | ○ | ○ | ● | Dev chrome (`graphDebug` group). |
 | Parser **hex `BinaryPane`** | SubFeature | ○ | ○ | ● | Expensive; dev-only; clear buffers on disable. |
 | Analysis **graph breakpoints** | SubFeature | ○ | ○ | ● | Dev-only (`graphDebug` group). |
-| **Reels** tab (was Highlights) | Tab | ● | ● | ● | **Reel AUTHORING dashboard (v0.5.3)**: clip tray + reel config, no longer a browser; per-game highlight exploration is on Match Overview. Unchanged defaults: the CSVG design notes' §2.2 reasoned that gating reel generation to power+ *"would hide the feature's headline payoff from the audience most excited by it"*. ⚠ Feature id stays **`tab.highlights`** and TabId stays **`highlights.browser`**: persisted keys; only the header string changed. Desktop full except macOS, where it **defaults OFF**: the owner's call is that macOS is not a supported target for Reels, and an empty tab is worse than an absent one. A default, not a gate, so Settings still lists it and a stored override wins. The rule lives in `PlatformFeatureDefaults.MacOsOffIds`, the one place a platform answers a default, and Linux is deliberately absent from it. WASM **registered + degraded** (fork 7) with authoring-specific copy. See [Reels dashboard](#reels-dashboard-v053). |
+| **Reels** tab (was Highlights) | Tab | ● | ● | ● | **Reel AUTHORING dashboard (v0.5.3)**: clip tray + reel config, no longer a browser; per-game highlight exploration is on Match Overview. Unchanged defaults: the CSVG design notes' §2.2 reasoned that gating reel generation to power+ *"would hide the feature's headline payoff from the audience most excited by it"*. ⚠ Feature id stays **`tab.highlights`** and TabId stays **`highlights.browser`**: persisted keys; only the header string changed. Desktop full except macOS, where it **defaults OFF**: the owner's call is that macOS is not a supported target for Reels, and an empty tab is worse than an absent one. A default, not a gate, so Settings still lists it and a stored override wins. The rule lives in `PlatformFeatureDefaults.MacOsOffIds`, the one place a platform answers a default, and Linux is deliberately absent from it. WASM **registered + degraded** with authoring-specific copy. See [Reels dashboard](#reels-dashboard-v053). |
 | Reels **`highlights.encoding`** | SubFeature | ○ | ● | ● | **Shipped v0.5.3 (step 9).** `ParentId: "tab.highlights"`, `Defaults(false, true, true)`, no `GroupId` (so the parserDeepDive / graphDebug leader-lock ordering is undisturbed). CRF / bitrate / FPS / container are OBS encoder knobs a consumer cannot reason about, the textbook hidden-but-enableable tier, hidden not removed: every category can switch it on in Settings. Consumer face: tray + Default/No-HUD + folder/name + Generate, which never routes through it. Consumed via `ReelConfig.IsEncodingVisible` (a gate seam, **not** an inline category check), applied from an optional `IFeatureGate` ctor arg **and re-applied on `IFeatureGate.Changed`**: a one-shot read would leave the section wrong after the user toggled it. Null gate (tests / UiCapture) ⇒ visible: a missing gate must never silently remove a section. |
 | Match Overview **highlight section** | — | ● | ● | ● | **Binds the existing `tab.highlights` gate: do NOT mint a new id.** Disabling Reels should coherently remove both surfaces. Note the axis: a *feature gate* is user-initiated and stable for a whole load, so it is legitimate `IsVisible`; gating on **load state** would violate skeleton-first. |
 | **Live Sync (CS2)** chip/flyout/2D-indicator/speed-lock/F2 Verify | Chrome | ○ | ○ | ● | `chrome.livesync`. **Desktop only** (ANDs `!IsBrowser()`). Documented fork: default-off for power-users because it temporarily modifies the real CS2 install + inferred states + DV-restart-relaunch papercut → beta-grade; one Settings toggle away. See the CSVG design notes in git history, §2.3. |
@@ -2358,9 +2357,9 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 - **`FeatureGate.HiddenCount` excludes a `Pack`-scope row.** It renders as its own live master switch, not
   a hidden feature; counting it too would double against the switch itself. Everything the master cascades
   off still counts (it is still rendered, under Extensions, disabled).
-- **The two pack-only settings blocks are contributed pages now** (`IExtensionContributions.SettingsPage`,
-  item 14), content unchanged: Suggested Tags tuning and the GRENADE INDEX card (`Walk library grenades
-  in the background`, `Render lineup clips`). A `MountedSettingsPage` exists for every contribution from
+- **The two pack-only settings blocks are contributed pages now** (`IExtensionContributions.SettingsPage`),
+  content unchanged: Suggested Tags tuning and the GRENADE INDEX card (`Walk library grenades in the
+  background`, `Render lineup clips`). A `MountedSettingsPage` exists for every contribution from
   construction, but its VM and View build lazily, through `EnsureBuilt`, the first time its own
   `FeatureId` resolves on: a page must never construct whatever its VM pulls in while its pack is off
   (extension plan notes in git history, §8). `RefreshContributedPageVisibility` calls `EnsureBuilt` (on a filter keystroke and on a
@@ -2389,7 +2388,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   an external edit all catch it): off → `"{Label} stops its background work. Its data stays on disk."`
   (`Label` read off the watched pack's own `FeatureCatalog` descriptor, "Strat Book extension" today, so
   the string is never hand-typed); on → "Counting…" then `"{N} demos will be re-indexed in the
-  background."` once `IPackReindexEstimate.CountAsync()` lands. The notice is generic now (item 14):
+  background."` once `IPackReindexEstimate.CountAsync()` lands. The notice is generic now:
   `SettingsViewModel` watches `IReadOnlyList<IPackReindexEstimate>? reindexEstimates`'s first entry rather
   than importing `Extensions.StratBook` for `StratBookPack.PackFeatureId` and a static
   `StratBookPendingReindexCount.ComputeAsync()`. The pack's own `StratBookPendingReindexCount` class
@@ -2470,8 +2469,8 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   the build gate. It is dead-but-compiling and §9.5 owns its removal.
 - **D-RD8. Tray persistence is implemented and INERT.** `IWorkspaceTabViewModel.SnapshotState()` has a
   default returning null and **zero call sites outside tests**: module tab state is not written to disk
-  today. The tray survives tab switches; it does **not** survive a restart, which is fork 8's stated goal.
-  Recorded as a shell obligation rather than silently "done".
+  today. The tray survives tab switches; it does **not** survive a restart, which is what tray
+  persistence is for. Recorded as a shell obligation rather than silently "done".
 - **D-RD9. `Clear tray` is a two-step inline confirm.** A cross-demo tray is minutes of curation with no
   undo and the button sits beside Generate. Inline strip, same idiom as the §9 interlock, never a modal.
 
@@ -2590,7 +2589,7 @@ shared class (`ListBox.card-grid`, above).
   in-flight marker)); other Pending ⇒ `queued`; `Failed` ⇒ retry. Background scan / reel / Verify are all
   suppressed under `OperatingSystem.IsBrowser()` (WASM degrades to open-demo-only + an explanatory note).
 
-### Decisions (CSVG Phase-3 Live Sync polish, design notes in git history, 2026-07-18)
+### Decisions (CSVG Live Sync polish, design notes in git history, 2026-07-18)
 - **D-CSVG3. The 2D-tab CS2 indicator is DISPLAY-ONLY / non-interactive** (`IsHitTestVisible=False` on the
   whole top-right HUD stack it shares with the kill feed). The CSVG design notes' §5.3 offered "click → focuses/opens the
   shell sync flyout," but that flyout is owned by the `StatusChip` `Button` in the bottom `StatusStrip`;
