@@ -8,6 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 
 #endregion
 
@@ -45,7 +46,7 @@ internal static class BenchCommand
 
         // Same corpus-sidecar convention as `golden`: a bench must time the stack the golden pins,
         // ink included, or the numbers describe a scene the real stack never draws.
-        using SceneRenderPlan plan = SceneRenderPlan.Build(args, entry?.Size ?? source.DefaultSize,
+        using SceneRenderPlan plan = CliScenePlan.Build(args, entry?.Size ?? source.DefaultSize,
             source.MapName, entry?.Layers,
             annotations: entry is null ? null : FixtureInk.ForCorpusEntry(entry.CorpusDirectory, entry.Name),
             zonesOverlay: entry is null ? null : FixtureZones.ForCorpusEntry(entry.CorpusDirectory, entry.Name),

@@ -5,6 +5,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
 using TUnit.Core.Exceptions;
 
@@ -17,14 +18,14 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     See <see cref="GlyphAttribution" /> for the mask and what it licenses.
 ///     <para>
 ///         <c>SceneGoldenTests</c> and <c>LevelGoldenTests</c> discharge the same obligation for the
-///         synthetics and the nuke goldens, but both render through the Pipeline. Six corpus entries are
-///         reachable only through the CLI's own plan: the four radar-backed Mirage/Inferno frames,
-///         <c>nuke-single-upper</c>, and the 1080p <c>full-scene-budget</c>.
+///         synthetics and the nuke goldens. This suite covers the entries that need the tool's own
+///         flags on top: the four radar-backed Mirage/Inferno frames, <c>nuke-single-upper</c>, and the
+///         1080p <c>full-scene-budget</c>.
 ///     </para>
 ///     <para>
 ///         <b>
 ///             It renders through <see cref="GoldenCommand.PlanFor" /> and
-///             <see cref="GoldenCommand.RenderEntry" />
+///             <see cref="GoldenEntryPlan.Render" />
 ///         </b>
 ///         , the command's own statements, not a
 ///         reproduction of them. A proof that renders a lookalike stack proves nothing about the stack
@@ -82,11 +83,11 @@ public class GoldenAttributionTests
 
         byte[] goldenPng = await File.ReadAllBytesAsync(goldenPath);
         GlyphAttribution ink = GlyphAttribution.Measure(goldenPng,
-            Render(corpus, entry, fixture, true), Render(corpus, entry, fixture, false));
+            Render(entry, fixture, true), Render(entry, fixture, false));
 
         // The budget read off the SHIPPING tolerance rather than restated: on the authoring platform
         // the tier is closed and this prints 0.
-        int labels = GoldenCommand.LabelCount(fixture);
+        int labels = GoldenEntryPlan.LabelCount(fixture);
         SKSizeI size = entry.Size;
         long budget = (long)(GoldenCommand.ToleranceFor(entry, labels, null).MaxGlyphOutlierFraction
                              * size.Width * size.Height);
@@ -178,7 +179,6 @@ public class GoldenAttributionTests
     ///         a geometry difference.
     ///     </para>
     /// </summary>
-    /// <param name="corpus">The corpus, for the annotation sidecar convention.</param>
     /// <param name="entry">The entry to render.</param>
     /// <param name="fixture">Its loaded scene.</param>
     /// <param name="drawText">
@@ -186,17 +186,16 @@ public class GoldenAttributionTests
     ///     full render in exactly the glyph ink and nowhere else. That difference is the mask, so it is
     ///     produced by the render path under test rather than by a second one built to resemble it.
     /// </param>
-    private static byte[] Render(GoldenCorpus corpus, GoldenCorpusEntry entry, SceneFixture fixture,
-        bool drawText)
+    private static byte[] Render(GoldenCorpusEntry entry, SceneFixture fixture, bool drawText)
     {
         CliArgs args = CliArgs.Parse(["--cpu", "--assets", Dv2d.AssetsDirectory]);
-        using SceneRenderPlan plan = GoldenCommand.PlanFor(args, corpus, entry);
+        using SceneRenderPlan plan = GoldenCommand.PlanFor(args, entry);
 
         if (!drawText)
         {
             GoldenCommand.SilenceText(plan);
         }
 
-        return GoldenCommand.RenderEntry(plan, entry, fixture);
+        return GoldenEntryPlan.Render(plan, entry, fixture);
     }
 }

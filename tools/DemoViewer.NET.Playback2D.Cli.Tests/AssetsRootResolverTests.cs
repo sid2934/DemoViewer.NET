@@ -1,5 +1,7 @@
 #region
 
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
+
 #endregion
 
 namespace DemoViewer.NET.Playback2D.Cli.Tests;

@@ -110,7 +110,7 @@ public class HeadlessSceneRendererTests
 
     /// <summary>
     ///     An opt-in id that is asked for but has no source registers nothing rather than an empty box.
-    ///     The CLI refuses it one layer out (<c>SceneRenderPlan.RequireFeedableOptIns</c>) so a command
+    ///     The CLI refuses it one layer out (<c>CliScenePlan.RequireFeedableOptIns</c>) so a command
     ///     line cannot silently mean less than it says; the compositor's own answer is this.
     /// </summary>
     [Test]

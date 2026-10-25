@@ -8,6 +8,7 @@ using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 
 #endregion
 
@@ -56,7 +57,7 @@ internal static class RenderCommand
                 $"--overlay {overlayPath} holds no point this build can draw (missing or empty).")
             : null;
 
-        using SceneRenderPlan plan = SceneRenderPlan.Build(args, source.DefaultSize, source.MapName,
+        using SceneRenderPlan plan = CliScenePlan.Build(args, source.DefaultSize, source.MapName,
             annotations: ink, zonesOverlay: zonesOverlay, query: query, overlay: overlay);
 
         string outPath = args.String("out") ?? "dv2d-render.png";

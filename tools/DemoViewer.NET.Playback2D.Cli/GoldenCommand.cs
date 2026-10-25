@@ -76,7 +76,7 @@ internal static class GoldenCommand
                 continue;
             }
 
-            using SceneRenderPlan plan = PlanFor(args, corpus, entry);
+            using SceneRenderPlan plan = PlanFor(args, entry);
             backend ??= plan.Backend;
 
             // A re-baked radar silently changes every pixel under it. Refuse rather than diff.
@@ -91,7 +91,7 @@ internal static class GoldenCommand
             }
 
             SceneFixture fixture = SceneFixture.Load(entry.ScenePath);
-            byte[] actual = RenderEntry(plan, entry, fixture);
+            byte[] actual = GoldenEntryPlan.Render(plan, entry, fixture);
 
             string goldenPath = entry.GoldenPath(plan.Backend.Backend);
 
@@ -114,7 +114,7 @@ internal static class GoldenCommand
             }
 
             byte[] expectedPng = File.ReadAllBytes(goldenPath);
-            int labels = LabelCount(fixture);
+            int labels = GoldenEntryPlan.LabelCount(fixture);
             GoldenTolerance tolerance = ToleranceFor(entry, labels, toleranceOverride);
 
             // Text is judged under its own ink and nowhere else. The glyph rasteriser differs per
@@ -127,9 +127,9 @@ internal static class GoldenCommand
             {
                 // A fresh plan, not the used one: layers cache their dry pictures, so a switch flipped
                 // after the first render would not reach the second.
-                using SceneRenderPlan silencedPlan = PlanFor(args, corpus, entry);
+                using SceneRenderPlan silencedPlan = PlanFor(args, entry);
                 SilenceText(silencedPlan);
-                byte[] silenced = RenderEntry(silencedPlan, entry, fixture);
+                byte[] silenced = GoldenEntryPlan.Render(silencedPlan, entry, fixture);
                 ink = GlyphAttribution.Measure(expectedPng, actual, silenced);
                 judged = ink.Value.GlyphPatchedPng;
             }
@@ -226,13 +226,13 @@ internal static class GoldenCommand
     }
 
     /// <summary>
-    ///     The layer stack, backend and map art one corpus entry renders through. The plan is the
-    ///     caller's to dispose.
+    ///     The layer stack, backend and map art one corpus entry renders through: the flags this
+    ///     command accepts, over <see cref="GoldenEntryPlan.OptionsFor" />. The plan is the caller's to
+    ///     dispose.
     ///     <para>
-    ///         <c>defaultBackend: ForceCpu</c>. The committed corpus is <c>goldens/cpu/</c> and CPU is
-    ///         authoritative, so an unqualified <c>dv2d golden verify</c> must not auto-probe onto a GPU
-    ///         and report a rasteriser difference as a pixel regression. <c>--gpu</c> / <c>--backend</c> /
-    ///         <c>DV2D_RENDER_BACKEND</c> still override, for the parity lane.
+    ///         <c>--size</c> is deliberately left unconsumed, so naming it here is the usage error it
+    ///         is: a golden is named for its size, and an override would compare one image against a
+    ///         differently-named other.
     ///     </para>
     ///     <para>
     ///         Extracted from <see cref="Run" /> rather than inlined because
@@ -242,19 +242,18 @@ internal static class GoldenCommand
     ///     </para>
     /// </summary>
     /// <param name="args">The parsed arguments, for the backend / assets / layer flags.</param>
-    /// <param name="corpus">The corpus, for the annotation sidecar convention.</param>
     /// <param name="entry">The entry to plan for.</param>
-    internal static SceneRenderPlan PlanFor(CliArgs args, GoldenCorpus corpus, GoldenCorpusEntry entry)
+    internal static SceneRenderPlan PlanFor(CliArgs args, GoldenCorpusEntry entry)
     {
-        ArgumentNullException.ThrowIfNull(corpus);
+        ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(entry);
 
-        return SceneRenderPlan.Build(args, entry.Size, entry.MapName, entry.Layers,
-            false, RenderBackendPreference.ForceCpu,
-            FixtureInk.ForCorpusEntry(corpus.Directory, entry.Name),
-            FixtureZones.ForCorpusEntry(corpus.Directory, entry.Name),
-            FixtureQuery.ForCorpusEntry(corpus.Directory, entry.Name),
-            FixtureOverlay.ForCorpusEntry(corpus.Directory, entry.Name));
+        CliScenePlan.RequireSingleLevelLayout(args);
+
+        return CliScenePlan.Build(GoldenEntryPlan.OptionsFor(entry, args.List("layers"),
+            args.List("exclude-layers"),
+            BackendResolver.Preference(args, RenderBackendPreference.ForceCpu),
+            AssetsRootResolver.Resolve(args), ConsoleOut.Info));
     }
 
     /// <summary>
@@ -268,34 +267,6 @@ internal static class GoldenCommand
         SceneLayerCatalog.SilenceText(plan.Compositor);
     }
 
-    /// <summary>Renders one entry through a plan <see cref="PlanFor" /> built.</summary>
-    /// <param name="plan">The plan. Its camera is overwritten.</param>
-    /// <param name="entry">The entry, for the size a golden is named for.</param>
-    /// <param name="fixture">The loaded scene.</param>
-    internal static byte[] RenderEntry(SceneRenderPlan plan, GoldenCorpusEntry entry,
-        SceneFixture fixture)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(entry);
-        ArgumentNullException.ThrowIfNull(fixture);
-
-        Scene2DFrame frame = plan.WithRadarArt(fixture.Frame);
-        SceneTime time = fixture.Time;
-        plan.Renderer.Camera = CameraSpec.Resolve(null, frame, entry.Size, fixture.Camera);
-        return plan.Renderer.RenderPng(frame, in time, entry.Size);
-    }
-
-    /// <summary>
-    ///     How many marker labels the frame draws, read off the scene and reported beside the result so
-    ///     a log reader can relate the glyph-ink figures to the frame. Not a budget.
-    /// </summary>
-    /// <param name="fixture">The scene about to be drawn.</param>
-    internal static int LabelCount(SceneFixture fixture)
-    {
-        ArgumentNullException.ThrowIfNull(fixture);
-        return fixture.Frame.Markers.Count(static m => !string.IsNullOrEmpty(m.Label));
-    }
-
     /// <summary>
     ///     The tolerance one entry is judged at: <see cref="GoldenTolerance.ByteExact" /> when the entry
     ///     or the caller asks for it, else <see cref="GoldenTolerance.DefaultPerceptual" /> over the
@@ -303,7 +274,7 @@ internal static class GoldenCommand
     ///     <c>--tolerance</c> overrides the mode the manifest states, not what a mode means.
     /// </summary>
     /// <param name="entry">The entry, for its declared mode.</param>
-    /// <param name="labels">The count from <see cref="LabelCount" />, reported in the result row.</param>
+    /// <param name="labels">The count from <see cref="GoldenEntryPlan.LabelCount" />, reported in the result row.</param>
     /// <param name="toleranceOverride">The parsed <c>--tolerance</c>, or null.</param>
     internal static GoldenTolerance ToleranceFor(GoldenCorpusEntry entry, int labels,
         GoldenMode? toleranceOverride)
