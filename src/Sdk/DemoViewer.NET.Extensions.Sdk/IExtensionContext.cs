@@ -209,7 +209,7 @@ internal sealed record ExtensionContextKey(string ExtensionId);
 
 /// <summary>
 ///     The host's check on <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" />: resolves the
-///     context only for code that belongs to that extension, or to no extension.
+///     context only for code that belongs to that extension, or to the host itself.
 /// </summary>
 internal interface IExtensionContextAccess
 {
