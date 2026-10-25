@@ -152,6 +152,15 @@ if [ "$BUILD" -eq 1 ]; then
 fi
 
 # ── Run ─────────────────────────────────────────────────────────────────────────────────────────────
+# The runner prefixes its summary with an ANSI reset when stdout can take colour, so the line reads
+# ESC[m followed by "  total: N". Every `^  total:` match below then fails and the lane reports
+# total=?. That was cosmetic until the -b only floor started reading TOTAL, at which point a green
+# budget lane exited 1 for want of two leading spaces. A literal ESC rather than \x1b: BSD sed does
+# not understand the escape and this script runs on macOS too.
+strip_ansi() {
+  printf '%s\n' "$1" | sed -E "s/$(printf '\033')\[[0-9;]*[A-Za-z]//g"
+}
+
 TOTAL=0; FAILED=0; SKIPPED=0; BROKEN=0
 SUITE_START=$(date +%s)
 
@@ -170,6 +179,7 @@ for entry in "${SELECTED[@]}"; do
   START=$(date +%s%N)
   OUT=$(dotnet run --project "$PATH_" -c "$CONFIG" --no-build -- "${ARGS[@]}" 2>&1)
   EXIT=$?
+  OUT=$(strip_ansi "$OUT")
 
   # Known CoreCLR fault: the host dies with SIGSEGV/SIGABRT during startup, before any summary is
   # printed. Retry exactly once, and only when nothing was reported: no summary line and no failed
@@ -183,6 +193,7 @@ for entry in "${SELECTED[@]}"; do
     START=$(date +%s%N)
     OUT=$(dotnet run --project "$PATH_" -c "$CONFIG" --no-build -- "${ARGS[@]}" 2>&1)
     EXIT=$?
+    OUT=$(strip_ansi "$OUT")
     if [ $EXIT -eq 139 ] || [ $EXIT -eq 134 ]; then
       echo "[test] !!! $KEY: HOST CRASHED AGAIN (exit=$EXIT). No results. Treating as FAILED. !!!" >&2
     fi
