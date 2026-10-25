@@ -281,7 +281,7 @@ public class TagLabelModeTests
             session.Apply(new TagDelta.Add(early));
             session.Apply(new TagDelta.Add(apart));
             using TagTrack track = new(session, static action => action());
-            SdkTimeline data = new(new FakeTimelineData(1_000));
+            FakeTimelineData data = new(1_000);
 
             using (Assert.Multiple())
             {

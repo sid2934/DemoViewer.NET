@@ -155,8 +155,10 @@ the session. `AddTool(tool)` adds an `IMapTool` that is offered every primary pr
 (Space, Control and the middle button pan), after the pointer handlers; the tool that takes a press owns the
 gesture until the release.
 
-A lane's track can draw marks as well as bands: implement `ITimelineTrack.BuildMarks` to put a glyph on the
-timeline at a frame.
+A lane's track is an `ITimelineTrack` from `DemoViewer.NET.Playback2D.Scene`, the same contract the tab's own
+tracks use. It can draw marks as well as bands: `BuildMarkers` puts a glyph on the timeline at a frame, and
+the `TimelineMarkerKind` it asks for is what the host themes the glyph by. The host files every band and mark
+under the lane's id, so there is no point setting `TrackId` yourself.
 
 For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`).
 

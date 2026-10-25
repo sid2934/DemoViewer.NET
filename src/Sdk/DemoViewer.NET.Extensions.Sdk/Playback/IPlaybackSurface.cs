@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Tools;
 
 namespace DemoViewer.NET.Extensions.Sdk.Playback;
@@ -72,7 +73,13 @@ public interface IPlaybackSurface
     /// <param name="modifiers">The modifiers held.</param>
     string? ActionFor(string scope, Key key, KeyModifiers modifiers);
 
-    /// <summary>A lane under the rounds row, drawn from <paramref name="track" />'s bands.</summary>
+    /// <summary>
+    ///     A lane under the rounds row, drawn from <paramref name="track" />'s bands and markers. The track
+    ///     is a <see cref="ITimelineTrack" /> from <c>DemoViewer.NET.Playback2D.Scene</c>, the same contract
+    ///     the tab's own tracks and <c>SceneTimeline</c> use. The host files every band and mark it builds
+    ///     under the lane's id, so <see cref="TimelineBand.TrackId" /> and
+    ///     <see cref="TimelineMarker.TrackId" /> need not be set.
+    /// </summary>
     ILaneHandle AddLane(ITimelineTrack track, ILaneBehaviour? behaviour = null);
 
     /// <summary>Entries for the right-click menu of any timeline band.</summary>

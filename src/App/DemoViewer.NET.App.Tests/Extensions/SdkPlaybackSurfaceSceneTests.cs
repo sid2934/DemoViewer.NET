@@ -8,6 +8,7 @@ using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Tools;
 using SkiaSharp;
 using SdkP = DemoViewer.NET.Extensions.Sdk.Playback;
@@ -209,6 +210,11 @@ public class SdkPlaybackSurfaceSceneTests
         vm.Dispose();
     }
 
+    /// <summary>
+    ///     A lane's bands and marks are filed under the LANE's id whatever the track stamped on them, so a
+    ///     contribution cannot pass its band off as a round and collect the rounds row's menu. The kind it
+    ///     asks for does survive: that is what themes a contributed mark.
+    /// </summary>
     [Test]
     public async Task AnSdkLanesMarks_ReachTheTimeline_UnderTheLanesId()
     {
@@ -218,8 +224,18 @@ public class SdkPlaybackSurfaceSceneTests
         using SdkP.ILaneHandle lane = surface.AddLane(new MarkingTrack());
 
         TimelineMarkerViewModel mark = vm.Timeline.Markers.Single(m => m.TrackId == "marking");
-        await Assert.That(mark.Glyph).IsEqualTo("*");
-        await Assert.That(mark.Tooltip).IsEqualTo("a mark");
+        TimelineBandViewModel band = vm.Timeline.LaneBands.Single(b => b.TrackId == "marking");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(mark.Glyph).IsEqualTo("*");
+            await Assert.That(mark.Tooltip).IsEqualTo("a mark");
+            await Assert.That(mark.Kind).IsEqualTo(TimelineMarkerKind.Kill).Because("the kind is the track's to choose");
+            await Assert.That(band.Label).IsEqualTo("3");
+            await Assert.That(SdkPlaybackSurface.Band(band).IsRound).IsFalse()
+                .Because("the track stamped \"round\" on it and the host overwrote that with the lane's id");
+        }
+
         vm.Dispose();
     }
 
@@ -237,7 +253,9 @@ public class SdkPlaybackSurfaceSceneTests
         await Assert.That(composed).IsEqualTo("ext.playback2d.radar");
     }
 
-    private sealed class MarkingTrack : SdkP.ITimelineTrack
+    // Stamps "round" with an integer label, which is exactly PlaybackBand.IsRound's test, so the host's
+    // re-stamp is what keeps this band out of the rounds row's menu.
+    private sealed class MarkingTrack : ITimelineTrack
     {
         public string Id => "marking";
 
@@ -249,11 +267,13 @@ public class SdkPlaybackSurfaceSceneTests
             remove { }
         }
 
-        public bool IsAvailable(SdkP.ITimelineData data) => true;
+        public bool IsAvailable(ITimelineData data) => true;
 
-        public IReadOnlyList<SdkP.TimelineBand> BuildBands(SdkP.ITimelineData data) => [new(10, 20, "band", "", 0xFF00FF00)];
+        public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) =>
+            [new TimelineBand("round", 10, 20, "3", "", 0xFF00FF00)];
 
-        public IReadOnlyList<SdkP.TimelineMark> BuildMarks(SdkP.ITimelineData data) => [new(15, 30, "*", "a mark", 0xFFFF0000)];
+        public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) =>
+            [new TimelineMarker("round", 15, 30, TimelineMarkerKind.Kill, "*", "a mark", 0xFFFF0000)];
     }
 
     private sealed class RecordingLayer(string id) : ISceneLayer

@@ -3,7 +3,7 @@
 using System.Globalization;
 using System.Text;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
-using DemoViewer.NET.Extensions.Sdk.Playback;
+using DemoViewer.NET.Playback2D.Timeline;
 
 #endregion
 
@@ -17,8 +17,8 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 ///         bands and tags overlap freely, so overlapping spans are merged into runs. A run of one instance
 ///         is labelled with its code and coloured by it; a run of several is labelled with the count and
 ///         left to the host's neutral colour. The per-instance marker at each start is what keeps a merged
-///         instance findable. Per-code lanes would need a lane on <see cref="TimelineBand" />, a Core
-///         change this track does not make.
+///         instance findable. <see cref="TimelineBand.Lane" /> is where per-code lanes would be filed, but
+///         no renderer stacks them yet, so the merge stays.
 ///     </para>
 ///     <para>
 ///         <b>Ticks convert once.</b> Instances carry frame-clock ticks; each is resolved through
@@ -156,19 +156,19 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<TimelineMark> BuildMarks(ITimelineData data)
+    public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data)
     {
         List<Span> spans = Spans(data);
         if (spans.Count == 0)
         {
-            return Array.Empty<TimelineMark>();
+            return Array.Empty<TimelineMarker>();
         }
 
-        List<TimelineMark> marks = new(spans.Count);
+        List<TimelineMarker> marks = new(spans.Count);
         foreach (Span span in spans)
         {
-            marks.Add(new TimelineMark(span.Start, span.Instance.FromTick, Glyph, Tooltip(span.Instance),
-                ColourOf(span.Instance.Code)));
+            marks.Add(new TimelineMarker(TrackId, span.Start, span.Instance.FromTick, TimelineMarkerKind.Custom, Glyph,
+                Tooltip(span.Instance), ColourOf(span.Instance.Code)));
         }
 
         return marks;
@@ -267,7 +267,7 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
         TagInstance head = spans[first].Instance;
         if (count == 1)
         {
-            return new TimelineBand(spans[first].Start, endFrame, head.Code, Tooltip(head),
+            return new TimelineBand(TrackId, spans[first].Start, endFrame, head.Code, Tooltip(head),
                 ColourOf(head.Code));
         }
 
@@ -284,7 +284,7 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
             sb.Append("\n…");
         }
 
-        return new TimelineBand(spans[first].Start, endFrame,
+        return new TimelineBand(TrackId, spans[first].Start, endFrame,
             count.ToString(CultureInfo.InvariantCulture), sb.ToString(), 0u);
     }
 

@@ -13,7 +13,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
-using DemoViewer.NET.Extensions.Sdk.Playback;
+using DemoViewer.NET.Playback2D.Timeline;
 using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -44,7 +44,8 @@ public class TagTrackTests
             return frame >= TotalFrames ? -1 : frame;
         }
 
-        public IReadOnlyList<TimelineEvent> EventsOfType(string eventName) => [];
+        public IReadOnlyList<int> FramesForEvent(string eventName) => [];
+        public IReadOnlyList<TimelineEventRecord> EventsOfType(string eventName) => [];
         public bool HasEvent(string eventName) => false;
     }
 
@@ -125,7 +126,7 @@ public class TagTrackTests
                 Instance("A split", 180, 260));
             using TagTrack track = Track(session);
 
-            IReadOnlyList<TimelineMark> markers = track.BuildMarks(new HalfTickData(1000));
+            IReadOnlyList<TimelineMarker> markers = track.BuildMarkers(new HalfTickData(1000));
 
             await Assert.That(markers.Count).IsEqualTo(3).Because("the merge must hide nothing");
             await Assert.That(markers.Select(m => m.FrameIndex)).IsEquivalentTo(MarkerFrames, CollectionOrdering.Matching);
@@ -153,7 +154,7 @@ public class TagTrackTests
             HalfTickData data = new(1000);
 
             IReadOnlyList<TimelineBand> bands = track.BuildBands(data);
-            IReadOnlyList<TimelineMark> markers = track.BuildMarks(data);
+            IReadOnlyList<TimelineMarker> markers = track.BuildMarkers(data);
 
             await Assert.That(track.IsAvailable(data)).IsTrue();
             await Assert.That(bands.Count).IsEqualTo(1);
@@ -179,7 +180,7 @@ public class TagTrackTests
 
             await Assert.That(track.IsAvailable(data)).IsFalse();
             await Assert.That(track.BuildBands(data)).IsEmpty();
-            await Assert.That(track.BuildMarks(data)).IsEmpty();
+            await Assert.That(track.BuildMarkers(data)).IsEmpty();
         });
     }
 

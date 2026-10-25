@@ -162,7 +162,7 @@ public class ExtensionPlaybackFaultTests
         }
     }
 
-    private sealed class ThrowingTrack : Sdk.ITimelineTrack
+    private sealed class ThrowingTrack : ITimelineTrack
     {
         public string Id => throw new InvalidOperationException("id");
         public string DisplayName => "Throwing";
@@ -173,9 +173,11 @@ public class ExtensionPlaybackFaultTests
             remove { }
         }
 
-        public bool IsAvailable(Sdk.ITimelineData data) => true;
+        public bool IsAvailable(ITimelineData data) => true;
 
-        public IReadOnlyList<Sdk.TimelineBand> BuildBands(Sdk.ITimelineData data) => throw new InvalidOperationException("bands");
+        public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => throw new InvalidOperationException("markers");
+
+        public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => throw new InvalidOperationException("bands");
     }
 
     private sealed class ThrowingLane : Sdk.ILaneBehaviour

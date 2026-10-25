@@ -2,7 +2,7 @@
 
 using System.Globalization;
 using System.Text;
-using DemoViewer.NET.Extensions.Sdk.Playback;
+using DemoViewer.NET.Playback2D.Timeline;
 
 #endregion
 
@@ -103,6 +103,9 @@ public sealed class ProposalTrack : ITimelineTrack
         data is not null && _proposals.Any(p => data.FrameIndexAtTick(p.FromTick) >= 0);
 
     /// <inheritdoc />
+    public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => Array.Empty<TimelineMarker>();
+
+    /// <inheritdoc />
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data)
     {
         LastData = data;
@@ -112,7 +115,7 @@ public sealed class ProposalTrack : ITimelineTrack
             Span head = run[0];
             if (run.Count == 1)
             {
-                bands.Add(new TimelineBand(head.Start, end, LabelOf(head.Proposal), Tooltip(head.Proposal),
+                bands.Add(new TimelineBand(TrackId, head.Start, end, LabelOf(head.Proposal), Tooltip(head.Proposal),
                     ColourOf(StepOf(head.Proposal.Confidence))));
                 continue;
             }
@@ -131,7 +134,7 @@ public sealed class ProposalTrack : ITimelineTrack
 
             // A run is as sure as its surest member: that is the one a press picks first.
             double best = run.Max(s => s.Proposal.Confidence);
-            bands.Add(new TimelineBand(head.Start, end, run.Count.ToString(CultureInfo.InvariantCulture),
+            bands.Add(new TimelineBand(TrackId, head.Start, end, run.Count.ToString(CultureInfo.InvariantCulture),
                 sb.ToString(), ColourOf(StepOf(best))));
         }
 

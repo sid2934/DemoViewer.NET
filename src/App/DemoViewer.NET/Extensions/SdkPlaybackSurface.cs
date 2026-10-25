@@ -112,7 +112,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
             ? actionId
             : null;
 
-    public SdkP.ILaneHandle AddLane(SdkP.ITimelineTrack track, SdkP.ILaneBehaviour? behaviour = null)
+    public SdkP.ILaneHandle AddLane(Core.ITimelineTrack track, SdkP.ILaneBehaviour? behaviour = null)
     {
         ArgumentNullException.ThrowIfNull(track);
         CoreTrack core = new(track, _guard);
@@ -313,28 +313,14 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
     }
 
-    private sealed class TimelineData(Core.ITimelineData data) : SdkP.ITimelineData
-    {
-        public int TotalFrames => data.TotalFrames;
-
-        public int TickRate => data.TickRate;
-
-        public int FrameIndexAtTick(int tick) => data.FrameIndexAtTick(tick);
-
-        public IReadOnlyList<SdkP.TimelineEvent> EventsOfType(string eventName) =>
-            [.. data.EventsOfType(eventName).Select(e => new SdkP.TimelineEvent(e.Tick, e.FrameIndex, e.Fields))];
-
-        public bool HasEvent(string eventName) => data.HasEvent(eventName);
-    }
-
-    /// <summary>An SDK track as the timeline reads it, every call into it guarded.</summary>
+    /// <summary>An extension's lane track as the timeline reads it, every call into it guarded.</summary>
     internal sealed class CoreTrack : Core.ITimelineTrack
     {
-        private readonly SdkP.ITimelineTrack _track;
+        private readonly Core.ITimelineTrack _track;
         private readonly ExtensionGuard _guard;
 
         // The id and name are read once: the timeline reads them on every rebuild.
-        public CoreTrack(SdkP.ITimelineTrack track, ExtensionGuard guard)
+        public CoreTrack(Core.ITimelineTrack track, ExtensionGuard guard)
         {
             _track = track;
             _guard = guard;
@@ -350,22 +336,16 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         public event Action? Changed;
 
         public bool IsAvailable(Core.ITimelineData data) =>
-            _guard.Run("timeline track", () => _track.IsAvailable(new TimelineData(data)), false);
+            _guard.Run("timeline track", () => _track.IsAvailable(data), false);
 
+        // Bands and marks carry the filed id, never the track's own: IsRound and lane dispatch match on it.
         public IReadOnlyList<Core.TimelineMarker> BuildMarkers(Core.ITimelineData data) =>
-            _guard.Run<IReadOnlyList<Core.TimelineMarker>>("timeline track", () =>
-            [
-                .. _track.BuildMarks(new TimelineData(data))
-                    .Select(m => new Core.TimelineMarker(Id, m.FrameIndex, m.Tick, Core.TimelineMarkerKind.Custom, m.Glyph,
-                        m.Tooltip, m.Argb))
-            ], []);
+            _guard.Run<IReadOnlyList<Core.TimelineMarker>>("timeline track",
+                () => [.. _track.BuildMarkers(data).Select(m => m with { TrackId = Id })], []);
 
         public IReadOnlyList<Core.TimelineBand> BuildBands(Core.ITimelineData data) =>
-            _guard.Run<IReadOnlyList<Core.TimelineBand>>("timeline track", () =>
-            [
-                .. _track.BuildBands(new TimelineData(data))
-                    .Select(b => new Core.TimelineBand(Id, b.StartFrameIndex, b.EndFrameIndex, b.Label, b.Tooltip, b.Argb))
-            ], []);
+            _guard.Run<IReadOnlyList<Core.TimelineBand>>("timeline track",
+                () => [.. _track.BuildBands(data).Select(b => b with { TrackId = Id })], []);
 
         public void Detach() => _guard.Run("timeline track", () => _track.Changed -= OnChanged);
 
@@ -386,9 +366,9 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
             guard.Run("lane drag", () => inner.OnEditSpanDragged(startFrame, endFrame), FaultKind.Recurring);
     }
 
-    private sealed class LaneHandle(SdkP.ITimelineTrack track, CoreTrack core, IHostLaneHandle handle) : SdkP.ILaneHandle
+    private sealed class LaneHandle(Core.ITimelineTrack track, CoreTrack core, IHostLaneHandle handle) : SdkP.ILaneHandle
     {
-        public SdkP.ITimelineTrack Track => track;
+        public Core.ITimelineTrack Track => track;
 
         public bool IsSuppressed
         {
