@@ -25,6 +25,14 @@ namespace DemoViewer.NET.AppTests;
 ///     it and the longest UI-thread stall that followed. <c>DV_AUDIT_CONFIG</c> names the source folder;
 ///     it is copied to temp first and background processing is switched off in the copy, so nothing is
 ///     parsed and the source is never written.
+///     <para>
+///         <b>Three of the four tests here run on one machine.</b> Every test but
+///         <see cref="QueueLatency_AndItsUiCost" /> skips unless <c>DV_AUDIT_CONFIG</c> names a directory
+///         that exists, and nothing in the repo, in CI or in any script sets it: a stall audit over a real
+///         library needs a real library. The class is also <c>Category("Integration")</c>, so no
+///         standard-tier run reaches any of it. A green run of this class is therefore not coverage, which
+///         is how a defect sat unnoticed in one of their waits from the day it was written.
+///     </para>
 /// </summary>
 [NotInParallel]
 [Category("Integration")]
