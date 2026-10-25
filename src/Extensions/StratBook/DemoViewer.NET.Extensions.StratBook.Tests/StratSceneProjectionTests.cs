@@ -7,6 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -37,14 +38,14 @@ public class StratSceneProjectionTests
         AnnotationElement label = projection.Elements[1];
         using (Assert.Multiple())
         {
-            await Assert.That(projection.Ticks).IsEquivalentTo(new[] { Smoke, Molly, Peek, All });
+            await Assert.That(projection.Ticks).IsEquivalentTo(new[] { Smoke, Molly, Peek, All }, CollectionOrdering.Matching);
             await Assert.That(projection.Elements.Count).IsEqualTo(2);
             await Assert.That(arrow.Kind).IsEqualTo(AnnotationKind.Arrow);
             await Assert.That(arrow.Time).IsEqualTo(new TimeEnvelope(Smoke, Molly - 1, 8, 16));
             await Assert.That(arrow.Space).IsEqualTo(new SpaceRef.World(-256));
             await Assert.That(arrow.Style.ColorArgb).IsEqualTo(0xFFFFC107u).Because("the sample's #FFC107 shorthand is read");
             await Assert.That(arrow.Style.WidthWorld).IsEqualTo(3f);
-            await Assert.That(arrow.Points.Select(p => (p.X, p.Y))).IsEquivalentTo(new[] { (420f, -1750f), (-900f, -1600f) });
+            await Assert.That(arrow.Points.Select(p => (p.X, p.Y))).IsEquivalentTo(new[] { (420f, -1750f), (-900f, -1600f) }, CollectionOrdering.Matching);
             await Assert.That(label.Kind).IsEqualTo(AnnotationKind.Text);
             await Assert.That(label.Text).IsEqualTo("swing wide");
             await Assert.That(label.Time).IsEqualTo(new TimeEnvelope(Peek, All - 1, 8, 16));
@@ -54,7 +55,7 @@ public class StratSceneProjectionTests
 
         // A stroke stored without an id is drawn under the same one every time it is projected.
         StratSceneProjection again = StratSceneProjection.Build(sample, StratPath.MainLine(sample));
-        await Assert.That(again.Elements.Select(e => e.Id)).IsEquivalentTo(projection.Elements.Select(e => e.Id));
+        await Assert.That(again.Elements.Select(e => e.Id)).IsEquivalentTo(projection.Elements.Select(e => e.Id), CollectionOrdering.Matching);
         await Assert.That(projection.TryFindStroke(label.Id, out StrokeRef at)).IsTrue();
         await Assert.That(at).IsEqualTo(new StrokeRef(2, 0));
     }
@@ -79,7 +80,7 @@ public class StratSceneProjectionTests
         TokenTrack c = projection.Tracks.Single(t => t.Slot == "C");
         using (Assert.Multiple())
         {
-            await Assert.That(projection.Tracks.Select(t => t.Slot)).IsEquivalentTo(_placedSlots);
+            await Assert.That(projection.Tracks.Select(t => t.Slot)).IsEquivalentTo(_placedSlots, CollectionOrdering.Matching);
             await Assert.That(a.Keyframes[0]).IsEqualTo(new TokenKeyframe(Smoke, 400, -1800, -256, 180));
             await Assert.That(a.Keyframes[^1]).IsEqualTo(new TokenKeyframe(Peek, -600, -1400, -256, 180))
                 .Because("an entry with no yaw keeps the previous keyframe's");
@@ -134,6 +135,6 @@ public class StratSceneProjectionTests
 
         StratSceneProjection projection = StratSceneProjection.Build(document, StratPath.MainLine(document));
         await Assert.That(projection.ClockClamped).IsTrue();
-        await Assert.That(projection.Ticks).IsEquivalentTo(_heldTicks);
+        await Assert.That(projection.Ticks).IsEquivalentTo(_heldTicks, CollectionOrdering.Matching);
     }
 }

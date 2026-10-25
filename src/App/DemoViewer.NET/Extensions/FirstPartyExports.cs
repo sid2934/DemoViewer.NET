@@ -15,9 +15,9 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Extensions;
 
 /// <summary>
-///     The export plumbing a first-party extension renders through, built app-side so the extension holds
-///     neither the heavy-job gate nor the processing queue: a 2D export job over the gate's export session, and
-///     Pack Export over demo leases.
+///     The export plumbing the 2D Playback tab and the first-party extensions both render through, built
+///     app-side so an extension holds neither the heavy-job gate nor the processing queue: a 2D export job
+///     over the gate's export session, and Pack Export over demo leases.
 /// </summary>
 /// <param name="gate">The heavy-job gate.</param>
 /// <param name="queue">The processing queue.</param>
@@ -45,7 +45,9 @@ public sealed class FirstPartyExports(HeavyJobGate gate, IDemoProcessingQueue qu
     /// <param name="log">The export's line sink.</param>
     public ExportJobService NewJob(IExportRunner runner, Func<bool>? isLiveSyncBusy, Func<bool>? isReelRunning,
         Action<string>? log) =>
-        new(runner, gate, isLiveSyncBusy, isReelRunning, log);
+        // Spelled out rather than target-typed: this is the only construction of the job, and
+        // Playback2DCompositionTests reads its argument list out of the source.
+        new ExportJobService(runner, gate, isLiveSyncBusy, isReelRunning, log);
 
     /// <summary>
     ///     Renders a Review Queue pack as one video, as a user-requested queue job. Each clip's demo is read by the

@@ -1,5 +1,7 @@
 #region
 
+using TUnit.Assertions.Enums;
+
 #endregion
 
 namespace DemoViewer.NET.Playback2D.Cli.Tests;
@@ -135,7 +137,7 @@ public class ProgramDispatchTests
             ExitCode.EnvironmentUnavailable.ToInt()
         ];
 
-        await Assert.That(actual).IsEquivalentTo(_documentedExitCodes);
+        await Assert.That(actual).IsEquivalentTo(_documentedExitCodes, CollectionOrdering.Matching);
         string usage = Program.Usage;
         await Assert.That(usage).Contains("GATE FAILURE");
     }

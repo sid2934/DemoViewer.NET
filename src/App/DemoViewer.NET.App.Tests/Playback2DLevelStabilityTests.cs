@@ -35,7 +35,7 @@ public class Playback2DLevelStabilityTests
     ///     <b>The drift case, on real data.</b> Replays Nuke with the histogram alone, no baked bundle,
     ///     so the band boundaries move for the whole demo as more player Z accumulates. Every identity
     ///     must survive that: an id whose band no longer overlaps the one it was minted on has silently
-    ///     become a different floor, taking its camera and (from B2) its annotations with it.
+    ///     become a different floor, taking its camera and its annotations with it.
     ///     <para>
     ///         The assertion that the bands actually <i>did</i> move is part of the test: without it this
     ///         would pass vacuously on a demo whose histogram happened to settle immediately.
@@ -250,7 +250,7 @@ public class Playback2DLevelStabilityTests
     {
         MapSpace space = new();
         space.Rebuild(BakedNukeFloors());
-        await Assert.That(space.Levels).HasCount().EqualTo(2);
+        await Assert.That(space.Levels).Count().IsEqualTo(2);
 
         Dictionary<int, List<(int Frame, double Z)>> tracks = ZTracks(ResolveNuke());
         int traversed = 0;
@@ -350,7 +350,7 @@ public class Playback2DLevelStabilityTests
         return tracks;
     }
 
-    /// <summary>A single-floor map must produce no level chrome at all (plan D9).</summary>
+    /// <summary>A single-floor map must produce no level chrome at all.</summary>
     [Test]
     public async Task Dust2_StaysSingleLevel_StripHidden()
     {
@@ -436,28 +436,12 @@ public class Playback2DLevelStabilityTests
             return staged;
         }
 
-        string bundled = Path.Combine(RepoRoot(), NukeSample.Replace('/', Path.DirectorySeparatorChar));
+        string bundled = Path.Combine(DemoTestHelper.RequireRepoRoot(), NukeSample.Replace('/', Path.DirectorySeparatorChar));
         if (File.Exists(bundled))
         {
             return bundled;
         }
 
         throw new SkipTestException($"no nuke demo (tried the staged names and {NukeSample})");
-    }
-
-    private static string RepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new SkipTestException("could not locate the repository root");
     }
 }

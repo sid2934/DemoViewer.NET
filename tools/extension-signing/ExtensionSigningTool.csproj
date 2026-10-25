@@ -7,9 +7,6 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <AssemblyName>extension-signing</AssemblyName>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <AnalysisMode>Minimum</AnalysisMode>
         <TreatWarningsAsErrors>false</TreatWarningsAsErrors>

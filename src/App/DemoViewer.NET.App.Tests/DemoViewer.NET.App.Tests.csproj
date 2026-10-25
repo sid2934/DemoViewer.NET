@@ -2,14 +2,8 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
         <!-- Distinct from the DemoViewer.NET.App TYPE to avoid namespace/type collision. -->
         <RootNamespace>DemoViewer.NET.AppTests</RootNamespace>
-        <!-- CA1707: test method names conventionally use underscores (e.g. Method_Condition_Expected) -->
-        <NoWarn>$(NoWarn);CA1707</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -41,22 +35,10 @@
         <ProjectReference Include="..\..\Testing\ThirdPartyFake\ThirdPartyFake.csproj"/>
     </ItemGroup>
 
-    <!-- These four files moved to the extension test project along with the rest of
-         Extensions/StratBook; linked back here, each into its own listed core-mechanism tests, because
-         those tests stayed in this project and still need them as fixtures. Each file compiles into
-         both assemblies. -->
+    <!-- Fixtures that need the StratBook pack, shared with its test project. Owned by neither, so this
+         project links nothing from the extension tests. Each file compiles into both assemblies. -->
     <ItemGroup>
-        <!-- DemoCachePackPayloadTests, DemoCacheRoundIndexStampTests, PackDataRemoverTests,
-             ReviewQueueTests, SidecarFormatTests, BackgroundPlanRealDemoTests, ForwardPassRealDemoTests,
-             ForwardQueueTests. -->
-        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\RoundIndexTestData.cs" Link="RoundIndexTestData.cs"/>
-        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\CacheRecordTestExtensions.cs" Link="CacheRecordTestExtensions.cs"/>
-        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\LibraryTestExtensions.cs" Link="LibraryTestExtensions.cs"/>
-        <!-- UiThreadAuditTests walks the StratBook hub like every other section's. -->
-        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\StratBookHubAccess.cs" Link="StratBookHubAccess.cs"/>
-        <!-- ZonePlaceResolverSourceTests (core: Services/Zones) checks the adjacency-seam naming through
-             the Query Canvas, the same fixture ToleranceSliderTests builds. -->
-        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\ToleranceSliderHarness.cs" Link="ToleranceSliderHarness.cs"/>
+        <Compile Include="..\..\Testing\StratBookFixtures\*.cs" LinkBase="StratBookFixtures"/>
     </ItemGroup>
 
     <!-- The feed-merge logic lives beside the signing tool (tools/extension-signing), not in this

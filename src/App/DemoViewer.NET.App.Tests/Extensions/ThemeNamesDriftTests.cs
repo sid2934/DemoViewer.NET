@@ -7,6 +7,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
 using Avalonia.Styling;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -59,7 +60,7 @@ public partial class ThemeNamesDriftTests
                 IResourceDictionary theme = (IResourceDictionary)palette.ThemeDictionaries[variant];
                 string[] keys = [.. theme.Keys.Cast<string>()];
 
-                await Assert.That(keys).IsEquivalentTo(ThemeTokens.All).Because($"the {variant} palette");
+                await Assert.That(keys).IsEquivalentTo(ThemeTokens.All, CollectionOrdering.Matching).Because($"the {variant} palette");
             }
         });
     }
@@ -115,7 +116,7 @@ public partial class ThemeNamesDriftTests
                 }
             }
 
-            await Assert.That(loaded).IsEquivalentTo(StyleClasses.All);
+            await Assert.That(loaded).IsEquivalentTo(StyleClasses.All, CollectionOrdering.Matching);
         });
     }
 }

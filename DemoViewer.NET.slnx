@@ -39,7 +39,6 @@
         <Project Path="src/GameIcons/DemoViewer.NET.GameIcons.Tests/DemoViewer.NET.GameIcons.Tests.csproj"/>
     </Folder>
     <Folder Name="/src/Playback2D/">
-        <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Core/DemoViewer.NET.Playback2D.Core.csproj"/>
         <Project
                 Path="src/Playback2D/DemoViewer.NET.Playback2D.Pipeline/DemoViewer.NET.Playback2D.Pipeline.csproj"/>
         <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Scene/DemoViewer.NET.Playback2D.Scene.csproj"/>
@@ -57,17 +56,13 @@
     </Folder>
     <Folder Name="/src/Visualization/">
         <Project Path="src/Visualization/DemoViewer.NET.Visualization/DemoViewer.NET.Visualization.csproj"/>
-        <Project
-                Path="src/Visualization/DemoViewer.NET.Visualization.Sample/DemoViewer.NET.Visualization.Sample.csproj"/>
         <Project Path="src/Visualization/DemoViewer.NET.Visualization.Tests/DemoViewer.NET.Visualization.Tests.csproj"/>
     </Folder>
     <Folder Name="/tools/">
         <Project Path="tools/AnalysisBench/AnalysisBench.csproj"/>
-        <Project Path="tools/DemoViewer.NET.DemoSourceDetails/DemoViewer.NET.DemoSourceDetails.csproj"/>
         <Project Path="tools/DemoViewer.NET.DemoTrimmer/DemoViewer.NET.DemoTrimmer.csproj"/>
         <Project Path="tools/DemoViewer.NET.DemoTrimmer.Tests/DemoViewer.NET.DemoTrimmer.Tests.csproj"/>
         <Project Path="tools/DemoViewer.NET.AssetBaker/DemoViewer.NET.AssetBaker.csproj"/>
-        <Project Path="tools/EntityMicroBench/EntityMicroBench.csproj"/>
         <Project Path="tools/DemoViewer.NET.Playback2D.Cli/DemoViewer.NET.Playback2D.Cli.csproj"/>
         <Project
                 Path="tools/DemoViewer.NET.Playback2D.Cli.Tests/DemoViewer.NET.Playback2D.Cli.Tests.csproj"/>

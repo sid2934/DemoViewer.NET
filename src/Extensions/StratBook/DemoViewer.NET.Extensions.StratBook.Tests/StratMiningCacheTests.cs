@@ -16,6 +16,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using Library = DemoViewer.NET.AppTests.StratMiningServiceTests.Library;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -202,7 +203,7 @@ public class StratMiningCacheTests
         using (Assert.Multiple())
         {
             await Assert.That(restarted.Signatures.LastBuild).IsEqualTo((4, 0));
-            await Assert.That(restarted.Patterns.Select(p => p.Pattern.Key)).IsEquivalentTo(first);
+            await Assert.That(restarted.Patterns.Select(p => p.Pattern.Key)).IsEquivalentTo(first, CollectionOrdering.Matching);
             await Assert.That(File.Exists(Path.Combine(library.Root, "cache", "strat-mining", "signatures.json.gz"))).IsTrue();
         }
     }
@@ -231,10 +232,7 @@ public class StratMiningCacheTests
         service.QuietDelay = TimeSpan.FromMilliseconds(20);
         passes.Busy = false;
         passes.Raise();
-        for (int i = 0; i < 200 && Mines() < 2; i++)
-        {
-            await Task.Delay(25);
-        }
+        await jobs.WaitForSubmissionAsync(() => Mines() >= 2);
 
         await Assert.That(Mines()).IsEqualTo(2).Because("the passes settling re-arms the quiet timer and it fires");
 
@@ -249,10 +247,7 @@ public class StratMiningCacheTests
     // The drain compaction item may still hold the slot for a moment after the mine completes.
     private static async Task Idle(DemoProcessingQueue queue)
     {
-        for (int i = 0; i < 200 && queue.ActiveWorkerCount > 0; i++)
-        {
-            await Task.Delay(10);
-        }
+        await queue.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(30));
     }
 
     private static DemoProcessingQueue RealQueue(HeavyJobGate gate) =>

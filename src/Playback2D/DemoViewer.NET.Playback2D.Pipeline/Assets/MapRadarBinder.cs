@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 /// <summary>
 ///     Decides which baked radar image belongs to which floor band. Replaces the pre-v2
-///     <c>Playback2DViewport.ResolveRadarImage</c> (lines 1096-1115), and is evaluated
+///     the pre-v2 control's <c>ResolveRadarImage</c>, and is evaluated
 ///     <b>
 ///         once per
 ///         level-set rebuild
@@ -24,7 +24,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 ///         the highest-altitude picture. Three floors and two radar layers (an ordinary shape) put the
 ///         upper floor's image under the basement, silently. Overlap answers correctly for every shape,
 ///         and when a band overlaps nothing its level keeps <c>HasRadar == false</c> and the strip says
-///         so (B3 plan T5).
+///         so.
 ///     </para>
 /// </summary>
 public sealed class MapRadarBinder : ILevelRadarBinder

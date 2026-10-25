@@ -11,6 +11,7 @@ using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.PlayerOverview.Sections;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -134,8 +135,8 @@ public class PlayerOverviewFilterTests
     public async Task SummaryOpensTheOverview_UnderTheHeader()
     {
         using Shell shell = new(Library(3));
-        await Assert.That(shell.Tab.Persistent.Select(s => s.Id)).IsEquivalentTo(["header"]);
-        await Assert.That(shell.Tab.Pages[0].Top.Select(s => s.Id)).IsEquivalentTo(["summary"]);
+        await Assert.That(shell.Tab.Persistent.Select(s => s.Id)).IsEquivalentTo(["header"], CollectionOrdering.Matching);
+        await Assert.That(shell.Tab.Pages[0].Top.Select(s => s.Id)).IsEquivalentTo(["summary"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -163,13 +164,13 @@ public class PlayerOverviewFilterTests
             {
                 await Assert.That((shown.Matches, shown.WithStats, shown.Wins, shown.Losses, shown.Ties))
                     .IsEqualTo((expected.Matches, expected.WithStats, expected.Wins, expected.Losses, expected.Ties));
-                await Assert.That(shown.Values).IsEquivalentTo(expected.Values);
+                await Assert.That(shown.Values).IsEquivalentTo(expected.Values, CollectionOrdering.Matching);
                 await Assert.That(Tile(shell.Summary, "HLTV")).IsEqualTo(expected["HLTV"]!.Value.ToString("0.00", CultureInfo.InvariantCulture));
                 await Assert.That(Tile(shell.Summary, "ADR")).IsEqualTo(expected["ADR"]!.Value.ToString("0.0", CultureInfo.InvariantCulture));
                 await Assert.That(Tile(shell.Summary, "KD")).IsEqualTo(expected["KD"]!.Value.ToString("0.00", CultureInfo.InvariantCulture));
                 await Assert.That(Tile(shell.Summary, "Matches")).IsEqualTo(expected.Matches.ToString(CultureInfo.InvariantCulture));
                 await Assert.That(shell.History.Rows.Count).IsEqualTo(expected.Matches).Because("the history windows the same rows");
-                await Assert.That(shell.Summary.AllTime!.Values).IsEquivalentTo(rows.Aggregate().Values);
+                await Assert.That(shell.Summary.AllTime!.Values).IsEquivalentTo(rows.Aggregate().Values, CollectionOrdering.Matching);
             }
         }
 
@@ -191,7 +192,7 @@ public class PlayerOverviewFilterTests
         {
             await Assert.That(shell.Reads.Count).IsEqualTo(reads);
             await Assert.That(shell.Tab.Loading.IsCompleted).IsTrue();
-            await Assert.That(shell.History.Rows.Select(r => r.Match.Row.Path)).IsEquivalentTo(["/lib/5.dem"]);
+            await Assert.That(shell.History.Rows.Select(r => r.Match.Row.Path)).IsEquivalentTo(["/lib/5.dem"], CollectionOrdering.Matching);
             await Assert.That(shell.History.CountText).IsEqualTo("1 of 9 matches");
         }
     }
@@ -347,7 +348,7 @@ public class PlayerOverviewFilterTests
             await Assert.That(shell.Summary.Tiles.Single(t => t.Key == "ADR").Scale).IsEqualTo(StatScale.Absolute(40, 120, 70, 82));
             await Assert.That(shell.Summary.Tiles.Single(t => t.Key == "Matches").Scale).IsNull();
             await Assert.That(shell.Summary.Tiles.Select(t => t.Key)).IsEquivalentTo(
-                ["Matches", "Win%", "KD", "ADR", "KAST%", "HS%", "HLTV", "KPR", "Duel%", "Clutch", "MultiKills", "TTD", "Preaim"]);
+                ["Matches", "Win%", "KD", "ADR", "KAST%", "HS%", "HLTV", "KPR", "Duel%", "Clutch", "MultiKills", "TTD", "Preaim"], CollectionOrdering.Matching);
             await Assert.That(shell.Summary.Tiles.Single(t => t.Key == "TTD").Text).IsEqualTo(AimQualitySectionViewModel.NoData)
                 .Because("no demo here was written with line-of-sight geometry");
         }
@@ -390,7 +391,7 @@ public class PlayerOverviewFilterTests
             }
         }
 
-        await Assert.That(shell.Maps.Rows.Select(r => r.Map)).IsEquivalentTo(["de_mirage"]);
+        await Assert.That(shell.Maps.Rows.Select(r => r.Map)).IsEquivalentTo(["de_mirage"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -404,7 +405,7 @@ public class PlayerOverviewFilterTests
         shell.Filter.Map = Choice(shell.Filter.Maps, "Inferno");
         using (Assert.Multiple())
         {
-            await Assert.That(shell.Maps.Rows.Select(r => r.MapText)).IsEquivalentTo(["Inferno"]);
+            await Assert.That(shell.Maps.Rows.Select(r => r.MapText)).IsEquivalentTo(["Inferno"], CollectionOrdering.Matching);
             await Assert.That(shell.Maps.CountText).IsEqualTo("1 map");
         }
 
@@ -431,7 +432,7 @@ public class PlayerOverviewFilterTests
             await Assert.That((nuke.CtText, nuke.TText)).IsEqualTo(("22-22 (50%)", "6-5 (55%)"));
             await Assert.That(nuke.ResultBar.Select(b => (b.Value, b.Slot))).IsEquivalentTo([(1.0, 0), (1.0, 1), (0.0, 2)],
                 TUnit.Assertions.Enums.CollectionOrdering.Matching);
-            await Assert.That(nuke.CtBar.Select(b => b.Value)).IsEquivalentTo([22.0, 22.0]);
+            await Assert.That(nuke.CtBar.Select(b => b.Value)).IsEquivalentTo([22.0, 22.0], CollectionOrdering.Matching);
             await Assert.That((nuke.CtShareText, nuke.TShareText, nuke.MatchesWord)).IsEqualTo(("50%", "55%", "matches"));
             await Assert.That(nuke.KdText).IsEqualTo(nuke.Pool["KD"]!.Value.ToString("0.00", CultureInfo.InvariantCulture));
             await Assert.That(nuke.AdrText).IsEqualTo("85.0");

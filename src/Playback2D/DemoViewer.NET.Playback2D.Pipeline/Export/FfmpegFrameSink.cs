@@ -55,7 +55,7 @@ public sealed record FfmpegSinkOptions(
 ///     Encodes rendered frames by piping raw RGBA to an <b>ffmpeg subprocess</b>.
 ///     <para>
 ///         FFMpegCore builds the argument list and owns the process; no ffmpeg code is linked into this
-///         program, which is what keeps the licence posture clean (see <c>THIRD-PARTY-NOTICES.md</c> §e).
+///         program, which is what keeps the licence posture clean (see <c>THIRD-PARTY-NOTICES.md</c> §g).
 ///         The transport is FFMpegCore's named pipe rather than literal stdin: same mechanism, same
 ///         separateness, and it is what the library supports.
 ///     </para>

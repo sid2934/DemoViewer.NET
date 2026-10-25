@@ -3,18 +3,21 @@
 # Every lane here runs the `full` tier. The tiers are exclusion filters over [Category] built for
 # IN-FLIGHT development; CI is not in-flight.
 #
-# The one split that is load-bearing: the correctness lanes select `Category!=Budget` and the budget
-# lane selects `Category=Budget`. Complementary, so their union is the whole suite, but only PER
-# PROJECT. Apply the pair to one project and not its sibling and the sibling's Budget cases run in no
-# job at all. That is how `BenchAllocationTests` stayed red and invisible for four phases.
-# A Budget test added to any project has to land in `playback2d-budget`.
+# The one split that is load-bearing: the correctness lanes drop `Category=Budget` and
+# `playback2d-budget` selects it back. Complementary, but only PER PROJECT: hand one half to a project
+# and not its sibling and the sibling's Budget cases run in no job at all. That is how
+# `BenchAllocationTests` stayed red and invisible for four phases.
+#
+# Both halves are `scripts/test.sh -b skip|only`, and the budget lane selects every project in that
+# script's registry, so a benchmark in a project nobody has thought about is still covered. The
+# exception is `render-backends`, which writes its filter inline; see there.
 name: ci
 
 on:
   push:
     branches: [main]
   pull_request:
-  # The real-GPU lane below is opt-in and has no other trigger.
+  # How a feature branch gets a full CI run before it has a PR.
   workflow_dispatch:
 
 concurrency:
@@ -32,13 +35,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
-          # Submodules deliberately NOT fetched. Nothing in the build reads them any more: the
-          # parser moved to the CS2DemoKit package and gets its Valve message types prebuilt from
-          # CS2OpenDev.Protos. cs2-opendocs stays as reference material for humans.
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       # The Browser head's runtime pack (Microsoft.NETCore.App.Runtime.Mono.browser-wasm) ships in
       # this workload, not the base SDK, so the solution below does not build without it. Keep the
@@ -64,14 +62,16 @@ jobs:
       - name: Extension packaging dry run (Strat Book)
         run: bash scripts/pack-extension.sh net.demoviewer.pack.stratbook --dry-run
 
-      # The SDK packages: all pack, and each public API matches its PublicAPI files (the build fails otherwise).
+      # The SDK packages: all pack, and each public API matches its PublicAPI files (the build fails
+      # otherwise). The project list is scripts/sdk-packages.sh, shared with release-sdk.yml so the two
+      # cannot pack different sets.
       - name: SDK packaging dry run
         run: |
-          dotnet pack src/App/DemoViewer.NET.Modules.Abstractions -c Release --no-build -o artifacts/sdk-packages
-          dotnet pack src/GameIcons/DemoViewer.NET.GameIcons -c Release --no-build -o artifacts/sdk-packages
-          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk -c Release --no-build -o artifacts/sdk-packages
-          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui -c Release --no-build -o artifacts/sdk-packages
-          dotnet pack src/Playback2D/DemoViewer.NET.Playback2D.Scene -c Release --no-build -o artifacts/sdk-packages
+          set -euo pipefail
+          dirs=$(bash scripts/sdk-packages.sh)
+          for dir in $dirs; do
+            dotnet pack "$dir" -c Release --no-build -o artifacts/sdk-packages
+          done
           ls artifacts/sdk-packages
 
       # The sample against those packages, not the projects: a dependency or build asset the packages lack
@@ -122,9 +122,7 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       # PINNED to the SDK's own runtime-pack band. Installing the newest manifest relinks against a
       # System.Private.CoreLib the runtime then rejects ("Your mono runtime and class libraries are
@@ -163,7 +161,7 @@ jobs:
           ls "$FW" | grep -q '^DemoViewer\.NET\.Playback2D\.Scene\..*\.wasm$' || { echo "the 2D scene contract did not ship, the 2D Playback tab is built on it"; exit 1; }
           du -sh artifacts/wasm-publish/wwwroot
 
-  # The ONE core/pipeline test invocation. Do not add a second.
+  # The ONE scene/pipeline test invocation. Do not add a second.
   playback2d-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -172,19 +170,12 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
+          native: skia
 
-      # SkiaSharp.NativeAssets.Linux links fontconfig. The full package is used rather than
-      # …NoDependencies because the layers draw text and the goldens contain it, and swapping the
-      # native later would silently re-baseline every golden.
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
-
-      - name: Playback2D core + pipeline tests (direct execution, no Avalonia)
-        run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
-             -- --treenode-filter "/*/*/*/*[Category!=Budget]"
+      - name: Playback2D scene + pipeline tests (direct execution, no Avalonia)
+        run: bash scripts/test.sh -t full -b skip -p playback2d -c Release
 
       - name: Build dv2d
         run: dotnet build tools/DemoViewer.NET.Playback2D.Cli -c Release
@@ -192,9 +183,7 @@ jobs:
       # Demo-dependent cases skip themselves. The runner has the committed assets/tour sample, so most
       # of them actually run.
       - name: dv2d unit + architecture tests
-        run: >
-          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli.Tests
-          --treenode-filter "/*/*/*/*[Category!=Budget]"
+        run: bash scripts/test.sh -t full -b skip -p cli -c Release
 
       # Fixture-only (no .dem needed), CPU provider is the authoritative baseline. Exit 4 here means a
       # pixel regression, and nothing else does.
@@ -241,9 +230,15 @@ jobs:
   # Split from the correctness suite because it measures rather than asserts behaviour: a timing
   # failure here means "look at the machine or the change", not "the scene is wrong", and mixing the
   # two makes people ignore both.
+  #
+  # EVERY project, because this is the half the correctness lanes drop and its reach has to match
+  # theirs or the difference runs in nothing. A project with no benchmarks reports `no-budget-tests`
+  # and costs only its build, which is why the timeout is 30 rather than ext-tests' 20.
+  #
+  # Keep the job id: TestTiers.cs and the contract test both name this lane.
   playback2d-budget:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       # A hosted runner is not the baseline laptop. Gate at 2x so the lane catches real
       # regressions (an O(n) blow-up, a re-introduced per-frame allocation) without firing on runner
@@ -260,21 +255,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
+          native: skia
 
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
-
-      - name: Frame-time + allocation budget
-        run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
-             -- --treenode-filter "/*/*/*/*[Category=Budget]"
-
-      - name: Frame-time + allocation budget (dv2d)
-        run: >
-          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli.Tests
-          --treenode-filter "/*/*/*/*[Category=Budget]"
+      # One test at a time. A frame time measured while three other tests share the runner's two cores
+      # is measuring the runner, and the extension classes this lane now reaches carry the same
+      # unmeasured-without-the-flag status the ext lane below records.
+      - name: Frame-time + allocation budgets, every project
+        env:
+          DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
+        run: bash scripts/test.sh -t full -b only -c Release
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -302,17 +293,13 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      # Renders through Avalonia.Headless + Avalonia.Skia, and Inter needs fontconfig to resolve.
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      # Same native as playback2d-tests: the suite renders through Avalonia.Headless + Avalonia.Skia,
-      # and Inter needs fontconfig to resolve.
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+          native: skia
 
       - name: App suite, full tier (batched)
-        run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -x
+        run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -b skip -x
 
   # The pack's own tests. Its own job rather than a step in app-tests: a different memory
   # posture deserves a different timeout, not app-tests' budget shared by subtraction. Single process
@@ -326,20 +313,18 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      # Renders through Avalonia.Headless + Avalonia.Skia, like app-tests.
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
+          native: skia
 
-      # Same native as app-tests: this suite also renders through Avalonia.Headless + Avalonia.Skia.
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
-
-      # One test at a time: the suite's window-booting classes share static state and race each
-      # other on a two-core runner (a different test fails each run). Serial costs about a minute.
+      # This lane ran one test at a time until the full tier proved it did not need to. The
+      # off-UI-thread control construction that made it fail 1 to 2 tests per run
+      # (Dispatcher.VerifyAccess via DataValidationErrors.SetError, a different set each time) is
+      # inside HeadlessSession.RunOnUi throughout, and headless-isolation.yml is the nightly guard
+      # that keeps it there. The measurement the flag was waiting on is the run below.
       - name: Extension (Strat Book) suite, full tier
-        env:
-          DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
-        run: bash scripts/test.sh -t full -p ext -c Release
+        run: bash scripts/test.sh -t full -b skip -p ext -c Release
 
   # The suites no lane above names. LiveSync's web-host tests are the slow half the `fast` and
   # `standard` tiers exist to let a developer skip. CI pays the other half of that bargain, so these
@@ -352,18 +337,15 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+          native: skia
 
       - name: LiveSync suite (full tier)
-        run: bash scripts/test.sh -t full -p livesync
+        run: bash scripts/test.sh -t full -b skip -p livesync
 
       - name: Visualization suite (full tier)
-        run: bash scripts/test.sh -t full -p visualization
+        run: bash scripts/test.sh -t full -b skip -p visualization
 
       # The round-trip gate on the node editor. It reads
       # the real rules/ directory rather than a copied fixture, so a shipped ruleset that starts
@@ -373,22 +355,22 @@ jobs:
       # aliases, merge keys, tags, block scalars) are held by HostileYamlTests in the same suite,
       # which is where a construct that would parse but mean something different is caught.
       - name: RuleAuthoring suite (full tier)
-        run: bash scripts/test.sh -t full -p ruleauthoring
+        run: bash scripts/test.sh -t full -b skip -p ruleauthoring
 
       - name: DemoTrimmer suite (full tier)
-        run: bash scripts/test.sh -t full -p trimmer
+        run: bash scripts/test.sh -t full -b skip -p trimmer
 
       # The icon catalogue's own guards: the manifest round-trip, the four availability states, and
       # which artwork is tintable. They compile in `build` but nothing ran them, and the assembly
       # they guard is the one the Browser head cannot boot an icon without.
       - name: GameIcons suite (full tier)
-        run: bash scripts/test.sh -t full -p gameicons
+        run: bash scripts/test.sh -t full -b skip -p gameicons
 
   # Render-backend correctness.
   #
   # Hosted runners have no GPU, but they DO exercise the real GPU code paths: Windows runs ANGLE over
   # D3D11 WARP, Linux runs EGL over llvmpipe. These lanes gate CORRECTNESS AND PERCEPTUAL PARITY ONLY.
-  # The >=2x-realtime throughput number is gated on the opt-in self-hosted lane below and never here:
+  # The >=2x-realtime throughput number is gated on the self-hosted lane in gpu.yml, never here:
   # a software rasteriser's frames-per-second means nothing.
   #
   # A lane that finds no GPU backend SKIPS its GPU cases (SkipTestException) and stays green. That is
@@ -411,15 +393,9 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      # libfontconfig1 is the SkiaSharp native's dependency (see playback2d-tests above); libegl1 and
-      # libgles2 are what the surfaceless EGL path binds.
-      - name: Install native deps (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1 libegl1 libgles2 libgl1 libglx-mesa0
+          native: render
 
       # What this runner actually resolved to, in the log, before any test runs. Exit 0 either way;
       # the value is GL_RENDERER. A lane that thought it was on ANGLE and is really on WARP is
@@ -431,6 +407,9 @@ jobs:
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli -- probe --json
 
+      # The only filters still written inline in this file. This job has a Windows leg, whose default
+      # shell is pwsh, and scripts/test.sh has never run there. `Category!=Budget` is what `-b skip`
+      # selects for this project, which carries no KnownFailure case.
       - name: Render-backend tests (CPU contract + cross-backend parity)
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
@@ -450,35 +429,3 @@ jobs:
           name: render-diffs-${{ matrix.backend }}
           path: artifacts/bin/DemoViewer.NET.Playback2D.Tests/**/artifacts/**/*.png
           if-no-files-found: ignore
-
-  # Real-GPU lane. Opt-in only: label a PR `gpu-lane` or dispatch the workflow by hand. It needs a
-  # self-hosted runner carrying the labels below; where none exists the job is never scheduled at all,
-  # so it must NEVER be in the required-checks set.
-  render-backends-gpu:
-    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'gpu-lane') }}
-    runs-on: [self-hosted, windows, gpu]
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      # Fail here, in one line, if this self-hosted runner has lost its GPU, rather than three minutes
-      # later inside a suite. --require-hardware additionally rejects WARP/llvmpipe: this is the only
-      # lane whose numbers are meant to mean something, and a software rasterizer's do not.
-      - name: Require a real GPU
-        run: >
-          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
-          probe --json --require-gpu --require-hardware
-
-      # force-gpu, so the lane FAILS rather than silently skipping if the runner lost its GPU. That is
-      # the whole reason RenderBackendPreference.ForceGpu exists.
-      - name: GPU parity + determinism (must not skip)
-        env:
-          DV2D_RENDER_BACKEND: force-gpu
-        run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
-             -- --treenode-filter "/*/*/*/*[Category!=Budget]"

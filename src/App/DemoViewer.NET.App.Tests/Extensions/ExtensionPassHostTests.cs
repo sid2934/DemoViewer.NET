@@ -8,6 +8,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -228,11 +229,11 @@ public class ExtensionPassHostTests
         {
             await Assert.That(reader.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward, ForwardNeeds.Rules, false));
             await Assert.That(plain.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward));
-            await Assert.That(inner.Rows).IsEquivalentTo([row]);
+            await Assert.That(inner.Rows).IsEquivalentTo([row], CollectionOrdering.Matching);
             await Assert.That(asked.Count).IsEqualTo(1);
             await Assert.That(asked[0].Run).IsSameReferenceAs(run);
             await Assert.That(asked[0].Table).IsEqualTo("rows");
-            await Assert.That(asked[0].Rulesets).IsEquivalentTo(["ext_sample__rows"]);
+            await Assert.That(asked[0].Rulesets).IsEquivalentTo(["ext_sample__rows"], CollectionOrdering.Matching);
         }
     }
 

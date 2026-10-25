@@ -50,7 +50,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private readonly List<IReindexEstimate> _reindexEstimates = [];
     private readonly List<IPlaybackContribution> _playback = [];
     private readonly List<ILibraryContribution> _library = [];
-    private readonly List<StoreDescriptor> _stores = [];
+    private IReadOnlyList<StoreDescriptor>? _stores;
     private readonly List<GatedDemoAction> _demoActions = [];
     private readonly List<ContributedRuleset> _rulesets = [];
     private IExtensionDataRemoval? _dataRemoval;
@@ -98,8 +98,12 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     /// <summary>Library filter/badge contributions, in contribution order, each stamped with a gate id.</summary>
     public IReadOnlyList<ILibraryContribution> LibraryContributions => _library;
 
-    /// <summary>Store and cache paths the pack declared, in contribution order.</summary>
-    public IReadOnlyList<StoreDescriptor> Stores => _stores;
+    /// <summary>
+    ///     The stores the pack declares that passed <see cref="StoreRefusal" />: the context's list where the pack
+    ///     has one, so a refusal is reported once.
+    /// </summary>
+    public IReadOnlyList<StoreDescriptor> Stores =>
+        Context is ExtensionContext { Stores: ExtensionStores declared } ? declared.Declared : _stores ??= AcceptedStores(Pack, _guard);
 
     /// <summary>The pack's own "delete extension data", replacing the host's, or null when it declared none.</summary>
     public IExtensionDataRemoval? DataRemovalContribution => _dataRemoval;
@@ -336,21 +340,33 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         _library.Add(new HostLibraryContribution(contribution, featureId, _toUiThread, _guard));
     }
 
-    /// <inheritdoc />
-    public void Store(StoreDescriptor store)
+    /// <summary>
+    ///     <see cref="IExtension.Stores" /> with every refused store dropped and reported. "Delete extension data"
+    ///     removes every path listed and <see cref="IExtensionContext.Stores" /> opens them, so a path that reaches
+    ///     past the extension's own files drops the store rather than reaching what belongs to the app or another
+    ///     extension.
+    /// </summary>
+    internal static IReadOnlyList<StoreDescriptor> AcceptedStores(IExtension pack, ExtensionGuard guard)
     {
-        ArgumentNullException.ThrowIfNull(store);
-        ArgumentException.ThrowIfNullOrWhiteSpace(store.Id);
-        ArgumentNullException.ThrowIfNull(store.Paths);
-        // "Delete extension data" removes every path listed, so a path that reaches past the extension's own
-        // files drops the store rather than deleting what belongs to the app or another extension.
-        if (StoreRefusal(Pack.Id, store) is { } refusal)
+        List<StoreDescriptor> accepted = [];
+        foreach (StoreDescriptor store in guard.Run("stores", () => pack.Stores.ToArray(), []))
         {
-            _guard.Report("store", new ArgumentException($"Store '{store.Id}' is refused: {refusal}.", nameof(store)));
-            return;
+            if (store is null || string.IsNullOrWhiteSpace(store.Id) || store.Paths is null)
+            {
+                guard.Report("store", new ArgumentException("A store needs an id and its paths."));
+                continue;
+            }
+
+            if (StoreRefusal(pack.Id, store) is { } refusal)
+            {
+                guard.Report("store", new ArgumentException($"Store '{store.Id}' is refused: {refusal}."));
+                continue;
+            }
+
+            accepted.Add(store);
         }
 
-        _stores.Add(store);
+        return accepted;
     }
 
     /// <summary>

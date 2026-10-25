@@ -29,7 +29,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Golden images for the Strat Book canvas: the App-suite capture that projects a
 ///     strat through <see cref="StratSceneProjection" /> and plays it through <see cref="StratFrameSource" />,
 ///     the same pieces <see cref="StratExportJob" /> renders a GIF with. Gated by
-///     <c>PB2D_GOLDEN_UPDATE=1</c> exactly like <c>Playback2DGoldenCaptureTests</c>: a missing golden
+///     <c>PB2D_GOLDEN_UPDATE=1</c> exactly like the Playback2D golden suites: a missing golden
 ///     otherwise fails the test rather than silently writing one.
 ///     <para>
 ///         <b>The strat reader lives in the App, so `dv2d` cannot open a `.dvstrat.json`; it does not need
@@ -41,7 +41,7 @@ namespace DemoViewer.NET.AppTests;
 ///         <c>dv2d golden verify</c>, is the entry's only gate.
 ///     </para>
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratGoldenCaptureTests))]
 public class StratGoldenCaptureTests
 {
     private const string UpdateEnvVar = "PB2D_GOLDEN_UPDATE";

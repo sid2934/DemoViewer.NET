@@ -5,8 +5,8 @@
 
       DELIBERATELY DEPENDENCY-FREE. It hands back bytes and streams and nothing else: no Avalonia (the
       Playback2D suites assert their process loads no Avalonia assembly, and this sits in their graph),
-      no SkiaSharp (the app is pinned to 2.88.x and the baker owns 3.x — a shared asset library must not
-      have an opinion), no serializer contract (the manifest is read with JsonDocument, so the Browser
+      no SkiaSharp (the baker owns rasterising, so a shared asset library must not have an
+      opinion), no serializer contract (the manifest is read with JsonDocument, so the Browser
       build can trim freely).
 
       EMBEDDED, not copied next to the exe like the map bundles. Map assets are per-map, large, and
@@ -14,18 +14,17 @@
       and needed by every target including Browser, so they ride inside the assembly.
     -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <!-- Published with the extension SDK, whose UI kit's GameIcon control depends on it, at the SDK's
-             version: the SDK's version.json path filters include this project and the icon bake. Its public
-             API is pinned the same way. -->
+        <!-- Not published: the artwork is Valve's, so it travels inside the application only
+             (THIRD-PARTY-NOTICES.md §b2), and the UI kit's GameIcon control reaches it through a backend
+             the app installs. The version stays the extension SDK's, which
+             ExtensionSdkArchitectureTests pins this assembly to. -->
         <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
-        <IsPackable>true</IsPackable>
-        <PackageId>DemoViewer.NET.GameIcons</PackageId>
-        <Description>The baked CS2 icon catalogue DemoViewer.NET draws from: weapons, kill modifiers, ranks, Premier emblems and map icons, as embedded PNGs with their manifest.</Description>
-        <PackageTags>demoviewer;cs2;counter-strike;icons</PackageTags>
+        <IsPackable>false</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- Still tracked for the app and the Playback2D pipeline. Nothing publishes it, so
+             scripts/ship-public-api.sh reads the packable projects and leaves these lists alone. -->
         <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all"/>
         <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
         <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>
@@ -54,7 +53,7 @@
     -->
     <Target Name="EnsureIconsAreBaked" BeforeTargets="BeforeBuild">
         <Error Condition="!Exists('$(MSBuildThisFileDirectory)../../../assets/icons/icons.json')"
-               Text="assets/icons/icons.json is missing - the CS2 icon bake has not been run. Run: dotnet run --project tools/DemoViewer.NET.AssetBaker -r win-x64 -- --icons"/>
+               Text="assets/icons/icons.json is missing - the CS2 icon bake has not been run. Run: dotnet run --project tools/DemoViewer.NET.AssetBaker -- --icons"/>
     </Target>
 
 </Project>

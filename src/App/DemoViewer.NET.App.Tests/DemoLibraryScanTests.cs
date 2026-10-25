@@ -4,6 +4,7 @@ using System.Text.Json;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -41,7 +42,7 @@ public class DemoLibraryScanTests
                 await Assert.That(rows).Contains(kept);
                 await Assert.That(rows).Contains(hidden).Because("a subdirectory that could not be listed is no evidence");
                 await Assert.That(rows).DoesNotContain(gone).Because("the rest of the folder was read and the demo is not in it");
-                await Assert.That(svc.Entries.Select(e => e.FilePath)).IsEquivalentTo([kept]);
+                await Assert.That(svc.Entries.Select(e => e.FilePath)).IsEquivalentTo([kept], CollectionOrdering.Matching);
             }
         }
         finally
@@ -64,7 +65,7 @@ public class DemoLibraryScanTests
             svc.FolderReader = new ScriptedReader { FailRead = d => d == root ? new IOException("Operation timed out") : null };
             await svc.RescanAsync();
 
-            await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(a, gone));
+            await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(a, gone), CollectionOrdering.Matching);
         }
         finally
         {
@@ -184,7 +185,7 @@ public class DemoLibraryScanTests
             using (Assert.Multiple())
             {
                 await Assert.That(svc.Entries.Count).IsEqualTo(1);
-                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(first, copy));
+                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(first, copy), CollectionOrdering.Matching);
             }
         }
         finally
@@ -213,7 +214,7 @@ public class DemoLibraryScanTests
 
             reader.Release();
             await scan.WaitAsync(TimeSpan.FromSeconds(10));
-            await Assert.That(EntryPaths(svc)).IsEquivalentTo(Sorted(a, b));
+            await Assert.That(EntryPaths(svc)).IsEquivalentTo(Sorted(a, b), CollectionOrdering.Matching);
         }
         finally
         {
@@ -242,8 +243,8 @@ public class DemoLibraryScanTests
             await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
             using (Assert.Multiple())
             {
-                await Assert.That(EntryPaths(svc)).IsEquivalentTo([a]);
-                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(b, gone)).Because("nothing under it is pruned");
+                await Assert.That(EntryPaths(svc)).IsEquivalentTo([a], CollectionOrdering.Matching);
+                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(b, gone), CollectionOrdering.Matching).Because("nothing under it is pruned");
             }
 
             await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
@@ -287,7 +288,7 @@ public class DemoLibraryScanTests
 
             reader.Release();
             await second.WaitAsync(TimeSpan.FromSeconds(10));
-            await Assert.That(EntryPaths(svc)).IsEquivalentTo([b]);
+            await Assert.That(EntryPaths(svc)).IsEquivalentTo([b], CollectionOrdering.Matching);
         }
         finally
         {
@@ -360,8 +361,8 @@ public class DemoLibraryScanTests
             await scan.WaitAsync(TimeSpan.FromSeconds(10));
             using (Assert.Multiple())
             {
-                await Assert.That(EntryPaths(svc)).IsEquivalentTo([c]);
-                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(a, gone))
+                await Assert.That(EntryPaths(svc)).IsEquivalentTo([c], CollectionOrdering.Matching);
+                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(a, gone), CollectionOrdering.Matching)
                     .Because("a folder whose listing was stopped is no evidence that anything under it is gone");
             }
         }
@@ -398,7 +399,7 @@ public class DemoLibraryScanTests
             queue.RemoveByUser(slice!.Id);
 
             await scan.WaitAsync(TimeSpan.FromSeconds(10));
-            await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(b, gone));
+            await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(b, gone), CollectionOrdering.Matching);
         }
         finally
         {

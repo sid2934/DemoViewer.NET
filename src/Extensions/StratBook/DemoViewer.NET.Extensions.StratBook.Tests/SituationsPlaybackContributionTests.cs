@@ -11,6 +11,7 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Views.Playback2D;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -26,7 +27,7 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 ///     behaviour (the token round-trip, the shipped seam's tab switch) is <c>FindRoundsLikeThisTests</c> and
 ///     <c>SituationResultWalkTests</c>; this is the contribution's own wiring.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class SituationsPlaybackContributionTests
 {
     private static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx, SituationsPlaybackContribution Situations) Tab(
@@ -42,96 +43,105 @@ public class SituationsPlaybackContributionTests
     [Test]
     public async Task PackOff_HasNoToolbarItem_NoMenuEntry_AndTheWalkKeysAreUnhandled()
     {
-        FakeGate gate = new() { On = false };
-        (Playback2DTabViewModel vm, _, SituationsPlaybackContribution situations) =
-            Tab(gate, c => c.MapName = "de_dust2");
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(situations.ToolbarItem).IsNull();
-            await Assert.That(vm.Surface.ToolbarItems).IsEmpty();
-            await Assert.That(vm.Surface.HasToolbarItems).IsFalse();
-            await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsFalse();
-            await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsFalse();
-        }
+            FakeGate gate = new() { On = false };
+            (Playback2DTabViewModel vm, _, SituationsPlaybackContribution situations) =
+                Tab(gate, c => c.MapName = "de_dust2");
 
-        gate.On = true;
-        gate.Raise();
-        using (Assert.Multiple())
-        {
-            await Assert.That(situations.ToolbarItem).IsNotNull().Because("the pack came on with a map already open");
-            await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id]);
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(situations.ToolbarItem).IsNull();
+                await Assert.That(vm.Surface.ToolbarItems).IsEmpty();
+                await Assert.That(vm.Surface.HasToolbarItems).IsFalse();
+                await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsFalse();
+                await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsFalse();
+            }
 
-        gate.On = false;
-        gate.Raise();
-        using (Assert.Multiple())
-        {
-            await Assert.That(situations.ToolbarItem).IsNull();
-            await Assert.That(vm.Surface.ToolbarItems).IsEmpty();
-            await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsFalse();
-        }
+            gate.On = true;
+            gate.Raise();
+            using (Assert.Multiple())
+            {
+                await Assert.That(situations.ToolbarItem).IsNotNull().Because("the pack came on with a map already open");
+                await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id], CollectionOrdering.Matching);
+            }
 
-        vm.Dispose();
+            gate.On = false;
+            gate.Raise();
+            using (Assert.Multiple())
+            {
+                await Assert.That(situations.ToolbarItem).IsNull();
+                await Assert.That(vm.Surface.ToolbarItems).IsEmpty();
+                await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsFalse();
+            }
+
+            vm.Dispose();
+        });
     }
 
     [Test]
     public async Task ToolbarItem_IsPresentOnlyWithADemosMapName_AndFollowsADemoChangeLive()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, SituationsPlaybackContribution situations) =
-            Tab(configure: c => c.MapName = null);
-
-        await Assert.That(vm.Surface.ToolbarItems).IsEmpty().Because("no map name yet, same condition the key always required");
-
-        ctx.MapName = "de_dust2";
-        ctx.RaiseDemoReset();
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(situations.ToolbarItem).IsNotNull();
-            await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id]);
-        }
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, SituationsPlaybackContribution situations) =
+                Tab(configure: c => c.MapName = null);
 
-        ctx.MapName = null;
-        ctx.RaiseDemoReset();
-        await Assert.That(vm.Surface.ToolbarItems).IsEmpty().Because("the map closed");
+            await Assert.That(vm.Surface.ToolbarItems).IsEmpty().Because("no map name yet, same condition the key always required");
 
-        vm.Dispose();
+            ctx.MapName = "de_dust2";
+            ctx.RaiseDemoReset();
+            using (Assert.Multiple())
+            {
+                await Assert.That(situations.ToolbarItem).IsNotNull();
+                await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id], CollectionOrdering.Matching);
+            }
+
+            ctx.MapName = null;
+            ctx.RaiseDemoReset();
+            await Assert.That(vm.Surface.ToolbarItems).IsEmpty().Because("the map closed");
+
+            vm.Dispose();
+        });
     }
 
     [Test]
     public async Task Run_CallsIFindRoundsLikeThis_Once_WithTheCurrentFrame_AndRefusesWithoutOneOrAFrame()
     {
-        // A bare context with no roster (not the harness's three-player fake): the activation resync then
-        // builds an empty scene, which is the state before the first push.
-        RecordingSeam seam = new();
-        SituationsPlaybackContribution situations = new();
-        PlaybackContributionHost host = ReviewPanelsHarness.Host(null, situations);
-        Playback2DTabViewModel vm = new() { Contributions = host };
-        Playback2DFakeContext ctx = new() { MapName = "de_dust2" };
-        ctx.SetService<IFindRoundsLikeThis>(seam);
-        vm.OnActivated(ctx);
-
-        // Nothing pushed yet: the scene is empty, so the seam is never asked.
-        await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsFalse();
-        await Assert.That(seam.Calls.Count).IsEqualTo(0);
-
-        ctx.PushPlacedMarkers((1, 3, 600, -400, 64, "BombsiteA"), (6, 2, -900, 200, 64, "Lobby"));
-
-        vm.Surface.ToolbarItems.Single().Command!.Execute(null);
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(seam.Calls.Count).IsEqualTo(1);
-            (string map, SceneTime time, IReadOnlyList<PlayerMarker> markers) = seam.Calls[0];
-            await Assert.That(map).IsEqualTo("de_dust2");
-            await Assert.That(time.Tick).IsEqualTo(ctx.CurrentTick).Because("the frame the markers belong to");
-            await Assert.That(markers.Select(m => m.Place ?? "?")).IsEquivalentTo(["BombsiteA", "Lobby"]);
-        }
+            // A bare context with no roster (not the harness's three-player fake): the activation resync then
+            // builds an empty scene, which is the state before the first push.
+            RecordingSeam seam = new();
+            SituationsPlaybackContribution situations = new();
+            PlaybackContributionHost host = ReviewPanelsHarness.Host(null, situations);
+            Playback2DTabViewModel vm = new() { Contributions = host };
+            Playback2DFakeContext ctx = new() { MapName = "de_dust2" };
+            ctx.SetService<IFindRoundsLikeThis>(seam);
+            vm.OnActivated(ctx);
 
-        // Ctrl+F and the toolbar button run the same funnel.
-        await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsTrue();
-        await Assert.That(seam.Calls.Count).IsEqualTo(2);
+            // Nothing pushed yet: the scene is empty, so the seam is never asked.
+            await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsFalse();
+            await Assert.That(seam.Calls.Count).IsEqualTo(0);
 
-        vm.Dispose();
+            ctx.PushPlacedMarkers((1, 3, 600, -400, 64, "BombsiteA"), (6, 2, -900, 200, 64, "Lobby"));
+
+            vm.Surface.ToolbarItems.Single().Command!.Execute(null);
+            using (Assert.Multiple())
+            {
+                await Assert.That(seam.Calls.Count).IsEqualTo(1);
+                (string map, SceneTime time, IReadOnlyList<PlayerMarker> markers) = seam.Calls[0];
+                await Assert.That(map).IsEqualTo("de_dust2");
+                await Assert.That(time.Tick).IsEqualTo(ctx.CurrentTick).Because("the frame the markers belong to");
+                await Assert.That(markers.Select(m => m.Place ?? "?")).IsEquivalentTo(["BombsiteA", "Lobby"], CollectionOrdering.Matching);
+            }
+
+            // Ctrl+F and the toolbar button run the same funnel.
+            await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsTrue();
+            await Assert.That(seam.Calls.Count).IsEqualTo(2);
+
+            vm.Dispose();
+        });
     }
 
     /// <summary>
@@ -222,59 +232,65 @@ public class SituationsPlaybackContributionTests
     [Test]
     public async Task TheLabelIsConstant_TheMenuHeaderAndTheToolTip_ReadTheResolvedProfile_AndFollowARebind()
     {
-        (Playback2DTabViewModel vm, _, SituationsPlaybackContribution situations) = Tab(configure: c => c.MapName = "de_dust2");
-        global::DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem item = situations.ToolbarItem!;
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(item.Label).IsEqualTo("Rounds like this").Because("the button's own text, no gesture hint");
-            await Assert.That(item.Icon).IsEqualTo("⌕");
-            await Assert.That(item.MenuHeader).IsEqualTo("Find rounds like this (Ctrl+F)");
-            await Assert.That(item.Tooltip).StartsWith("Find rounds like this (Ctrl+F): ");
-        }
+            (Playback2DTabViewModel vm, _, SituationsPlaybackContribution situations) = Tab(configure: c => c.MapName = "de_dust2");
+            global::DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem item = situations.ToolbarItem!;
 
-        vm.ApplyKeymapOverrides(["FindRoundsLikeThis=Ctrl+Shift+S"]);
+            using (Assert.Multiple())
+            {
+                await Assert.That(item.Label).IsEqualTo("Rounds like this").Because("the button's own text, no gesture hint");
+                await Assert.That(item.Icon).IsEqualTo("⌕");
+                await Assert.That(item.MenuHeader).IsEqualTo("Find rounds like this (Ctrl+F)");
+                await Assert.That(item.Tooltip).StartsWith("Find rounds like this (Ctrl+F): ");
+            }
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(item.Label).IsEqualTo("Rounds like this").Because("the label never changes");
-            await Assert.That(item.MenuHeader).IsEqualTo("Find rounds like this (Ctrl+Shift+S)");
-            await Assert.That(item.Tooltip).StartsWith("Find rounds like this (Ctrl+Shift+S): ");
-        }
+            vm.ApplyKeymapOverrides(["FindRoundsLikeThis=Ctrl+Shift+S"]);
 
-        vm.Dispose();
+            using (Assert.Multiple())
+            {
+                await Assert.That(item.Label).IsEqualTo("Rounds like this").Because("the label never changes");
+                await Assert.That(item.MenuHeader).IsEqualTo("Find rounds like this (Ctrl+Shift+S)");
+                await Assert.That(item.Tooltip).StartsWith("Find rounds like this (Ctrl+Shift+S): ");
+            }
+
+            vm.Dispose();
+        });
     }
 
     [Test]
     public async Task JK_DispatchToTheWalkSeam_GatedByTheSituationsTabFeature()
     {
-        RecordingWalk walk = new();
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, SituationsPlaybackContribution _) = Tab(
-            configure: c =>
-            {
-                c.MapName = "de_dust2";
-                c.SetService<ISituationResultWalk>(walk);
-            });
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsTrue();
-            await Assert.That(vm.ExecuteAction(StratBookActions.PrevSituationResult)).IsTrue();
-            await Assert.That(walk.Directions).IsEquivalentTo([1, -1]);
-        }
+            RecordingWalk walk = new();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, SituationsPlaybackContribution _) = Tab(
+                configure: c =>
+                {
+                    c.MapName = "de_dust2";
+                    c.SetService<ISituationResultWalk>(walk);
+                });
 
-        // With nothing to walk to, the seam's own answer leaves the key unhandled.
-        walk.Answer = false;
-        await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsFalse();
-        await Assert.That(walk.Directions.Count).IsEqualTo(3);
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsTrue();
+                await Assert.That(vm.ExecuteAction(StratBookActions.PrevSituationResult)).IsTrue();
+                await Assert.That(walk.Directions).IsEquivalentTo([1, -1], CollectionOrdering.Matching);
+            }
 
-        // Gated off: the Situations tab's own feature, not the pack's, and the seam is never asked.
-        walk.Answer = true;
-        ctx.Gate!.SetEnabled(SituationsModule.TabFeatureId, false);
-        await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsFalse();
-        await Assert.That(walk.Directions.Count).IsEqualTo(3);
+            // With nothing to walk to, the seam's own answer leaves the key unhandled.
+            walk.Answer = false;
+            await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsFalse();
+            await Assert.That(walk.Directions.Count).IsEqualTo(3);
 
-        vm.Dispose();
+            // Gated off: the Situations tab's own feature, not the pack's, and the seam is never asked.
+            walk.Answer = true;
+            ctx.Gate!.SetEnabled(SituationsModule.TabFeatureId, false);
+            await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsFalse();
+            await Assert.That(walk.Directions.Count).IsEqualTo(3);
+
+            vm.Dispose();
+        });
     }
 
     private sealed class RecordingSeam : IFindRoundsLikeThis

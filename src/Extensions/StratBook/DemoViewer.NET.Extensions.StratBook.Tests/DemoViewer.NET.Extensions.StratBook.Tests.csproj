@@ -2,15 +2,9 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
         <!-- Moved from App.Tests, namespaces unchanged. The root
              namespace stays the App.Tests one so every moved file compiles with no using/namespace churn. -->
         <RootNamespace>DemoViewer.NET.AppTests</RootNamespace>
-        <!-- CA1707: test method names conventionally use underscores (e.g. Method_Condition_Expected) -->
-        <NoWarn>$(NoWarn);CA1707</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -53,6 +47,11 @@
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\SingleWalkSession.cs" Link="SingleWalkSession.cs"/>
         <!-- Manifests for the IFeaturePack fakes every moved test's FakePack now needs. -->
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Extensions\FakeManifests.cs" Link="FakeManifests.cs"/>
+    </ItemGroup>
+
+    <!-- Fixtures that need the StratBook pack, shared with App.Tests. -->
+    <ItemGroup>
+        <Compile Include="..\..\..\Testing\StratBookFixtures\*.cs" LinkBase="StratBookFixtures"/>
     </ItemGroup>
 
     <ItemGroup>

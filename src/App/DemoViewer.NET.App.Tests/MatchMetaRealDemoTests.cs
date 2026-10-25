@@ -9,18 +9,18 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.TestSupport;
-using TUnit.Core.Exceptions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Game mode and rank off the forward read, on the five benchmark matchmaking demos (premier ×3,
+///     Game mode and rank off the forward read, on the five Valve matchmaking demos (premier ×3,
 ///     competitive ×2): the mode, ten rank rows, the server's update on both reads, the last-full-packet
 ///     checkpoint of a rules read agreeing with the bare read's replay, and the premier prediction standing in
-///     for an update the demo did not carry. Read in place from the <c>DEMO_PATH</c> folder, else
-///     <c>demos/benchmarks</c>.
+///     for an update the demo did not carry. The five are the manifest's <c>valve-mm</c> set, so a local
+///     corpus, the fetch cache or a configured <c>DEMO_SOURCES</c> can serve them.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
@@ -37,7 +37,7 @@ public class MatchMetaRealDemoTests
     [Arguments(4, "competitive")]
     public async Task TheVisit_ReadsTheModeAndTenRankRows_OnBothReads(int which, string mode)
     {
-        string path = BenchmarkDemo(which);
+        string path = ValveDemo(which);
         ForwardDemoResult bare = Read(path, ForwardNeeds.FinalState);
         ForwardDemoResult ruled = Read(path, ForwardNeeds.FinalState | ForwardNeeds.Rules);
         (string? gameMode, string source, List<MatchRankRow> rows) = MatchMetaEvaluator.Capture(ruled.GameMode, ruled.Demo.Profile.SourceKind,
@@ -55,10 +55,10 @@ public class MatchMetaRealDemoTests
             await Assert.That(bare.GameMode).IsEqualTo(mode);
             await Assert.That(source).IsEqualTo(nameof(DemoSourceKind.GotvMatchmaking));
             await Assert.That(ruled.RankUpdates.Count).IsEqualTo(10).Because("352 is sent once, with all ten humans");
-            await Assert.That(bare.RankUpdates).IsEquivalentTo(ruled.RankUpdates);
-            await Assert.That(ruled.ControllerRanks.OrderBy(r => r.SteamId64)).IsEquivalentTo(bare.ControllerRanks.OrderBy(r => r.SteamId64))
+            await Assert.That(bare.RankUpdates).IsEquivalentTo(ruled.RankUpdates, CollectionOrdering.Matching);
+            await Assert.That(ruled.ControllerRanks.OrderBy(r => r.SteamId64)).IsEquivalentTo(bare.ControllerRanks.OrderBy(r => r.SteamId64), CollectionOrdering.Matching)
                 .Because("the last-full-packet checkpoint agrees with the full replay");
-            await Assert.That(ruled.ControllerRanks.Select(r => r.SteamId64).Order()).IsEquivalentTo(ruled.RankUpdates.Select(u => u.SteamId64).Order())
+            await Assert.That(ruled.ControllerRanks.Select(r => r.SteamId64).Order()).IsEquivalentTo(ruled.RankUpdates.Select(u => u.SteamId64).Order(), CollectionOrdering.Matching)
                 .Because("every update joins a controller by account id + 76561197960265728");
             await Assert.That(rows.Count).IsEqualTo(10);
             await Assert.That(rows.All(r => r.RankSource == RankSource.ServerRankUpdate)).IsTrue();
@@ -96,14 +96,7 @@ public class MatchMetaRealDemoTests
         return ForwardDemoPass.Run(reader, needs, (needs & ForwardNeeds.Rules) != 0 ? Rules.Docs : null, null, null, CollectorSet.Empty, ranks);
     }
 
-    private static string BenchmarkDemo(int which)
-    {
-        string? env = Environment.GetEnvironmentVariable("DEMO_PATH");
-        string folder = env is null ? Path.Combine(DemoTestHelper.FindRepoRoot() ?? "", "demos", "benchmarks")
-            : File.Exists(env) ? Path.GetDirectoryName(env)! : env;
-        List<string> demos = Directory.Exists(folder)
-            ? [.. Directory.EnumerateFiles(folder, "match730_*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
-            : [];
-        return which < demos.Count ? demos[which] : throw new SkipTestException($"fewer than {which + 1} Valve demos in the benchmark folder");
-    }
+    // The mode and rank expectations are per index, so membership has to be the manifest's five and
+    // not whatever match730_*.dem a folder happens to hold in ordinal order.
+    private static string ValveDemo(int which) => DemoTestHelper.RequireSetDemo("valve-mm", which);
 }

@@ -21,8 +21,8 @@ contiguous entry, the app-loadable variant). It is deliberately an *incomplete* 
 
 Trimmed GOTV demos structurally lack the initial team seating (`player_team` is only ever emitted
 at the halftime swap), so the trimmer synthesizes those events into the output, so the file is
-self-describing and needs no app-side special-casing. See
-`the design notes in git history` and `tools/DemoViewer.NET.DemoTrimmer/TeamEventSynthesizer.cs`.
+self-describing and needs no app-side special-casing. See the design notes in git history and
+`tools/DemoViewer.NET.DemoTrimmer/TeamEventSynthesizer.cs`.
 
 ## Why a PRO demo, and not the matchmaking reference demo
 

@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Services.Players;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -65,7 +66,7 @@ public class ExtensionPlayerDirectoryTests
             await Assert.That(grim.SteamId64).IsEqualTo(Grim);
             await Assert.That(grim.Name).IsEqualTo("grim").Because("the most recently seen name comes first");
             await Assert.That(grim.DemoCount).IsEqualTo(2);
-            await Assert.That(grim.Aliases.Select(a => a.Name)).IsEquivalentTo(["grim", "Officer"]);
+            await Assert.That(grim.Aliases.Select(a => a.Name)).IsEquivalentTo(["grim", "Officer"], CollectionOrdering.Matching);
             await Assert.That((grim.FirstSeen.Ticks, grim.LastSeen.Ticks)).IsEqualTo((10 * Day, 20 * Day));
             await Assert.That(players.Accounts).IsSameReferenceAs(first);
             await Assert.That(players.Account(Grim)).IsSameReferenceAs(grim);
@@ -93,14 +94,14 @@ public class ExtensionPlayerDirectoryTests
         LibraryPlayerMatch gone = players.Matches(Gone).Single();
         using (Assert.Multiple())
         {
-            await Assert.That(matches.Select(m => m.Demo.FilePath)).IsEquivalentTo(["/d/left.dem", "/d/timed.dem", "/d/untimed.dem"])
+            await Assert.That(matches.Select(m => m.Demo.FilePath)).IsEquivalentTo(["/d/left.dem", "/d/timed.dem", "/d/untimed.dem"], CollectionOrdering.Matching)
                 .Because("newest match first, and a demo with no match time sorts by its file's time");
             await Assert.That(matches[1].Demo).IsSameReferenceAs(library.Find("/d/timed.dem"));
             await Assert.That((matches[1].Time.Ticks, matches[1].Time.Kind)).IsEqualTo((20 * Day, DateTimeKind.Utc));
             await Assert.That((matches[2].Time.Ticks, matches[2].Time.Kind)).IsEqualTo((5 * Day, DateTimeKind.Local));
-            await Assert.That(matches.Select(m => m.Side)).IsEquivalentTo([(int?)3, 3, 2]);
-            await Assert.That(matches[0].Names).IsEquivalentTo(["grim"]);
-            await Assert.That(matches[0].Slots).IsEquivalentTo([1]);
+            await Assert.That(matches.Select(m => m.Side)).IsEquivalentTo([(int?)3, 3, 2], CollectionOrdering.Matching);
+            await Assert.That(matches[0].Names).IsEquivalentTo(["grim"], CollectionOrdering.Matching);
+            await Assert.That(matches[0].Slots).IsEquivalentTo([1], CollectionOrdering.Matching);
             await Assert.That((gone.LeftEarly, gone.Side)).IsEqualTo((true, (int?)null));
             await Assert.That(players.Matches(1)).IsEmpty();
         }
@@ -165,7 +166,7 @@ public class ExtensionPlayerDirectoryTests
         ExtensionLibraryView library = new(new HostLibrary(store, null, () => false),
             ExtensionPassHostTests.StandaloneGuard(), () => new PlayerDirectory(store, _ => true));
 
-        await Assert.That(PlayersOf(library).Accounts.Select(a => a.SteamId64)).IsEquivalentTo([Grim]);
+        await Assert.That(PlayersOf(library).Accounts.Select(a => a.SteamId64)).IsEquivalentTo([Grim], CollectionOrdering.Matching);
     }
 
     // A shell built against an SDK before OpenPlayerOverview: it takes the interface's default.

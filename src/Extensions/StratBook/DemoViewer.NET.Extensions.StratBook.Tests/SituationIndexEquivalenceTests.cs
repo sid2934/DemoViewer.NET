@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
@@ -201,7 +202,7 @@ public class SituationIndexEquivalenceTests
         {
             await Assert.That(afterRemoval).IsEqualTo(remaining).Because("a removal subtracts exactly what the demo added");
             await Assert.That(reloaded).IsEqualTo(full).Because("a re-added demo answers as it did on the first load");
-            await Assert.That(tokensAfterRemoval).IsEquivalentTo(tokensFresh).Because("a token no remaining demo uses leaves the table");
+            await Assert.That(tokensAfterRemoval).IsEquivalentTo(tokensFresh, CollectionOrdering.Matching).Because("a token no remaining demo uses leaves the table");
             if (FullDigest.Length > 0)
             {
                 await Assert.That(Digest(full)).IsEqualTo(FullDigest);

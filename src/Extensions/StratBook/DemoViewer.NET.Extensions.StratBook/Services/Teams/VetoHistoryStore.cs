@@ -11,9 +11,9 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 ///     The optional, user-entered veto history the Map Pool Record's "Done" line asks for:
 ///     manual entry only, no scraping, filed per opponent team.
 ///     <para>
-///         <b>Persistence.</b> <c>veto-history.json</c> beside <c>teams.json</c>, written whole through
-///         <see cref="AtomicFile" /> after every mutation, the same small-file rule
-///         <see cref="DemoViewer.NET.Services.Review.ReviewQueue" /> follows. A null path (the browser, tests) keeps the
+///         <b>Persistence.</b> <c>veto-history.json</c> beside <c>teams.json</c>, written whole through its
+///         <see cref="StoredFile" /> after every mutation, the same small-file rule
+///         <see cref="DemoViewer.NET.Services.Review.ReviewQueue" /> follows. No file (the browser, tests) keeps the
 ///         history for the session; a file that cannot be read, or is at a newer schema, is refused and
 ///         never overwritten.
 ///     </para>
@@ -25,18 +25,18 @@ public sealed class VetoHistoryStore
     public const string FileName = "veto-history.json";
 
     private readonly List<VetoEntry> _entries = [];
-    private readonly string? _path;
+    private readonly StoredFile? _file;
     private bool _refused;
 
-    /// <param name="path">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
-    public VetoHistoryStore(string? path)
+    /// <param name="file">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
+    public VetoHistoryStore(StoredFile? file)
     {
-        _path = path;
+        _file = file;
         Load();
     }
 
     /// <summary>True when nothing persists: the browser host, and tests without a file.</summary>
-    public bool IsSessionOnly => _path is null;
+    public bool IsSessionOnly => _file is null;
 
     /// <summary>Why the file could not be read, or null. While set the file is never written.</summary>
     public string? FileProblem { get; private set; }
@@ -89,14 +89,19 @@ public sealed class VetoHistoryStore
 
     private void Load()
     {
-        if (_path is null || !File.Exists(_path))
+        if (_file is null)
         {
             return;
         }
 
         try
         {
-            VetoHistoryFile? file = JsonSerializer.Deserialize<VetoHistoryFile>(File.ReadAllText(_path), VetoHistoryFile.JsonOptions);
+            if (_file.Read() is not { } bytes)
+            {
+                return;
+            }
+
+            VetoHistoryFile? file = JsonSerializer.Deserialize<VetoHistoryFile>(bytes, VetoHistoryFile.JsonOptions);
             if (file is null || file.SchemaVersion > VetoHistoryFile.CurrentSchema)
             {
                 Refuse($"{FileName} is at schema {file?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads");
@@ -120,7 +125,7 @@ public sealed class VetoHistoryStore
 
     private void Save()
     {
-        if (_path is null || _refused)
+        if (_file is null || _refused)
         {
             return;
         }
@@ -128,7 +133,7 @@ public sealed class VetoHistoryStore
         try
         {
             VetoHistoryFile file = new() { Entries = [.. _entries] };
-            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(file, VetoHistoryFile.JsonOptions));
+            _file.Write(JsonSerializer.SerializeToUtf8Bytes(file, VetoHistoryFile.JsonOptions));
         }
         catch (Exception)
         {

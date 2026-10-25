@@ -10,6 +10,7 @@ using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.Stats;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -41,7 +42,7 @@ public class PlayerOverviewEntryPointTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo") });
+            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo") }, CollectionOrdering.Matching);
             await Assert.That(live.Tip).IsNull();
             await Assert.That(none.Tip).IsEqualTo(PlayerOverviewLink.NoSteamIdTip);
             await Assert.That(none.CanOpen).IsFalse();
@@ -105,7 +106,7 @@ public class PlayerOverviewEntryPointTests
         }
 
         roster.Single(p => p.Name == "Trin").PlayerOverview.Open();
-        await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Trin, "Trin") });
+        await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Trin, "Trin") }, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -122,7 +123,7 @@ public class PlayerOverviewEntryPointTests
         using (Assert.Multiple())
         {
             await Assert.That(vm.PlayerStats.Count).IsEqualTo(4);
-            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo"), (Trin, "Trin") })
+            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo"), (Trin, "Trin") }, CollectionOrdering.Matching)
                 .Because("Bob has no SteamID and the coach is no player");
             await Assert.That(vm.PlayerStats.Single(r => r.Name == "Coach").PlayerOverview.CanOpen).IsFalse();
         }
@@ -160,7 +161,7 @@ public class PlayerOverviewEntryPointTests
         using (Assert.Multiple())
         {
             await Assert.That(vm.PlayerStats.Count).IsGreaterThan(0);
-            await Assert.That(opened.Select(o => o.Item1).Distinct()).IsEquivalentTo(new[] { FocusPlayerTests.Alice });
+            await Assert.That(opened.Select(o => o.Item1).Distinct()).IsEquivalentTo(new[] { FocusPlayerTests.Alice }, CollectionOrdering.Matching);
             await Assert.That(vm.PlayerStats.Single(r => r.Name == "Bob").PlayerOverview.CanOpen).IsFalse();
             await Assert.That(vm.CounterTerrorists.Concat(vm.Terrorists).Single(p => p.Name == "Coach").PlayerOverview.CanOpen).IsFalse()
                 .Because("the analysis names the coach after the roster was filled");
@@ -181,7 +182,7 @@ public class PlayerOverviewEntryPointTests
         using (Assert.Multiple())
         {
             await Assert.That(stats.Podium.Count).IsEqualTo(3);
-            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (FocusPlayerTests.Alice, "Alice") });
+            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (FocusPlayerTests.Alice, "Alice") }, CollectionOrdering.Matching);
             await Assert.That(stats.Podium.Single(p => p.Name == "Bob").PlayerOverview.Tip).IsEqualTo(PlayerOverviewLink.NoSteamIdTip);
         }
     }
@@ -212,7 +213,7 @@ public class PlayerOverviewEntryPointTests
         using (Assert.Multiple())
         {
             await Assert.That(picker.Rows.Count).IsEqualTo(2);
-            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo") });
+            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo") }, CollectionOrdering.Matching);
             await Assert.That(picker.Rows.Single(r => r.PlayerName == "BOT Kirk").PlayerOverview.CanOpen).IsFalse();
         }
     }
@@ -284,7 +285,7 @@ public class PlayerOverviewEntryPointTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo"), (Trin, "Trin") });
+            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo"), (Trin, "Trin") }, CollectionOrdering.Matching);
             await Assert.That(ambiguous.CanOpen).IsFalse();
             await Assert.That(ambiguous.Tip).Contains("2 accounts");
         }
@@ -318,7 +319,7 @@ public class PlayerOverviewEntryPointTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo") })
+            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo") }, CollectionOrdering.Matching)
                 .Because("a slot with no SteamID does not make the name a second account");
             await Assert.That(kirk.CanOpen).IsFalse();
             await Assert.That(kirk.Tip).IsEqualTo(PlayerOverviewLink.NoSteamIdTip);

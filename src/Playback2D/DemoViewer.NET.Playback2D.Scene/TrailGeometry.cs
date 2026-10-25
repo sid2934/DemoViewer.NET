@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>
 ///     Splits a grenade's flight path into the contiguous point runs that belong on one level.
-///     Port of <c>Playback2DViewport.FloorSegmentRuns</c> (lines 1298-1333), verbatim.
+///     Port of the pre-v2 control's <c>FloorSegmentRuns</c>, verbatim.
 ///     <para>
 ///         <b>A segment belongs to a level if EITHER endpoint maps to it.</b> That
 ///         is deliberate over-draw: the one segment that crosses between floors is drawn on both bands,

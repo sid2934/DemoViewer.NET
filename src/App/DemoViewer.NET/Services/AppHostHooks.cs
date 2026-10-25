@@ -35,7 +35,7 @@ public static class AppHostHooks
     /// <summary>
     ///     Factory for the desktop reel-generation job service.
     ///     Assigned alongside <see cref="LiveSyncFactory" />; invoked with the shell and the
-    ///     (possibly null) live-sync engine so the F1↔F3b single-CS2 interlock can suspend an
+    ///     (possibly null) live-sync engine so the single-CS2 interlock can suspend an
     ///     active sync session. Null on Browser/tests: reel generation absent.
     /// </summary>
     public static Func<MainViewModel, ILiveSyncService?, IReelJobService>? ReelJobFactory { get; set; }

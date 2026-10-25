@@ -100,7 +100,7 @@ public class IdentitySettingsTests
                 await Assert.That(account.AddedUtc).IsEqualTo(Added);
                 await Assert.That(account.AddedUtc.Kind).IsEqualTo(DateTimeKind.Utc).Because("the binder reads Z as local time; the service gives UTC");
                 await Assert.That(identity.ActiveSteamId64).IsEqualTo(Main);
-                await Assert.That(identity.DismissedSuggestions).IsEquivalentTo([Dismissed]);
+                await Assert.That(identity.DismissedSuggestions).IsEquivalentTo([Dismissed], CollectionOrdering.Matching);
                 await Assert.That(settings.Current.Identity.MigratedFromTeamsJson).IsTrue();
                 await Assert.That(committed).Contains("\"SteamId64\": \"76561198000000001\"").Because("SteamIDs are strings");
             }
@@ -133,7 +133,7 @@ public class IdentitySettingsTests
             await Assert.That(reread.Accounts[1].Label).IsNull();
             await Assert.That(reread.Accounts[0].AddedUtc).IsEqualTo(Added);
             await Assert.That(reread.ActiveSteamId64).IsEqualTo(Main);
-            await Assert.That(reread.DismissedSuggestions).IsEquivalentTo([Dismissed]);
+            await Assert.That(reread.DismissedSuggestions).IsEquivalentTo([Dismissed], CollectionOrdering.Matching);
             await Assert.That(settings.Current.Identity.MigratedFromTeamsJson).IsTrue();
         }
 

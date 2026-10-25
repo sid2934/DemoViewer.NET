@@ -5,6 +5,7 @@ using Avalonia.Media.Immutable;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -325,7 +326,7 @@ public class TimelineLayoutTests
         vm.RegisterTrack(new BombTrack());
         vm.RegisterTrack(new AnnotationTrack(new AnnotationDocument()));
 
-        await Assert.That(vm.Tracks.Select(t => t.Id).ToArray()).IsEquivalentTo(_registeredTrackIds);
+        await Assert.That(vm.Tracks.Select(t => t.Id).ToArray()).IsEquivalentTo(_registeredTrackIds, CollectionOrdering.Matching);
 
         // And a restore against those ids actually lands, rather than being swallowed as unknown.
         foreach (string id in _persistedTrackIds)

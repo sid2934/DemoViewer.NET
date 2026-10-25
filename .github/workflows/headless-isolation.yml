@@ -1,0 +1,38 @@
+# Nightly guard for off-UI-thread Avalonia work in the extension suite.
+#
+# PerAssembly isolation shares one dispatcher queue for the whole run, so a control built on a pool
+# thread outside HeadlessSession.RunOnUi fails deterministically here. At the shipped PerTest level the
+# same mistake surfaces as one unexplained flake, on whichever test drains the queue. A failure in this
+# job is a cross-thread regression with named tests, not a flake: fix the named classes.
+#
+# Full tier, not standard: the standard tier drops [Category("Integration")], which many headless-ui classes carry.
+name: headless-isolation
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ext-per-assembly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # Nerdbank.GitVersioning needs full history
+
+      - uses: ./.github/actions/dotnet-sdk
+        with:
+          native: skia
+
+      # -b skip for the same reason ci.yml's correctness lanes use it: this is a thread-affinity
+      # regression gate, and StratBook's four Budget benchmarks would run here in parallel with no
+      # DV2D_BUDGET_SCALE, measuring nothing and able to fail the lane on timing alone.
+      - name: Extension suite, full tier, PerAssembly isolation
+        env:
+          DV_HEADLESS_ISOLATION: PerAssembly
+        run: bash scripts/test.sh -t full -p ext -c Release -b skip

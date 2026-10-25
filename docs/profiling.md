@@ -24,9 +24,9 @@ The env var accepts `1` / `true` / `yes` (case-insensitive). Default (unset / no
 everything off.
 
 > **Env-var spelling.** The switch moved into the CS2DemoKit packages, and its variable is
-> `CS2DEMOKIT_PROFILE`. This document and `RuntimeEnvInfo` still name `DEMOVIEWER_PROFILE` in places;
+> `CS2DEMOKIT_PROFILE`. AnalysisBench's usage text and `RuntimeEnvInfo` still name `DEMOVIEWER_PROFILE`;
 > that spelling no longer flips `Profiling.Enabled` on its own. `dv2d` honours **both** (see below);
-> elsewhere, prefer `CS2DEMOKIT_PROFILE`.
+> elsewhere, use `CS2DEMOKIT_PROFILE`.
 
 **Threading contract: set before the run.** `Profiling.Enabled` is read on `Parallel.For` worker
 threads (parse pass-2, the parallel digest producer). Set it *before* the run it governs begins; the
@@ -47,8 +47,8 @@ The analysis evaluator publishes three runtime sources that cost a single branch
 - **`ActivitySource` `DemoViewer.Analysis`**: phase-timeline spans (`analysis.eval`, plus
   `analysis.precompute` only when a host folds the digests itself through
   `PrecomputeParallelDigests`). `StartActivity` returns `null` when nothing is sampling, so the spans are
-  near-free by default. The bench also spans `read`/`parse`/`build` so `--timeline` shows the full
-  nested pipeline.
+  near-free by default. The bench wraps the whole run in a `run` span so `--timeline` shows the
+  library's spans nested under it.
 
 The evaluator's per-message `Counter.Add` is guarded on whether a `MeterListener` is actually
 subscribed, so the default user path does **no** counter work; the frame-duration histogram records
@@ -62,26 +62,32 @@ because their scopes differ.
 
 ## Running the bench (`tools/AnalysisBench`)
 
+The bench has one path: `DemoAnalysis.Run` over the file with every frame dropped behind the
+evaluation loop, the same forward pass the app's queue uses. It does not parse the demo into a retained
+`ParsedDemo`, so it prints no parse-pipeline profile. Parse-pass numbers belong to CS2DemoKit.
+
 ```sh
-# Turn on the full per-phase profile trees + attach Meter/Activity listeners; no special build:
-dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --profile --no-golden
-#  → "Parse-Pipeline Profile" + "Entity-Tracking Profile" + counters + timeline blocks
+# Turn on the entity profile tree + attach Meter/Activity listeners; no special build:
+dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --profile
+#  -> "Entity-Tracking Profile" + counters + timeline blocks
 
 # Equivalently via the env var (also dumps a combined ProfilingSession report on exit):
-CS2DEMOKIT_PROFILE=1 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --no-golden
+CS2DEMOKIT_PROFILE=1 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem>
 
 # Individual runtime listeners (also work on their own, without --profile):
-dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --counters --no-golden
-#  → "Evaluator Counters (Meter)" block (also exercises the frame-duration histogram)
-dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --trace --no-golden
-#  → "Evaluator Diagnostics" block (EventSource)
-dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --timeline --no-golden
-#  → "Phase Timeline (ActivitySource)" block: read / parse / build / analysis.eval
+dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --counters
+#  -> "Evaluator Counters (Meter)" block (also exercises the frame-duration histogram)
+dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --trace
+#  -> "Evaluator Diagnostics" block (EventSource)
+dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --timeline
+#  -> "Phase Timeline (ActivitySource)" block: run / analysis.eval / analysis.precompute
 ```
 
 `--profile` implies `--counters` and `--timeline` (they construct one listener each, so no double-attach).
-Always pass `--no-golden` on verification runs so they don't re-baseline the committed
-`tests/fixtures/*/*.golden.json` oracle.
+
+A plain run writes no files. `--golden` opts in to writing `tests/fixtures/<demo-id>/ours.golden.json`, an
+untracked snapshot for a hand comparison that nothing in the repo reads; it never touches the committed
+`expected.golden.json` oracle. `--no-golden` is still accepted and does nothing.
 
 > Note: the digest producer decodes the entity stream on its own worker trackers, so the
 > `AdvanceAndPoll (Σ phases)` line and the tracker sub-tree (`PacketEntities`/`field-path`/…) read
@@ -104,6 +110,13 @@ K=samples/Extensions/HelloExtension/kills.rules.yaml
 dotnet artifacts/bin/AnalysisBench/release/AnalysisBench.dll bg-run --list=/tmp/list.txt --read=app-forward
 dotnet artifacts/bin/AnalysisBench/release/AnalysisBench.dll bg-run --list=/tmp/list.txt --read=app-forward --with=$K --outputs=round_facts,hello_kills
 ```
+
+`--read=app-retained` is the pre-forward queue job (a mapped parse, then the separate builds), kept as the
+baseline arm that `app-forward` is measured against. The sweep-and-GC harnesses that used to sit beside
+`bg-run` (`--retained`, `gc-sweep`, `scripts/perf-sweep.sh`) are gone: they measured `DemoParser.Parse` and
+its passes, which are the CS2DemoKit package now. The Workstation GC choice recorded in the Desktop
+project file was measured with `gc-sweep`, whose harness was `tools/AnalysisBench/GcSweepCommand.cs`;
+it is in history up to the commit that deleted it with the retained parse path.
 
 Interleave the configurations in one sweep (A, B, C, D, then the next round); timings drift between
 sessions, so two separate sweeps are not comparable.
@@ -128,6 +141,13 @@ projected. E is the price of `round_facts` riding every run: about 3% per job, 9
 and 0.04 GiB of allocation, the one difference the sweep shows in the same direction on every measure.
 Re-measure when an extension ships a table keyed per tick or per event, where the row count is no longer
 a few hundred.
+
+The Peak heap column above predates `bg-run` moving to the shared `MemorySampler`, which takes the larger
+of `GC.GetGCMemoryInfo().HeapSizeBytes` and `GC.GetTotalMemory(false)` where `bg-run`'s own sampler took
+only the second, and polls from the thread pool rather than a dedicated thread, so under the digest
+producer's fan-out its cadence can stretch. A fresh run tends to read higher per sample but can miss a
+spike the old sampler caught; re-baseline before comparing against those figures. Wall, job ratio and
+alloc are unaffected.
 
 ## Profiling the shipped app (no rebuild): `dotnet-trace` / `dotnet-counters`
 
@@ -160,7 +180,7 @@ no cost.
 
 ```sh
 # Bench: report prints after the run:
-CS2DEMOKIT_PROFILE=1 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem> --no-golden
+CS2DEMOKIT_PROFILE=1 dotnet run --project tools/AnalysisBench -c Release -- <demo.dem>
 # Desktop app: load/analyze a demo, then close the app; the report prints to the launching terminal:
 CS2DEMOKIT_PROFILE=1 dotnet run --project DemoViewer.NET.Desktop
 ```
@@ -183,8 +203,8 @@ the tab's **Re-run** reuses the already-parsed `ParsedDemo` (it does not re-pars
 ## Playback2D scene capture (`dv2d --perf`)
 
 The scene pipeline has its own per-layer / per-stage capture, because Core is banned from wall-clock
-APIs and cannot instrument itself (design §5.1). `dv2d bench --perf` and `dv2d export --perf` attach a
-recorder to `SceneCompositor`'s profiler seam and report, per stage and per layer, p50/p95/p99/total
+APIs and cannot instrument itself. `dv2d bench --perf` and `dv2d export --perf` attach a recorder to
+`SceneCompositor`'s profiler seam and report, per stage and per layer, p50/p95/p99/total
 and share-of-frame, plus picture-cache hit rates, the uncapped render-only fps, and a slowest-first
 ranking.
 
@@ -200,19 +220,6 @@ dv2d export --demo match.dem --from t72000 --to t79680 --size 1280x720 --fps 60 
 `dv2d` reads) turns the scene capture on implicitly. The reverse is not true: `--perf` deliberately
 does **not** set `Profiling.Enabled`, because the tracker decode is one of the stages being timed.
 Full contract: [`playback2d-v2/dv2d.md`](playback2d-v2/dv2d.md#performance-capture---perf).
-
-## Micro-benchmarks (`tools/EntityMicroBench`)
-
-BenchmarkDotNet harness for nanosecond-resolution entity-access primitives. Always `-c Release`:
-
-```sh
-dotnet run --project tools/EntityMicroBench -c Release
-dotnet run --project tools/EntityMicroBench -c Release -- --filter '*ResolveHandle*'
-
-# Cross-check: independent MemoryDiagnoser measurement of the parallel digest decode (~GiB/op,
-# confirming the per-worker alloc fix). Slow (~seconds/op) so it is excluded from the default run:
-dotnet run --project tools/EntityMicroBench -c Release -- --filter '*Precompute*' --job short
-```
 
 ## Reading a snapshot programmatically
 

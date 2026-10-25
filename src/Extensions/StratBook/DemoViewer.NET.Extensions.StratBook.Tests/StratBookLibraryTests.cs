@@ -7,6 +7,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -17,7 +18,7 @@ namespace DemoViewer.NET.AppTests;
 ///     row equal the ones read off the record, and a row loaded from an index older than side players keeps the
 ///     team index as it was until the sides pass reads the record.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratBookLibraryTests))]
 public class StratBookLibraryTests
 {
     private static readonly Func<Action, Task> _inline = a =>
@@ -79,9 +80,9 @@ public class StratBookLibraryTests
         using (Assert.Multiple())
         {
             await Assert.That(fromRow.SameSides(fromRecord)).IsTrue();
-            await Assert.That(fromRow.T.Key).IsEquivalentTo(Ids(10));
-            await Assert.That(fromRow.Ct.Key).IsEquivalentTo(Ids(20)).Because("the coach is no member of the key");
-            await Assert.That(fromRow.T.Names).IsEquivalentTo(fromRecord.T.Names);
+            await Assert.That(fromRow.T.Key).IsEquivalentTo(Ids(10), CollectionOrdering.Matching);
+            await Assert.That(fromRow.Ct.Key).IsEquivalentTo(Ids(20), CollectionOrdering.Matching).Because("the coach is no member of the key");
+            await Assert.That(fromRow.T.Names).IsEquivalentTo(fromRecord.T.Names, CollectionOrdering.Matching);
             await Assert.That(fromRow.Ct.Clan).IsEqualTo("Blue");
             await Assert.That(fromRow.StableKey).IsEqualTo(DemoCacheStore.StableKey("/d/a.dem"));
             await Assert.That(fromRow.OrderTicks).IsEqualTo(638000000000000000);

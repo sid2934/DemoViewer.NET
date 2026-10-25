@@ -6,6 +6,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -127,7 +128,7 @@ public class RecordPassDependsOnTests
 
         await Assert.That(unknownPass.Seen).IsEmpty();
         await Assert.That(scoreboardPass.Seen).IsEmpty();
-        await Assert.That(faults.Order()).IsEquivalentTo(Refusals);
+        await Assert.That(faults.Order()).IsEquivalentTo(Refusals, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -268,7 +269,7 @@ public class RecordPassDependsOnTests
         store.Upsert(HostLibraryTests.Parsed(Demo));
         await WaitFor(() => barrier.Seen.Count == 1, "the row");
         await Assert.That(reader.Seen).IsEmpty();
-        await Assert.That(faults.ToArray()).IsEquivalentTo(UnknownOwnerRefusal);
+        await Assert.That(faults.ToArray()).IsEquivalentTo(UnknownOwnerRefusal, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -297,7 +298,7 @@ public class RecordPassDependsOnTests
         await WaitFor(() => barrier.Seen.Count == 1, "the row");
         await Assert.That(reader.Seen).IsEmpty();
         await Assert.That(faults.ToArray())
-            .IsEquivalentTo(["test.library.reader: depends on test.owner:bad/facet, which the library does not write."]);
+            .IsEquivalentTo(["test.library.reader: depends on test.owner:bad/facet, which the library does not write."], CollectionOrdering.Matching);
     }
 
     private sealed class FakeData : IExtensionDemoData

@@ -229,11 +229,11 @@
                          control that collapses only its inner content still contributes this element's
                          slot to the stack.
 
-                         AnnotationsPanelViewModel.IsEnabled is now the FEATURE and the mounted SURFACE'S
-                         CAPABILITY, not the feature alone. Bound to the gate by itself,
-                         this row rendered in full under DV_PLAYBACK2D_RENDERER=legacy over a viewport
-                         with no router — every button inert, and picking one of them took Space and
-                         Escape away from play/pause and clear-follow with no visible cause. -->
+                         AnnotationsPanelViewModel.IsEnabled is the FEATURE and the mounted SURFACE'S
+                         CAPABILITY, not the feature alone. Bound to the gate by itself, this row renders
+                         in full over a surface with no router: every button inert, and picking one of
+                         them takes Space and Escape away from play/pause and clear-follow with no
+                         visible cause. -->
                     <tl:AnnotationToolbar x:Name="AnnotationToolbarHost"
                                           HorizontalAlignment="Stretch"
                                           DataContext="{Binding Annotations}"
@@ -241,9 +241,8 @@
                 </StackPanel>
             </Border>
 
-            <!-- The surface is mounted in code (Playback2DRenderer.Selected): Scene2DHost by default,
-                 the pre-v2 Playback2DViewport behind the DV_PLAYBACK2D_RENDERER escape hatch. Both
-                 satisfy IPlayback2DSurface, so everything below drives either one. -->
+            <!-- Scene2DHost is mounted in code. Everything below drives it through
+                 IPlayback2DSurface and the two capability interfaces. -->
             <ContentControl Grid.Row="1" x:Name="ViewportHost" />
 
             <!-- The text tool's editor. Hidden until the surface places a label,

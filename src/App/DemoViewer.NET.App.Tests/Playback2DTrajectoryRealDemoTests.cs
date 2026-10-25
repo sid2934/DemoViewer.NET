@@ -16,7 +16,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Gates the A4 grenade flight-trail overlay end-to-end on a REAL demo: stepping the real
+///     Gates the grenade flight-trail overlay end-to-end on a REAL demo: stepping the real
 ///     <see cref="EntityTracker" /> through the frames LEADING UP TO a real <c>smokegrenade_detonate</c>
 ///     (when the smoke projectile is in flight), the VM must accumulate a multi-point <c>GrenadeKind.Smoke</c>
 ///     trail at sane in-world coordinates, proving the projectile classes resolve through the live entity
@@ -49,7 +49,8 @@ public class Playback2DTrajectoryRealDemoTests
         tracker.ReplayToIndex(start, frames);
         ReadOnlyEntityView view = new(tracker.CurrentEntities); // CurrentEntities mutates in place per step
 
-        Ctx ctx = new();
+        Playback2DFakeContext ctx = Playback2DFakeContext.Bare();
+        ctx.Entities = view;
         ctx.Roster.AddRange(demo.Players.Values.Select(p =>
             new PlayerRosterEntry
             {
@@ -185,42 +186,6 @@ public class Playback2DTrajectoryRealDemoTests
     }
 
     // ── Minimal harness: a context whose Entities/snapshot are backed by the REAL entity view. ──
-
-    private sealed class Ctx : IModuleContext
-    {
-        public List<PlayerRosterEntry> Roster { get; } = new();
-
-        public bool HasDemo => true;
-        public string? DemoPath => null;
-        public int TickRate => 64;
-        public int CurrentFrameIndex => 0;
-        public int CurrentTick => 0;
-        public bool IsPlaying => false;
-        public double Speed => 1;
-        public double CurtimeSeconds(int tick) => tick / 64.0;
-
-        public void RequestSeekToFrame(int frameIndex)
-        {
-        }
-
-        public void RequestSeekToTick(int tick)
-        {
-        }
-
-        public void RequestPlay()
-        {
-        }
-
-        public void RequestPause()
-        {
-        }
-
-        public event Action<IPlaybackSnapshot>? Advanced;
-        public IReadOnlyEntityView Entities { get; } = new ReadOnlyEntityView(new EntitySet());
-        public IReadOnlyList<PlayerRosterEntry> Players => Roster;
-        public IReadOnlyList<IPlayerState> CurrentPlayers { get; } = new List<IPlayerState>();
-        public void Push(Snap snap) => Advanced?.Invoke(snap);
-    }
 
     private sealed class Snap : IPlaybackSnapshot
     {

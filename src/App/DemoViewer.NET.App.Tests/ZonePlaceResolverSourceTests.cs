@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Services.Zones;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
@@ -53,7 +54,7 @@ public class ZonePlaceResolverSourceTests
         // The graph comes over by name, and an unknown place has no neighbours.
         ZonePlace linked = direct.Zones.Places.First(p => direct.Adjacent(p.Id).Count > 0);
         string[] expected = [.. direct.Adjacent(linked.Id).Select(id => direct.Zones.Places[id].Name)];
-        await Assert.That(zones.Adjacent(linked.Name).ToArray()).IsEquivalentTo(expected);
+        await Assert.That(zones.Adjacent(linked.Name).ToArray()).IsEquivalentTo(expected, CollectionOrdering.Matching);
         await Assert.That(zones.Adjacent("NoSuchPlace").Count).IsEqualTo(0);
 
         using ToleranceSliderHarness slider = new(source);

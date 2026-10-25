@@ -61,7 +61,7 @@ public class DesktopWindowServiceOwnerTests
 
             service.ShowWhatsNew(NewNoticeVm());
 
-            await Assert.That(_opened).HasCount().EqualTo(1);
+            await Assert.That(_opened).Count().IsEqualTo(1);
             await Assert.That(_opened[0].Owner)
                 .IsNull()
                 .Because("a non-visible owner is not a legal owner — the pop-up must stand alone");
@@ -86,7 +86,7 @@ public class DesktopWindowServiceOwnerTests
 
             service.ShowWhatsNew(NewNoticeVm());
 
-            await Assert.That(_opened).HasCount().EqualTo(1);
+            await Assert.That(_opened).Count().IsEqualTo(1);
             await Assert.That(_opened[0].Owner).IsSameReferenceAs(owner);
 
             _opened[0].Close();

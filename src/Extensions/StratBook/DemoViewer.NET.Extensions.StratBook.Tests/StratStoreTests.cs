@@ -2,6 +2,7 @@
 
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -49,7 +50,7 @@ public class StratStoreTests
                 await Assert.That(File.ReadAllLines(Path.Combine(root, "team-" + TeamId, "de_mirage", team.Id + ".history.jsonl")).Length).IsEqualTo(1);
                 await Assert.That(File.Exists(Path.Combine(root, "me", "de_nuke", mine.Id + ".dvstrat.json"))).IsTrue();
                 await Assert.That(team.Revision).IsEqualTo(1);
-                await Assert.That(team.Slots.Select(s => s.Slot)).IsEquivalentTo(StratVocabulary.Slots);
+                await Assert.That(team.Slots.Select(s => s.Slot)).IsEquivalentTo(StratVocabulary.Slots, CollectionOrdering.Matching);
                 await Assert.That(row.Map).IsEqualTo("de_mirage").Because("the map is the parser's lower-case spelling");
                 await Assert.That(row.Owner).IsEqualTo(Team);
                 await Assert.That(row.Revision).IsEqualTo(1);
@@ -88,12 +89,12 @@ public class StratStoreTests
 
             // Missing: never saved.
             StratStore rebuilt = new(root);
-            await Assert.That(rebuilt.Index.Select(e => e.Id)).IsEquivalentTo(new[] { a.Id, b.Id }.Order());
+            await Assert.That(rebuilt.Index.Select(e => e.Id)).IsEquivalentTo(new[] { a.Id, b.Id }.Order(), CollectionOrdering.Matching);
 
             // Corrupt.
             File.WriteAllText(Path.Combine(root, "index.json"), "{ not json");
             StratStore fromCorrupt = new(root);
-            await Assert.That(fromCorrupt.Index.Select(e => e.Id)).IsEquivalentTo(new[] { a.Id, b.Id }.Order());
+            await Assert.That(fromCorrupt.Index.Select(e => e.Id)).IsEquivalentTo(new[] { a.Id, b.Id }.Order(), CollectionOrdering.Matching);
             await Assert.That(File.ReadAllText(Path.Combine(root, "index.json"))).Contains(a.Id.ToString());
         }
         finally
@@ -124,7 +125,7 @@ public class StratStoreTests
             File.WriteAllText(StratFile(root, late), StratStore.Serialize(late));
 
             StratStore reopened = new(root);
-            await Assert.That(reopened.Index.Select(e => e.Id)).IsEquivalentTo(new[] { kept.Id, late.Id }.Order());
+            await Assert.That(reopened.Index.Select(e => e.Id)).IsEquivalentTo(new[] { kept.Id, late.Id }.Order(), CollectionOrdering.Matching);
         }
         finally
         {
@@ -225,7 +226,7 @@ public class StratStoreTests
                 previous = now;
             }
 
-            await Assert.That(store.History(document.Id).Select(e => e.Revision)).IsEquivalentTo(SixRevisions);
+            await Assert.That(store.History(document.Id).Select(e => e.Revision)).IsEquivalentTo(SixRevisions, CollectionOrdering.Matching);
         }
         finally
         {
@@ -287,7 +288,7 @@ public class StratStoreTests
             await Assert.That(store.Save(moved, [op], null).Saved).IsTrue();
 
             IReadOnlyList<HistoryEntry> log = new StratStore(root).History(document.Id);
-            await Assert.That(log.Select(e => e.Revision)).IsEquivalentTo(TwoRevisions);
+            await Assert.That(log.Select(e => e.Revision)).IsEquivalentTo(TwoRevisions, CollectionOrdering.Matching);
         }
         finally
         {

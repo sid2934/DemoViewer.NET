@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -13,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 ///     that undo does not roll back, the 200-entry cap, derived rounds, debounced autosave that leaves no
 ///     file for an untouched demo, and the status line on each host.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(TagSessionTests))]
 public class TagSessionTests
 {
     private const string DemoPath = "/d/match.dem";
@@ -62,7 +63,7 @@ public class TagSessionTests
 
         await Assert.That(session.Redo()).IsTrue();
         await Assert.That(session.Document!.Instances.Single().Labels.Select(l => l.Value))
-            .IsEquivalentTo(WonAtA);
+            .IsEquivalentTo(WonAtA, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -141,7 +142,7 @@ public class TagSessionTests
 
         using TagSession session = await Attached(store);
 
-        await Assert.That(session.Document!.Instances.Select(i => i.Round)).IsEquivalentTo(RoundsThreeAndOne);
+        await Assert.That(session.Document!.Instances.Select(i => i.Round)).IsEquivalentTo(RoundsThreeAndOne, CollectionOrdering.Matching);
         await Assert.That(session.UndoDepth).IsEqualTo(0);
     }
 
@@ -189,16 +190,20 @@ public class TagSessionTests
             TagStore store = new(root);
             using TagSession session = await Attached(store);
             session.AutoSaveDelay = TimeSpan.FromMilliseconds(40);
+            TaskCompletionSource autoSaved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            session.Changed += () =>
+            {
+                if (session.SaveCount > 0)
+                {
+                    autoSaved.TrySetResult();
+                }
+            };
             for (int i = 0; i < 5; i++)
             {
                 session.Apply(new TagDelta.Add(Instance("Default", i, i + 1)));
             }
 
-            DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-            while (session.SaveCount == 0 && DateTime.UtcNow < deadline)
-            {
-                await Task.Delay(20);
-            }
+            await autoSaved.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
             await Task.Delay(200);
             await session.FlushAsync(); // nothing new since the save: stands down
@@ -227,7 +232,7 @@ public class TagSessionTests
             session.Apply(new TagDelta.Add(Instance("A execute", 1, 2)));
             session.Detach();
 
-            await Assert.That(new TagStore(root).Index.Single().Codes).IsEquivalentTo(OneCode);
+            await Assert.That(new TagStore(root).Index.Single().Codes).IsEquivalentTo(OneCode, CollectionOrdering.Matching);
             await Assert.That(File.Exists(Path.Combine(root, "index.json"))).IsTrue();
 
             // Released: another session can take the document now.

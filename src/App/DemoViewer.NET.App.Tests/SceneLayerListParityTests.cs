@@ -5,6 +5,7 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Views.Playback2D;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -48,8 +49,7 @@ public class SceneLayerListParityTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
             string[] mounted = [.. host.Compositor.Layers.Select(l => l.Id).Order()];
@@ -61,7 +61,7 @@ public class SceneLayerListParityTests
             // drawing into. An export gets a frozen copy instead, so the catalog leaves the id opt-in
             // rather than making it one of the seven.
             string[] scene = [.. mounted.Where(id => !SceneLayerIds.OptIn.Contains(id))];
-            await Assert.That(scene).IsEquivalentTo(SceneIds.Order().ToArray());
+            await Assert.That(scene).IsEquivalentTo(SceneIds.Order().ToArray(), CollectionOrdering.Matching);
 
             // Not a restatement: an equivalence check would still pass against an accidentally short
             // catalog, so the count is pinned independently.
@@ -75,11 +75,50 @@ public class SceneLayerListParityTests
             await Assert.That(optIn.Length).IsLessThanOrEqualTo(2);
             foreach (string id in optIn)
             {
-                await Assert.That(id is SceneLayerIds.Annotations or SceneLayerIds.Zones).IsTrue();
+                await Assert.That(id == SceneLayerIds.Annotations || id == SceneLayerIds.Zones).IsTrue();
             }
 
             window.Close();
         });
+    }
+
+    /// <summary>
+    ///     Every id's literal value, which nothing else pins in full. The catalog table below pins
+    ///     fourteen of them, but <c>Guides</c> and <c>Utility</c> are in no scene stack, so their only
+    ///     guard used to be the public API baseline: a <c>const</c> records its value there, and the
+    ///     <c>static readonly</c> these became does not. These are persisted keys, so a changed value is
+    ///     a silent data migration rather than a compile error.
+    /// </summary>
+    [Test]
+    public async Task EveryLayerId_KeepsItsPersistedValue()
+    {
+        (string Actual, string Expected)[] ids =
+        [
+            (SceneLayerIds.Radar, "playback2d.radar"),
+            (SceneLayerIds.Trails, "playback2d.trails"),
+            (SceneLayerIds.AreaEffects, "playback2d.areaeffects"),
+            (SceneLayerIds.Vision, "playback2d.vision"),
+            (SceneLayerIds.Markers, "playback2d.markers"),
+            (SceneLayerIds.Bomb, "playback2d.bomb"),
+            (SceneLayerIds.Guides, "playback2d.guides"),
+            (SceneLayerIds.FloorLabel, "playback2d.floorlabel"),
+            (SceneLayerIds.Annotations, "playback2d.annotations"),
+            (SceneLayerIds.Zones, "playback2d.zones"),
+            (SceneLayerIds.HudRoster, "hud.roster"),
+            (SceneLayerIds.HudClock, "hud.clock"),
+            (SceneLayerIds.HudKillFeed, "hud.killfeed"),
+            (SceneLayerIds.Query, "playback2d.query"),
+            (SceneLayerIds.Overlay, "playback2d.overlay"),
+            (SceneLayerIds.Utility, "playback2d.utility")
+        ];
+
+        using (Assert.Multiple())
+        {
+            foreach ((string actual, string expected) in ids)
+            {
+                await Assert.That(actual).IsEqualTo(expected);
+            }
+        }
     }
 
     /// <summary>
@@ -100,7 +139,7 @@ public class SceneLayerListParityTests
             "playback2d.overlay"
         ];
 
-        await Assert.That(SceneLayerCatalog.SceneStackIds.ToArray()).IsEquivalentTo(expected);
+        await Assert.That(SceneLayerCatalog.SceneStackIds.ToArray()).IsEquivalentTo(expected, CollectionOrdering.Matching);
 
         // KnownLayerIds is an alias, not a second table, so a rename only has one place to happen.
         // Asserted by reference so a future "helpful" copy of the list is caught, not just a divergence.

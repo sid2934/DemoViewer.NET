@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Visualization.Sample.SampleGraphs;
+using DemoViewer.NET.Visualization.Tests.SampleGraphs;
 
 #endregion
 

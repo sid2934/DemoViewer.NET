@@ -333,7 +333,7 @@ public class Playback2DExportSetupTests
         {
             Playback2DTabViewModel vm = new();
             Playback2DExportHost host = new(
-                () => null, null, null, null, () => new AppSettings(), _ => { });
+                () => null, null, null, null);
 
             Scene2DExportRequest first = Request(vm.SnapshotInkForExport());
             vm.Annotations.Session.Document.Apply(new DocDelta.Add(Stroke(), 0));
@@ -371,7 +371,7 @@ public class Playback2DExportSetupTests
         {
             Playback2DTabViewModel vm = new();
             Playback2DExportHost host = new(
-                () => null, null, null, null, () => new AppSettings(), _ => { });
+                () => null, null, null, null);
 
             await Assert.That(Application.Current).IsNotNull()
                 .Because("with no Application there is no affinity to violate and this proves nothing");

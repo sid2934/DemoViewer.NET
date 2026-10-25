@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -65,7 +66,7 @@ public class TagMatrixRealDemoTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(matrix.Table!.RowKeys).IsEquivalentTo(["execute"]);
+            await Assert.That(matrix.Table!.RowKeys).IsEquivalentTo(["execute"], CollectionOrdering.Matching);
             foreach ((string buy, int count) in expected)
             {
                 await Assert.That(matrix.Table.Count("execute", buy)).IsEqualTo(count).Because($"T buy {buy}");

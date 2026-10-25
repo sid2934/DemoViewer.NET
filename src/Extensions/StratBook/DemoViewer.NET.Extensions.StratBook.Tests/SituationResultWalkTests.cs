@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -74,7 +75,7 @@ public class SituationResultWalkTests
         {
             await Assert.That(resolved).IsEqualTo(2);
             await Assert.That(results.SelectedIndex).IsEqualTo(1);
-            await Assert.That(playback.Seeks).IsEquivalentTo([("/d/a.dem", 3368)]);
+            await Assert.That(playback.Seeks).IsEquivalentTo([("/d/a.dem", 3368)], CollectionOrdering.Matching);
         }
     }
 }

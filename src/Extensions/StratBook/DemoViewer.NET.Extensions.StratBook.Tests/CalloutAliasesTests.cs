@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -49,9 +50,9 @@ public class CalloutAliasesTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(byAlias.Select(r => r.Id)).IsEquivalentTo(new[] { atRamp.Id });
-            await Assert.That(byCase.Select(r => r.Id)).IsEquivalentTo(new[] { atRamp.Id }).Because("case and spacing fold the same as any other alias lookup");
-            await Assert.That(byCanonical.Select(r => r.Id)).IsEquivalentTo(new[] { atRamp.Id }).Because("the canonical spelling still matches its own place");
+            await Assert.That(byAlias.Select(r => r.Id)).IsEquivalentTo(new[] { atRamp.Id }, CollectionOrdering.Matching);
+            await Assert.That(byCase.Select(r => r.Id)).IsEquivalentTo(new[] { atRamp.Id }, CollectionOrdering.Matching).Because("case and spacing fold the same as any other alias lookup");
+            await Assert.That(byCanonical.Select(r => r.Id)).IsEquivalentTo(new[] { atRamp.Id }, CollectionOrdering.Matching).Because("the canonical spelling still matches its own place");
             await Assert.That(byUnknown).IsEmpty().Because("a word with no place resolves to a filter that matches nothing, not to no filter at all");
         }
     }
@@ -104,7 +105,7 @@ public class CalloutAliasesTests
         using (Assert.Multiple())
         {
             await Assert.That(editor.IssueLine).IsEqualTo("");
-            await Assert.That(editor.Aliases.Select(a => a.Alias)).IsEquivalentTo(["popdog"]);
+            await Assert.That(editor.Aliases.Select(a => a.Alias)).IsEquivalentTo(["popdog"], CollectionOrdering.Matching);
             await Assert.That(store.LoadCallouts(owner, "de_mirage").Aliases.Single().Place).IsEqualTo("TRamp");
         }
     }
@@ -128,7 +129,7 @@ public class CalloutAliasesTests
         using (Assert.Multiple())
         {
             await Assert.That(editor.IssueLine).IsNotEqualTo("");
-            await Assert.That(editor.Aliases.Select(a => a.Alias)).IsEquivalentTo(["popdog"]);
+            await Assert.That(editor.Aliases.Select(a => a.Alias)).IsEquivalentTo(["popdog"], CollectionOrdering.Matching);
             await Assert.That(store.LoadCallouts(owner, "de_mirage").Aliases.Single().Place).IsEqualTo("TRamp");
         }
     }
@@ -171,7 +172,7 @@ public class CalloutAliasesTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(editor.Aliases.Select(a => a.Alias)).IsEquivalentTo(["popdog"]);
+            await Assert.That(editor.Aliases.Select(a => a.Alias)).IsEquivalentTo(["popdog"], CollectionOrdering.Matching);
             await Assert.That(store.LoadCallouts(target, "de_mirage").Aliases.Single().Place).IsEqualTo("TRamp");
         }
     }

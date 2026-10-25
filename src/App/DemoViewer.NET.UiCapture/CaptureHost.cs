@@ -22,8 +22,8 @@ namespace DemoViewer.NET.UiCapture;
 ///     backend (<c>UseHeadlessDrawing = false</c>) so frames actually rasterize.
 ///     <para>
 ///         Scope: single UserControls / panels with a mock DataContext. Views hosting a live MSAGL
-///         <c>GraphView</c> (the Analysis graph) do NOT settle geometry headlessly — capture those via
-///         the Visualization SvgExporter or a real display instead.
+///         <c>GraphView</c> (the Analysis graph) do NOT settle geometry headlessly, so capture those
+///         on a real display or stand in an annotated static mockup.
 ///     </para>
 /// </summary>
 public static class CaptureHost

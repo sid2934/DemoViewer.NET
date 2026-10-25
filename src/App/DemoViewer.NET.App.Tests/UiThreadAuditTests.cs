@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Avalonia;
@@ -24,6 +25,14 @@ namespace DemoViewer.NET.AppTests;
 ///     it and the longest UI-thread stall that followed. <c>DV_AUDIT_CONFIG</c> names the source folder;
 ///     it is copied to temp first and background processing is switched off in the copy, so nothing is
 ///     parsed and the source is never written.
+///     <para>
+///         <b>Three of the four tests here run on one machine.</b> Every test but
+///         <see cref="QueueLatency_AndItsUiCost" /> skips unless <c>DV_AUDIT_CONFIG</c> names a directory
+///         that exists, and nothing in the repo, in CI or in any script sets it: a stall audit over a real
+///         library needs a real library. The class is also <c>Category("Integration")</c>, so no
+///         standard-tier run reaches any of it. A green run of this class is therefore not coverage, which
+///         is how a defect sat unnoticed in one of their waits from the day it was written.
+///     </para>
 /// </summary>
 [NotInParallel]
 [Category("Integration")]
@@ -573,13 +582,19 @@ public class UiThreadAuditTests
         }
     }
 
-    private static async Task Until(Func<bool> done, int timeoutMs)
+    private static async Task Until(Func<bool> done, int timeoutMs,
+        [CallerArgumentExpression(nameof(done))] string? expression = null)
     {
         Stopwatch sw = Stopwatch.StartNew();
         while (!done() && sw.ElapsedMilliseconds < timeoutMs)
         {
             Settle();
             await Task.Delay(2);
+        }
+
+        if (!done())
+        {
+            throw new System.TimeoutException($"timed out waiting for `{expression}`");
         }
     }
 
@@ -614,6 +629,13 @@ public class UiThreadAuditTests
                     "probe", "audit", _ => Thread.Sleep(5), priority);
                 while (!done.IsCompleted)
                 {
+                    // 30 s: above the 20 s the queue's own gates take, far below HeadlessSession's dispatch
+                    // budget. A wedged item fails here, or it wedges the session for every later UI test.
+                    if (sw.Elapsed > TimeSpan.FromSeconds(30))
+                    {
+                        throw new System.TimeoutException($"waited 30s for a {priority} queue job to finish and it never did.");
+                    }
+
                     Settle();
                     await Task.Delay(1);
                 }
@@ -685,7 +707,8 @@ public class UiThreadAuditTests
         File.Copy(Path.Combine(source, "cache", "team-index.json"), Path.Combine(teamsRoot, "cache", "team-index.json"));
         sw.Restart();
         DemoViewer.NET.Extensions.StratBook.Services.Teams.TeamIdentityService teams = new(
-            new DemoViewer.NET.Extensions.StratBook.Services.Teams.TeamIdentityFiles(Path.Combine(teamsRoot, "teams.json"),
+            new DemoViewer.NET.Extensions.StratBook.Services.Teams.TeamIdentityFiles(
+                DemoViewer.NET.Extensions.StratBook.StoredFile.At(Path.Combine(teamsRoot, "teams.json")),
                 DemoViewer.NET.Extensions.StratBook.StoredFile.At(Path.Combine(teamsRoot, "cache", "team-index.json"))),
             cache.Library());
         double teamsCtor = sw.Elapsed.TotalMilliseconds;

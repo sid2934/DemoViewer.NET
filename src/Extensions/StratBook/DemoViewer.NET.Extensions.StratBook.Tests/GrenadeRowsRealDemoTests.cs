@@ -131,27 +131,13 @@ public class GrenadeRowsRealDemoTests
         return diffs;
     }
 
-    // The five benchmark demos, then the seven pro demos, under CS2DEMOKIT_CORPUS_DIR or the repo's demos folder.
+    // The five benchmark demos, then the seven pro demos. Resolving through the manifest sets rather
+    // than a directory walk is what lets a machine with no local corpus serve these from DEMO_SOURCES.
     internal static string CorpusDemo(int which)
     {
-        string? root = Environment.GetEnvironmentVariable("CS2DEMOKIT_CORPUS_DIR");
-        if (root is null || !Directory.Exists(root))
-        {
-            root = DemoTestHelper.FindRepoRoot() is { } repo ? Path.Combine(repo, "demos") : null;
-        }
-
-        if (root is null || !Directory.Exists(Path.Combine(root, "benchmarks")))
-        {
-            throw new SkipTestException("no corpus: set CS2DEMOKIT_CORPUS_DIR to a folder holding benchmarks/ and pro-demos/");
-        }
-
-        List<string> demos = [.. Directory.EnumerateFiles(Path.Combine(root, "benchmarks"), "*.dem").Order(StringComparer.Ordinal)];
-        string pro = Path.Combine(root, "pro-demos");
-        if (Directory.Exists(pro))
-        {
-            demos.AddRange(Directory.EnumerateFiles(pro, "*.dem").Order(StringComparer.Ordinal));
-        }
-
-        return which < demos.Count ? demos[which] : throw new SkipTestException($"fewer than {which + 1} demos under {root}");
+        int benchmarks = DemoTestHelper.Corpus.SetMembers("benchmarks").Count;
+        return which < benchmarks
+            ? DemoTestHelper.RequireSetDemo("benchmarks", which)
+            : DemoTestHelper.RequireSetDemo("pro", which - benchmarks);
     }
 }

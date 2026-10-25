@@ -7,9 +7,9 @@ using DemoViewer.NET.Playback2D.Pipeline;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     Locates the committed fixture corpus. The csproj copies <c>tests/fixtures/playback2d/**/*.json</c>
-///     next to the test binary, so the normal path is a sibling directory; the repo-walk fallback keeps
-///     the suite runnable from an IDE that has not re-run the copy step.
+///     Locates the committed fixture corpus. The repo copy wins; the sibling <c>fixtures</c> directory
+///     the csproj copies next to the test binary is the fallback, which keeps the suite runnable from a
+///     run that cannot see a checkout.
 /// </summary>
 internal static class FixtureCorpus
 {
@@ -39,19 +39,13 @@ internal static class FixtureCorpus
     // golden written into artifacts/bin is a golden nobody can commit.
     private static string ResolveRoot()
     {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
+        if (TestTiers.FindRepoRoot() is { } repo)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
+            string candidate = Path.Combine(repo, "tests", "fixtures", "playback2d");
+            if (Directory.Exists(Path.Combine(candidate, "scenes")))
             {
-                string candidate = Path.Combine(dir.FullName, "tests", "fixtures", "playback2d");
-                if (Directory.Exists(Path.Combine(candidate, "scenes")))
-                {
-                    return candidate;
-                }
+                return candidate;
             }
-
-            dir = dir.Parent;
         }
 
         return Path.Combine(AppContext.BaseDirectory, "fixtures");

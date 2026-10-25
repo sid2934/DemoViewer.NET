@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Text;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -73,7 +74,7 @@ public class ZoneOverlayTests
         await Assert.That(result.Diagnostics.Count).IsEqualTo(0);
         await Assert.That(resolver.PlaceId("Hut")).IsNull();
         await Assert.That(result.Effective.Places.Select(p => p.Name).ToArray())
-            .IsEquivalentTo(Names("Ramp", "Outside", "Tunnels"));
+            .IsEquivalentTo(Names("Ramp", "Outside", "Tunnels"), CollectionOrdering.Matching);
 
         // Area 3 was Hut's; its only neighbour is Ramp's area 2, so it is Ramp now, and the Hut volume
         // is gone so the volume step no longer answers here either.
@@ -97,7 +98,7 @@ public class ZoneOverlayTests
 
         await Assert.That(result.Diagnostics.Count).IsEqualTo(0);
         await Assert.That(result.Effective.Places.Select(p => p.Name).ToArray())
-            .IsEquivalentTo(Names("Outside", "Tunnels", "Site"));
+            .IsEquivalentTo(Names("Outside", "Tunnels", "Site"), CollectionOrdering.Matching);
 
         int site = resolver.PlaceId("Site")!.Value;
         await Assert.That(result.Effective.Places[site].Origin).IsEqualTo(PlaceOrigin.Custom);
@@ -166,7 +167,7 @@ public class ZoneOverlayTests
         PlaceResolver resolver = new(result.Effective);
         await Assert.That(resolver.Resolve(new Vector3(250, 50, -400)).Name).IsEqualTo("E-box");
         await Assert.That(result.Effective.Places.Select(p => p.Name).ToArray())
-            .IsEquivalentTo(Names("Ramp", "Hut", "Outside", "Tunnels", "E-box"));
+            .IsEquivalentTo(Names("Ramp", "Hut", "Outside", "Tunnels", "E-box"), CollectionOrdering.Matching);
     }
 
     [Test]
@@ -259,7 +260,7 @@ public class ZoneOverlayTests
         await Assert.That(doc.Zones[1].MinZ).IsNull();
         await Assert.That(doc.Merges[0].Into).IsEqualTo("Site");
         await Assert.That(doc.Merges[0].From.Count).IsEqualTo(3);
-        await Assert.That(doc.Hidden.ToArray()).IsEquivalentTo(Names("Scaffolding"));
+        await Assert.That(doc.Hidden.ToArray()).IsEquivalentTo(Names("Scaffolding"), CollectionOrdering.Matching);
     }
 
     // Through a call rather than an inline array so the analyzer's constant-array rule stays quiet.

@@ -7,6 +7,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -94,9 +95,9 @@ public class DemoOpenVisitTests
         {
             await Assert.That(rig.FileParses).IsEqualTo(0).Because("the open's parse served the visit");
             await Assert.That(rig.ByteParses).IsEqualTo(1);
-            await Assert.That(library.Ran.Concat(facts.Ran)).IsEquivalentTo(["library", "facts"]);
-            await Assert.That(seen).IsEquivalentTo([rig.OpenParse, rig.OpenParse]);
-            await Assert.That(outcomes).IsEquivalentTo([PassOutcome.Ran, PassOutcome.Ran]);
+            await Assert.That(library.Ran.Concat(facts.Ran)).IsEquivalentTo(["library", "facts"], CollectionOrdering.Matching);
+            await Assert.That(seen).IsEquivalentTo([rig.OpenParse, rig.OpenParse], CollectionOrdering.Matching);
+            await Assert.That(outcomes).IsEquivalentTo([PassOutcome.Ran, PassOutcome.Ran], CollectionOrdering.Matching);
             await Assert.That(handle.State).IsEqualTo(DemoQueueItemState.Completed);
         }
     }
@@ -138,7 +139,7 @@ public class DemoOpenVisitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(library.Ran).IsEquivalentTo(["library"]);
+            await Assert.That(library.Ran).IsEquivalentTo(["library"], CollectionOrdering.Matching);
             await Assert.That(rig.FileParses).IsEqualTo(0);
         }
     }
@@ -158,7 +159,7 @@ public class DemoOpenVisitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(library.Ran).IsEquivalentTo(["library"]);
+            await Assert.That(library.Ran).IsEquivalentTo(["library"], CollectionOrdering.Matching);
             await Assert.That(rig.FileParses).IsEqualTo(0);
         }
     }
@@ -180,7 +181,7 @@ public class DemoOpenVisitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(library.Ran).IsEquivalentTo(["library"]);
+            await Assert.That(library.Ran).IsEquivalentTo(["library"], CollectionOrdering.Matching);
             await Assert.That(rig.FileParses).IsEqualTo(1).Because("no open parse came, so the visit read the file");
         }
     }
@@ -203,7 +204,7 @@ public class DemoOpenVisitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(library.Ran).IsEquivalentTo(["library"]);
+            await Assert.That(library.Ran).IsEquivalentTo(["library"], CollectionOrdering.Matching);
             await Assert.That(rig.FileParses).IsEqualTo(1).Because("the replaced open never produced a parse for it");
         }
     }
@@ -219,7 +220,7 @@ public class DemoOpenVisitTests
         await open.RunPassesAsync(parsed);
         open.Complete();
 
-        await Assert.That(released).IsEquivalentTo([rig.OpenParse]);
+        await Assert.That(released).IsEquivalentTo([rig.OpenParse], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -247,7 +248,7 @@ public class DemoOpenVisitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(seen).IsEquivalentTo([rig.OpenParse]).Because("the loaded demo is never read again");
+            await Assert.That(seen).IsEquivalentTo([rig.OpenParse], CollectionOrdering.Matching).Because("the loaded demo is never read again");
             await Assert.That(heldDuringRun).IsTrue();
             await Assert.That(lease.Holds).IsEqualTo(0).Because("the hold ends with the passes");
             await Assert.That(rig.FileParses).IsEqualTo(1).Because("only the other demo was read");

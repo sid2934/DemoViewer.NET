@@ -7,7 +7,7 @@ using DemoViewer.NET.Services;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The resized <see cref="HeavyJobGate" /> (demo-processing-queue.md). At
+///     The resized <see cref="HeavyJobGate" />. At
 ///     <c>MaxConcurrency == 1</c> every path must be behaviourally identical to the historical
 ///     <c>SemaphoreSlim(1,1)</c> gate: one holder at a time; background yields to a pending
 ///     interactive between demos; a reel session drains the in-flight holder and refuses
@@ -290,8 +290,8 @@ public class HeavyJobGateTests
         await Assert.That(gate.InFlight).IsEqualTo(0);
     }
 
-    // ── B4: the 2D-export session ──────────────────────────────────────────────
-    // A new session kind rather than an interactive or a background slot (plan D10). An export is
+    // ── The 2D-export session ──────────────────────────────────────────────
+    // A new session kind rather than an interactive or a background slot. An export is
     // CPU-bound and holds one extra EntityTracker, not a multi-gigabyte parse: taking an interactive slot
     // would block the user's next demo open for the whole render, and taking a background one would queue
     // it behind, and then in front of, the user's own work.

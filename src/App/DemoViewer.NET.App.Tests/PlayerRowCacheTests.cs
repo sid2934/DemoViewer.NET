@@ -8,6 +8,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Services.Players;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -162,7 +163,7 @@ public class PlayerRowCacheTests
         using (Assert.Multiple())
         {
             await Assert.That(stale).IsNull().Because("the index moved");
-            await Assert.That(reads).IsEquivalentTo(["/lib/5.dem"]);
+            await Assert.That(reads).IsEquivalentTo(["/lib/5.dem"], CollectionOrdering.Matching);
             await Assert.That(after.Demos.Single(d => d.Match.Row.Path == "/lib/5.dem").Stats!["TotalK"]).IsEqualTo(kills + 1);
             await Assert.That(after.Demos.Single(d => d.Match.Row.Path == "/lib/6.dem").Stats)
                 .IsSameReferenceAs(before.Demos.Single(d => d.Match.Row.Path == "/lib/6.dem").Stats);
@@ -228,7 +229,7 @@ public class PlayerRowCacheTests
             await Assert.That(rows.Aggregate().WithStats).IsEqualTo(4);
             await Assert.That((inLibrary.HasFacet, inLibrary.Stats)).IsEqualTo((false, (IReadOnlyDictionary<string, double>?)null));
             await Assert.That(library.Accounts[Grim].Count(d => d.Stats is not null)).IsEqualTo(4);
-            await Assert.That(reads.Order(StringComparer.Ordinal).ToArray()).IsEquivalentTo(["/lib/0.dem", "/lib/3.dem"]).Because("the failed demo is read again, the rest are held");
+            await Assert.That(reads.Order(StringComparer.Ordinal).ToArray()).IsEquivalentTo(["/lib/0.dem", "/lib/3.dem"], CollectionOrdering.Matching).Because("the failed demo is read again, the rest are held");
             await Assert.That(after.Aggregate().WithStats).IsEqualTo(5);
         }
     }
@@ -354,8 +355,8 @@ public class PlayerRowCacheTests
             await Assert.That(before.Demos.All(d => d.Sides is null)).IsTrue().Because("no demo has its rounds written");
             await Assert.That(before.Aggregate().WithSides).IsEqualTo(0);
             await Assert.That(before.Aggregate()["CT:ADR"]).IsNull();
-            await Assert.That(reads).IsEquivalentTo(["/lib/1.dem"]);
-            await Assert.That(roundReads).IsEquivalentTo(["/lib/1.dem"]).Because("a demo's rounds are read only once written");
+            await Assert.That(reads).IsEquivalentTo(["/lib/1.dem"], CollectionOrdering.Matching);
+            await Assert.That(roundReads).IsEquivalentTo(["/lib/1.dem"], CollectionOrdering.Matching).Because("a demo's rounds are read only once written");
             await Assert.That(after.Demos.Single(d => d.Match.Row.Path == "/lib/1.dem").Sides!["CT:kills"]).IsEqualTo(2);
             await Assert.That((pool.WithStats, pool.WithSides)).IsEqualTo((4, 1));
             await Assert.That(pool["CT:ADR"]).IsEqualTo(200);

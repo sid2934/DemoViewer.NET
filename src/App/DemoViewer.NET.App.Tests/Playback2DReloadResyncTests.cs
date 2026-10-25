@@ -25,8 +25,10 @@ public class Playback2DReloadResyncTests
     public async Task DemoReloadWhileActive_ResyncsMapAndRoster_EvenWhenPlayerCountUnchanged()
     {
         Playback2DTabViewModel vm = new();
-        ReloadCtx ctx = new()
+        Playback2DFakeContext ctx = new()
         {
+            TotalFrames = 0,
+            MapTicksToFrames = false,
             MapName = "de_dust2",
             Roster =
             {
@@ -64,7 +66,7 @@ public class Playback2DReloadResyncTests
                 SteamId = 2
             }
         };
-        ctx.SetCurrent(Array.Empty<IPlayerState>());
+        ctx.SetCurrentPlayers(Array.Empty<IPlayerState>());
         ctx.RaiseDemoReset();
 
         // The map image + roster labels now reflect demo B: full restoration, no manual seek required...
@@ -78,8 +80,10 @@ public class Playback2DReloadResyncTests
     public async Task DemoReset_AfterDeactivation_IsIgnored()
     {
         Playback2DTabViewModel vm = new();
-        ReloadCtx ctx = new()
+        Playback2DFakeContext ctx = new()
         {
+            TotalFrames = 0,
+            MapTicksToFrames = false,
             MapName = "de_dust2",
             Roster =
             {
@@ -126,60 +130,6 @@ public class Playback2DReloadResyncTests
         public IReadOnlyEntity? Pawn => pawn;
         public IReadOnlyEntity? Controller => ctrl;
         public (float X, float Y, float Z)? WorldPosition => pos;
-    }
-
-    private sealed class ReloadCtx : IModuleContext
-    {
-        private readonly List<IPlayerState> _current = new();
-        public List<PlayerRosterEntry> Roster { get; set; } = new();
-
-        public bool HasDemo => true;
-        public string? DemoPath => null;
-        public string? MapName { get; set; }
-        public int TickRate => 64;
-        public double CurtimeSeconds(int tick) => tick / 64.0;
-        public int CurrentFrameIndex => 0;
-        public int CurrentTick => 0;
-        public bool IsPlaying => false;
-        public double Speed => 1;
-
-        public void RequestSeekToFrame(int frameIndex)
-        {
-        }
-
-        public void RequestSeekToTick(int tick)
-        {
-        }
-
-        public void RequestPlay()
-        {
-        }
-
-        public void RequestPause()
-        {
-        }
-
-        public event Action<IPlaybackSnapshot>? Advanced;
-        public event Action? DemoReset;
-        public IReadOnlyEntityView Entities { get; } = new View();
-        public IReadOnlyList<PlayerRosterEntry> Players => Roster;
-        public IReadOnlyList<IPlayerState> CurrentPlayers => _current;
-
-        /// <summary>Set the current-tick player-join list (empty = no tracker yet, i.e. pre-seek).</summary>
-        public void SetCurrent(IEnumerable<IPlayerState> players)
-        {
-            _current.Clear();
-            _current.AddRange(players);
-        }
-
-        public void Push(FakeSnap snap)
-        {
-            SetCurrent(snap.Players);
-            Advanced?.Invoke(snap);
-        }
-
-        /// <summary>Host-side raise of the demo-reload signal (only the host may raise it in production).</summary>
-        public void RaiseDemoReset() => DemoReset?.Invoke();
     }
 
     private sealed class FakeSnap(int frameIndex, IReadOnlyList<IPlayerState> players) : IPlaybackSnapshot

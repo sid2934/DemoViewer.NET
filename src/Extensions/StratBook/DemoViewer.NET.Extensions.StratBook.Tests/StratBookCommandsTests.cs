@@ -10,6 +10,7 @@ using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -217,7 +218,7 @@ public class StratBookCommandsTests
     [Test]
     public async Task TheTwoFocusScopes_AreDeclared_AndLabelled()
     {
-        await Assert.That(StratBookCommands.Scopes.Select(s => s.Id)).IsEquivalentTo([Palette, Suggestion]);
+        await Assert.That(StratBookCommands.Scopes.Select(s => s.Id)).IsEquivalentTo([Palette, Suggestion], CollectionOrdering.Matching);
         await Assert.That(CommandRegistry.Default.ScopeLabel(new Playback2DBindingScope(StratBookActions.PaletteScope))).IsEqualTo("while tagging");
         await Assert.That(CommandRegistry.Default.ScopeLabel(new Playback2DBindingScope(StratBookActions.SuggestionScope)))
             .IsEqualTo("while reviewing suggestions");
@@ -236,7 +237,7 @@ public class StratBookCommandsTests
                 .Select(f => (string)f.GetRawConstantValue()!)
         ];
 
-        await Assert.That(constants).IsEquivalentTo(StratBookCommands.All.Select(c => c.Id));
+        await Assert.That(constants).IsEquivalentTo(StratBookCommands.All.Select(c => c.Id), CollectionOrdering.Matching);
     }
 
     // The canvas names core actions by string, so a renamed core action would leave its keys dead.

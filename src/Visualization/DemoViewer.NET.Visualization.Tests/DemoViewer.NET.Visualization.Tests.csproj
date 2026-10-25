@@ -2,16 +2,6 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
-        <!-- CA1707: test method names conventionally use underscores. NU1903: transitively pulls in
-             Tmds.DBus.Protocol 0.21.2 (GHSA-xrw6-gwf8-vvr9) via the ProjectReference to the Sample,
-             which itself references Avalonia.Desktop — same suppression as the Sample and Desktop
-             csproj carry; NoWarn does not flow across project references, so this project needs its
-             own copy. -->
-        <NoWarn>$(NoWarn);CA1707;NU1903</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -20,7 +10,14 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET.Visualization\DemoViewer.NET.Visualization.csproj"/>
-        <ProjectReference Include="..\DemoViewer.NET.Visualization.Sample\DemoViewer.NET.Visualization.Sample.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The captured Analysis-tab graph behind ShippedScaleGraph. LogicalName is explicit because
+             ShippedScaleGraph names the resource as a string constant, and a derived name would couple
+             that constant to this project's RootNamespace. -->
+        <EmbeddedResource Include="SampleGraphs\shipped-scale.tsv"
+                          LogicalName="DemoViewer.NET.Visualization.Tests.SampleGraphs.shipped-scale.tsv"/>
     </ItemGroup>
 
 </Project>

@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
 
 #endregion

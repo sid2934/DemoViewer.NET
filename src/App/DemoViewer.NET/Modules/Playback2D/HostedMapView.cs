@@ -1,6 +1,5 @@
 #region
 
-using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -11,7 +10,6 @@ using Avalonia.Threading;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
@@ -748,19 +746,13 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     }
 
     /// <summary>
-    ///     <see cref="IToolServices" /> over this host. The annotation members are the interface's, not
-    ///     these canvases': there is no ink on them, so the session is a throwaway and the anchor lookups
-    ///     answer nothing.
+    ///     <see cref="IToolServices" /> over this host, and deliberately NOT
+    ///     <c>IInkToolServices</c>: these canvases register a map tool and nothing else, so there is no
+    ///     ink session for them to carry.
     /// </summary>
     private sealed class HostToolServices(HostedMapView host) : IToolServices
     {
-        private readonly long _origin = Stopwatch.GetTimestamp();
-
-        public AnnotationSession Session { get; } = new(new AnnotationDocument());
-
         public int CurrentTick => 0;
-
-        public long NowMilliseconds => (long)Stopwatch.GetElapsedTime(_origin).TotalMilliseconds;
 
         public LevelPane? PaneAt(SKPoint screen) => host._panes.PaneAt(screen.X, screen.Y);
 
@@ -784,28 +776,6 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
             ArgumentNullException.ThrowIfNull(pane);
             double scale = pane.Camera.Current.EffectiveScale;
             return scale > 0 ? 1 / scale : 1;
-        }
-
-        public bool TryResolveEntityAnchor(LevelPane pane, SKPoint world, float worldRadius,
-            out ulong steamId, out float dx, out float dy)
-        {
-            steamId = 0;
-            dx = 0;
-            dy = 0;
-            return false;
-        }
-
-        public bool TryResolveDrawOffset(LevelPane pane, AnnotationElement element,
-            out float offsetX, out float offsetY)
-        {
-            offsetX = 0;
-            offsetY = 0;
-            return false;
-        }
-
-        // No text tool is registered on a static map, so nothing ever asks.
-        public void RequestTextEdit(Guid elementId)
-        {
         }
 
         // No static map hosts the strat token editor.

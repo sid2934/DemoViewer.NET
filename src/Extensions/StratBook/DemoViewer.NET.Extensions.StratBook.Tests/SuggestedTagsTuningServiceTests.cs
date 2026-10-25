@@ -7,6 +7,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion
@@ -92,7 +93,7 @@ public class SuggestedTagsTuningServiceTests
 
         h.Build();
 
-        await Assert.That(Tuning(h).ScoredDemoPaths()).IsEquivalentTo([DemoPath]);
+        await Assert.That(Tuning(h).ScoredDemoPaths()).IsEquivalentTo([DemoPath], CollectionOrdering.Matching);
     }
 
     [Test]

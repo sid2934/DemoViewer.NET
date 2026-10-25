@@ -3,6 +3,7 @@
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -57,7 +58,7 @@ public class ExtensionManifestTests
         using (Assert.Multiple())
         {
             await Assert.That(ExtensionManifest.Parse(Good).Rulesets).IsEmpty();
-            await Assert.That(ExtensionManifest.Parse(with).Rulesets).IsEquivalentTo(["kills", "economy_2"]);
+            await Assert.That(ExtensionManifest.Parse(with).Rulesets).IsEquivalentTo(["kills", "economy_2"], CollectionOrdering.Matching);
         }
 
         Assert.Throws<ExtensionManifestException>(() => ExtensionManifest.Parse(bad));

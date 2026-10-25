@@ -3,13 +3,14 @@
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
+using TUnit.Assertions.Enums;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     A4 grenade flight trails: each in-flight grenade projectile (the five <c>C*Projectile</c> classes)
+///     Grenade flight trails: each in-flight grenade projectile (the five <c>C*Projectile</c> classes)
 ///     accumulates a Serial-keyed trail of its reconstructed flight path, coloured by grenade kind. The trail
 ///     fades + prunes after the projectile detonates and, the one real correctness guard, is cleared
 ///     wholesale on a discontinuous frame jump so a polyline never streaks from a pre-seek point to a
@@ -22,7 +23,7 @@ public class Playback2DTrajectoryTests
     public async Task MovingProjectile_AccumulatesTrail_OfTheRightKind()
     {
         Playback2DTabViewModel vm = new();
-        Ctx ctx = NewCtx();
+        Playback2DFakeContext ctx = NewCtx();
         vm.OnActivated(ctx);
 
         View view = new();
@@ -51,7 +52,7 @@ public class Playback2DTrajectoryTests
     public async Task DetonatedProjectile_FadesOut_ThenPrunes()
     {
         Playback2DTabViewModel vm = new();
-        Ctx ctx = NewCtx();
+        Playback2DFakeContext ctx = NewCtx();
         vm.OnActivated(ctx);
 
         View view = new();
@@ -83,7 +84,7 @@ public class Playback2DTrajectoryTests
         // A smoke/decoy projectile lingers as a LIVE entity for many seconds after it lands. Its flight line
         // must still fade out (driven by time-since-last-MOVE), not hold at full opacity for the whole life.
         Playback2DTabViewModel vm = new();
-        Ctx ctx = NewCtx();
+        Playback2DFakeContext ctx = NewCtx();
         vm.OnActivated(ctx);
 
         View view = new();
@@ -110,7 +111,7 @@ public class Playback2DTrajectoryTests
         // A 1-frame backward step (within the jump threshold, so NO wholesale clear) must hold the trail as-is,
         // neither append a backward point (kink) nor prune it.
         Playback2DTabViewModel vm = new();
-        Ctx ctx = NewCtx();
+        Playback2DFakeContext ctx = NewCtx();
         vm.OnActivated(ctx);
 
         View view = new();
@@ -138,7 +139,7 @@ public class Playback2DTrajectoryTests
     public async Task DiscontinuousJump_ClearsTrails_NoStreak()
     {
         Playback2DTabViewModel vm = new();
-        Ctx ctx = NewCtx();
+        Playback2DFakeContext ctx = NewCtx();
         vm.OnActivated(ctx);
 
         View view = new();
@@ -170,7 +171,7 @@ public class Playback2DTrajectoryTests
     public async Task EachGrenadeKind_GetsItsOwnTrail()
     {
         Playback2DTabViewModel vm = new();
-        Ctx ctx = NewCtx();
+        Playback2DFakeContext ctx = NewCtx();
         vm.OnActivated(ctx);
 
         View view = new();
@@ -197,14 +198,14 @@ public class Playback2DTrajectoryTests
         await Assert.That(kinds).IsEquivalentTo(new[]
         {
             GrenadeKind.He, GrenadeKind.Flash, GrenadeKind.Smoke, GrenadeKind.Molotov, GrenadeKind.Decoy
-        });
+        }, CollectionOrdering.Matching);
     }
 
     // ── Builders ──
 
-    private static Ctx NewCtx()
+    private static Playback2DFakeContext NewCtx()
     {
-        Ctx ctx = new();
+        Playback2DFakeContext ctx = Playback2DFakeContext.Bare();
         ctx.Roster.Add(new PlayerRosterEntry
         {
             Slot = 0,
@@ -226,42 +227,6 @@ public class Playback2DTrajectoryTests
     }
 
     // ── Doubles ──
-
-    private sealed class Ctx : IModuleContext
-    {
-        public List<PlayerRosterEntry> Roster { get; } = new();
-
-        public bool HasDemo => true;
-        public string? DemoPath => null;
-        public int TickRate => 64;
-        public int CurrentFrameIndex => 0;
-        public int CurrentTick => 0;
-        public bool IsPlaying => false;
-        public double Speed => 1;
-        public double CurtimeSeconds(int tick) => tick / 64.0;
-
-        public void RequestSeekToFrame(int frameIndex)
-        {
-        }
-
-        public void RequestSeekToTick(int tick)
-        {
-        }
-
-        public void RequestPlay()
-        {
-        }
-
-        public void RequestPause()
-        {
-        }
-
-        public event Action<IPlaybackSnapshot>? Advanced;
-        public IReadOnlyEntityView Entities { get; } = new View();
-        public IReadOnlyList<PlayerRosterEntry> Players => Roster;
-        public IReadOnlyList<IPlayerState> CurrentPlayers { get; } = new List<IPlayerState>();
-        public void Push(Snap snap) => Advanced?.Invoke(snap);
-    }
 
     private sealed class Snap : IPlaybackSnapshot
     {

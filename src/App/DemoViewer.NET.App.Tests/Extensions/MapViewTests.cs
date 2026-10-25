@@ -12,6 +12,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Tools;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -90,9 +91,16 @@ public class MapViewTests
         });
     }
 
+    // A data source rather than [Arguments]: the ids are static readonly, so an attribute argument
+    // cannot take them, and a literal here would stop referencing the type this test is about.
+    public static IEnumerable<string> ViewOwnLayerIds()
+    {
+        yield return SceneLayerIds.Radar;
+        yield return SceneLayerIds.FloorLabel;
+    }
+
     [Test]
-    [Arguments(SceneLayerIds.Radar)]
-    [Arguments(SceneLayerIds.FloorLabel)]
+    [MethodDataSource(nameof(ViewOwnLayerIds))]
     public async Task AddLayer_RefusesTheViewsOwnLayers(string id)
     {
         await HeadlessSession.RunOnUi(() =>
@@ -119,7 +127,7 @@ public class MapViewTests
             window.MouseDown(new Point(400, 300), MouseButton.Left);
             window.MouseMove(new Point(420, 310));
             window.MouseUp(new Point(420, 310), MouseButton.Left);
-            await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"]);
+            await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"], CollectionOrdering.Matching);
 
             tool.Accept = false;
             LevelPane pane = view.PaneAt(new Point(400, 300))!;

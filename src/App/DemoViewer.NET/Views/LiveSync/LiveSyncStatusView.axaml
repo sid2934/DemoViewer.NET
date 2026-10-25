@@ -6,7 +6,7 @@
              MinWidth="300" MaxWidth="340">
 
     <!--
-        Live Sync flyout body (docs/csvg-integration/ux-design.md). Hosted inside the StatusChip's
+        Live Sync flyout body. Hosted inside the StatusChip's
         Border.card-flyout (which supplies the surface + rounding), so this view provides only inner
         padding + content. Sections are mutually-exclusive per engine state, driven by bound IsVisible
         flags (reactive, not code-behind). All colour is {DynamicResource}; the header dot reuses the

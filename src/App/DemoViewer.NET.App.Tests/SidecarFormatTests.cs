@@ -12,6 +12,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -405,7 +406,7 @@ public class SidecarFormatTests
         {
             await Assert.That(GrenadeSidecar.Serialize(back)).IsEqualTo(json);
             await Assert.That(back.Grenades.Select(g => g.ThrowerSteamId64)).IsEquivalentTo(
-                new string?[] { "76561198000000001", null, "007", "bot", "0" });
+                new string?[] { "76561198000000001", null, "007", "bot", "0" }, CollectionOrdering.Matching);
             await Assert.That(back.Grenades[2].ThrowerSteamId).IsNull().Because("text that would not print back is kept as text");
             await Assert.That(back.Grenades[4].ThrowerSteamId).IsEqualTo(0UL);
         }

@@ -20,6 +20,7 @@ using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -32,6 +33,7 @@ namespace DemoViewer.NET.AppTests;
 ///     gates and persists. Pinned with fake modules and the real hub contribution, so the mechanism is tested
 ///     apart from any one feature.
 /// </summary>
+[NotInParallel(TestLanes.HeadlessUi)]
 public class StratBookShellTests
 {
     private static readonly string[] _railOrder = ["stratbook.browser", "situations.search", "review.queue"];
@@ -109,7 +111,7 @@ public class StratBookShellTests
                     await Assert.That(strip).DoesNotContain("teams.browser");
                     await Assert.That(rail).IsEquivalentTo(_railOrder, TUnit.Assertions.Enums.CollectionOrdering.Matching)
                         .Because("rail order is the section Order, not registration order");
-                    await Assert.That(vm.LibraryTab.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_teamsOnly);
+                    await Assert.That(vm.LibraryTab.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_teamsOnly, CollectionOrdering.Matching);
                     await Assert.That(vm.LibraryTab.HasTeamsView).IsTrue();
                     await Assert.That(vm.LibraryTab.IsDemosView).IsTrue().Because("the Library lands on the demo browser");
                 }
@@ -298,7 +300,7 @@ public class StratBookShellTests
                 using (Assert.Multiple())
                 {
                     await Assert.That(vm.StratBookHub().Sections.Sections.Select(s => s.TabId))
-                        .IsEquivalentTo(_withoutSituations);
+                        .IsEquivalentTo(_withoutSituations, CollectionOrdering.Matching);
                     await Assert.That(vm.StratBookHub().Sections.SelectedSection!.TabId).IsEqualTo("stratbook.browser")
                         .Because("the removed selection falls to its lower neighbour");
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostIds.StratBookHub);
@@ -321,7 +323,7 @@ public class StratBookShellTests
                 using (Assert.Multiple())
                 {
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostIds.StratBookHub);
-                    await Assert.That(vm.StratBookHub().Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_reviewOnly);
+                    await Assert.That(vm.StratBookHub().Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_reviewOnly, CollectionOrdering.Matching);
                 }
 
                 gate.Answers["tab.teams"] = false;

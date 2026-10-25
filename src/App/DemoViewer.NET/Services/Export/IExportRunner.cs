@@ -37,7 +37,7 @@ public interface IExportRunner
 ///         It is a capture, not a live view: the demo's frame list is immutable post-parse, and everything
 ///         else here is either a value or an object the export owns outright. In particular the export
 ///         builds its <b>own</b> compositor: sharing the window's would mean an unsynchronised layer
-///         stack being advanced from two threads, which is the hazard B1 recorded as its carry-forward 28.
+///         stack being advanced from two threads.
 ///     </para>
 /// </summary>
 /// <param name="Frames">The parsed demo's frame list. Read-only and shared safely with the app's own tracker.</param>

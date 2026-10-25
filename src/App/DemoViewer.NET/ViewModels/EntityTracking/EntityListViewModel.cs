@@ -9,7 +9,7 @@ using CS2DemoKit.Parser.EntityTracking;
 namespace DemoViewer.NET.ViewModels.EntityTracking;
 
 /// <summary>
-///     Backs the entity list (F6.1). A virtualized <c>ListBox</c> over a stable collection
+///     Backs the entity list. A virtualized <c>ListBox</c> over a stable collection
 ///     rebuilt per seek; the ~2k entity rows virtualize cleanly under a
 ///     <c>VirtualizingStackPanel</c>. Row selection is surfaced via
 ///     <see cref="EntitySelected" /> so the owning <c>EntityTrackingTabViewModel</c> can drive
@@ -18,7 +18,7 @@ namespace DemoViewer.NET.ViewModels.EntityTracking;
 ///         Deviation from the design doc: it specified <c>Avalonia.Controls.TreeDataGrid</c>, but
 ///         that package is a commercial product under Avalonia 11.3's licensing (AVLIC0001 blocks
 ///         the build without a paid key, at every TDG version). The columnar virtualized ListBox
-///         is the doc's named fallback shape and closes F6.1 without the license footgun.
+///         is the doc's named fallback shape and does the job without the license footgun.
 ///     </para>
 /// </summary>
 public sealed partial class EntityListViewModel : ObservableObject

@@ -29,7 +29,7 @@ public class RenderSurfaceProbeTests
         RenderSurfaceProbe second = RenderSurfaceProviderFactory.Probe(lines.Add);
 
         await Assert.That(second).IsEqualTo(first);
-        await Assert.That(lines).HasCount().EqualTo(1);
+        await Assert.That(lines).Count().IsEqualTo(1);
         await Assert.That(lines[0]).Contains("backend=");
         await Assert.That(lines[0]).Contains("reason=");
     }
@@ -48,8 +48,12 @@ public class RenderSurfaceProbeTests
 
         await Assert.That(probe.Backend).IsEqualTo(RenderBackend.CpuRaster);
         await Assert.That(probe.GpuAvailable).IsFalse();
-        await Assert.That(probe.Reason).StartsWith("no-egl-library");
         await Assert.That(probe.Renderer).IsNull();
+
+        // Only a host that gets as far as binding EGL can answer no-egl-library. ProbeCore
+        // short-circuits macOS, the browser and anything unrecognised before the override is read, so
+        // asserting that one string outright made this a test that could not pass on this machine.
+        await Assert.That(probe.Reason).StartsWith(NoGpuReasonForThisHost);
     }
 
     [Test]
@@ -66,7 +70,7 @@ public class RenderSurfaceProbeTests
         // and it writes on its first call.
         await Assert.That(lines).IsEmpty();
         await Assert.That(RenderSurfaceProviderFactory.Probe(lines.Add).Reason).IsNotNull();
-        await Assert.That(lines).HasCount().EqualTo(1);
+        await Assert.That(lines).Count().IsEqualTo(1);
     }
 
     [Test]
@@ -77,7 +81,12 @@ public class RenderSurfaceProbeTests
         InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(() =>
             RenderSurfaceProviderFactory.Create(RenderBackendPreference.ForceGpu));
 
-        await Assert.That(thrown.Message).Contains("no-egl-library");
+        // The reason the probe actually gave, not one host's spelling of it. That is what the name
+        // claims, and it is the half this was not checking: a message carrying some OTHER reason used
+        // to pass anywhere the hardcoded string happened to appear.
+        string reason = RenderSurfaceProviderFactory.Probe().Reason;
+        await Assert.That(reason).IsNotEmpty();
+        await Assert.That(thrown.Message).Contains(reason);
     }
 
     [Test]
@@ -238,6 +247,17 @@ public class RenderSurfaceProbeTests
 
         await Assert.That(probe.IsSoftwareRenderer).IsEqualTo(expected);
     }
+
+    /// <summary>
+    ///     What this host reports when no GPU is reachable. <c>ProbeCore</c> short-circuits per platform
+    ///     before it ever consults the EGL override, so on macOS and in the browser the reason is a
+    ///     property of the host rather than of the missing library.
+    /// </summary>
+    private static string NoGpuReasonForThisHost =>
+        OperatingSystem.IsMacOS() || OperatingSystem.IsMacCatalyst() ? "macos-deferred"
+        : OperatingSystem.IsBrowser() ? "browser"
+        : OperatingSystem.IsWindows() || OperatingSystem.IsLinux() ? "no-egl-library"
+        : "unsupported-platform";
 
     private static async Task AssertShortCircuits(ProbeHostPlatform platform, string expectedReason)
     {

@@ -2,6 +2,7 @@
 
 using System.Text;
 using DemoViewer.NET.Extensions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -38,9 +39,9 @@ public class ExtensionStorageTests
             {
                 await Assert.That(Encoding.UTF8.GetString((await storage.ReadAsync(StoreRoot.Config, "notes/today.json"))!))
                     .IsEqualTo("two");
-                await Assert.That(Directory.GetFiles(folder)).IsEquivalentTo([Path.Combine(folder, "today.json")])
+                await Assert.That(Directory.GetFiles(folder)).IsEquivalentTo([Path.Combine(folder, "today.json")], CollectionOrdering.Matching)
                     .Because("the temporary file was moved over the target, never left beside it");
-                await Assert.That(await storage.ReadAsync(StoreRoot.Cache, "index.bin")).IsEquivalentTo(new byte[] { 1, 2, 3 });
+                await Assert.That(await storage.ReadAsync(StoreRoot.Cache, "index.bin")).IsEquivalentTo(new byte[] { 1, 2, 3 }, CollectionOrdering.Matching);
                 await Assert.That(await storage.ReadAsync(StoreRoot.Config, "missing.json")).IsNull();
             }
         }

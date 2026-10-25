@@ -1,6 +1,7 @@
 #region
 
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -89,7 +90,7 @@ public class CliArgsTests
     {
         CliArgs args = CliArgs.Parse(["render", "--layers", "radar, markers ,vision"]);
 
-        await Assert.That(args.List("layers")).IsEquivalentTo(_expectedLayers);
+        await Assert.That(args.List("layers")).IsEquivalentTo(_expectedLayers, CollectionOrdering.Matching);
     }
 
     [Test]

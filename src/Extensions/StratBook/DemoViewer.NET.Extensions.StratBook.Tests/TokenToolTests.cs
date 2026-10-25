@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Cameras;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -146,7 +145,7 @@ public class TokenToolTests
     {
         (MapSpace _, PaneSet panes) = LocalFakes.Panes(new SKSize(600, 400),
             new FloorSlice(-448, -384), new FloorSlice(-384, -128));
-        FakeToolServices services = new(new AnnotationSession(new AnnotationDocument()), panes);
+        FakeToolServices services = new(panes);
         FakeTokenEditor editor = new(hitEverything: true);
         services.Tokens = editor;
 
@@ -168,7 +167,7 @@ public class TokenToolTests
         public Harness(bool editor = true, double zMin = 0)
         {
             Pane = LocalFakes.Pane(600, 400, zMin: zMin, zMax: zMin + 64);
-            Services = new FakeToolServices(new AnnotationSession(new AnnotationDocument()), Pane);
+            Services = new FakeToolServices(Pane);
             Editor = new FakeTokenEditor();
             if (editor)
             {
@@ -279,25 +278,11 @@ public class TokenToolTests
         private readonly PaneSet? _panes;
         private readonly LevelPane? _single;
 
-        public FakeToolServices(AnnotationSession session, LevelPane pane)
-        {
-            Session = session;
-            _single = pane;
-        }
+        public FakeToolServices(LevelPane pane) => _single = pane;
 
-        public FakeToolServices(AnnotationSession session, PaneSet panes)
-        {
-            Session = session;
-            _panes = panes;
-        }
-
-        public List<PlayerMarker> Markers { get; } = [];
-
-        public AnnotationSession Session { get; }
+        public FakeToolServices(PaneSet panes) => _panes = panes;
 
         public int CurrentTick { get; set; }
-
-        public long NowMilliseconds { get; set; }
 
         public LevelPane? PaneAt(SKPoint screen) =>
             _panes is not null ? _panes.PaneAt(screen.X, screen.Y) : _single;
@@ -323,92 +308,6 @@ public class TokenToolTests
             double scale = pane.Camera.Current.EffectiveScale;
             return scale > 0 ? 1 / scale : 1;
         }
-
-        public bool TryResolveEntityAnchor(LevelPane pane, SKPoint world, float worldRadius,
-            out ulong steamId, out float dx, out float dy)
-        {
-            steamId = 0;
-            dx = 0;
-            dy = 0;
-
-            float best = worldRadius * worldRadius;
-            bool found = false;
-            for (int i = 0; i < Markers.Count; i++)
-            {
-                PlayerMarker marker = Markers[i];
-                if (!marker.IsAlive || marker.SteamId == 0)
-                {
-                    continue;
-                }
-
-                float ddx = world.X - marker.WorldX;
-                float ddy = world.Y - marker.WorldY;
-                float distance = ddx * ddx + ddy * ddy;
-                if (distance > best)
-                {
-                    continue;
-                }
-
-                best = distance;
-                steamId = marker.SteamId;
-                dx = ddx;
-                dy = ddy;
-                found = true;
-            }
-
-            return found;
-        }
-
-        public bool TryResolveDrawOffset(LevelPane pane, AnnotationElement element,
-            out float offsetX, out float offsetY)
-        {
-            ArgumentNullException.ThrowIfNull(pane);
-            ArgumentNullException.ThrowIfNull(element);
-
-            offsetX = 0;
-            offsetY = 0;
-
-            switch (element.Space)
-            {
-                case SpaceRef.World world:
-                {
-                    MapSpace? space = pane.Space;
-                    return space is not { Levels.Count: > 1 }
-                           || space.IdForAnchor(world.LevelMinZ) == pane.LevelId;
-                }
-
-                case SpaceRef.Entity entity:
-                {
-                    for (int i = 0; i < Markers.Count; i++)
-                    {
-                        PlayerMarker marker = Markers[i];
-                        if (marker.SteamId != entity.SteamId || entity.SteamId == 0)
-                        {
-                            continue;
-                        }
-
-                        if (!marker.IsAlive)
-                        {
-                            return false;
-                        }
-
-                        InkPoint origin = element.Points.Count > 0 ? element.Points[0] : default;
-                        offsetX = marker.WorldX + entity.Dx - origin.X;
-                        offsetY = marker.WorldY + entity.Dy - origin.Y;
-                        return true;
-                    }
-
-                    return false;
-                }
-
-                default:
-                    return false;
-            }
-        }
-
-        public List<Guid> TextEditRequests { get; } = [];
-
-        public void RequestTextEdit(Guid elementId) => TextEditRequests.Add(elementId);
 
         /// <summary>The token editor the token tool drives; null, as on the 2D Playback tab, until a test sets it.</summary>
         public ITokenEditor? Tokens { get; set; }

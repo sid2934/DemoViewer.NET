@@ -5,6 +5,7 @@ using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -74,14 +75,14 @@ public class RoundIndexBuilderTests
         using (Assert.Multiple())
         {
             await Assert.That(at64.CadenceTicks).IsEqualTo(64);
-            await Assert.That(at64.ExpandRows(at64.Rounds[0]).Select(r => r.Tick)).IsEquivalentTo([1000, 1064, 1128, 1256])
+            await Assert.That(at64.ExpandRows(at64.Rounds[0]).Select(r => r.Tick)).IsEquivalentTo([1000, 1064, 1128, 1256], CollectionOrdering.Matching)
                 .Because("a row's tick is its nominal step tick, never the frame it was read from");
-            await Assert.That(at64.ExpandRows(at64.Rounds[0]).Select(r => r.Step)).IsEquivalentTo([0, 1, 2, 4]);
-            await Assert.That(at64.ExpandRows(at64.Rounds[0]).Select(r => r.Ct)).IsEquivalentTo(["A:5", "A:5", "C:5", "E:5"]);
+            await Assert.That(at64.ExpandRows(at64.Rounds[0]).Select(r => r.Step)).IsEquivalentTo([0, 1, 2, 4], CollectionOrdering.Matching);
+            await Assert.That(at64.ExpandRows(at64.Rounds[0]).Select(r => r.Ct)).IsEquivalentTo(["A:5", "A:5", "C:5", "E:5"], CollectionOrdering.Matching);
 
             await Assert.That(at128.CadenceTicks).IsEqualTo(128);
-            await Assert.That(at128.ExpandRows(at128.Rounds[0]).Select(r => r.Tick)).IsEquivalentTo([1000, 1128, 1256]);
-            await Assert.That(at128.ExpandRows(at128.Rounds[0]).Select(r => r.Step)).IsEquivalentTo([0, 1, 2]);
+            await Assert.That(at128.ExpandRows(at128.Rounds[0]).Select(r => r.Tick)).IsEquivalentTo([1000, 1128, 1256], CollectionOrdering.Matching);
+            await Assert.That(at128.ExpandRows(at128.Rounds[0]).Select(r => r.Step)).IsEquivalentTo([0, 1, 2], CollectionOrdering.Matching);
             await Assert.That(at128.Fingerprint).IsEqualTo(at64.Fingerprint)
                 .Because("the cadence is in seconds, so the rate is not part of what a row means");
         }
@@ -212,7 +213,7 @@ public class RoundIndexBuilderTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(round.Ct).IsEquivalentTo(CtSlots).Because("the sample's Team, not the row's seat");
+            await Assert.That(round.Ct).IsEquivalentTo(CtSlots, CollectionOrdering.Matching).Because("the sample's Team, not the row's seat");
             foreach (RoundIndexRow row in build.Index.ExpandRows(build.Index.Rounds[0]))
             {
                 IReadOnlyList<RoundPosition> tuples = round.At(row.Step);

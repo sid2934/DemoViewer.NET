@@ -54,7 +54,7 @@ public enum EnvelopeMode
     ///     element's own <see cref="TimeEnvelope" /> trapezoid shifted by that offset.
     ///     <para>
     ///         The offsets are elapsed <b>authoring wall-clock</b>, re-based at <c>Time.FromTick</c>, not
-    ///         the tick each sample was drawn at; see <c>IToolServices.NowMilliseconds</c>. Re-basing makes
+    ///         the tick each sample was drawn at; see <c>IInkToolServices.NowMilliseconds</c>. Re-basing makes
     ///         the replay a pure function of tick, which the export determinism gate requires.
     ///     </para>
     /// </summary>

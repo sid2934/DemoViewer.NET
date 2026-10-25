@@ -13,7 +13,7 @@ public readonly record struct WorldBounds(double MinX, double MinY, double MaxX,
 {
     /// <summary>
     ///     The fixed fallback rectangle drawn before any position is observed: ±3000 on both axes,
-    ///     matching the pre-move <c>Playback2DViewport.DefaultWorldExtent</c>.
+    ///     matching the pre-v2 control's <c>DefaultWorldExtent</c>.
     /// </summary>
     public static readonly WorldBounds Default = new(-3000, -3000, 3000, 3000);
 

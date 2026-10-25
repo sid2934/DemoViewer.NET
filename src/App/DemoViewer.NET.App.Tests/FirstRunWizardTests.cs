@@ -18,6 +18,7 @@ using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views.Setup;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -498,7 +499,7 @@ public class FirstRunWizardTests
         {
             FirstRunWizardViewModel live = new(new SettingsService(dir));
             await Assert.That(live.PackOptions.Select(o => o.FeatureId))
-                .IsEquivalentTo(FeaturePacks.Compatible.Select(p => p.FeatureId));
+                .IsEquivalentTo(FeaturePacks.Compatible.Select(p => p.FeatureId), CollectionOrdering.Matching);
 
             ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0"));
             IExtension incompatible = new CatalogPack("pack.future", FakeManifests.For("net.demoviewer.pack.future", "Future", "2.0.0", "^2.0", "*"));
@@ -510,7 +511,7 @@ public class FirstRunWizardTests
             using (Assert.Multiple())
             {
                 await Assert.That(statuses[0].IsCompatible).IsFalse();
-                await Assert.That(vm.PackOptions.Select(o => o.FeatureId)).IsEquivalentTo(["pack.fine"]);
+                await Assert.That(vm.PackOptions.Select(o => o.FeatureId)).IsEquivalentTo(["pack.fine"], CollectionOrdering.Matching);
             }
         }
         finally

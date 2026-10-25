@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 /// <summary>
 ///     A decorator that hashes every pre-encode RGBA frame and forwards it.
 ///     <para>
-///         <b>This is what "deterministic export" is asserted on</b> (plan D13). <c>libvpx-vp9</c> and
+///         <b>This is what "deterministic export" is asserted on</b>. <c>libvpx-vp9</c> and
 ///         <c>libx264</c> are not bit-reproducible across thread counts, builds or versions, so
 ///         comparing encoded files would test ffmpeg's determinism rather than the renderer's. The
 ///         contract is that two runs of the same request produce the same <b>pixels</b>; the encoder is

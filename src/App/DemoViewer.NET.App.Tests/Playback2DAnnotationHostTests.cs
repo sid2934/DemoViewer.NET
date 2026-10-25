@@ -21,6 +21,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Views.Playback2D;
 using Pointer = Avalonia.Input.Pointer;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -91,7 +92,7 @@ public class Playback2DAnnotationHostTests
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(f.Document.Elements.Count).IsEqualTo(1);
-            await Assert.That(f.Document.Elements[0].Points).IsEquivalentTo(before);
+            await Assert.That(f.Document.Elements[0].Points).IsEquivalentTo(before, CollectionOrdering.Matching);
         });
     }
 
@@ -119,7 +120,7 @@ public class Playback2DAnnotationHostTests
 
             Point screenAfter = f.WorldToWindow(anchor.X, anchor.Y);
 
-            await Assert.That(f.Document.Elements[0].Points).IsEquivalentTo(element.Points)
+            await Assert.That(f.Document.Elements[0].Points).IsEquivalentTo(element.Points, CollectionOrdering.Matching)
                 .Because("ink is stored in WORLD units; a camera move must not touch a single sample");
             await Assert.That(Math.Abs(screenAfter.X - screenBefore.X)
                               + Math.Abs(screenAfter.Y - screenBefore.Y)).IsGreaterThan(1)
@@ -828,8 +829,7 @@ public class Playback2DAnnotationHostTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Fixture fixture = new(vm, ctx, window, view);
             fixture.Host.FitToExtent();
             Playback2DTimelineHarness.Pump();

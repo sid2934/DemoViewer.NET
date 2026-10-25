@@ -108,7 +108,7 @@ public class ReviewRegressionTests
     ///         <c>backend.Backend</c> when it builds the summary payload. That is a use-after-dispose.
     ///         It is inert with <see cref="CpuSurfaceProvider" /> (a constant property and a no-op
     ///         <c>Dispose</c>), but <c>GpuSurfaceProvider</c> owns an EGL context, and the registry
-    ///         has <c>BackendResolver</c>'s single construction site handing that provider over
+    ///         has <c>RenderBackendResolver</c>'s single construction site handing that provider over
     ///         unchanged.
     ///     </para>
     /// </summary>

@@ -177,7 +177,7 @@ public class PlayerOverviewHighlightsTests
 
         shell.Tab.OpenPlayer(Mate);
         await shell.Highlights.Loading;
-        await Assert.That(shell.Highlights.Rows.Select(r => r.Highlight.HighlightId).Distinct()).IsEquivalentTo(["clutch"]);
+        await Assert.That(shell.Highlights.Rows.Select(r => r.Highlight.HighlightId).Distinct()).IsEquivalentTo(["clutch"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -202,7 +202,7 @@ public class PlayerOverviewHighlightsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(shell.Facts.Reads.ToArray()[3..]).IsEquivalentTo(["/lib/2.dem"]);
+            await Assert.That(shell.Facts.Reads.ToArray()[3..]).IsEquivalentTo(["/lib/2.dem"], CollectionOrdering.Matching);
             await Assert.That(shell.Highlights.Rows[0].Highlight.HighlightId).IsEqualTo("five_k");
         }
     }
@@ -261,8 +261,8 @@ public class PlayerOverviewHighlightsTests
         await Assert.That(shell.Highlights.CanAddClips).IsTrue();
         shell.Highlights.AddClipsCommand.Execute(null);
         shell.Highlights.OpenDemoCommand.Execute(shell.Highlights.Rows[0]);
-        await Assert.That(shell.AddedFor).IsEquivalentTo([Grim]);
-        await Assert.That(shell.Opened).IsEquivalentTo([shell.Highlights.Rows[0].Match.Row.Path]);
+        await Assert.That(shell.AddedFor).IsEquivalentTo([Grim], CollectionOrdering.Matching);
+        await Assert.That(shell.Opened).IsEquivalentTo([shell.Highlights.Rows[0].Match.Row.Path], CollectionOrdering.Matching);
 
         using Shell noReels = new(Library(1), withPicker: false);
         await Assert.That(noReels.Highlights.CanAddClips).IsFalse();
@@ -276,7 +276,7 @@ public class PlayerOverviewHighlightsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(picker.PlayerFilters.Where(p => p.IsSelected).Select(p => p.SteamId64)).IsEquivalentTo([Id(Grim)]);
+            await Assert.That(picker.PlayerFilters.Where(p => p.IsSelected).Select(p => p.SteamId64)).IsEquivalentTo([Id(Grim)], CollectionOrdering.Matching);
             await Assert.That(picker.Rows.Count).IsEqualTo(4);
             await Assert.That(picker.Rows.All(r => r.PlayerKey == Id(Grim))).IsTrue();
         }

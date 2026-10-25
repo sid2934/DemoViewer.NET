@@ -7,6 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -14,7 +15,7 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 
 /// <summary>
 ///     The Pipeline facade. The load-bearing assertion is that its two paths agree: the whole-image
-///     <c>Render</c> delegates to Core's <c>SceneRenderer</c>, while the split
+///     <c>Render</c> delegates to <c>SceneRenderer</c>, while the split
 ///     <c>Advance</c>/<c>Render(surface, …)</c> pair the bench command needs is a re-statement of the
 ///     same body without the surface creation. Pinning them together stops the CLI growing a second
 ///     render path by accident.
@@ -44,7 +45,7 @@ public class HeadlessSceneRendererTests
         using MemoryStream stream = new();
         SceneRenderer.WritePng(image, stream);
 
-        await Assert.That(stream.ToArray()).IsEquivalentTo(whole);
+        await Assert.That(stream.ToArray()).IsEquivalentTo(whole, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -103,13 +104,13 @@ public class HeadlessSceneRendererTests
 
         string[] expected = [.. SceneLayerCatalog.SceneStackIds.Where(id => !SceneLayerIds.OptIn.Contains(id))];
         await Assert.That(scene.Layers.Select(l => l.Id).Order().ToArray())
-            .IsEquivalentTo(expected.Order().ToArray());
+            .IsEquivalentTo(expected.Order().ToArray(), CollectionOrdering.Matching);
         await Assert.That(expected.Length).IsEqualTo(7);
     }
 
     /// <summary>
     ///     An opt-in id that is asked for but has no source registers nothing rather than an empty box.
-    ///     The CLI refuses it one layer out (<c>SceneRenderPlan.RequireFeedableOptIns</c>) so a command
+    ///     The CLI refuses it one layer out (<c>CliScenePlan.RequireFeedableOptIns</c>) so a command
     ///     line cannot silently mean less than it says; the compositor's own answer is this.
     /// </summary>
     [Test]
@@ -122,7 +123,7 @@ public class HeadlessSceneRendererTests
             .IsEquivalentTo(new[]
             {
                 SceneLayerIds.Markers
-            });
+            }, CollectionOrdering.Matching);
     }
 
     [Test]

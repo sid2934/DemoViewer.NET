@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -39,7 +40,7 @@ public class RoleSheetTests
             "context: C throws molotov A ramp → A site (Jungle) [lineup: e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a7b]",
             "own: A peeks A ramp → Connector",
             "own: All move A ramp → A site"
-        ]);
+        ], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -56,7 +57,7 @@ public class RoleSheetTests
             "own: B throws smoke A ramp → A site (Stairs) (throw on the 1:30 call, not before)",
             "context: C throws molotov A ramp → A site (Jungle) [lineup: e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a7b]",
             "own: All move A ramp → A site"
-        ]);
+        ], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -76,7 +77,7 @@ public class RoleSheetTests
         RoleSheet a = RoleSheet.Derive(SchemaSample(), "A");
 
         await Assert.That(c.Branches.Select(b => b.Text))
-            .IsEquivalentTo(["if contact at Connector before 1:05 → A exec, double smoke, step 4"]);
+            .IsEquivalentTo(["if contact at Connector before 1:05 → A exec, double smoke, step 4"], CollectionOrdering.Matching);
         await Assert.That(a.Branches).IsEmpty();
     }
 
@@ -96,7 +97,7 @@ public class RoleSheetTests
             "context: B throws smoke A ramp → A site (Stairs)",
             "context: C throws molotov A ramp → A site (Jungle) [lineup: e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a7b]",
             "own: All move A ramp → A site"
-        ]);
+        ], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -116,8 +117,8 @@ public class RoleSheetTests
 
         static string Point(RoleSheetPoint p) => $"{p.AtSeconds}:{p.X},{p.Y}";
 
-        await Assert.That(a.Positions.Select(Point)).IsEquivalentTo(["90:400,-1800", "65:-600,-1400"]);
-        await Assert.That(b.Positions.Select(Point)).IsEquivalentTo(["90:420,-1750"]);
+        await Assert.That(a.Positions.Select(Point)).IsEquivalentTo(["90:400,-1800", "65:-600,-1400"], CollectionOrdering.Matching);
+        await Assert.That(b.Positions.Select(Point)).IsEquivalentTo(["90:420,-1750"], CollectionOrdering.Matching);
         await Assert.That(e.Positions).IsEmpty();
     }
 

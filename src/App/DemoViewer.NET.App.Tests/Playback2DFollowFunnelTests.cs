@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Modules.Playback2D;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -41,7 +42,7 @@ public class Playback2DFollowFunnelTests
             vm.SelectedPlayer = vm.Attributes.First(a => a.Slot == 1);
 
             int[] expected = [1];
-            await Assert.That(raised).IsEquivalentTo(expected);
+            await Assert.That(raised).IsEquivalentTo(expected, CollectionOrdering.Matching);
         });
 
     [Test]
@@ -53,7 +54,7 @@ public class Playback2DFollowFunnelTests
             vm.SelectedPlayer = vm.Attributes.First(a => a.Slot == 2);
 
             int[] expected = [2];
-            await Assert.That(ctx.SpectateTargets).IsEquivalentTo(expected);
+            await Assert.That(ctx.SpectateTargets).IsEquivalentTo(expected, CollectionOrdering.Matching);
         });
 
     [Test]
@@ -78,7 +79,7 @@ public class Playback2DFollowFunnelTests
             await Assert.That(vm.SelectedPlayer).IsSameReferenceAs(selectedAfterMenu);
             await Assert.That(vm.FollowStatus).IsEqualTo(statusAfterMenu);
             int[] expectedSpectate = [1];
-            await Assert.That(ctx.SpectateTargets).IsEquivalentTo(expectedSpectate);
+            await Assert.That(ctx.SpectateTargets).IsEquivalentTo(expectedSpectate, CollectionOrdering.Matching);
         });
 
     [Test]

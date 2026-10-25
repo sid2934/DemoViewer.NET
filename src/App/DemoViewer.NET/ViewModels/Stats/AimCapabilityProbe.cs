@@ -15,8 +15,8 @@ namespace DemoViewer.NET.ViewModels.Stats;
 ///     supported / degraded / unsupported verdict.
 ///     <para>
 ///         <b>Why this is observational.</b> Capability belongs to the demo source, not to CS2, and no
-///         declaration reproduces it. Three real demos probed with
-///         <c>tools/DemoViewer.NET.DemoSourceDetails</c>: a trimmed pro GOTV recording carries zero
+///         declaration reproduces it. Three real demos were probed when this was written, with a
+///         tool since deleted: a trimmed pro GOTV recording carries zero
 ///         <c>bullet_damage</c>, zero <c>svc_UserCmds</c> and zero <c>player_footstep</c> while carrying
 ///         2,249 <c>player_sound</c>; the two Valve matchmaking demos carry the mirror image. The demo
 ///         trimmer strips animation frames and <c>svc_UserCmds</c> but never game events, and the pro

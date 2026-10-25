@@ -29,7 +29,7 @@ internal static class ZoneFixtures
     public static readonly string[] PlaceNames = ["Ramp", "Hut", "Outside", "Tunnels"];
 
     /// <summary>Builds the set.</summary>
-    /// <param name="mapName">The map name, which selects the D4 tie rule; the synthetic name gets the default.</param>
+    /// <param name="mapName">The map name, which selects the tie rule; the synthetic name gets the default.</param>
     /// <param name="overlappingRampVolume">
     ///     True adds a Ramp volume over [0, 300] x [0, 100] AHEAD of the Hut volume in lump order, so the
     ///     two overlap over Hut's box and the tie rule decides.

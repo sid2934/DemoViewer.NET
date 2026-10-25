@@ -41,14 +41,14 @@ public enum Bombsite
 /// <param name="Ny">Normal Y.</param>
 /// <param name="Nz">Normal Z.</param>
 /// <param name="D">Plane offset.</param>
-public readonly record struct ZonePlane(double Nx, double Ny, double Nz, double D)
+internal readonly record struct ZonePlane(double Nx, double Ny, double Nz, double D)
 {
     /// <summary><c>n·p - d</c>: negative inside, positive outside.</summary>
     public double Distance(double x, double y, double z) => Nx * x + Ny * y + Nz * z - D;
 }
 
 /// <summary>A convex hull as planes. World space; the entity origin is already applied.</summary>
-public sealed class ZoneHull
+internal sealed class ZoneHull
 {
     // A hair of slack so a point exactly on a face (a nav centroid on a volume edge, a click on a
     // boundary) is inside rather than outside; the baker rounds plane offsets to 0.1 units anyway.
@@ -97,7 +97,7 @@ public sealed class ZoneVolume
     /// <param name="hulls">The convex hulls. Empty for a volume the baker kept without geometry.</param>
     /// <param name="origin">Baked or custom.</param>
     /// <param name="polygon">A user zone's flat world-XY polygon, kept so the outline layer can draw it exactly.</param>
-    public ZoneVolume(ZoneVolumeKind kind, int placeId, Bombsite? site, string? team, string? entity,
+    internal ZoneVolume(ZoneVolumeKind kind, int placeId, Bombsite? site, string? team, string? entity,
         Vector3 min, Vector3 max, IReadOnlyList<ZoneHull> hulls, PlaceOrigin origin = PlaceOrigin.Baked,
         IReadOnlyList<double>? polygon = null)
     {
@@ -137,7 +137,7 @@ public sealed class ZoneVolume
     public Vector3 Max { get; }
 
     /// <summary>The hulls.</summary>
-    public IReadOnlyList<ZoneHull> Hulls { get; }
+    internal IReadOnlyList<ZoneHull> Hulls { get; }
 
     /// <summary>Baked or custom. Custom volumes sit first in the cascade.</summary>
     public PlaceOrigin Origin { get; }

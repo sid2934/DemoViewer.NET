@@ -94,13 +94,24 @@ public static class HeadlessSession
         ?? throw new InvalidOperationException(
             "The test assembly declares no [assembly: AvaloniaTestApplication(typeof(...))] naming a type with a static BuildAvaloniaApp().");
 
+    // PerAssembly shares one dispatcher queue, so a control built off the UI thread fails
+    // deterministically; PerTest hides it. The nightly headless-isolation workflow sets this variable.
+    // The level is fixed at StartNew, so it has to be read here.
+    private static AvaloniaTestIsolationLevel RequestedIsolation() =>
+        string.Equals(
+            Environment.GetEnvironmentVariable("DV_HEADLESS_ISOLATION"),
+            "PerAssembly",
+            StringComparison.OrdinalIgnoreCase)
+            ? AvaloniaTestIsolationLevel.PerAssembly
+            : AvaloniaTestIsolationLevel.PerTest;
+
     private static HeadlessUnitTestSession Session
     {
         get
         {
             lock (_sessionGate)
             {
-                return _session ??= HeadlessUnitTestSession.StartNew(EntryPoint());
+                return _session ??= HeadlessUnitTestSession.StartNew(EntryPoint(), RequestedIsolation());
             }
         }
     }
@@ -246,14 +257,14 @@ public static class HeadlessSession
     ///     </para>
     /// </remarks>
     public static Task RunOnUi(Func<Task> work) =>
-        RunOnUi(work, TestContext.Current?.TestDetails.TestName ?? "unknown test", DefaultBudget);
+        RunOnUi(work, TestContext.Current?.Metadata.TestDetails.TestName ?? "unknown test", DefaultBudget);
 
     /// <summary>
     ///     <see cref="RunOnUi(Func{Task})" /> with a longer budget than four minutes, for a real-corpus body
     ///     that reads several full demos.
     /// </summary>
     public static Task RunOnUi(Func<Task> work, TimeSpan budget) =>
-        RunOnUi(work, TestContext.Current?.TestDetails.TestName ?? "unknown test", budget);
+        RunOnUi(work, TestContext.Current?.Metadata.TestDetails.TestName ?? "unknown test", budget);
 
     private static readonly TimeSpan DefaultBudget = TimeSpan.FromMinutes(4);
 
@@ -369,8 +380,8 @@ public static class HeadlessSession
                 // the compositor's in-flight batch queue: the headless render timer never ticks on
                 // its own (manual ForceRenderTimerTick platform), so the NEXT test's `new Window()`
                 // then parks forever inside a nested dispatcher frame waiting for a commit slot
-                // (root-caused via Playback2DCameraModeTests: AllModes leaked an animating window
-                // and ManualPanZoom wedged at Window construction; closing the window fixed it).
+                // (a camera-mode suite leaked an animating window and the next case wedged at Window
+                // construction; closing the window fixed it).
                 // Ticking here drains the backlog to at most the single re-requested frame, keeping
                 // leaked-but-animating windows from wedging their successors. The flush renders
                 // OTHER tests' leaked windows in whatever mid-teardown state they're in. A render

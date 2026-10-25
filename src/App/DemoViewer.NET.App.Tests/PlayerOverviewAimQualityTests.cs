@@ -17,6 +17,7 @@ using DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.Views.PlayerOverview;
 using DemoViewer.NET.Views.PlayerOverview.Sections;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -128,7 +129,7 @@ public class PlayerOverviewAimQualityTests
             await Assert.That(sight.Except(keys)).IsEmpty().Because("every pooled sight column on the board is in the section");
             await Assert.That(ColumnCatalogue.All.Where(m => m.Group == StatGroup.AimQuality && !m.Hidden).Select(m => m.Key).Except(keys)).IsEmpty();
             await Assert.That(keys.Where(k => ColumnRules.For(k) is null or ColumnRule.NotAggregable)).IsEmpty();
-            await Assert.That(keys).IsEquivalentTo(keys.Distinct());
+            await Assert.That(keys).IsEquivalentTo(keys.Distinct(), CollectionOrdering.Matching);
         }
     }
 

@@ -466,7 +466,7 @@ public class RecentFilesTests
             cache.Upsert(Hashed(Gone, "sha-moved"));
             await Assert.That(cache.AttachUnconfirmed("sha-moved", moved, 1000, 3000)).IsTrue();
             cache.Detach(Gone);
-            await Assert.That(cache.PathsOfContent("sha-moved")).IsEquivalentTo([moved]);
+            await Assert.That(cache.PathsOfContent("sha-moved")).IsEquivalentTo([moved], CollectionOrdering.Matching);
 
             RecentFilesStore store = NewStore(dir);
             store.RecordOpen(Gone, "de_nuke", "sha-moved");

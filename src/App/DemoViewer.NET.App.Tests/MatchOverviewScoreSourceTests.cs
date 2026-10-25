@@ -1,7 +1,7 @@
 #region
 
+using DemoViewer.NET.TestSupport;
 using System.Globalization;
-using Avalonia.Threading;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Library;
@@ -77,10 +77,8 @@ public class MatchOverviewScoreSourceTests
     [Test]
     public async Task FinalScore_IsAConsistentCompletedResult_OnEveryAvailableDemo()
     {
-        string? repoRoot = FindRepoRoot();
-        List<string> demos = repoRoot is null
-            ? []
-            : _candidates.Select(c => Path.Combine(repoRoot, c)).Where(File.Exists).ToList();
+        string repoRoot = DemoTestHelper.RequireRepoRoot();
+        List<string> demos = _candidates.Select(c => Path.Combine(repoRoot, c)).Where(File.Exists).ToList();
 
         if (demos.Count == 0)
         {
@@ -111,13 +109,7 @@ public class MatchOverviewScoreSourceTests
                     await vm.LoadDemoFromPathAsync(demo);
 
                     // The score resolves off the load path (library entry, or a gated replay). Wait for it.
-                    for (int i = 0; i < 200 && !vm.MatchOverviewTab.HasScore; i++)
-                    {
-                        Dispatcher.UIThread.RunJobs();
-                        await Task.Delay(50);
-                    }
-
-                    Dispatcher.UIThread.RunJobs();
+                    await vm.MatchOverviewTab.UntilAsync(() => vm.MatchOverviewTab.HasScore, 60_000);
                     MatchOverviewTabViewModel o = vm.MatchOverviewTab;
                     string name = Path.GetFileName(demo);
 
@@ -176,16 +168,5 @@ public class MatchOverviewScoreSourceTests
             Console.WriteLine("[score-sweep] WARNING: no clan-carrying (pro/HLTV) demo was available — this "
                               + "run could not discriminate the authoritative score from the analysis-derived one.");
         }
-    }
-
-    private static string? FindRepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-        {
-            dir = dir.Parent;
-        }
-
-        return dir?.FullName;
     }
 }

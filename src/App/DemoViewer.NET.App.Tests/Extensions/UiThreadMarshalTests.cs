@@ -19,17 +19,14 @@ public class UiThreadMarshalTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            bool? ranOnUi = null;
-            await Task.Run(() => UiThreadMarshal.Run(() => ranOnUi = Dispatcher.UIThread.CheckAccess()));
-            for (int i = 0; i < 200 && ranOnUi is null; i++)
-            {
-                await Task.Delay(5);
-            }
+            TaskCompletionSource<bool> ran = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            await Task.Run(() => UiThreadMarshal.Run(() => ran.TrySetResult(Dispatcher.UIThread.CheckAccess())));
+            bool ranOnUi = await ran.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
             bool inline = false;
             UiThreadMarshal.Run(() => inline = true);
 
-            await Assert.That(ranOnUi).IsEqualTo(true);
+            await Assert.That(ranOnUi).IsTrue();
             await Assert.That(inline).IsTrue().Because("a raise on the UI thread runs before Run returns");
         });
     }

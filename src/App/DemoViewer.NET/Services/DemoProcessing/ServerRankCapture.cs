@@ -44,6 +44,13 @@ public sealed class ServerRankCapture
     /// <summary>A capture reading payloads back out of the demo's bytes.</summary>
     public static ServerRankCapture Over(byte[] demo) => new(frame => DownstreamUtilities.GetDecompressedPayload(frame, demo));
 
+    /// <summary>
+    ///     <see cref="Over(byte[])" /> over bytes held as memory. The closure keeps those bytes alive, so
+    ///     decode before the read's caller drops them.
+    /// </summary>
+    public static ServerRankCapture Over(ReadOnlyMemory<byte> demo) =>
+        new(frame => DownstreamUtilities.GetDecompressedPayload(frame, demo.Span));
+
     /// <summary>A capture reading payloads back from the file at <paramref name="path" />, one seek per held frame.</summary>
     public static ServerRankCapture OverFile(string path) => new(frame =>
     {
@@ -82,6 +89,26 @@ public sealed class ServerRankCapture
         {
             _held.Add(frame);
         }
+    }
+
+    /// <summary>
+    ///     The rows of a retained parse's update. <see cref="UnknownMessageInfo.FrameNumber" /> is the frame's
+    ///     index in <c>ParsedDemo.Frames</c>, so the flagged frames are picked out by index and nothing walks
+    ///     the parse.
+    /// </summary>
+    /// <param name="frames">The retained parse's frames.</param>
+    public IReadOnlyList<ServerRankUpdate> DecodeHeld(IReadOnlyList<DemoFrame> frames)
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        foreach (int number in _flagged.Keys.Order())
+        {
+            if ((uint)number < (uint)frames.Count)
+            {
+                Observe(frames[number]);
+            }
+        }
+
+        return Decode();
     }
 
     /// <summary>The rows of every held update, in the order the demo sent them.</summary>

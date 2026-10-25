@@ -8,6 +8,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -95,10 +96,10 @@ public class ResultCardTests
         int oneAcross = h.Vm.CardRows.Count;
         using (Assert.Multiple())
         {
-            await Assert.That(fourAcross).IsEquivalentTo([4, 4, 2]);
-            await Assert.That(threeAcross).IsEquivalentTo([3, 3, 3, 1]);
+            await Assert.That(fourAcross).IsEquivalentTo([4, 4, 2], CollectionOrdering.Matching);
+            await Assert.That(threeAcross).IsEquivalentTo([3, 3, 3, 1], CollectionOrdering.Matching);
             await Assert.That(oneAcross).IsEqualTo(10).Because("a width narrower than one card still shows one per row");
-            await Assert.That(h.Vm.CardRows.SelectMany(r => r.Items)).IsEquivalentTo(h.Vm.Cards);
+            await Assert.That(h.Vm.CardRows.SelectMany(r => r.Items)).IsEquivalentTo(h.Vm.Cards, CollectionOrdering.Matching);
         }
 
         h.Vm.Clear();
@@ -223,7 +224,7 @@ public class ResultCardTests
             await Assert.That(h.Vm.WalkLine).IsEqualTo("3 of 3");
             await Assert.That(h.Vm.Cards[2].IsSelected).IsTrue();
             await Assert.That(h.Vm.Cards[1].IsSelected).IsFalse();
-            await Assert.That(h.Seam.Seeks).IsEquivalentTo([(DemoA, 3368), (DemoA, 9000), (DemoB, 500)]);
+            await Assert.That(h.Seam.Seeks).IsEquivalentTo([(DemoA, 3368), (DemoA, 9000), (DemoB, 500)], CollectionOrdering.Matching);
         }
 
         // A click on any card is the same funnel, and makes it the walk's current one.
@@ -319,7 +320,7 @@ public class ResultCardTests
             await Assert.That(h.Vm.Cards[0].ThumbnailNote).IsEqualTo("").Because("a picture, so no note even without a bitmap decoder");
             await Assert.That(h.Vm.Cards[1].ThumbnailPng).IsNull().Because("step 3 was not sampled");
             await Assert.That(h.Vm.Cards[1].ThumbnailNote).IsEqualTo(ResultCardsViewModel.NoSampleNote);
-            await Assert.That(h.MapLoads).IsEquivalentTo(["de_nuke"]).Because("one bundle load per map per batch");
+            await Assert.That(h.MapLoads).IsEquivalentTo(["de_nuke"], CollectionOrdering.Matching).Because("one bundle load per map per batch");
             await Assert.That(h.Vm.Cache.Count).IsEqualTo(1);
             await Assert.That(h.Vm.Cache.TryGet(new SituationThumbnailKey(DemoCacheStore.StableKey(DemoA), 1, 1064,
                 h.Sources.FingerprintFor("de_nuke")))).IsNotNull();
@@ -370,13 +371,13 @@ public class ResultCardTests
         using (Assert.Multiple())
         {
             await Assert.That(opened).IsEmpty().Because("the loaded demo is not re-opened");
-            await Assert.That(seeks).IsEquivalentTo([3368]);
-            await Assert.That(tabs).IsEquivalentTo([SituationPlaybackSeek.PlaybackTabId]);
+            await Assert.That(seeks).IsEquivalentTo([3368], CollectionOrdering.Matching);
+            await Assert.That(tabs).IsEquivalentTo([SituationPlaybackSeek.PlaybackTabId], CollectionOrdering.Matching);
         }
 
         await Assert.That(await seam.SeekAsync(DemoB, 500)).IsTrue();
-        await Assert.That(opened).IsEquivalentTo([DemoB]);
-        await Assert.That(seeks).IsEquivalentTo([3368, 500]);
+        await Assert.That(opened).IsEquivalentTo([DemoB], CollectionOrdering.Matching);
+        await Assert.That(seeks).IsEquivalentTo([3368, 500], CollectionOrdering.Matching);
 
         // The open did not land: no seek on whatever is on the clock.
         openLands = false;
@@ -411,7 +412,7 @@ public class ResultCardTests
         {
             await Assert.That(tab.Canvas.ResultCount).IsEqualTo(2);
             await Assert.That(tab.Results.Count).IsEqualTo(2).Because("the count is the card list's length by construction");
-            await Assert.That(tab.Results.Cards.Select(c => c.Hit.RoundNumber)).IsEquivalentTo([1, 2]);
+            await Assert.That(tab.Results.Cards.Select(c => c.Hit.RoundNumber)).IsEquivalentTo([1, 2], CollectionOrdering.Matching);
         }
 
         tab.Results.Cache.Put(new SituationThumbnailKey("k", 1, 1, "f"), [1]);

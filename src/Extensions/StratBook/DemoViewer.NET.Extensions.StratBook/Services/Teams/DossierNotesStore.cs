@@ -11,9 +11,9 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 ///     The user's edits to each team's Dossier: stars, rewritten
 ///     lines, left-out lines, free notes and the summary, filed per team.
 ///     <para>
-///         <b>Persistence.</b> <c>dossier-notes.json</c> beside <c>teams.json</c>, written whole through
-///         <see cref="AtomicFile" /> after every mutation, as <see cref="VetoHistoryStore" />
-///         does. A null path (the browser, tests) keeps the notes for the session; a file that cannot
+///         <b>Persistence.</b> <c>dossier-notes.json</c> beside <c>teams.json</c>, written whole through its
+///         <see cref="StoredFile" /> after every mutation, as <see cref="VetoHistoryStore" />
+///         does. No file (the browser, tests) keeps the notes for the session; a file that cannot
 ///         be read, or is at a newer schema, is refused and never overwritten.
 ///     </para>
 ///     <para><b>Threading.</b> UI thread only: every caller is a view model reacting to a click or an edit.</para>
@@ -26,19 +26,19 @@ public sealed class DossierNotesStore
     /// <summary>The key prefix of a user-written finding.</summary>
     public const string NoteKeyPrefix = "note:";
 
-    private readonly string? _path;
+    private readonly StoredFile? _file;
     private readonly List<DossierTeamNotes> _teams = [];
     private bool _refused;
 
-    /// <param name="path">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
-    public DossierNotesStore(string? path)
+    /// <param name="file">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
+    public DossierNotesStore(StoredFile? file)
     {
-        _path = path;
+        _file = file;
         Load();
     }
 
     /// <summary>True when nothing persists: the browser host, and tests without a file.</summary>
-    public bool IsSessionOnly => _path is null;
+    public bool IsSessionOnly => _file is null;
 
     /// <summary>Why the file could not be read, or null. While set the file is never written.</summary>
     public string? FileProblem { get; private set; }
@@ -253,14 +253,19 @@ public sealed class DossierNotesStore
 
     private void Load()
     {
-        if (_path is null || !File.Exists(_path))
+        if (_file is null)
         {
             return;
         }
 
         try
         {
-            DossierNotesFile? file = JsonSerializer.Deserialize<DossierNotesFile>(File.ReadAllText(_path), DossierNotesFile.JsonOptions);
+            if (_file.Read() is not { } bytes)
+            {
+                return;
+            }
+
+            DossierNotesFile? file = JsonSerializer.Deserialize<DossierNotesFile>(bytes, DossierNotesFile.JsonOptions);
             if (file is null || file.SchemaVersion > DossierNotesFile.CurrentSchema)
             {
                 Refuse($"{FileName} is at schema {file?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads");
@@ -288,7 +293,7 @@ public sealed class DossierNotesStore
 
     private void Save()
     {
-        if (_path is null || _refused)
+        if (_file is null || _refused)
         {
             return;
         }
@@ -296,7 +301,7 @@ public sealed class DossierNotesStore
         try
         {
             DossierNotesFile file = new() { Teams = [.. _teams] };
-            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(file, DossierNotesFile.JsonOptions));
+            _file.Write(JsonSerializer.SerializeToUtf8Bytes(file, DossierNotesFile.JsonOptions));
         }
         catch (Exception)
         {

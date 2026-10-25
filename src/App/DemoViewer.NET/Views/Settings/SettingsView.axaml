@@ -580,7 +580,7 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Background processing — desktop only (docs/demo-processing-queue.md) -->
+                        <!-- Background processing: desktop only -->
                         <StackPanel Spacing="0" IsVisible="{Binding ShowSectionProcessing}">
                             <Border Classes="sectionHeader" x:Name="SectionBackgroundProcessing">
                                 <TextBlock Classes="sectionLabel" Text="BACKGROUND PROCESSING" />

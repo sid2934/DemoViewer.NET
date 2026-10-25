@@ -7,6 +7,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -27,7 +28,7 @@ public class HostDataRemovalTests
         string otherId = id + ".other";
         string configRoot = AppPaths.ConfigRoot!;
         string cacheRoot = AppPaths.DemoCacheDir!;
-        Pack pack = new(id);
+        Pack pack = new(id, [new StoreDescriptor("legacy", "Legacy", StoreRoot.Config, [id + "-legacy.json"], IsUserWork: true)]);
         ServiceCollection services = new();
         services.AddSingleton<ExtensionShellHub>();
         services.AddSingleton(new DemoCacheStore(null));
@@ -45,7 +46,6 @@ public class HostDataRemovalTests
         await File.WriteAllTextAsync(Path.Combine(otherFolder, "keep.json"), "{}");
 
         PackContributions contributions = new(pack, () => context);
-        contributions.Store(new StoreDescriptor("legacy", "Legacy", StoreRoot.Config, [id + "-legacy.json"], IsUserWork: true));
         int deleted = 0;
         contributions.DataDeleted(() => deleted++);
         HostDataRemoval removal = new(contributions, sp);
@@ -91,7 +91,7 @@ public class HostDataRemovalTests
             .FirstOrDefault(s => s.Id == "facts:" + RulesetContribution.QualifiedId(id, "kills"));
 
         await Assert.That(facts).IsNotNull();
-        await Assert.That(facts!.Paths).IsEquivalentTo([$"demos/*.facts.{RulesetContribution.QualifiedId(id, "kills")}.json.gz"]);
+        await Assert.That(facts!.Paths).IsEquivalentTo([$"demos/*.facts.{RulesetContribution.QualifiedId(id, "kills")}.json.gz"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -115,7 +115,7 @@ public class HostDataRemovalTests
             await Assert.That(stores.Any(s => s.Id.StartsWith("facts:", StringComparison.Ordinal))).IsFalse();
             await Assert.That(contributions.Rulesets.Single().ReadBy).IsEqualTo(id + ".reader");
             await Assert.That(contributions.Rulesets.Single().ReadsUserCommands).IsTrue();
-            await Assert.That(host.TableRulesets).IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")]);
+            await Assert.That(host.TableRulesets).IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")], CollectionOrdering.Matching);
             await Assert.That(host.Needs(new VisitedDemo("/d/match.dem")).UserCommands).IsTrue()
                 .Because("the ruleset's declaration reaches the pass's needs");
         }
@@ -138,12 +138,12 @@ public class HostDataRemovalTests
         using (Assert.Multiple())
         {
             await Assert.That(contributions.Rulesets.Select(r => r.RulesetId))
-                .IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")]);
+                .IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")], CollectionOrdering.Matching);
             await Assert.That(guard.Faults.StateOf(pack.FeatureId).Count).IsEqualTo(1);
         }
     }
 
-    private sealed class Pack(string id) : IExtension, IManifestSource
+    private sealed class Pack(string id, IEnumerable<StoreDescriptor>? stores = null) : IExtension, IManifestSource
     {
         public ExtensionManifest Manifest { get; } = ExtensionManifest.Parse($$"""
             {
@@ -155,6 +155,7 @@ public class HostDataRemovalTests
         public string Id => id;
         public string FeatureId => "pack." + id;
         public IEnumerable<ExtensionFeature> Features => [];
+        public IEnumerable<StoreDescriptor> Stores => stores ?? [];
 
         public void Register(IServiceCollection services)
         {

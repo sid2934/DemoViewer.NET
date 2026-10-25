@@ -60,7 +60,7 @@ public sealed class LegacyHighlightsRow
     public List<LegacyCachedRound> Rounds { get; set; } = [];
 
     // ── Invalidation ──────────────────────────────────────────────────────────
-    /// <summary>The A2 combined config fingerprint the row was scanned under.</summary>
+    /// <summary>The combined config fingerprint the row was scanned under.</summary>
     public string? ConfigFingerprint { get; set; }
 
     /// <summary>Per-highlight-type hashes, keyed <c>{rulesetId}.{highlightId}</c>.</summary>

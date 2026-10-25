@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.Updates;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -27,7 +28,7 @@ public class ExtensionFeedTests
         using (Assert.Multiple())
         {
             await Assert.That(feed.Id).IsEqualTo(FakeFeeds.Id);
-            await Assert.That(feed.Entries.Select(e => e.Version.ToString())).IsEquivalentTo(["1.2.0", "1.1.0-rc1", "1.0.1"]);
+            await Assert.That(feed.Entries.Select(e => e.Version.ToString())).IsEquivalentTo(["1.2.0", "1.1.0-rc1", "1.0.1"], CollectionOrdering.Matching);
             await Assert.That(feed.Latest!.Version).IsEqualTo(SemVersion.Parse("1.2.0"));
             ExtensionFeedEntry first = feed.Entries.Single(e => e.Version.ToString() == "1.0.1");
             await Assert.That(first.Manifest.Id).IsEqualTo(FakeFeeds.Id);

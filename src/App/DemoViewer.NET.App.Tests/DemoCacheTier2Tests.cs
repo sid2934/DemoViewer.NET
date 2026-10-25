@@ -4,6 +4,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -137,7 +138,7 @@ public class DemoCacheTier2Tests
         using (Assert.Multiple())
         {
             await Assert.That(rounds.Select(r => r.Number)).IsEquivalentTo(
-                    Enumerable.Range(1, rounds.Count).ToList())
+                    Enumerable.Range(1, rounds.Count).ToList(), CollectionOrdering.Matching)
                 .Because("rounds are numbered sequentially from 1");
             await Assert.That(rounds.Zip(rounds.Skip(1)).All(p => p.Second.StartTickFrameClock
                                                                   >= p.First.StartTickFrameClock)).IsTrue()

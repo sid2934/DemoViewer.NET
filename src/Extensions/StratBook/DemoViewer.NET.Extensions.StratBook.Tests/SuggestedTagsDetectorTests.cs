@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.SuggestedTagsTestData;
 
 #endregion
@@ -381,7 +382,7 @@ public class SuggestedTagsDetectorTests
         HashSet<string> declared = [.. ProposalDetection.All.SelectMany(d => d.Parameters.Select(p => $"{d.Id}.{p.Name}"))];
         HashSet<string> moved = [.. _moves.Select(m => $"{m.Detector}.{m.Parameter}")];
 
-        await Assert.That(moved).IsEquivalentTo(declared);
+        await Assert.That(moved).IsEquivalentTo(declared, CollectionOrdering.Matching);
     }
 
     private static (RoundOccupancy Round, List<PlacedEvent> Events) Scenario(string name) => name switch

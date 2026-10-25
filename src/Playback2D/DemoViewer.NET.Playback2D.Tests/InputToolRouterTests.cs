@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Tools;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -382,7 +383,7 @@ public class InputToolRouterTests
 
         await Assert.That(closedByOwner).IsTrue();
         await Assert.That(router.IsGestureOpen).IsFalse();
-        await Assert.That(services.Session.Document.Elements).HasCount().EqualTo(1);
+        await Assert.That(services.Session.Document.Elements).Count().IsEqualTo(1);
 
         SKPoint chord = services.ScreenToWorld(pane, new SKPoint(240, 130));
         SKPoint expected = services.ScreenToWorld(pane, end);
@@ -414,7 +415,7 @@ public class InputToolRouterTests
         await Assert.That(closed).IsTrue();
         await Assert.That(router.IsGestureOpen).IsFalse();
         await Assert.That(services.Session.Wet.IsActive).IsFalse();
-        await Assert.That(services.Session.Document.Elements).HasCount().EqualTo(1);
+        await Assert.That(services.Session.Document.Elements).Count().IsEqualTo(1);
     }
 
     /// <summary>Ctrl coming down mid-stroke is a modifier change, and modifiers are read at press only.</summary>
@@ -526,7 +527,7 @@ public class InputToolRouterTests
         using (Assert.Multiple())
         {
             await Assert.That(taken).IsTrue();
-            await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"]);
+            await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"], CollectionOrdering.Matching);
             await Assert.That(tool.FirstButton).IsEqualTo(MapToolButton.Left);
             await Assert.That(tool.FirstModifiers).IsEqualTo(MapToolModifiers.Shift | MapToolModifiers.Alt);
             await Assert.That(tool.FirstPane).IsSameReferenceAs(pane);
@@ -552,7 +553,7 @@ public class InputToolRouterTests
         using (Assert.Multiple())
         {
             await Assert.That(refused).IsFalse();
-            await Assert.That(tool.Calls).IsEquivalentTo(["press", "press", "cancel"]);
+            await Assert.That(tool.Calls).IsEquivalentTo(["press", "press", "cancel"], CollectionOrdering.Matching);
             await Assert.That(router.IsGestureOpen).IsFalse();
         }
     }
@@ -655,7 +656,7 @@ public class InputToolRouterTests
         public void OnCancelled(IMapToolContext context) => Calls.Add("cancel");
     }
 
-    // Stands in for a tool that lives outside Core (the query canvas's), so every kind can be selected.
+    // Stands in for a tool that lives outside the renderer (the query canvas's), so every kind can be selected.
     private sealed class InertTool(ToolKind kind) : IPointerTool
     {
         public ToolKind Kind => kind;

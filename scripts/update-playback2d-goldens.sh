@@ -19,6 +19,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# The prev2-* PNGs are FROZEN ON PURPOSE and nothing here regenerates them. They are the pre-v2
+# control's own output, and that control is deleted, so the only thing a writer could put in those
+# files is the v2 render they are supposed to be compared AGAINST. GoldenParityTests reads all three
+# and would then be comparing v2 to itself. When a deliberate v2 change finally moves one past
+# GoldenDistribution.PreV2Capture, retire that parity case with the reason, do not re-baseline it.
+#
+# Their scenes are not frozen, and step 3 renders v2's own goldens from two of them.
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -27,7 +35,7 @@ export PB2D_GOLDEN_UPDATE=1
 # 1. The synthetic family: CPU-provider renders of the hand-authored fixtures. No demo, no Avalonia,
 #    so this half always runs. It pins the PRODUCTION layer stack through HeadlessSceneRenderer, the
 #    same path `dv2d golden verify` uses, over the same three PNGs, so the two readers of those files
-#    cannot disagree. NOT the pre-v2 control.
+#    cannot disagree.
 echo "[goldens] synthetic (direct execution)"
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG" \
   -- --treenode-filter "/*/*/SceneGoldenTests/*"
@@ -42,22 +50,20 @@ fi
 echo "[goldens] budget fixture (generated)"
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG"   -- --treenode-filter "/*/*/BudgetFixtureCorpusTests/*"
 
-# 2. The demo-derived family: headless captures of the CURRENT Playback2DViewport, paired with the
-#    SceneFixture built from the same push. This is the corpus B1 must match. Each case SKIPS when its
-#    demo is absent, so a checkout with no demos staged is a no-op here rather than a failure.
-#    They own the prev2-* names and nothing else: two of them were once called duel-mirage-b and
-#    fitmap-mirage-eco (hand-authored 640x360 fixtures), and this step overwrote both scene files.
-echo "[goldens] demo-derived (headless Avalonia; skips without a demo)"
-dotnet run --project src/App/DemoViewer.NET.App.Tests -c "$CONFIG" \
-  -- --treenode-filter "/*/*/Playback2DGoldenCaptureTests/*"
-
-# 3. The level family (B3): nuke-multilevel-upper and nuke-multilevel-noradar are rendered from the SAME
-#    nuke-multilevel scene captured in step 2 (one floor at full height, and the same scene with no
-#    radar bound), so they have to be regenerated AFTER it or they would be re-baselined against the
-#    previous capture. Direct execution: no demo needed, only the committed scene and the de_nuke bundle.
+# 2. The level family: nuke-multilevel-upper and nuke-multilevel-noradar are rendered from the
+#    COMMITTED nuke-multilevel scene (one floor at full height, and the same scene with no radar
+#    bound). Direct execution: no demo needed, only the committed scene and the de_nuke bundle.
 echo "[goldens] levels (direct execution)"
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG" \
   -- --treenode-filter "/*/*/LevelGoldenTests/*"
+
+# 3. The captured family: v2's own render of the two real-demo captures, over the baked de_mirage and
+#    de_dust2 floors and radar. Written through `dv2d golden update` rather than a test, so the
+#    writer and `dv2d golden verify` are the same code by construction. The pre-v2 PNGs of these same
+#    two scenes are the frozen prev2-* pair above; these are the regenerable v2 gate.
+echo "[goldens] captured scenes (dv2d)"
+"$ROOT/scripts/dv2d.sh" golden update --name mirage-roundstart
+"$ROOT/scripts/dv2d.sh" golden update --name dust2-roundstart
 
 echo "[goldens] done. Review the diff before committing:"
 echo "          git status --short tests/fixtures/playback2d"

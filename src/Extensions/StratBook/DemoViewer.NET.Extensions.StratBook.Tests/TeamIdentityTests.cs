@@ -7,6 +7,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -128,6 +129,12 @@ public class TeamIdentityTests
             for (int wait = 0; wait < 400 && library.Demos.Count < batches; wait++)
             {
                 await Task.Delay(5);
+            }
+
+            if (library.Demos.Count < batches)
+            {
+                throw new System.TimeoutException($"timed out waiting for the library to hold all {batches} rows "
+                                           + $"(it holds {library.Demos.Count})");
             }
 
             for (int spin = 0; spin < 200; spin++)
@@ -257,9 +264,9 @@ public class TeamIdentityTests
             await Assert.That(teams.GetAssignment("/d/one.dem")!.T.TeamId).IsNull().Because("a single sighting never creates a team");
             await Assert.That(teams.UnaffiliatedCount).IsEqualTo(1 + 5).Because("the lone side and five stranger sides");
             await Assert.That(teams.Teams.Count).IsEqualTo(2);
-            await Assert.That(five.Rosters[0].CoreLineup!).IsEquivalentTo(Ids(1, 2, 3, 4, 5));
+            await Assert.That(five.Rosters[0].CoreLineup!).IsEquivalentTo(Ids(1, 2, 3, 4, 5), CollectionOrdering.Matching);
             await Assert.That(three.Rosters[0].CoreLineup).IsNull();
-            await Assert.That(three.Rosters[0].ExtendedCore!.Order(StringComparer.Ordinal)).IsEquivalentTo(Ids(11, 12, 13, 14, 15, 16, 17));
+            await Assert.That(three.Rosters[0].ExtendedCore!.Order(StringComparer.Ordinal)).IsEquivalentTo(Ids(11, 12, 13, 14, 15, 16, 17), CollectionOrdering.Matching);
         }
     }
 
@@ -306,7 +313,7 @@ public class TeamIdentityTests
         using (Assert.Multiple())
         {
             await Assert.That(team.Rosters[0].CoreLineup).IsNull().Because("no five ever repeated");
-            await Assert.That(team.Rosters[0].ExtendedCore!.Order(StringComparer.Ordinal)).IsEquivalentTo(Ids(1, 2, 3, 4, 100, 101, 102))
+            await Assert.That(team.Rosters[0].ExtendedCore!.Order(StringComparer.Ordinal)).IsEquivalentTo(Ids(1, 2, 3, 4, 100, 101, 102), CollectionOrdering.Matching)
                 .Because("the constants plus the longest-standing fifths");
             await Assert.That(teams.GetAssignment("/d/acq.dem")!.T.TeamId).IsNull()
                 .Because("the user plus two acquaintances outside the core shares one");
@@ -374,7 +381,7 @@ public class TeamIdentityTests
             await Assert.That(teams.GetAssignment("/d/none.dem")!.OurSide).IsNull();
             await Assert.That(teams.GetAssignment("/d/none.dem")!.OpponentTeamId).IsNull().Because("no our side, no opponent");
             await Assert.That(teams.OurDemos().Count).IsEqualTo(3);
-            await Assert.That(teams.DemosAgainst(them).Select(d => d.Path)).IsEquivalentTo(["/d/b.dem", "/d/a.dem"]);
+            await Assert.That(teams.DemosAgainst(them).Select(d => d.Path)).IsEquivalentTo(["/d/b.dem", "/d/a.dem"], CollectionOrdering.Matching);
         }
 
         teams.Override("/d/a.dem", 3, us);
@@ -409,8 +416,8 @@ public class TeamIdentityTests
             TeamsFile Stored() => JsonSerializer.Deserialize<TeamsFile>(File.ReadAllText(Path.Combine(root, "teams.json")), TeamsFile.JsonOptions)!;
             using (Assert.Multiple())
             {
-                await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(1));
-                await Assert.That(Stored().Me.SteamIds).IsEquivalentTo(Ids(1)).Because("the host's list replaces the file's own on save");
+                await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(1), CollectionOrdering.Matching);
+                await Assert.That(Stored().Me.SteamIds).IsEquivalentTo(Ids(1), CollectionOrdering.Matching).Because("the host's list replaces the file's own on save");
                 await Assert.That(teams.GetAssignment("/d/a1.dem")!.Source).IsEqualTo(OurSideSource.Me);
                 await Assert.That(teams.GetAssignment("/d/b.dem")!.OurSide).IsNull();
                 await Assert.That(teams.CoPlayers().MainAccount).IsEqualTo(Ids(1)[0]);
@@ -420,8 +427,8 @@ public class TeamIdentityTests
             identity.Set([.. Ids(1), .. Ids(2)], Ids(2)[0]);
             using (Assert.Multiple())
             {
-                await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(1, 2));
-                await Assert.That(Stored().Me.SteamIds).IsEquivalentTo(Ids(1, 2));
+                await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(1, 2), CollectionOrdering.Matching);
+                await Assert.That(Stored().Me.SteamIds).IsEquivalentTo(Ids(1, 2), CollectionOrdering.Matching);
                 await Assert.That(teams.GetAssignment("/d/b.dem")!.OurSide).IsEqualTo(3).Because("the edit re-resolves our side");
                 await Assert.That(teams.ActiveAccount).IsEqualTo(Ids(2)[0]);
                 await Assert.That(teams.CoPlayers().MainAccount).IsEqualTo(Ids(2)[0]).Because("the active account leads when it played");
@@ -461,14 +468,14 @@ public class TeamIdentityTests
                 await Assert.That(merged.Id).IsEqualTo(a);
                 await Assert.That(merged.Name).IsEqualTo("Old Guard");
                 await Assert.That(merged.Rosters.Count).IsEqualTo(2);
-                await Assert.That(merged.Rosters.Select(r => r.CoreLineup!.Count)).IsEquivalentTo([5, 5]).Because("each roster keeps its own five");
-                await Assert.That(merged.MergedFrom).IsEquivalentTo([b]);
+                await Assert.That(merged.Rosters.Select(r => r.CoreLineup!.Count)).IsEquivalentTo([5, 5], CollectionOrdering.Matching).Because("each roster keeps its own five");
+                await Assert.That(merged.MergedFrom).IsEquivalentTo([b], CollectionOrdering.Matching);
                 await Assert.That(teams.DemosOf(a).Count).IsEqualTo(4);
                 await Assert.That(teams.GetAssignment("/d/b2.dem")!.T.TeamId).IsEqualTo(a);
             }
 
             TeamsFile file = JsonSerializer.Deserialize<TeamsFile>(File.ReadAllText(Path.Combine(root, "teams.json")), TeamsFile.JsonOptions)!;
-            await Assert.That(file.Tombstones).IsEquivalentTo([b]);
+            await Assert.That(file.Tombstones).IsEquivalentTo([b], CollectionOrdering.Matching);
 
             cache.SaveIndex(); // the library persists index.json itself; the sidecars are already on disk
             teams.Dispose();
@@ -477,7 +484,7 @@ public class TeamIdentityTests
             await rebuilt.StartAsync();
             using (Assert.Multiple())
             {
-                await Assert.That(rebuilt.AllTeams.Select(t => t.Id)).IsEquivalentTo([a]);
+                await Assert.That(rebuilt.AllTeams.Select(t => t.Id)).IsEquivalentTo([a], CollectionOrdering.Matching);
                 await Assert.That(rebuilt.DemosOf(a).Count).IsEqualTo(4);
             }
         }
@@ -509,9 +516,9 @@ public class TeamIdentityTests
             using (Assert.Multiple())
             {
                 await Assert.That(sister).IsNotEqualTo(original);
-                await Assert.That(teams.DemosOf(sister).Select(d => d.Path)).IsEquivalentTo(["/d/s2.dem", "/d/s1.dem"]);
-                await Assert.That(teams.DemosOf(original).Select(d => d.Path)).IsEquivalentTo(["/d/a2.dem", "/d/a1.dem"]);
-                await Assert.That(teams.AllTeams.Single(t => t.Id == sister).Rosters[0].CoreLineup!).IsEquivalentTo(Ids(3, 4, 5, 6, 7));
+                await Assert.That(teams.DemosOf(sister).Select(d => d.Path)).IsEquivalentTo(["/d/s2.dem", "/d/s1.dem"], CollectionOrdering.Matching);
+                await Assert.That(teams.DemosOf(original).Select(d => d.Path)).IsEquivalentTo(["/d/a2.dem", "/d/a1.dem"], CollectionOrdering.Matching);
+                await Assert.That(teams.AllTeams.Single(t => t.Id == sister).Rosters[0].CoreLineup!).IsEquivalentTo(Ids(3, 4, 5, 6, 7), CollectionOrdering.Matching);
             }
 
             cache.SaveIndex(); // the library persists index.json itself; the sidecars are already on disk
@@ -521,7 +528,7 @@ public class TeamIdentityTests
             await rebuilt.StartAsync();
             using (Assert.Multiple())
             {
-                await Assert.That(rebuilt.AllTeams.Select(t => t.Id)).IsEquivalentTo([original, sister]);
+                await Assert.That(rebuilt.AllTeams.Select(t => t.Id)).IsEquivalentTo([original, sister], CollectionOrdering.Matching);
                 await Assert.That(rebuilt.DemosOf(sister).Count).IsEqualTo(2);
                 await Assert.That(rebuilt.DemosOf(original).Count).IsEqualTo(2);
             }
@@ -561,7 +568,7 @@ public class TeamIdentityTests
                 await Assert.That(rebuilt.NeedsRebuild).IsFalse();
                 await Assert.That(rebuilt.Teams.Single().Id).IsEqualTo(id);
                 await Assert.That(rebuilt.Teams.Single().Name).IsEqualTo("The Trio");
-                await Assert.That(rebuilt.DemosOf(id).Select(d => d.Path)).IsEquivalentTo(["/d/a3.dem", "/d/a2.dem", "/d/a1.dem"]);
+                await Assert.That(rebuilt.DemosOf(id).Select(d => d.Path)).IsEquivalentTo(["/d/a3.dem", "/d/a2.dem", "/d/a1.dem"], CollectionOrdering.Matching);
                 await Assert.That(File.Exists(Path.Combine(root, "cache", "team-index.json"))).IsTrue();
             }
         }
@@ -608,7 +615,7 @@ public class TeamIdentityTests
 
             teams.Override("/d/a2.dem", 2, null);
             await Assert.That(teams.GetAssignment("/d/a2.dem")!.T.TeamId).IsNull().Because("not a team");
-            await Assert.That(teams.DemosOf(team).Select(d => d.Path)).IsEquivalentTo(["/d/x.dem", "/d/a1.dem"]);
+            await Assert.That(teams.DemosOf(team).Select(d => d.Path)).IsEquivalentTo(["/d/x.dem", "/d/a1.dem"], CollectionOrdering.Matching);
         }
         finally
         {
@@ -653,7 +660,7 @@ public class TeamIdentityTests
             {
                 await Assert.That(refused.TeamsFileProblem).IsNotNull();
                 await Assert.That(File.ReadAllText(Path.Combine(root, "teams.json"))).IsEqualTo(junk).Because("a file that could not be read is never overwritten");
-                await Assert.That(refused.MyAccounts).IsEquivalentTo(Ids(1)).Because("the session still works in memory");
+                await Assert.That(refused.MyAccounts).IsEquivalentTo(Ids(1), CollectionOrdering.Matching).Because("the session still works in memory");
             }
         }
         finally
@@ -779,7 +786,7 @@ public class TeamIdentityTests
             await Assert.That(indexBack!.Demos["demo1"].Side(2)!.Tier).IsEqualTo(1);
             await Assert.That(indexBack.Demos["demo1"].Side(2)!.StandIn).IsTrue();
             await Assert.That(indexBack.Demos["demo2"].Side(3)!.Override).IsTrue();
-            await Assert.That(teamsBack!.Teams.Single().Rosters.Single().CoreLineup).IsEquivalentTo(Ids(1, 2, 3, 4, 5))
+            await Assert.That(teamsBack!.Teams.Single().Rosters.Single().CoreLineup).IsEquivalentTo(Ids(1, 2, 3, 4, 5), CollectionOrdering.Matching)
                 .Because("a rebuild never rewrites an established five");
             await Assert.That(teamsBack.Provenance.Overrides.Single().Label).IsEqualTo("our scrim")
                 .Because("the provenance section rides in the same file");
@@ -800,8 +807,8 @@ public class TeamIdentityTests
         using (Assert.Multiple())
         {
             await Assert.That(record.Players.Count(p => p.Team == 3)).IsEqualTo(6);
-            await Assert.That(ct.Key).IsEquivalentTo(Ids(11, 12, 13, 14, 15)).Because("a six-member side with one coach yields a five-member key");
-            await Assert.That(t.Key).IsEquivalentTo(Ids(1, 2, 3, 4, 5)).Because("bots are not in a key either");
+            await Assert.That(ct.Key).IsEquivalentTo(Ids(11, 12, 13, 14, 15), CollectionOrdering.Matching).Because("a six-member side with one coach yields a five-member key");
+            await Assert.That(t.Key).IsEquivalentTo(Ids(1, 2, 3, 4, 5), CollectionOrdering.Matching).Because("bots are not in a key either");
             await Assert.That(ct.Names).Contains("p0011");
         }
     }

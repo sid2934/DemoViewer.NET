@@ -116,7 +116,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     {
         ArgumentNullException.ThrowIfNull(track);
         CoreTrack core = new(track, _guard);
-        ILaneHandle handle = _surface.AddLane(core, TimelineBandRow.Lane,
+        IHostLaneHandle handle = _surface.AddLane(core, TimelineBandRow.Lane,
             behaviour is null ? null : new LaneBehaviour(behaviour, _guard));
         LaneHandle lane = new(track, core, handle);
         _owned.Add(lane);
@@ -214,6 +214,8 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         return Own(_surface.AddLayer(filed, Build));
     }
 
+    public void RequestRender() => _surface.RequestRender();
+
     public IDisposable AddTool(IMapTool tool)
     {
         ArgumentNullException.ThrowIfNull(tool);
@@ -251,8 +253,8 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     internal static SdkP.PlaybackBand Band(TimelineBandViewModel band) =>
         new(band.TrackId, band.StartFrameIndex, band.EndFrameIndex, band.Label, band.Tooltip);
 
-    private static List<MenuEntry> Menu(IEnumerable<SdkP.MenuEntry> entries, ExtensionGuard guard) =>
-        [.. entries.Select(e => new MenuEntry(e.Header, guard.Wrap("menu entry", e.Run)))];
+    private static List<SdkP.MenuEntry> Menu(IEnumerable<SdkP.MenuEntry> entries, ExtensionGuard guard) =>
+        [.. entries.Select(e => new SdkP.MenuEntry(e.Header, guard.Wrap("menu entry", e.Run)))];
 
     private static SdkP.PlaybackPointer Pointer(ScenePointer p)
     {
@@ -370,12 +372,12 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         private void OnChanged() => MarkersChanged?.Invoke();
     }
 
-    private sealed class LaneBehaviour(SdkP.ILaneBehaviour inner, ExtensionGuard guard) : ILaneBehaviour
+    private sealed class LaneBehaviour(SdkP.ILaneBehaviour inner, ExtensionGuard guard) : IHostLaneBehaviour
     {
         public void OnBandPressed(TimelineBandViewModel band, Core.ITimelineData data) =>
             guard.Run("lane band press", () => inner.OnBandPressed(Band(band)));
 
-        public IEnumerable<MenuEntry> MenuFor(TimelineBandViewModel band, Core.ITimelineData data) =>
+        public IEnumerable<SdkP.MenuEntry> MenuFor(TimelineBandViewModel band, Core.ITimelineData data) =>
             Menu(guard.Run<IReadOnlyList<SdkP.MenuEntry>>("lane menu", () => [.. inner.MenuFor(Band(band))], []), guard);
 
         public void OnLabelRequested(int frame) => guard.Run("lane label", () => inner.OnLabelRequested(frame));
@@ -384,7 +386,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
             guard.Run("lane drag", () => inner.OnEditSpanDragged(startFrame, endFrame), FaultKind.Recurring);
     }
 
-    private sealed class LaneHandle(SdkP.ITimelineTrack track, CoreTrack core, ILaneHandle handle) : SdkP.ILaneHandle
+    private sealed class LaneHandle(SdkP.ITimelineTrack track, CoreTrack core, IHostLaneHandle handle) : SdkP.ILaneHandle
     {
         public SdkP.ITimelineTrack Track => track;
 

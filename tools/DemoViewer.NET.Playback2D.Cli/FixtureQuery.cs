@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Playback2D.Pipeline.Query;
 
 #endregion
@@ -8,16 +9,14 @@ using DemoViewer.NET.Playback2D.Pipeline.Query;
 namespace DemoViewer.NET.Playback2D.Cli;
 
 /// <summary>
-///     Loads a <c>.dvquery.json</c> query fixture for a render that has no app: the Query Canvas's
-///     placed tokens, drawn by <c>playback2d.query</c>. The twin of <see cref="FixtureInk" />, with the
-///     same two entry points: a flag (<c>render --query</c>) and the corpus convention
-///     (<c>queries/&lt;name&gt;.dvquery.json</c> beside the entry's scene) for <c>golden</c> and
-///     <c>bench</c>.
+///     The <c>--query</c> flag's half of a <c>.dvquery.json</c> fixture: the Query Canvas's placed
+///     tokens, drawn by <c>playback2d.query</c>. The twin of <see cref="FixtureInk" />, and the file
+///     itself is read by <see cref="CorpusSidecars.LoadQuery" /> either way it arrives.
 /// </summary>
 internal static class FixtureQuery
 {
     /// <summary>The corpus subdirectory holding query fixtures, beside <c>scenes/</c> and <c>annotations/</c>.</summary>
-    public const string CorpusDirectoryName = "queries";
+    public const string CorpusDirectoryName = CorpusSidecars.QueriesDirectory;
 
     /// <summary>
     ///     The document in a query fixture, or null when the file is absent or holds no token. Null is
@@ -25,6 +24,7 @@ internal static class FixtureQuery
     ///     behind it, the same answer <see cref="FixtureInk.Load" /> gives.
     /// </summary>
     /// <param name="path">Path to the <c>.dvquery.json</c> itself.</param>
+    /// <exception cref="CliUsageException">The file exists but is not a query fixture.</exception>
     public static QueryCanvasDocument? Load(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
@@ -40,14 +40,12 @@ internal static class FixtureQuery
                 $"--query expects a '{QueryFixtureStore.SidecarExtension}' fixture, got '{path}'.");
         }
 
-        QueryCanvasDocument document = QueryFixtureStore.ReadFile(path);
-        return document.PlacedCount == 0 ? null : document;
+        return CorpusSidecars.LoadQuery(path);
     }
 
     /// <summary>The corpus query fixture for an entry, or null when the entry ships none.</summary>
     /// <param name="corpusDirectory">The corpus root.</param>
     /// <param name="entryName">The corpus entry name.</param>
     public static QueryCanvasDocument? ForCorpusEntry(string corpusDirectory, string entryName) =>
-        Load(Path.Combine(corpusDirectory, CorpusDirectoryName,
-            entryName + QueryFixtureStore.SidecarExtension));
+        CorpusSidecars.Query(corpusDirectory, entryName);
 }

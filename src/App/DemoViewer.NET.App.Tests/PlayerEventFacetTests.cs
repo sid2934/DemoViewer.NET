@@ -6,6 +6,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -137,7 +138,7 @@ public class PlayerEventFacetTests
             await Assert.That(joined.Select(k => (k.Killer, k.Victim))).IsEquivalentTo(new (string?, string?)[]
             {
                 (a, b), (a, c), (b, d), (c, null), (d, null)
-            }).Because("a collateral pairs by victim slot, a bot victim has no account, and a kill with no death row keeps no victim");
+            }, CollectionOrdering.Matching).Because("a collateral pairs by victim slot, a bot victim has no account, and a kill with no death row keeps no victim");
             await Assert.That(joined[0].Headshot).IsTrue();
             await Assert.That(joined[1].Headshot).IsFalse();
             await Assert.That(joined[1].Weapon).IsEqualTo("awp");

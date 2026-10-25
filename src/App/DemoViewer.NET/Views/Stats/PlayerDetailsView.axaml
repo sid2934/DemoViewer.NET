@@ -78,7 +78,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <!-- Player-details dashboard (docs/ui/player-details-ux-design.md): identity header + core strip,
+    <!-- Player-details dashboard: identity header + core strip,
          Overview/Rounds/Vision sub-rail, and the panel grid. Hosted as an inline overlay inside
          StatsTabView (WASM-safe — never a Window); reuses its statscat/statsexport pill styles. -->
     <Grid RowDefinitions="Auto,Auto,Auto,*">

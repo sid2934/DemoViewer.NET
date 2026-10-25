@@ -7,6 +7,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.MatchMeta;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -52,7 +53,7 @@ public class RankRowMappingTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rows.Select(r => r.SteamId64)).IsEquivalentTo(["76561198000000001", "76561198000000002"]);
+            await Assert.That(rows.Select(r => r.SteamId64)).IsEquivalentTo(["76561198000000001", "76561198000000002"], CollectionOrdering.Matching);
             await Assert.That(rows[0].RankOld).IsEqualTo(14213);
             await Assert.That(rows[0].RankNew).IsEqualTo(14402);
             await Assert.That(rows[0].RankChange).IsEqualTo(189);
@@ -175,6 +176,36 @@ public class RankRowMappingTests
             await Assert.That(after.GameMode).IsEqualTo("premier").Because("the record pass keeps what the visit read");
             await Assert.That(after.Players!.Single().RankNew).IsEqualTo(14402);
             await Assert.That(json).Contains("\"RankSource\":\"ServerRankUpdate\"").Because("the source is written by name");
+        }
+    }
+
+    [Test]
+    public async Task AHeldVisit_TakesTheRanksOffItsOwnRead_AndNoneWithoutOne()
+    {
+        const string withUpdate = "/d/held-update.dem", withoutUpdate = "/d/held-bare.dem";
+        DemoCacheStore store = new(null);
+        MatchMetaEvaluator evaluator = new(store);
+        ParsedDemo parsed = SyntheticParsedDemo.Create();
+        foreach (string path in new[] { withUpdate, withoutUpdate })
+        {
+            store.Upsert(new DemoCacheRecord { Path = path, Size = 1, ModifiedTicks = 1, Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 } });
+        }
+
+        evaluator.Evaluate(withUpdate, new PassInput(new VisitedDemo(withUpdate), PassLevel.Background, parsed, null, CancellationToken.None)
+        {
+            RetainedRanks = [new ServerRankUpdate(A, 14213, 14402, 189, 312, 11)]
+        });
+        evaluator.Evaluate(withoutUpdate, new PassInput(new VisitedDemo(withoutUpdate), PassLevel.Background, parsed, null, CancellationToken.None));
+        List<MatchRankRow> captured = [.. store.TryLoadRecord(withUpdate, false)!.MatchMeta!.Players!];
+        DemoMatchMeta bare = store.TryLoadRecord(withoutUpdate, false)!.MatchMeta!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(captured.Count).IsEqualTo(1);
+            await Assert.That(captured[0].RankSource).IsEqualTo(RankSource.ServerRankUpdate)
+                .Because("a held visit reads the server's update, never a replay of the controllers");
+            await Assert.That(captured[0].RankNew).IsEqualTo(14402);
+            await Assert.That(bare.Players).IsNull().Because("a read that captured no update writes no rank rows");
         }
     }
 }

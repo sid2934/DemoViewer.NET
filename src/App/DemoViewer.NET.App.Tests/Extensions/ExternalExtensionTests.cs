@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -222,7 +223,7 @@ public class ExternalExtensionTests
                 [ShippedPack.BesideApp(StratBookPackId, static () => new global::DemoViewer.NET.Extensions.StratBook.StratBookPack())],
                 ExtensionHost.Current, TrustPolicy.Nothing, PublisherKeys.Current, allowUnverified: true, safeMode: false);
 
-            await Assert.That(result.Statuses.Select(s => s.Pack.Id)).IsEquivalentTo([StratBookPackId, HelloId]);
+            await Assert.That(result.Statuses.Select(s => s.Pack.Id)).IsEquivalentTo([StratBookPackId, HelloId], CollectionOrdering.Matching);
         }
         finally
         {
@@ -307,7 +308,7 @@ public class ExternalExtensionTests
                     await Assert.That(contributed.PlaybackContributions.Single()).IsTypeOf<SdkPlaybackContribution>();
                     await Assert.That(map).IsTypeOf<global::DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView>()
                         .Because("the UI kit resolves from the app, so the extension embeds the host's own map view");
-                    await Assert.That(layers).IsEquivalentTo(["ext.dev.example.hello.rings"]);
+                    await Assert.That(layers).IsEquivalentTo(["ext.dev.example.hello.rings"], CollectionOrdering.Matching);
                     await Assert.That(vm.Surface.Layers).IsEmpty().Because("the detach took the layer with it");
                     await Assert.That(contributed.HubTabs.Single().Id).IsEqualTo("dev.example.hello.hub");
                     await Assert.That(contributed.StatusChips.Single().FeatureId).IsEqualTo("pack.hello");

@@ -7,6 +7,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Views.Playback2D;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -62,8 +63,7 @@ public class Playback2DKeybindRoutingTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             vm.ApplyKeymapOverrides(["HoldPan=B"]);
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
 
             vm.Annotations.SelectTool(ToolKind.Draw);
@@ -102,8 +102,7 @@ public class Playback2DKeybindRoutingTests
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
             vm.ApplyKeymapOverrides(["HoldPan=B"]);
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
 
             vm.Annotations.SelectTool(ToolKind.Draw);
@@ -145,8 +144,7 @@ public class Playback2DKeybindRoutingTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
 
             vm.Annotations.SelectTool(ToolKind.Draw);
@@ -221,7 +219,7 @@ public class Playback2DKeybindRoutingTests
             // The shipped table a bare, no-DI VM opens on is core union every pack's commands
             // (CommandRegistry.Default), not Playback2DKeymap.Default alone; CommandRegistry composes
             // them with no DI either, so a bare VM sees the same table a composed app does.
-            await Assert.That(vm.Keymap.Bindings).IsEquivalentTo(CommandRegistry.Default.EffectiveBindings);
+            await Assert.That(vm.Keymap.Bindings).IsEquivalentTo(CommandRegistry.Default.EffectiveBindings, CollectionOrdering.Matching);
         }
         finally
         {

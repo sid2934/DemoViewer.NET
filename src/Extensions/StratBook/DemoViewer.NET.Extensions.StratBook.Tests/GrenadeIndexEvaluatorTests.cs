@@ -5,6 +5,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -136,7 +137,7 @@ public class GrenadeIndexEvaluatorTests
             await Assert.That(on.WantsAfterUpstream("/d/unparsed.dem")).IsTrue().Because("the walk follows the Library's parse on the same visit");
             await Assert.That(on.WantsAfterUpstream(Demo)).IsFalse().Because("a parsed demo is Wants' call");
             await Assert.That(off.WantsAfterUpstream("/d/unparsed.dem")).IsFalse();
-            await Assert.That(on.PendingPaths()).IsEquivalentTo(new[] { Demo });
+            await Assert.That(on.PendingPaths()).IsEquivalentTo(new[] { Demo }, CollectionOrdering.Matching);
             await Assert.That(on.PriorityFor(Demo)).IsEqualTo(JobPriority.Background);
         }
     }
@@ -220,7 +221,7 @@ public class GrenadeIndexEvaluatorTests
         {
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
             await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.UserRequested);
-            await Assert.That(evaluator.PendingPaths()).IsEquivalentTo(new[] { Demo });
+            await Assert.That(evaluator.PendingPaths()).IsEquivalentTo(new[] { Demo }, CollectionOrdering.Matching);
         }
     }
 
@@ -237,7 +238,7 @@ public class GrenadeIndexEvaluatorTests
         GrenadeDocument rows = evaluator.Store.TryReadRows(Demo, "abc")!;
         using (Assert.Multiple())
         {
-            await Assert.That(indexed).IsEquivalentTo(new[] { Demo });
+            await Assert.That(indexed).IsEquivalentTo(new[] { Demo }, CollectionOrdering.Matching);
             await Assert.That(stamp.Schema).IsEqualTo(GrenadeStore.Schema);
             await Assert.That(stamp.State).IsEqualTo(DemoDataState.Written);
             await Assert.That(stamp.Count).IsEqualTo(1);

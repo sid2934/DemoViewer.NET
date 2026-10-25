@@ -29,8 +29,7 @@ public class Playback2DLevelStripTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             PushFloors(ctx, 64f, 64f, 40);
             Playback2DTimelineHarness.Pump();
@@ -99,14 +98,13 @@ public class Playback2DLevelStripTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             Scene2DHost host = TwoFloors(ctx, view);
 
             await Assert.That(vm.LevelStrip.HasMultipleLevels).IsTrue();
             await Assert.That(Strip(view).IsVisible).IsTrue();
-            await Assert.That(vm.LevelStrip.Chips).HasCount().EqualTo(host.Levels.Levels.Count);
+            await Assert.That(vm.LevelStrip.Chips).Count().IsEqualTo(host.Levels.Levels.Count);
 
             // Highest floor first, matching the stacked bands' own top-to-bottom order.
             await Assert.That(vm.LevelStrip.Chips[0].Id).IsEqualTo(host.Levels.Levels[^1].Id);
@@ -124,8 +122,7 @@ public class Playback2DLevelStripTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, width, height, Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm, width, height);
 
             TwoFloors(ctx, view);
 
@@ -155,8 +152,7 @@ public class Playback2DLevelStripTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             Scene2DHost host = TwoFloors(ctx, view);
             MapLevelId lowest = host.Levels.Levels[0].Id;
@@ -195,8 +191,7 @@ public class Playback2DLevelStripTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             Scene2DHost host = TwoFloors(ctx, view);
             await Assert.That(vm.LevelStrip.IsAutoAvailable).IsTrue();
@@ -229,8 +224,7 @@ public class Playback2DLevelStripTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             TwoFloors(ctx, view);
 
@@ -261,8 +255,7 @@ public class Playback2DLevelStripTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             Scene2DHost host = TwoFloors(ctx, view);
             MapLevelId lower = host.Levels.Levels[0].Id;

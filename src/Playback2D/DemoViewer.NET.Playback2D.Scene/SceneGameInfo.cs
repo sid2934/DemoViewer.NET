@@ -2,7 +2,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>
 ///     Round-level state read once per frame off <c>CCSGameRulesProxy</c> plus the two playing
-///     <c>CCSTeam</c> entities. Drives the HUD: the XAML panel today, B4's <c>ClockLayer</c> later.
+///     <c>CCSTeam</c> entities. Drives the HUD: the XAML panel today, the <c>ClockLayer</c> later.
 ///     Missing fields render placeholders, never throw.
 /// </summary>
 /// <param name="Phase">"Warmup" | "Freeze" | "Live" | "—".</param>

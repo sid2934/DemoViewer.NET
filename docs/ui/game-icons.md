@@ -9,7 +9,7 @@ Three steps, and only the first needs thought.
 **1. Find its source path.** The baker lists what the game ships and marks what we already take:
 
 ```sh
-scripts/bake-icons.sh --list defus
+dotnet run --project tools/DemoViewer.NET.AssetBaker -- --list-icons=defus
 ```
 
 ```
@@ -17,9 +17,7 @@ scripts/bake-icons.sh --list defus
 [ ] panorama/images/icons/ui/defuser_white
 ```
 
-`--list` with no filter lists everything (1120 entries); `--free` and `--taken` narrow it. The script
-exists only to pick the host RID — the baker's own default is macOS, and forgetting `-r` fails in a
-way that does not mention RIDs.
+`--list-icons` with no filter lists everything (1120 entries); `--free` and `--taken` narrow it.
 
 **2. Add it to the curation.** `tools/DemoViewer.NET.AssetBaker/IconSet.cs` is the only file that
 decides *what* gets baked; everything else is mechanism. Put the path (minus `.vsvg_c`) in the
@@ -43,7 +41,7 @@ Namespaces exist because they have different key sources, and mixing them makes 
 **3. Re-bake and commit.**
 
 ```sh
-scripts/bake-icons.sh
+dotnet run --project tools/DemoViewer.NET.AssetBaker -- --icons
 ```
 
 This needs a CS2 install (found through Steam's `libraryfolders.vdf`, or passed as
@@ -138,8 +136,13 @@ Stat column headers are also deliberately left as words — a column header is r
 
 Icons are **embedded** in `DemoViewer.NET.GameIcons.dll`, not copied beside the executable. The
 Browser head has no filesystem to probe, and per-map bundles (radar, collision) are the only assets
-that ship loose. `publish.sh` copies `assets/` then deletes `assets/icons` again for that reason —
+that ship loose. `publish.sh` copies `assets/` then deletes `assets/icons` again for that reason:
 otherwise the same ~1.9 MB would ride in every release and every Velopack delta for nothing.
+
+The assembly is **not** on NuGet. The artwork is Valve's, so it ships with the application and nothing
+else, and the extension SDK's `GameIcon` control reaches it through a backend the app installs
+(`HostGameIcons`) rather than a package dependency. That is what lets THIRD-PARTY-NOTICES.md §b2 say the
+published packages carry none of it.
 
 ## Premier tiers are generated, not curated
 
@@ -174,10 +177,11 @@ Findings worth keeping:
 - **Icons need neither ValveResourceFormat nor SkiaSharp 3.** A `.vsvg_c` is a Source 2 header, a
   block table, and the SVG text sitting in the `DATA` block after a 6-byte prefix — about 30 lines to
   read. VRF is only needed for *texture* decoding, which icons never touch. Rasterising with
-  Svg.Skia 1.x runs on the app's own SkiaSharp 2.88.9 pin and produced output byte-identical to the
+  Svg.Skia 1.x ran on the SkiaSharp 2.88.9 pin current when this was measured, and produced output byte-identical to the
   shipped bake for 4 of 7 sampled icons, and within a mean of 1/255 per pixel for the other three
   (the gradient ones).
-- **Two SkiaSharp majors can share one publish folder**, because 187 of the baker's 221 files are the
+- **Two SkiaSharp majors can share one publish folder** (moot since the baker and the app are both on
+  major 3), because 187 of the baker's 221 files are the
   same .NET runtime the app already ships and only four differ. The four go in a private
   subdirectory, and the tool redirects to them with `NativeLibrary.SetDllImportResolver` registered
   against the SkiaSharp assembly as it loads. `AssemblyLoadContext.ResolvingUnmanagedDll` does **not**

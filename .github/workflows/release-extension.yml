@@ -5,6 +5,10 @@
 # that same tag with dry_run=false. Every other trigger, including any dispatch from a branch, is a
 # dry run: build, sign, zip, verify, report; no release, no feed change.
 #
+# A dry run still has to clear verify-ci first, which requires a completed, successful ci run on the
+# head SHA. So a dispatch from a branch fails at the gate before anything is built or signed: dispatch
+# ci on that branch and let it finish, then dispatch this.
+#
 # Every value that can carry attacker-controlled text (a dispatch input, a ref-derived id) is passed
 # through env:, never interpolated into run: script text, and the id is validated against the
 # manifest id shape before it is used for anything.
@@ -40,7 +44,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Gate: the tagged commit must already have a green `ci` run. `ci` runs on push to main and on pull
+  # requests, not on tags, so a tag whose commit never landed there has no run and fails here. It is a
+  # check, not a re-run. Same gate as release.yml.
+  verify-ci:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Require a successful ci run for ${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="${{ github.sha }}"
+          if ! runs=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$sha&status=completed" \
+                        --jq '[.workflow_runs[].conclusion] | join(" ")' 2>&1); then
+            echo "::error::Could not query ci runs for $sha. This is an API/permissions failure, not a verdict on the tests. Response: $runs" >&2
+            exit 1
+          fi
+          echo "ci conclusions for $sha: ${runs:-<none>}"
+          if [ -z "$runs" ]; then
+            echo "::error::No completed 'ci' run for $sha. Dispatch ci on this ref and let it finish, or tag a commit that has already gone green." >&2
+            exit 1
+          fi
+          case " $runs " in
+            *" success "*) echo "ci is green for $sha." ;;
+            *) echo "::error::'ci' did not succeed for $sha (conclusions: $runs). Refusing to release." >&2; exit 1 ;;
+          esac
+
   build-and-pack:
+    needs: verify-ci
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -51,13 +85,10 @@ jobs:
         with:
           fetch-depth: 0   # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      # CompatibilityMatrixTests renders through Avalonia.Headless + Avalonia.Skia.
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      # The ext suite and CompatibilityMatrixTests both render through Avalonia.Headless + Avalonia.Skia.
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+          native: skia
 
       - name: Resolve id and publish/dry-run
         id: resolve
@@ -99,18 +130,15 @@ jobs:
       - name: Restore CLI tools (nbgv)
         run: dotnet tool restore
 
-      - name: Extension suite, standard tier
-        run: bash scripts/test.sh -t standard -p ext -c Release
-
       - name: Build App.Tests
         run: dotnet build src/App/DemoViewer.NET.App.Tests -c Release
 
-      # The release gate: the shipped manifest against this host on every
+      # The release gate (the ext suite itself is run by ci, which verify-ci requires): the shipped manifest against this host on every
       # axis, and the extension's compiled references against what this build actually loads.
       - name: CompatibilityMatrixTests
         run: >
           dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release --no-build
-          -- --treenode-filter "/*/*/CompatibilityMatrixTests/*" --disable-logo --no-progress
+          -- --treenode-filter "/*/*/CompatibilityMatrixTests/*" --disable-logo --progress off
 
       - name: Pack extension (build, stage, sign, verify, zip)
         env:
@@ -161,9 +189,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       - uses: actions/download-artifact@v4
         with:

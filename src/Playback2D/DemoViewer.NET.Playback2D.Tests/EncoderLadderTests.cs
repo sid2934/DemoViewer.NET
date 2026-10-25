@@ -3,6 +3,7 @@
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -70,7 +71,7 @@ public class EncoderLadderTests
                 "av1_qsv",
                 "av1_amf",
                 "libvpx-vp9"
-            });
+            }, CollectionOrdering.Matching);
 
         foreach (VideoEncoder rung in rungs)
         {
@@ -88,7 +89,7 @@ public class EncoderLadderTests
                 "h264_qsv",
                 "h264_amf",
                 "libx264"
-            });
+            }, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -110,7 +111,7 @@ public class EncoderLadderTests
                 EncoderAcceleration.QuickSync,
                 EncoderAcceleration.Amf,
                 EncoderAcceleration.Software
-            });
+            }, CollectionOrdering.Matching);
         }
     }
 
@@ -132,7 +133,7 @@ public class EncoderLadderTests
     {
         // Matching SceneExportSession.SupportedFps's treatment of the same case: WebM is the default
         // format, so it is also the default answer to a question about a format nobody has heard of.
-        await Assert.That(EncoderLadder.For("qt-anim")).IsEquivalentTo(EncoderLadder.For(ExportFormats.WebM));
+        await Assert.That(EncoderLadder.For("qt-anim")).IsEquivalentTo(EncoderLadder.For(ExportFormats.WebM), CollectionOrdering.Matching);
     }
 
     [Test]
@@ -288,7 +289,7 @@ public class EncoderSelectorTests
                 "h264_nvenc",
                 "h264_qsv",
                 "h264_amf"
-            });
+            }, CollectionOrdering.Matching);
         await Assert.That(selection.Reason).Contains("rung 3 of 4");
     }
 

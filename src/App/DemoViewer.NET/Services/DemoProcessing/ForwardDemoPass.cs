@@ -296,6 +296,8 @@ public static class ForwardDemoPass
         Action<double>? progress,
         CancellationToken cancellationToken) : IDemoFrameSource
     {
+        private bool _marked;
+
         public List<GameEvent> FreezeEnds { get; } = [];
         public bool MatchEnded { get; private set; }
         public LibraryOvertime Overtime { get; private set; }
@@ -363,7 +365,19 @@ public static class ForwardDemoPass
             }
 
             ranks?.Observe(frame);
-            tracker?.AdvanceOneFrame(frame);
+            if (tracker is not null)
+            {
+                // Marked on the first fold, not at construction: the engine's counter fires when a tracker
+                // folds its first frame, and the decode-count harness holds the two equal.
+                if (!_marked)
+                {
+                    _marked = true;
+                    DecodeSites.Enter(9);
+                }
+
+                tracker.AdvanceOneFrame(frame);
+            }
+
             return true;
         }
 

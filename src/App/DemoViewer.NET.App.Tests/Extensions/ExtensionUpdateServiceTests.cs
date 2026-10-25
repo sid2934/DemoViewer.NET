@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.Extensions.UpdateFixtures;
 
@@ -391,7 +392,7 @@ public class ExtensionUpdateServiceTests
             ExtensionLoader.Discovery discovered = ExtensionLoader.Discover(Path.Combine(root, "extensions"));
             using (Assert.Multiple())
             {
-                await Assert.That(discovered.Candidates.Select(c => c.Directory)).IsEquivalentTo([installed]);
+                await Assert.That(discovered.Candidates.Select(c => c.Directory)).IsEquivalentTo([installed], CollectionOrdering.Matching);
                 await Assert.That(discovered.Rejected).IsEmpty();
             }
 
@@ -582,7 +583,7 @@ public class ExtensionUpdateServiceTests
                     "Check for updates: Fake",
                     "Download extension update: Fake 1.0.1",
                     "Tidy staged extension updates"
-                ]);
+                ], CollectionOrdering.Matching);
                 await Assert.That(queue.Requests.Take(3).All(r => r.Priority == DemoJobPriority.UserRequested)).IsTrue()
                     .Because("the user pressed the button");
                 await Assert.That(queue.Requests[3].Priority).IsEqualTo(DemoJobPriority.Background).Because("the startup sweep asked for nothing");

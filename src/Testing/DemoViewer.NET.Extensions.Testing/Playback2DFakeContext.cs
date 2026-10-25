@@ -8,7 +8,7 @@ using DemoViewer.NET.Modules.Abstractions;
 namespace DemoViewer.NET.Extensions.Testing;
 
 /// <summary>
-///     A recording <see cref="IModuleContext" /> for the A1 dispatch / follow / adapter tests. Every
+///     A recording <see cref="IModuleContext" /> for the dispatch / follow / adapter tests. Every
 ///     <c>Request*</c> is logged rather than acted on, which is what lets a test assert "the key routed
 ///     through the shared clock" instead of "the VM changed some field of its own".
 /// </summary>
@@ -17,7 +17,7 @@ internal sealed class Playback2DFakeContext : IModuleContext
     private readonly List<IPlayerState> _players = [];
     private readonly Dictionary<Type, object?> _services = new();
 
-    public List<PlayerRosterEntry> Roster { get; } = [];
+    public List<PlayerRosterEntry> Roster { get; set; } = [];
     public Dictionary<string, List<GameEventView>> Timelines { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, int[]> Frames { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -60,6 +60,15 @@ internal sealed class Playback2DFakeContext : IModuleContext
     public int LastTick { get; set; }
     public bool IsSpeedLocked { get; set; }
 
+    // False answers FrameIndexAtTick with -1, as the interface default does.
+    public bool MapTicksToFrames { get; set; } = true;
+
+    /// <summary>
+    ///     A context that answers like a bare host: no frames and no tick-to-frame mapping, the
+    ///     <see cref="IModuleContext" /> defaults. For tests whose subject must not see a timeline.
+    /// </summary>
+    public static Playback2DFakeContext Bare() => new() { TotalFrames = 0, MapTicksToFrames = false };
+
     public IModuleFeatureGate? Features => Gate;
 
     public double CurtimeSeconds(int tick) => tick / (double)TickRate;
@@ -68,7 +77,7 @@ internal sealed class Playback2DFakeContext : IModuleContext
     public int FrameIndexAtTick(int tick)
     {
         int frame = tick / 2;
-        return frame >= TotalFrames ? -1 : frame;
+        return !MapTicksToFrames || frame >= TotalFrames ? -1 : frame;
     }
 
     public IReadOnlyList<int> EventFrames(string eventName) =>
@@ -114,7 +123,7 @@ internal sealed class Playback2DFakeContext : IModuleContext
     public event Action<IPlaybackSnapshot>? Advanced;
     public event Action? DemoReset;
 
-    public IReadOnlyEntityView Entities { get; } = new EmptyEntityView();
+    public IReadOnlyEntityView Entities { get; set; } = new EmptyEntityView();
     public IReadOnlyList<PlayerRosterEntry> Players => Roster;
     public IReadOnlyList<IPlayerState> CurrentPlayers => _players;
 
@@ -139,6 +148,27 @@ internal sealed class Playback2DFakeContext : IModuleContext
             SteamId = (ulong)(slot + 1)
         });
         _players.Add(new FakePlayerState(slot, team));
+    }
+
+    /// <summary>Replaces the live player states without raising <c>Advanced</c>; empty is "no tracker yet".</summary>
+    public void SetCurrentPlayers(IEnumerable<IPlayerState> players)
+    {
+        List<IPlayerState> copy = [.. players];
+        _players.Clear();
+        _players.AddRange(copy);
+    }
+
+    /// <summary>
+    ///     Pushes a caller-built snapshot: its players become <see cref="CurrentPlayers" /> and its
+    ///     entity view becomes <see cref="Entities" />, then <c>Advanced</c> fires. The clock does not move.
+    /// </summary>
+    public void Push(IPlaybackSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        SetCurrentPlayers(snapshot.Players);
+        Entities = snapshot.Entities;
+        Advanced?.Invoke(snapshot);
     }
 
     public void Push(int frameIndex, int tick)

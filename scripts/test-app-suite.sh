@@ -13,19 +13,21 @@
 # a single-process run of one tier, prefer `scripts/test.sh -t TIER -p app`; come back here when the
 # suite is holding real demos and the process is being OS-killed.
 #
-# Usage: scripts/test-app-suite.sh [-c Release|Debug] [-n BATCHES] [-t fast|standard|full] [-x]
+# Usage: scripts/test-app-suite.sh [-c Release|Debug] [-n BATCHES] [-t fast|standard|full] [-b skip] [-x]
 set -u
 CONFIG=Release
 BATCHES=3
 TIER=full
+BUDGET=tier
 SKIP_PB2D=0
-while getopts "c:n:t:x" opt; do
+while getopts "c:n:t:b:x" opt; do
   case $opt in
     c) CONFIG=$OPTARG ;;
     n) BATCHES=$OPTARG ;;
     t) TIER=$OPTARG ;;
+    b) BUDGET=$OPTARG ;;
     x) SKIP_PB2D=1 ;;
-    *) echo "usage: $0 [-c CONFIG] [-n BATCHES] [-t TIER] [-x]" >&2; exit 2 ;;
+    *) echo "usage: $0 [-c CONFIG] [-n BATCHES] [-t TIER] [-b skip] [-x]" >&2; exit 2 ;;
   esac
 done
 
@@ -36,6 +38,22 @@ case "$TIER" in
   standard) TIER_FILTER='[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=KnownFailure)&(Category!=RealDemo)]' ;;
   full)     TIER_FILTER='[(Category!=KnownFailure)]' ;;
   *) echo "unknown tier '$TIER' (expected fast, standard or full)" >&2; exit 2 ;;
+esac
+
+# `-b skip` composes [Category(Budget)] out of the tier, so this suite's benchmarks leave the
+# correctness lane. BEFORE everything below: the preamble, both discovery listings and the batches
+# have to select the same set or the partition audit compares unlike counts.
+#
+# No `only` half. That selection is a handful of tests, too few for the discovery floor below and far
+# too few to need batching; `scripts/test.sh -t full -b only -p app` is that run.
+case "$BUDGET" in
+  tier) ;;
+  skip)
+    case "$TIER_FILTER" in
+      *'(Category!=Budget)'*) ;;   # fast and standard already drop it
+      *) TIER_FILTER="${TIER_FILTER%]}&(Category!=Budget)]" ;;
+    esac ;;
+  *) echo "unknown -b '$BUDGET' (expected skip)" >&2; exit 2 ;;
 esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -49,7 +67,7 @@ dotnet build "$PROJ" -c "$CONFIG" -v q --nologo || exit 2
 # start. Pass -x wherever that suite has already run; CI does, since `playback2d-tests` gates on it.
 if [ "$SKIP_PB2D" -eq 0 ]; then
   PB2D_PROJ="$ROOT/src/Playback2D/DemoViewer.NET.Playback2D.Tests"
-  echo "[batch-runner] playback2d core+pipeline (direct execution, tier=$TIER)"
+  echo "[batch-runner] playback2d scene+pipeline (direct execution, tier=$TIER)"
   dotnet run --project "$PB2D_PROJ" -c "$CONFIG" -- --treenode-filter "/*/*/*/*$TIER_FILTER" || exit 1
 fi
 
@@ -129,4 +147,14 @@ if [ "$TOTAL_RUN" -lt "$EXPECTED" ]; then
   exit 1
 fi
 echo "[batch-runner] partition audit OK: ran $TOTAL_RUN >= $EXPECTED listed"
+
+# The partition audit above counts tests the batches RAN against tests the assembly LISTS, so a
+# class that escaped discovery is caught. It cannot catch the other shape: a class that was
+# discovered, selected and then skipped every case because its demos stopped resolving. That is
+# what the RealDemo guard is for, and this is the path CI's App lane takes, so it has to be here
+# and not only in scripts/test.sh. Self-disarms unless a corpus or source is configured.
+if [ "$TIER" = "full" ]; then
+  "$ROOT/scripts/check-realdemo-lane.sh" "$CONFIG" || TOTAL_FAILED=$((TOTAL_FAILED + 1))
+fi
+
 [ $TOTAL_FAILED -eq 0 ] || exit 1

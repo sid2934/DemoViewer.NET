@@ -243,7 +243,7 @@ public class RuleWorkbenchGraphTests
 
     private static List<RulesetDoc> LoadShippedDocs()
     {
-        string rulesDir = Path.Combine(FindRepoRoot(), "rules");
+        string rulesDir = Path.Combine(DemoTestHelper.RequireRepoRoot(), "rules");
         List<RulesetDoc> docs = [];
         foreach (string path in Directory.EnumerateFiles(rulesDir, "*.rules.yaml"))
         {
@@ -258,7 +258,7 @@ public class RuleWorkbenchGraphTests
 
     private static async Task WithTempRules(Func<RuleWorkbenchTabViewModel, string, Task> body)
     {
-        string rulesDir = Path.Combine(FindRepoRoot(), "rules");
+        string rulesDir = Path.Combine(DemoTestHelper.RequireRepoRoot(), "rules");
         string userDir = Path.Combine(Path.GetTempPath(), "dvwbg_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(userDir);
         string? prevRules = Environment.GetEnvironmentVariable("DEMOVIEWER_RULES_DIR");
@@ -285,65 +285,5 @@ public class RuleWorkbenchGraphTests
                 /* best effort */
             }
         }
-    }
-
-    private static string FindRepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("repo root not found");
-    }
-
-    /// <summary>
-    ///     A minimal <see cref="IModuleContext" /> carrying a loaded demo via <see cref="ICurrentDemoSource" />,
-    ///     only the members the Workbench touches are functional; the rest are unused stubs.
-    /// </summary>
-    private sealed class FakeDemoContext(ParsedDemo demo) : IModuleContext, ICurrentDemoSource
-    {
-        public ParsedDemo? CurrentDemo { get; } = demo;
-        public IReadOnlyList<PlayerRosterEntry> Players => [];
-        public IReadOnlyList<IPlayerState> CurrentPlayers => [];
-
-        public event Action<IPlaybackSnapshot>? Advanced
-        {
-            add { }
-            remove { }
-        }
-
-        public bool HasDemo => true;
-        public string? DemoPath => null;
-        public int TickRate => 64;
-        public double CurtimeSeconds(int tick) => 0;
-        public int CurrentFrameIndex => 0;
-        public int CurrentTick => 0;
-        public bool IsPlaying => false;
-        public double Speed => 1;
-
-        public void RequestSeekToFrame(int frameIndex)
-        {
-        }
-
-        public void RequestSeekToTick(int tick)
-        {
-        }
-
-        public void RequestPlay()
-        {
-        }
-
-        public void RequestPause()
-        {
-        }
-
-        public IReadOnlyEntityView Entities => throw new NotSupportedException("unused by the Workbench");
     }
 }

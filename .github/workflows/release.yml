@@ -6,7 +6,8 @@
 # the <os>-beta channels and publishes as a GitHub prerelease, which only subscribed installs read.
 # Cutting one:
 #   1. Set version.json to X.Y.Z-betaNNNN (four digits; labels compare as text).
-#   2. Land it where `ci` runs (main, or a PR head) and let it go green. verify-ci refuses anything else.
+#   2. Get a completed, successful `ci` run on that exact commit: land it on main or a PR head, or
+#      dispatch `ci` on the branch and let it finish. verify-ci accepts any of those and nothing less.
 #   3. Tag vX.Y.Z-betaNNNN on that commit and push the tag.
 # pack-velopack.sh refuses a tag that disagrees with version.json. main keeps stamping the beta
 # version until the next bump.
@@ -41,8 +42,9 @@ jobs:
   # does NOT produce the release artifacts — the package matrix below builds those itself — so this
   # gate proves the commit is tested, not that it is already built.
   #
-  # `ci` triggers on push-to-main and pull_request, NOT on tags, so a tag whose commit never landed
-  # on main has no run and fails here. That is the case worth catching.
+  # `ci` triggers on push-to-main, pull_request and workflow_dispatch, NOT on tags, so a tagged commit
+  # with no completed `ci` run of its own fails here. That is the case worth catching. A dispatch on a
+  # branch counts, which is how release-sdk and release-extension expect a dry run to clear this gate.
   verify-ci:
     runs-on: ubuntu-latest
     steps:
@@ -98,13 +100,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
-          # Submodules deliberately NOT fetched. Nothing in the build reads them: the parser is a
-          # package now and its Valve message types arrive prebuilt from CS2OpenDev.Protos. The
-          # Parser tab's source links read the submodule at runtime in a dev checkout only.
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       - name: Restore CLI tools (vpk, nbgv)
         run: dotnet tool restore
@@ -158,11 +155,9 @@ jobs:
     permissions:
       contents: write   # create the GitHub Release + upload assets
     steps:
-      - uses: actions/checkout@v4   # for .config/dotnet-tools.json (vpk). No submodules needed here.
+      - uses: actions/checkout@v4   # for .config/dotnet-tools.json (vpk)
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       - name: Restore CLI tools (vpk)
         run: dotnet tool restore

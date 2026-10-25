@@ -25,6 +25,11 @@ namespace DemoViewer.NET.AppTests;
 ///     sweep off in a second config. With no fixture the test fails, unless <c>SINGLE_WALK_RECORD=1</c>
 ///     asks it to write one. <c>SINGLE_WALK_DUMP_DIR</c>
 ///     keeps the canonical text each line hashes.
+///     <para>
+///         It also gates the decode accounting: the engine's meter and the host's
+///         <c>DecodeSites</c> counter must agree on both visits, so a pass that decodes without marking
+///         its site cannot pass for clean.
+///     </para>
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
@@ -50,13 +55,14 @@ public partial class SingleWalkOracleTests
         try
         {
             SortedDictionary<string, string> dump = new(StringComparer.Ordinal);
+            SingleWalkSession.Visit? sweep = null, opened = null;
 
             string sweepDir = Path.Combine(root, "sweep");
             await SingleWalkSession.WithAppAsync(sweepDir, SingleWalkSession.Settings(Path.GetDirectoryName(demo)!, true),
                 async provider =>
                 {
-                    SingleWalkSession.Visit visit = await SingleWalkSession.RunAsync(provider, SingleWalkSession.Sweep, demo);
-                    Console.WriteLine($"{name} sweep: reads {visit.Reads}, sites {Sites(visit)}");
+                    SingleWalkSession.Visit visit = sweep = await SingleWalkSession.RunAsync(provider, SingleWalkSession.Sweep, demo);
+                    Console.WriteLine($"{name} sweep: reads {visit.Reads}, sites {Sites(visit)}, meter {Meter(visit)}");
                     SortedDictionary<string, string> swept = Canonical(sweepDir, demo);
                     foreach ((string key, string value) in swept)
                     {
@@ -82,8 +88,8 @@ public partial class SingleWalkOracleTests
             await SingleWalkSession.WithAppAsync(openDir, SingleWalkSession.Settings(Path.GetDirectoryName(demo)!, false),
                 async provider =>
                 {
-                    SingleWalkSession.Visit visit = await SingleWalkSession.RunAsync(provider, SingleWalkSession.Open, demo);
-                    Console.WriteLine($"{name} open: reads {visit.Reads}, sites {Sites(visit)}");
+                    SingleWalkSession.Visit visit = opened = await SingleWalkSession.RunAsync(provider, SingleWalkSession.Open, demo);
+                    Console.WriteLine($"{name} open: reads {visit.Reads}, sites {Sites(visit)}, meter {Meter(visit)}");
                     foreach ((string key, string value) in Canonical(openDir, demo))
                     {
                         dump["open/" + key] = value;
@@ -117,7 +123,16 @@ public partial class SingleWalkOracleTests
             Dictionary<string, string> actual = Lines(digest);
             string[] moved = [.. expected.Keys.Union(actual.Keys).Order(StringComparer.Ordinal)
                 .Where(k => expected.GetValueOrDefault(k) != actual.GetValueOrDefault(k))];
-            await Assert.That(moved).IsEmpty().Because($"{name}: outputs moved from {fixture}");
+            using (Assert.Multiple())
+            {
+                await Assert.That(moved).IsEmpty().Because($"{name}: outputs moved from {fixture}");
+                // An unmarked decode is invisible to the host's own site counter, which is how a pass can
+                // walk every frame twice and still look clean. Only the engine's meter sees it.
+                await Assert.That(sweep!.Decodes).IsEqualTo(sweep.HookDecodes)
+                    .Because($"{name} sweep: the engine metered {Meter(sweep)} against host sites {Sites(sweep)}");
+                await Assert.That(opened!.Decodes).IsEqualTo(opened.HookDecodes)
+                    .Because($"{name} open: the engine metered {Meter(opened)} against host sites {Sites(opened)}");
+            }
         }
         finally
         {
@@ -135,15 +150,10 @@ public partial class SingleWalkOracleTests
     private static string Sites(SingleWalkSession.Visit visit) =>
         string.Join(",", visit.Sites.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}x{kv.Value}"));
 
-    private static string BenchmarkDemo(int which)
-    {
-        string? root = DemoTestHelper.FindRepoRoot();
-        string folder = root is null ? "" : Path.Combine(root, "demos", "benchmarks");
-        List<string> demos = Directory.Exists(folder)
-            ? [.. Directory.EnumerateFiles(folder, "*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
-            : [];
-        return which < demos.Count ? demos[which] : throw new SkipTestException($"fewer than {which + 1} demos under demos/benchmarks");
-    }
+    private static string Meter(SingleWalkSession.Visit visit) =>
+        string.Join(",", visit.Meter.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}x{kv.Value}"));
+
+    private static string BenchmarkDemo(int which) => DemoTestHelper.RequireSetDemo("benchmarks", which);
 
     private static string FixtureDir() =>
         Path.Combine(DemoTestHelper.FindRepoRoot() ?? throw new SkipTestException("no repo root"), "tests", "fixtures", "single-walk");

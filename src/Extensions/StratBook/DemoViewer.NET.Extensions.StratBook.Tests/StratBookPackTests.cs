@@ -15,6 +15,7 @@ using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -174,18 +175,21 @@ public class StratBookPackTests
     [Test]
     public async Task ThePack_RegistersTheSameServiceTypes_TheCompositionRootDidBeforeIt()
     {
-        await WithConfigDir(async _ =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            ServiceCollection services = App.ComposeServices(new DesktopWindowService(() => null), FeaturePacks.Default);
-            // Compared as sorted text: registration order changed (the pack registers last), the set must not.
-            string registered = string.Join("\n", services
-                .Select(d => d.ServiceType + " | " + d.Lifetime)
-                .Order(StringComparer.Ordinal));
-            string expected = string.Join("\n", _serviceTypesBeforeThePack
-                .Select(row => row.Contains(" | ", StringComparison.Ordinal) ? row : row + " | Singleton")
-                .Order(StringComparer.Ordinal));
-            await Assert.That(registered).IsEqualTo(expected)
-                .Because("moving a registration into the pack must not add, drop, retype or re-scope a service");
+            await WithConfigDir(async _ =>
+            {
+                ServiceCollection services = App.ComposeServices(new DesktopWindowService(() => null), FeaturePacks.Default);
+                // Compared as sorted text: registration order changed (the pack registers last), the set must not.
+                string registered = string.Join("\n", services
+                    .Select(d => d.ServiceType + " | " + d.Lifetime)
+                    .Order(StringComparer.Ordinal));
+                string expected = string.Join("\n", _serviceTypesBeforeThePack
+                    .Select(row => row.Contains(" | ", StringComparison.Ordinal) ? row : row + " | Singleton")
+                    .Order(StringComparer.Ordinal));
+                await Assert.That(registered).IsEqualTo(expected)
+                    .Because("moving a registration into the pack must not add, drop, retype or re-scope a service");
+            });
         });
     }
 
@@ -269,12 +273,12 @@ public class StratBookPackTests
             using (Assert.Multiple())
             {
                 await Assert.That(pack.Pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
-                await Assert.That(pack.Rulesets.Select(r => (r.RulesetId, r.ReadBy))).IsEquivalentTo(expected);
+                await Assert.That(pack.Rulesets.Select(r => (r.RulesetId, r.ReadBy))).IsEquivalentTo(expected, CollectionOrdering.Matching);
                 await Assert.That(pack.Rulesets.Where(r => r.ReadsUserCommands).Select(r => r.RulesetId))
-                    .IsEquivalentTo([DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeTables.RulesetId("grenade_projectiles")])
+                    .IsEquivalentTo([DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeTables.RulesetId("grenade_projectiles")], CollectionOrdering.Matching)
                     .Because("only the projectile ruleset reads the thrower's commands");
                 await Assert.That(build.StampedRulesets.Where(r => r.Owner != Modules.Highlights.StampedRuleset.CoreOwner)
-                    .Select(r => (r.RulesetId, r.Owner, r.ReadBy))).IsEquivalentTo(expected.Select(e => (e.Item1, pack.Pack.Id, e.Item2)));
+                    .Select(r => (r.RulesetId, r.Owner, r.ReadBy))).IsEquivalentTo(expected.Select(e => (e.Item1, pack.Pack.Id, e.Item2)), CollectionOrdering.Matching);
                 await Assert.That(build.StampedRulesets.Select(r => r.RulesetId)).Contains("round_facts");
                 await Assert.That(read).Contains("round_facts");
                 await Assert.That(read).Contains(roundIndex);
@@ -286,7 +290,7 @@ public class StratBookPackTests
                 await Assert.That(build.EnabledDoc("round_facts")).IsNotNull();
                 await Assert.That(new DemoViewer.NET.Services.Facts.StampedFacts(build).Facets().Select(f => f.RulesetId).Intersect(packIds)).IsEmpty()
                     .Because("the pack's tables are its passes' inputs, not library facts");
-                await Assert.That(pack.Passes.Single(p => p.Id == "roundindex").After).IsEquivalentTo([DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass]);
+                await Assert.That(pack.Passes.Single(p => p.Id == "roundindex").After).IsEquivalentTo([DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass], CollectionOrdering.Matching);
                 await Assert.That(pack.Passes.Select(p => p.Id)).DoesNotContain(DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass)
                     .Because("Delete extension data strips the pack's own pass stamps, never the core Round Facts one");
             }
@@ -296,26 +300,29 @@ public class StratBookPackTests
     [Test]
     public async Task TheCatalog_HoldsEveryFormerStratBookId_UnderThePack()
     {
-        FeatureDescriptor? pack = FeatureCatalog.ById(StratBookPack.PackFeatureId);
-        await Assert.That(pack).IsNotNull();
-        await Assert.That(pack!.Scope).IsEqualTo(FeatureScope.Pack);
-        await Assert.That(pack.ParentId).IsNull();
-        await Assert.That(pack.Label).IsEqualTo("Strat Book extension");
-
-        foreach ((string id, string parent) in _movedIds)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            FeatureDescriptor? descriptor = FeatureCatalog.ById(id);
-            await Assert.That(descriptor).IsNotNull().Because($"{id} is a persisted override key and must survive the move");
-            await Assert.That(descriptor!.ParentId).IsEqualTo(parent).Because($"{id} cascades from {parent}");
-            await Assert.That(descriptor.Scope)
-                .IsEqualTo(id.StartsWith("tab.", StringComparison.Ordinal) ? FeatureScope.Tab : FeatureScope.SubFeature);
-        }
+            FeatureDescriptor? pack = FeatureCatalog.ById(StratBookPack.PackFeatureId);
+            await Assert.That(pack).IsNotNull();
+            await Assert.That(pack!.Scope).IsEqualTo(FeatureScope.Pack);
+            await Assert.That(pack.ParentId).IsNull();
+            await Assert.That(pack.Label).IsEqualTo("Strat Book extension");
 
-        string[] packFeatureIds = [.. new StratBookPack().Features.Select(f => f.Id)];
-        await Assert.That(packFeatureIds)
-            .IsEquivalentTo([StratBookPack.PackFeatureId, .. _movedIds.Select(m => m.Id)]);
-        await Assert.That(FeatureCatalog.Children(StratBookPack.PackFeatureId).Select(d => d.Id))
-            .IsEquivalentTo(_movedIds.Where(m => m.Parent == StratBookPack.PackFeatureId).Select(m => m.Id));
+            foreach ((string id, string parent) in _movedIds)
+            {
+                FeatureDescriptor? descriptor = FeatureCatalog.ById(id);
+                await Assert.That(descriptor).IsNotNull().Because($"{id} is a persisted override key and must survive the move");
+                await Assert.That(descriptor!.ParentId).IsEqualTo(parent).Because($"{id} cascades from {parent}");
+                await Assert.That(descriptor.Scope)
+                    .IsEqualTo(id.StartsWith("tab.", StringComparison.Ordinal) ? FeatureScope.Tab : FeatureScope.SubFeature);
+            }
+
+            string[] packFeatureIds = [.. new StratBookPack().Features.Select(f => f.Id)];
+            await Assert.That(packFeatureIds)
+                .IsEquivalentTo([StratBookPack.PackFeatureId, .. _movedIds.Select(m => m.Id)], CollectionOrdering.Matching);
+            await Assert.That(FeatureCatalog.Children(StratBookPack.PackFeatureId).Select(d => d.Id))
+                .IsEquivalentTo(_movedIds.Where(m => m.Parent == StratBookPack.PackFeatureId).Select(m => m.Id), CollectionOrdering.Matching);
+        });
     }
 
     // Reads the pack's own contributed module list, not a hand-written one, so an id a module declares
@@ -348,7 +355,7 @@ public class StratBookPackTests
             }
 
             string[] packTabIds = [.. new StratBookPack().Features.Where(f => f.Kind == ExtensionFeatureKind.Tab).Select(f => f.Id)];
-            await Assert.That(declaredIds).IsEquivalentTo(packTabIds)
+            await Assert.That(declaredIds).IsEquivalentTo(packTabIds, CollectionOrdering.Matching)
                 .Because("every tab id the pack registers must be declared by exactly one module, and vice versa");
         });
     }
@@ -356,67 +363,76 @@ public class StratBookPackTests
     [Test]
     public async Task ThePack_JobKinds_AreTheSixStratBookKinds_UnderTheExtensionsPrefix()
     {
-        ExtensionJobKind[] kinds = [.. new StratBookPack().JobKinds];
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            ExtensionJobKind[] kinds = [.. new StratBookPack().JobKinds];
 
-        await Assert.That(kinds.Select(k => k.Id)).IsEquivalentTo(
-        [
-            StratBookJobKinds.Mining, StratBookJobKinds.Preview, StratBookJobKinds.LineupClips,
-            StratBookJobKinds.SuggestionsInbox, StratBookJobKinds.Teams, StratBookJobKinds.Tuning
-        ]);
-        await Assert.That(kinds.All(k => k.Id.StartsWith("stratbook.", StringComparison.Ordinal))).IsTrue();
+            await Assert.That(kinds.Select(k => k.Id)).IsEquivalentTo(
+            [
+                StratBookJobKinds.Mining, StratBookJobKinds.Preview, StratBookJobKinds.LineupClips,
+                StratBookJobKinds.SuggestionsInbox, StratBookJobKinds.Teams, StratBookJobKinds.Tuning
+            ], CollectionOrdering.Matching);
+            await Assert.That(kinds.All(k => k.Id.StartsWith("stratbook.", StringComparison.Ordinal))).IsTrue();
+        });
     }
 
     [Test]
     public async Task ThePack_ResolvesOn_ByDefault_ForEveryCategory()
     {
-        await WithGate(async (svc, gate) =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            foreach (UserCategory category in Enum.GetValues<UserCategory>())
+            await WithGate(async (svc, gate) =>
             {
-                svc.Write(s => s.UserCategory = category);
-                await Assert.That(gate.IsEnabled(StratBookPack.PackFeatureId)).IsTrue()
-                    .Because($"the extension is on by default for {category}");
-                await Assert.That(gate.IsEnabled("tab.stratbook")).IsTrue();
-            }
+                foreach (UserCategory category in Enum.GetValues<UserCategory>())
+                {
+                    svc.Write(s => s.UserCategory = category);
+                    await Assert.That(gate.IsEnabled(StratBookPack.PackFeatureId)).IsTrue()
+                        .Because($"the extension is on by default for {category}");
+                    await Assert.That(gate.IsEnabled("tab.stratbook")).IsTrue();
+                }
+            });
         });
     }
 
     [Test]
     public async Task PackOff_CascadesEveryTab_AndEverySubFeatureUnderThem_Off()
     {
-        await WithGate(async (svc, gate) =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            svc.Write(s => s.UserCategory = UserCategory.Developer);
-            // An explicit override does not survive the pack going off: cascade beats override, through
-            // ParentId (tab.dossier) and through OwnerPackId alone (playback2d.tagger, whose ParentId is the
-            // core tab.playback2d and so never reaches the pack that way).
-            svc.Write(s => s.Features.Overrides["tab.dossier"] = true);
-            svc.Write(s => s.Features.Overrides["playback2d.tagger"] = true);
-            svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
-
-            await Assert.That(gate.IsEnabled(StratBookPack.PackFeatureId)).IsFalse();
-            foreach ((string id, string parent) in _movedIds)
+            await WithGate(async (svc, gate) =>
             {
-                await Assert.That(gate.IsEnabled(id)).IsFalse()
-                    .Because($"{id} is owned by the pack and goes off with it, whatever {parent} resolves to");
-            }
+                svc.Write(s => s.UserCategory = UserCategory.Developer);
+                // An explicit override does not survive the pack going off: cascade beats override, through
+                // ParentId (tab.dossier) and through OwnerPackId alone (playback2d.tagger, whose ParentId is the
+                // core tab.playback2d and so never reaches the pack that way).
+                svc.Write(s => s.Features.Overrides["tab.dossier"] = true);
+                svc.Write(s => s.Features.Overrides["playback2d.tagger"] = true);
+                svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
 
-            await Assert.That(gate.IsEnabled("playback2d.tagger")).IsFalse()
-                .Because("the owning-pack rule beats an explicit override=true, the same as ParentId cascade does");
+                await Assert.That(gate.IsEnabled(StratBookPack.PackFeatureId)).IsFalse();
+                foreach ((string id, string parent) in _movedIds)
+                {
+                    await Assert.That(gate.IsEnabled(id)).IsFalse()
+                        .Because($"{id} is owned by the pack and goes off with it, whatever {parent} resolves to");
+                }
 
-            // Core tabs are untouched, and so is a core SUB-feature sharing tab.playback2d with the two
-            // pack-owned ones that just went off above: the rule discriminates by owner, not by ParentId.
-            await Assert.That(gate.IsEnabled("tab.playback2d")).IsTrue();
-            await Assert.That(gate.IsEnabled("tab.library")).IsTrue();
-            await Assert.That(gate.IsEnabled("playback2d.annotations")).IsTrue()
-                .Because("core, not pack-owned, even though its parent is the same tab.playback2d");
+                await Assert.That(gate.IsEnabled("playback2d.tagger")).IsFalse()
+                    .Because("the owning-pack rule beats an explicit override=true, the same as ParentId cascade does");
 
-            svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
-            await Assert.That(gate.IsEnabled("tab.stratbook")).IsTrue().Because("the pack back on lets the tabs through");
-            await Assert.That(gate.IsEnabled("stratbook.export")).IsTrue();
-            await Assert.That(gate.IsEnabled("playback2d.tagger")).IsTrue()
-                .Because("the owning-pack rule only forces off; it never forces on past the tab's own state");
-            await Assert.That(gate.IsEnabled("playback2d.suggestedtags")).IsTrue();
+                // Core tabs are untouched, and so is a core SUB-feature sharing tab.playback2d with the two
+                // pack-owned ones that just went off above: the rule discriminates by owner, not by ParentId.
+                await Assert.That(gate.IsEnabled("tab.playback2d")).IsTrue();
+                await Assert.That(gate.IsEnabled("tab.library")).IsTrue();
+                await Assert.That(gate.IsEnabled("playback2d.annotations")).IsTrue()
+                    .Because("core, not pack-owned, even though its parent is the same tab.playback2d");
+
+                svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
+                await Assert.That(gate.IsEnabled("tab.stratbook")).IsTrue().Because("the pack back on lets the tabs through");
+                await Assert.That(gate.IsEnabled("stratbook.export")).IsTrue();
+                await Assert.That(gate.IsEnabled("playback2d.tagger")).IsTrue()
+                    .Because("the owning-pack rule only forces off; it never forces on past the tab's own state");
+                await Assert.That(gate.IsEnabled("playback2d.suggestedtags")).IsTrue();
+            });
         });
     }
 
@@ -426,29 +442,32 @@ public class StratBookPackTests
     [Test]
     public async Task Build_StampsEveryPackDescriptor_WithItsOwnerPackId_ExceptThePackRowItself()
     {
-        FeatureDescriptor[] built = FeatureCatalog.Build(FeaturePacks.Default);
-        HashSet<string> packIds = [.. new StratBookPack().Features.Select(f => f.Id)];
-
-        FeatureDescriptor packRow = built.Single(d => d.Id == StratBookPack.PackFeatureId);
-        await Assert.That(packRow.OwnerPackId).IsNull().Because("a pack is not owned by itself");
-
-        foreach (FeatureDescriptor d in built.Where(d => d.Id != StratBookPack.PackFeatureId))
+        await HeadlessSession.RunOnUi(async () =>
         {
-            if (packIds.Contains(d.Id))
-            {
-                await Assert.That(d.OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId)
-                    .Because($"{d.Id} is contributed by the pack");
-            }
-            else
-            {
-                await Assert.That(d.OwnerPackId).IsNull().Because($"{d.Id} is core, not pack-owned");
-            }
-        }
+            FeatureDescriptor[] built = FeatureCatalog.Build(FeaturePacks.Default);
+            HashSet<string> packIds = [.. new StratBookPack().Features.Select(f => f.Id)];
 
-        // playback2d.tagger and playback2d.suggestedtags are the two that prove the rule earns its keep:
-        // their ParentId is the core tab.playback2d, not the pack.
-        await Assert.That(built.Single(d => d.Id == "playback2d.tagger").ParentId).IsEqualTo("tab.playback2d");
-        await Assert.That(built.Single(d => d.Id == "playback2d.tagger").OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId);
+            FeatureDescriptor packRow = built.Single(d => d.Id == StratBookPack.PackFeatureId);
+            await Assert.That(packRow.OwnerPackId).IsNull().Because("a pack is not owned by itself");
+
+            foreach (FeatureDescriptor d in built.Where(d => d.Id != StratBookPack.PackFeatureId))
+            {
+                if (packIds.Contains(d.Id))
+                {
+                    await Assert.That(d.OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId)
+                        .Because($"{d.Id} is contributed by the pack");
+                }
+                else
+                {
+                    await Assert.That(d.OwnerPackId).IsNull().Because($"{d.Id} is core, not pack-owned");
+                }
+            }
+
+            // playback2d.tagger and playback2d.suggestedtags are the two that prove the rule earns its keep:
+            // their ParentId is the core tab.playback2d, not the pack.
+            await Assert.That(built.Single(d => d.Id == "playback2d.tagger").ParentId).IsEqualTo("tab.playback2d");
+            await Assert.That(built.Single(d => d.Id == "playback2d.tagger").OwnerPackId).IsEqualTo(StratBookPack.PackFeatureId);
+        });
     }
 
     [Test]
@@ -538,11 +557,14 @@ public class StratBookPackTests
     [Test]
     public async Task UnknownPackId_ResolvesOff_UnknownOtherId_StillResolvesOn()
     {
-        await WithGate(async (_, gate) =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(gate.IsEnabled("pack.does.not.exist")).IsFalse()
-                .Because("a pack id gates background work, so a typo must not enable it");
-            await Assert.That(gate.IsEnabled("does.not.exist")).IsTrue().Because("every other unknown id fails open");
+            await WithGate(async (_, gate) =>
+            {
+                await Assert.That(gate.IsEnabled("pack.does.not.exist")).IsFalse()
+                    .Because("a pack id gates background work, so a typo must not enable it");
+                await Assert.That(gate.IsEnabled("does.not.exist")).IsTrue().Because("every other unknown id fails open");
+            });
         });
     }
 
@@ -550,59 +572,74 @@ public class StratBookPackTests
     [Test]
     public async Task ThePack_Manifest_NamesItself_AndIsCompatibleWithThisBuild()
     {
-        StratBookPack pack = new();
-        ExtensionManifest manifest = ExtensionManifests.Of(pack);
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(manifest.Id).IsEqualTo(StratBookPack.PackId);
-            // Stamped from src/Extensions/StratBook/version.json at build; the 0.x line until the first major.
-            await Assert.That(manifest.Version.Major).IsEqualTo(0);
-            await Assert.That(manifest.EntryType).IsEqualTo(typeof(StratBookPack).FullName);
-            await Assert.That(PackStatus.Evaluate(pack, ExtensionHost.Current).IsCompatible).IsTrue();
-        }
+            StratBookPack pack = new();
+            ExtensionManifest manifest = ExtensionManifests.Of(pack);
+            using (Assert.Multiple())
+            {
+                await Assert.That(manifest.Id).IsEqualTo(StratBookPack.PackId);
+                // Stamped from src/Extensions/StratBook/version.json at build; the 0.x line until the first major.
+                await Assert.That(manifest.Version.Major).IsEqualTo(0);
+                await Assert.That(manifest.EntryType).IsEqualTo(typeof(StratBookPack).FullName);
+                await Assert.That(PackStatus.Evaluate(pack, ExtensionHost.Current).IsCompatible).IsTrue();
+            }
+        });
     }
 
     [Test]
     public async Task ThePackId_IsNotTheModuleId()
     {
-        StratBookPack pack = new();
-        await Assert.That(pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
-        await Assert.That(pack.Id).IsNotEqualTo(new DemoViewer.NET.Extensions.StratBook.Modules.StratBook.StratBookModule(() => null!).Id)
-            .Because("the pack and its Strats module are different persisted keys");
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StratBookPack pack = new();
+            await Assert.That(pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
+            await Assert.That(pack.Id).IsNotEqualTo(new DemoViewer.NET.Extensions.StratBook.Modules.StratBook.StratBookModule(() => null!).Id)
+                .Because("the pack and its Strats module are different persisted keys");
+        });
     }
 
     [Test]
     public async Task Build_RefusesAPack_WhoseFeatureIdIsNotExactlyOnePackRow()
     {
-        FakePack none = new("pack.none", [Tab("tab.none", "pack.none")]);
-        FakePack two = new("pack.two", [Pack("pack.two"), Pack("pack.two")]);
-        FakePack wrongScope = new("pack.scope", [Tab("pack.scope", null)]);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakePack none = new("pack.none", [Tab("tab.none", "pack.none")]);
+            FakePack two = new("pack.two", [Pack("pack.two"), Pack("pack.two")]);
+            FakePack wrongScope = new("pack.scope", [Tab("pack.scope", null)]);
 
-        await Assert.That(Message(() => FeatureCatalog.Build([none]))).Contains("exactly one Pack-scope descriptor");
-        await Assert.That(Message(() => FeatureCatalog.Build([two]))).Contains("exactly one Pack-scope descriptor");
-        await Assert.That(Message(() => FeatureCatalog.Build([wrongScope]))).Contains("exactly one Pack-scope descriptor");
+            await Assert.That(Message(() => FeatureCatalog.Build([none]))).Contains("exactly one Pack-scope descriptor");
+            await Assert.That(Message(() => FeatureCatalog.Build([two]))).Contains("exactly one Pack-scope descriptor");
+            await Assert.That(Message(() => FeatureCatalog.Build([wrongScope]))).Contains("exactly one Pack-scope descriptor");
+        });
     }
 
     // An SDK feature has no Required flag and no group, so neither core rule can be broken from an extension.
     [Test]
     public async Task Build_ComposesTheShippedPack_WithoutMovingTheCoreGroupLeaders()
     {
-        await Assert.That(FeatureCatalog.Build(FeaturePacks.Default).Count(d => d.Scope == FeatureScope.Pack)).IsEqualTo(1);
-        await Assert.That(FeatureCatalog.Build(FeaturePacks.Default).Where(d => d.OwnerPackId is not null).All(d => !d.Required)).IsTrue();
-        await Assert.That(FeatureCatalog.GroupLeader(FeatureCatalog.GroupParserDeepDive)!.Id).IsEqualTo("parser.hex");
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            await Assert.That(FeatureCatalog.Build(FeaturePacks.Default).Count(d => d.Scope == FeatureScope.Pack)).IsEqualTo(1);
+            await Assert.That(FeatureCatalog.Build(FeaturePacks.Default).Where(d => d.OwnerPackId is not null).All(d => !d.Required)).IsTrue();
+            await Assert.That(FeatureCatalog.GroupLeader(FeatureCatalog.GroupParserDeepDive)!.Id).IsEqualTo("parser.hex");
+        });
     }
 
     [Test]
     public async Task Build_RefusesTheParentRules_ATabUnderATab_AndASubFeatureUnderAPack()
     {
-        FakePack tabUnderTab = new("pack.tt", [Pack("pack.tt"), Tab("tab.tt", "tab.library")]);
-        FakePack subUnderPack = new("pack.sp",
-            [Pack("pack.sp"), Tab("tab.sp", "pack.sp") with { Id = "sub.sp", Kind = ExtensionFeatureKind.SubFeature }]);
-        FakePack unknownParent = new("pack.up", [Pack("pack.up"), Tab("tab.up", "pack.missing")]);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakePack tabUnderTab = new("pack.tt", [Pack("pack.tt"), Tab("tab.tt", "tab.library")]);
+            FakePack subUnderPack = new("pack.sp",
+                [Pack("pack.sp"), Tab("tab.sp", "pack.sp") with { Id = "sub.sp", Kind = ExtensionFeatureKind.SubFeature }]);
+            FakePack unknownParent = new("pack.up", [Pack("pack.up"), Tab("tab.up", "pack.missing")]);
 
-        await Assert.That(Message(() => FeatureCatalog.Build([tabUnderTab]))).Contains("may not have 'tab.library'");
-        await Assert.That(Message(() => FeatureCatalog.Build([subUnderPack]))).Contains("may not have 'pack.sp'");
-        await Assert.That(Message(() => FeatureCatalog.Build([unknownParent]))).Contains("unknown parent");
+            await Assert.That(Message(() => FeatureCatalog.Build([tabUnderTab]))).Contains("may not have 'tab.library'");
+            await Assert.That(Message(() => FeatureCatalog.Build([subUnderPack]))).Contains("may not have 'pack.sp'");
+            await Assert.That(Message(() => FeatureCatalog.Build([unknownParent]))).Contains("unknown parent");
+        });
     }
 
     [Test]

@@ -1,11 +1,14 @@
-# The extension SDK's release: DemoViewer.NET.Modules.Abstractions, DemoViewer.NET.GameIcons,
-# DemoViewer.NET.Extensions.Sdk, DemoViewer.NET.Extensions.Sdk.Ui and DemoViewer.NET.Playback2D.Scene, packed
-# at the version Nerdbank.GitVersioning computes from src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json and
-# pushed to nuget.org.
+# The extension SDK's release: every project scripts/sdk-packages.sh names, packed at the version
+# Nerdbank.GitVersioning computes from src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json and pushed
+# to nuget.org.
 #
 # Publishes only on a tag push matching sdk/v<version>, which must equal the computed version (create it with
 # `dotnet nbgv tag -p src/Sdk/DemoViewer.NET.Extensions.Sdk` on main, after scripts/ship-public-api.sh). A
 # workflow_dispatch run packs and reports without pushing. Needs the NUGET_API_KEY repository secret.
+#
+# EVERY trigger, dispatch included, is gated on verify-ci: the head SHA must already have a completed,
+# successful ci run. Dispatching from a branch therefore fails at the gate until ci has run on that
+# branch's head, so dispatch ci first and let it finish.
 name: release-sdk
 
 on:
@@ -21,7 +24,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Gate: the tagged commit must already have a green `ci` run. `ci` runs on push to main and on pull
+  # requests, not on tags, so a tag whose commit never landed there has no run and fails here. It is a
+  # check, not a re-run. Same gate as release.yml.
+  verify-ci:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Require a successful ci run for ${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="${{ github.sha }}"
+          if ! runs=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$sha&status=completed" \
+                        --jq '[.workflow_runs[].conclusion] | join(" ")' 2>&1); then
+            echo "::error::Could not query ci runs for $sha. This is an API/permissions failure, not a verdict on the tests. Response: $runs" >&2
+            exit 1
+          fi
+          echo "ci conclusions for $sha: ${runs:-<none>}"
+          if [ -z "$runs" ]; then
+            echo "::error::No completed 'ci' run for $sha. Dispatch ci on this ref and let it finish, or tag a commit that has already gone green." >&2
+            exit 1
+          fi
+          case " $runs " in
+            *" success "*) echo "ci is green for $sha." ;;
+            *) echo "::error::'ci' did not succeed for $sha (conclusions: $runs). Refusing to release." >&2; exit 1 ;;
+          esac
+
   pack:
+    needs: verify-ci
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -29,9 +62,7 @@ jobs:
         with:
           fetch-depth: 0   # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       - name: Restore CLI tools (nbgv)
         run: dotnet tool restore
@@ -60,7 +91,9 @@ jobs:
         if: steps.version.outputs.publish == '1'
         run: |
           set -euo pipefail
-          for list in src/App/DemoViewer.NET.Modules.Abstractions/PublicAPI.Unshipped.txt src/GameIcons/DemoViewer.NET.GameIcons/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/PublicAPI.Unshipped.txt src/Playback2D/DemoViewer.NET.Playback2D.Scene/PublicAPI.Unshipped.txt; do
+          dirs=$(bash scripts/sdk-packages.sh)
+          for dir in $dirs; do
+            list="$dir/PublicAPI.Unshipped.txt"
             if grep -qv '^#nullable' "$list"; then
               echo "error: $list still has entries; run scripts/ship-public-api.sh and tag that commit" >&2
               exit 1
@@ -69,11 +102,11 @@ jobs:
 
       - name: Pack
         run: |
-          dotnet pack src/App/DemoViewer.NET.Modules.Abstractions -c Release -o artifacts/sdk-packages
-          dotnet pack src/GameIcons/DemoViewer.NET.GameIcons -c Release -o artifacts/sdk-packages
-          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk -c Release -o artifacts/sdk-packages
-          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui -c Release -o artifacts/sdk-packages
-          dotnet pack src/Playback2D/DemoViewer.NET.Playback2D.Scene -c Release -o artifacts/sdk-packages
+          set -euo pipefail
+          dirs=$(bash scripts/sdk-packages.sh)
+          for dir in $dirs; do
+            dotnet pack "$dir" -c Release -o artifacts/sdk-packages
+          done
           ls -l artifacts/sdk-packages
 
       - uses: actions/upload-artifact@v4

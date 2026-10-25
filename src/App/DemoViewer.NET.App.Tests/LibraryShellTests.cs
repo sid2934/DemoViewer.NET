@@ -55,7 +55,7 @@ public class LibraryShellTests
                 Modified = File.GetLastWriteTime(demo)
             };
 
-            // P3.2a renamed the card-open command OpenDemoCommand → OpenEntryCommand (OpenDemoCommand is
+            // The card-open command was renamed OpenDemoCommand → OpenEntryCommand (OpenDemoCommand is
             // now the file-picker CTA). Semantics unchanged: this still opens the given entry.
             await vm.LibraryTab.OpenEntryCommand.ExecuteAsync(entry);
 
@@ -69,7 +69,7 @@ public class LibraryShellTests
         });
     }
 
-    // P3.2a: a real open through the shell's single funnel (LoadDemoFromBytesAsync) records exactly one
+    // A real open through the shell's single funnel (LoadDemoFromBytesAsync) records exactly one
     // recent with the demo's path + parsed map. This exercises the actual RecordOpen call in the shared load
     // core (the VM/store unit tests stub the load core, so this is the only end-to-end coverage of it).
     [Test]

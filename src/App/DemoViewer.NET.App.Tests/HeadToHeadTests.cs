@@ -297,7 +297,7 @@ public class HeadToHeadTests
 
         rig.Section.Update(rig.Context(Grim, new PlayerFilter { Map = "de_inferno" }));
         await rig.Section.Loading;
-        await Assert.That(rig.Section.Opponents.Select(o => o.SteamId64)).IsEquivalentTo([Rival]);
+        await Assert.That(rig.Section.Opponents.Select(o => o.SteamId64)).IsEquivalentTo([Rival], CollectionOrdering.Matching);
         await Assert.That((rig.Section.CountText, rig.Section.RecordText)).IsEqualTo(("1 match against", "0-1"));
     }
 

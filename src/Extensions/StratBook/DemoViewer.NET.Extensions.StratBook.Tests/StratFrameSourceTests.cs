@@ -13,6 +13,7 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -109,7 +110,7 @@ public class StratFrameSourceTests
 
         // A before its first keyframe is not drawn; B is, and so is the opponent.
         Scene2DFrame first = source.FrameAt(0);
-        await Assert.That(first.Markers.Select(m => m.Label).ToArray()).IsEquivalentTo(["BB", "O1"]);
+        await Assert.That(first.Markers.Select(m => m.Label).ToArray()).IsEquivalentTo(["BB", "O1"], CollectionOrdering.Matching);
         await Assert.That(first.Markers.Single(m => m.Label == "BB").Team).IsEqualTo(2);
         await Assert.That(first.Markers.Single(m => m.Label == "O1").Team).IsEqualTo(3);
     }
@@ -176,7 +177,7 @@ public class StratFrameSourceTests
         {
             await Assert.That(StratFrameSource.EffectTicks(kind)).IsEqualTo(ticks);
             await Assert.That(source.FrameAt(99).AreaEffects.Count).IsEqualTo(0);
-            await Assert.That(source.FrameAt(100).AreaEffects.Select(e => e.Kind).Distinct()).IsEquivalentTo([effect]);
+            await Assert.That(source.FrameAt(100).AreaEffects.Select(e => e.Kind).Distinct()).IsEquivalentTo([effect], CollectionOrdering.Matching);
             await Assert.That(source.FrameAt(100 + ticks - 1).AreaEffects.Count).IsGreaterThan(0);
             await Assert.That(source.FrameAt(100 + ticks).AreaEffects.Count).IsEqualTo(0);
             await Assert.That(StratFrameSource.EndTickOf(spec.Utility[0])).IsEqualTo(100 + ticks);
@@ -333,7 +334,7 @@ public class StratFrameSourceTests
         Scene2DFrame moving = source.FrameAt(32);
         TokenRouteLine line = moving.Routes.Single();
         await Assert.That(line.Team).IsEqualTo(2);
-        await Assert.That(line.Points.Select(p => (p.X, p.Y))).IsEquivalentTo(new[] { (150f, 0f), (300f, 0f), (300f, 300f) });
+        await Assert.That(line.Points.Select(p => (p.X, p.Y))).IsEquivalentTo(new[] { (150f, 0f), (300f, 0f), (300f, 300f) }, CollectionOrdering.Matching);
         await Assert.That(source.FrameAt(96).Routes.Single().Points.Count).IsEqualTo(2).Because("the corner is behind it");
         await Assert.That(source.FrameAt(128).Routes.Count).IsEqualTo(0).Because("gone on arrival");
         await Assert.That(new StratFrameSource(spec with { Routes = false }).FrameAt(32).Routes.Count).IsEqualTo(0);

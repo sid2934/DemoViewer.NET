@@ -6,13 +6,9 @@ using DemoViewer.NET.Playback2D.Core.Export;
 
 #endregion
 
-// Lives in Pipeline (namespace kept as DemoViewer.NET.Services.Export.Pack, so every App call site's
-// `using` still resolves) rather than in src/App: `dv2d pack` (Headless Packs) needs the
-// same plan-then-stitch policy the app's Export pack row runs, and Pipeline is the one place both a
-// headless tool and the App can reach without the CLI ever referencing src/App/*. Only the plumbing
-// that touches App-only concerns (the heavy-job gate, the app-managed ffmpeg directory) stays behind
-// in DemoViewer.NET/Services/Export/Pack/PackClipRenderer.cs; dv2d supplies its own IPackClipRenderer
-// and IPackEncoder instead, the same split ExportCommand already draws against SceneExportRunner.
+// In Pipeline, namespace kept as DemoViewer.NET.Services.Export.Pack, so every App call site's
+// `using` still resolves. The plumbing that touches App-only concerns (the heavy-job gate, the
+// app-managed ffmpeg directory) stays in DemoViewer.NET/Services/Export/Pack/PackClipRenderer.cs.
 namespace DemoViewer.NET.Services.Export.Pack;
 
 /// <summary>Renders one pack clip into a sink. The seam every Pack Export test replaces.</summary>

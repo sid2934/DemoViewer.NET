@@ -183,86 +183,95 @@ public class StratBookLifecycleTests
     [Test]
     public async Task OnShutdown_WithNothingBuilt_NeverConstructsTheGrenadeIndex()
     {
-        int constructed = 0;
-        StratBookPackInstances instances = new();
-        ServiceCollection services = new();
-        services.AddSingleton(new ModuleRegistry());
-        services.AddSingleton(_ =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            constructed++;
-            return new GrenadeIndex(new DemoCacheStore(null).Library());
+            int constructed = 0;
+            StratBookPackInstances instances = new();
+            ServiceCollection services = new();
+            services.AddSingleton(new ModuleRegistry());
+            services.AddSingleton(_ =>
+            {
+                constructed++;
+                return new GrenadeIndex(new DemoCacheStore(null).Library());
+            });
+            using ServiceProvider sp = services.BuildServiceProvider();
+            StratBookLifecycle lifecycle = new(sp, instances);
+
+            lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
+
+            await Assert.That(constructed).IsEqualTo(0)
+                .Because("OnShutdown must read the tracker, never GetService<GrenadeIndex> fresh");
         });
-        using ServiceProvider sp = services.BuildServiceProvider();
-        StratBookLifecycle lifecycle = new(sp, instances);
-
-        lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
-
-        await Assert.That(constructed).IsEqualTo(0)
-            .Because("OnShutdown must read the tracker, never GetService<GrenadeIndex> fresh");
     }
 
     [Test]
     public async Task OnShutdown_FlushesTheGrenadeIndex_WhenItWasBuilt()
     {
-        string root = Path.Combine(Path.GetTempPath(), "dvstratgrenadeflush_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        try
+        await HeadlessSession.RunOnUi(async () =>
         {
-            string lineupsPath = Path.Combine(root, GrenadeLineupStore.FileName);
-            DemoCacheStore cache = new(null);
-            IndexOneGrenade(cache, "/d/a.dem", "de_dust2");
-            // No background drain: the default schedule (Task.Run) writes the moment Query marks the
-            // store dirty, racing this test's "before" check. Only an explicit Flush should write here.
-            using GrenadeIndex grenades = new(cache.Library(), lineups: new GrenadeLineupStore(root), scheduleSave: _ => Task.CompletedTask);
-            grenades.Load();
-            // Minting the first anchor for this map marks the lineup store dirty (GrenadeIndex.EnsureAssignedLocked).
-            _ = grenades.Query(new GrenadeQuery("de_dust2"));
+            string root = Path.Combine(Path.GetTempPath(), "dvstratgrenadeflush_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                string lineupsPath = Path.Combine(root, GrenadeLineupStore.FileName);
+                DemoCacheStore cache = new(null);
+                IndexOneGrenade(cache, "/d/a.dem", "de_dust2");
+                // No background drain: the default schedule (Task.Run) writes the moment Query marks the
+                // store dirty, racing this test's "before" check. Only an explicit Flush should write here.
+                using GrenadeIndex grenades = new(cache.Library(), lineups: new GrenadeLineupStore(root), scheduleSave: _ => Task.CompletedTask);
+                grenades.Load();
+                // Minting the first anchor for this map marks the lineup store dirty (GrenadeIndex.EnsureAssignedLocked).
+                _ = grenades.Query(new GrenadeQuery("de_dust2"));
 
-            StratBookPackInstances instances = new() { Grenades = grenades };
-            ServiceCollection services = new();
-            services.AddSingleton(new ModuleRegistry());
-            using ServiceProvider sp = services.BuildServiceProvider();
-            StratBookLifecycle lifecycle = new(sp, instances);
+                StratBookPackInstances instances = new() { Grenades = grenades };
+                ServiceCollection services = new();
+                services.AddSingleton(new ModuleRegistry());
+                using ServiceProvider sp = services.BuildServiceProvider();
+                StratBookLifecycle lifecycle = new(sp, instances);
 
-            await Assert.That(File.Exists(lineupsPath)).IsFalse().Because("nothing has flushed yet");
-            lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
-            await Assert.That(File.Exists(lineupsPath)).IsTrue().Because("OnShutdown's FlushLineups wrote the pending lineup");
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
+                await Assert.That(File.Exists(lineupsPath)).IsFalse().Because("nothing has flushed yet");
+                lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
+                await Assert.That(File.Exists(lineupsPath)).IsTrue().Because("OnShutdown's FlushLineups wrote the pending lineup");
+            }
+            finally
+            {
+                Directory.Delete(root, true);
+            }
+        });
     }
 
     [Test]
     public async Task OnShutdown_ReachesTheStratBookModule_OnlyAfterItsTabWasActivated()
     {
-        string root = Path.Combine(Path.GetTempPath(), "dvstratshutdown_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        try
+        await HeadlessSession.RunOnUi(async () =>
         {
-            string indexPath = Path.Combine(root, "index.json");
-            StratStore store = new(root);
-            StratBookTabViewModel vm = new(store);
-            StratBookModule module = new(() => vm);
-            StratBookPackInstances instances = new() { StratBook = module };
-            using ServiceProvider sp = new ServiceCollection().BuildServiceProvider();
-            StratBookLifecycle lifecycle = new(sp, instances);
+            string root = Path.Combine(Path.GetTempPath(), "dvstratshutdown_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                string indexPath = Path.Combine(root, "index.json");
+                StratStore store = new(root);
+                StratBookTabViewModel vm = new(store);
+                StratBookModule module = new(() => vm);
+                StratBookPackInstances instances = new() { StratBook = module };
+                using ServiceProvider sp = new ServiceCollection().BuildServiceProvider();
+                StratBookLifecycle lifecycle = new(sp, instances);
 
-            // Never activated: Shutdown is StratBookModule's own no-op (StratBookModuleTests' guard, not
-            // this one's). OnShutdown must still reach the module without throwing.
-            lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
+                // Never activated: Shutdown is StratBookModule's own no-op (StratBookModuleTests' guard, not
+                // this one's). OnShutdown must still reach the module without throwing.
+                lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
 
-            // Activated once (the tab was opened this session): the lifecycle's OnShutdown now reaches
-            // the real VM, whose own Shutdown writes the strat index, proving the lifecycle reached the module the pack recorded.
-            module.CreateTabs(null!).Single().ViewModelFactory!.Invoke();
-            lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
-            await Assert.That(File.Exists(indexPath)).IsTrue();
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
+                // Activated once (the tab was opened this session): the lifecycle's OnShutdown now reaches
+                // the real VM, whose own Shutdown writes the strat index, proving the lifecycle reached the module the pack recorded.
+                module.CreateTabs(null!).Single().ViewModelFactory!.Invoke();
+                lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
+                await Assert.That(File.Exists(indexPath)).IsTrue();
+            }
+            finally
+            {
+                Directory.Delete(root, true);
+            }
+        });
     }
 
     [Test]
@@ -291,9 +300,9 @@ public class StratBookLifecycleTests
                 }
             }
 
-            string? stratsRoot = AppPaths.StratsDir;
-            await Assert.That(stratsRoot).IsNotNull();
-            string indexPath = Path.Combine(stratsRoot!, "index.json");
+            string? configRoot = AppPaths.ConfigRoot;
+            await Assert.That(configRoot).IsNotNull();
+            string indexPath = Path.Combine(configRoot!, StratBookStores.Strats, "index.json");
             await Assert.That(File.Exists(indexPath)).IsTrue()
                 .Because("the strat committed through the real store must survive shutdown even though the lifecycle never started");
             await Assert.That(await File.ReadAllTextAsync(indexPath))

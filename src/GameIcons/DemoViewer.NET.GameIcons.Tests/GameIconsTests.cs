@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.GameIcons;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -20,7 +21,7 @@ public class GameIconsTests
     {
         await Assert.That(IconCatalogue.Keys.Count).IsGreaterThan(100);
         await Assert.That(IconCatalogue.SourceHash).IsNotEmpty();
-        await Assert.That(IconCatalogue.Scales).IsEquivalentTo(BakedScales);
+        await Assert.That(IconCatalogue.Scales).IsEquivalentTo(BakedScales, CollectionOrdering.Matching);
     }
 
     /// <summary>
@@ -166,9 +167,9 @@ public class PremierTierTests
     {
         await Assert.That(IconCatalogue.PremierTiers.Count).IsEqualTo(7);
         await Assert.That(IconCatalogue.PremierTiers.Select(t => t.Hex))
-                    .IsEquivalentTo(TierHexes);
+                    .IsEquivalentTo(TierHexes, CollectionOrdering.Matching);
         await Assert.That(IconCatalogue.PremierTiers.Select(t => t.MinRating))
-                    .IsEquivalentTo(TierFloors);
+                    .IsEquivalentTo(TierFloors, CollectionOrdering.Matching);
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
 using TUnit.Core.Exceptions;
 
@@ -19,8 +20,8 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         Two committed goldens (<c>nuke-multilevel-upper</c>, <c>nuke-multilevel-noradar</c>) plus the
 ///         assertion that matters most for a phase that touched the shared pane machinery: the
 ///         <b>stacked</b> picture is byte-identical after a Stacked → Single → Stacked round trip. That
-///         is the acceptance line "StackedLayout's output is byte-identical to B1's golden", proved
-///         against the renderer rather than by committing the same PNG twice. B1's own
+///         is the acceptance line "StackedLayout's output is byte-identical to the stacked golden", proved
+///         against the renderer rather than by committing the same PNG twice.
 ///         <c>GoldenParityTests</c> already pins the stacked path against the pre-v2 control.
 ///     </para>
 /// </summary>
@@ -40,7 +41,7 @@ public class LevelGoldenTests
 
         byte[] upper = RenderSingle(stage, fixture, TopMostIndex);
 
-        await Assert.That(stage.Renderer.Panes.Panes).HasCount().EqualTo(1);
+        await Assert.That(stage.Renderer.Panes.Panes).Count().IsEqualTo(1);
         await Assert.That(stage.Renderer.Panes.Panes[0].ViewportRect)
             .IsEqualTo(new SKRect(0, 0, fixture.Size.Width, fixture.Size.Height));
 
@@ -78,7 +79,7 @@ public class LevelGoldenTests
         byte[] png = stage.RenderFixturePng(fixture);
 
         MapSpace space = stage.Renderer.Levels.Space;
-        await Assert.That(space.Levels).HasCount().EqualTo(2);
+        await Assert.That(space.Levels).Count().IsEqualTo(2);
         await Assert.That(space.RadarBinding).IsEqualTo(RadarBindingQuality.None);
         foreach (MapLevel level in space.Levels)
         {
@@ -143,7 +144,7 @@ public class LevelGoldenTests
         GlyphAttribution ink = GlyphAttribution.Measure(goldenPng, Render(name, fixture, true),
             Render(name, fixture, false));
 
-        int labels = LabelCount(fixture);
+        int labels = GoldenEntryPlan.LabelCount(fixture);
         Console.WriteLine($"[attribution] {ink.Describe(name, labels)}");
 
         // GlyphAttribution.InkPixels: an empty mask makes every assertion under it vacuous.
@@ -165,12 +166,6 @@ public class LevelGoldenTests
     }
 
     private static int TopMostIndex(MapSpace space) => space.Levels.Count - 1;
-
-    // The glyph budget's denominator: how many marker labels the frame draws. The twin of
-    // SceneGoldenTests.LabelCount and GoldenCommand.LabelCount, which denominate the same budget for
-    // their own readers of the corpus: one definition, three assemblies that must not share code.
-    private static int LabelCount(SceneFixture fixture) =>
-        fixture.Frame.Markers.Count(static m => !string.IsNullOrEmpty(m.Label));
 
     private static string GoldenPath(string name, SKSizeI size) =>
         Path.Combine(FixtureCorpus.Root, "goldens", "cpu", $"{name}@{size.Width}x{size.Height}.png");
@@ -252,7 +247,7 @@ public class LevelGoldenTests
         // platform that authored the corpus the two tolerances are the same value. The label count comes
         // off the scene, never a manifest field; EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk above
         // is what licenses the allowance.
-        int labels = LabelCount(fixture);
+        int labels = GoldenEntryPlan.LabelCount(fixture);
         GoldenTolerance tolerance = GoldenTolerance.ForLabelledFrame(size.Width, size.Height, labels);
         GoldenComparison result = GoldenImageComparer.Compare(expected, actual, tolerance);
         Console.WriteLine($"[golden] {name} labels={labels} " +

@@ -7,6 +7,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -155,7 +156,7 @@ public class StratEvidenceTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(record.ByRevision.Keys.Order()).IsEquivalentTo([1, 2, 3]);
+            await Assert.That(record.ByRevision.Keys.Order()).IsEquivalentTo([1, 2, 3], CollectionOrdering.Matching);
             await Assert.That(record.ByRevision[1]).IsEqualTo(new RecordSplit(2, 1, 1, 0, 0));
             await Assert.That(record.ByRevision[2]).IsEqualTo(new RecordSplit(4, 1, 1, 1, 1));
             await Assert.That(record.ByRevision[3]).IsEqualTo(new RecordSplit(1, 1, 0, 0, 0))
@@ -185,7 +186,7 @@ public class StratEvidenceTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(lost.Failures).IsEquivalentTo(["utility-late", "entry-lost"]);
+            await Assert.That(lost.Failures).IsEquivalentTo(["utility-late", "entry-lost"], CollectionOrdering.Matching);
             await Assert.That(record.FailureBreakdown.Count).IsEqualTo(3);
             await Assert.That(record.FailureBreakdown["utility-late"]).IsEqualTo(2).Because("once for the lost run, once for the unknown one");
             await Assert.That(record.FailureBreakdown["entry-lost"]).IsEqualTo(1);
@@ -213,7 +214,7 @@ public class StratEvidenceTests
     public async Task TheFailureVocabulary_IsTheSevenShippedValues()
     {
         await Assert.That(StratEvidence.Failures)
-            .IsEquivalentTo(["utility-late", "entry-lost", "early-contact", "rotation-early", "info-lost", "economy", "other"]);
+            .IsEquivalentTo(["utility-late", "entry-lost", "early-contact", "rotation-early", "info-lost", "economy", "other"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -256,8 +257,8 @@ public class StratEvidenceTests
         using (Assert.Multiple())
         {
             await Assert.That(record.Total).IsEqualTo(Build().Total);
-            await Assert.That(record.ByProvenance.Keys.Order(StringComparer.Ordinal)).IsEquivalentTo(Build().ByProvenance.Keys.Order(StringComparer.Ordinal));
-            await Assert.That(new StratEvidenceService(tags).Compute(strat).ByProvenance.Keys).IsEquivalentTo([StratEvidence.Unlabeled])
+            await Assert.That(record.ByProvenance.Keys.Order(StringComparer.Ordinal)).IsEquivalentTo(Build().ByProvenance.Keys.Order(StringComparer.Ordinal), CollectionOrdering.Matching);
+            await Assert.That(new StratEvidenceService(tags).Compute(strat).ByProvenance.Keys).IsEquivalentTo([StratEvidence.Unlabeled], CollectionOrdering.Matching)
                 .Because("without Demo Provenance Labels every run is unlabeled");
         }
     }

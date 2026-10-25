@@ -149,7 +149,7 @@ public class ContentIdentityTests
             store.Upsert(Record("/demos/b.dem", "sha-1"));
             store.Upsert(Record("/demos/a.dem", "sha-1"));
             await CheckAll(store, "/demos/a.dem", null);
-            await Assert.That(store.RowsForContentId("sha-1")).HasCount(2);
+            await Assert.That(store.RowsForContentId("sha-1")).Count().IsEqualTo(2);
 
             if (root is not null)
             {
@@ -216,7 +216,7 @@ public class ContentIdentityTests
                 await Assert.That(entry!.Sha256).IsNull();
                 await Assert.That(entry.Tier).IsEqualTo(DemoCacheTier.Parse);
                 await Assert.That(entry.Map).IsEqualTo("de_mirage");
-                await Assert.That(store.Index).HasCount(1);
+                await Assert.That(store.Index).Count().IsEqualTo(1);
             }
 
             await Assert.That(store.TryGetByContentId("sha-old")).IsNull()
@@ -545,14 +545,13 @@ public class ContentIdentityTests
     // in which case the smallest demo in it is the subject (the parse dominates the test's cost, not the hash).
     private static string ResolveDemo()
     {
-        string? env = Environment.GetEnvironmentVariable("DEMO_PATH");
+        string? env = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar);
         if (!string.IsNullOrWhiteSpace(env) && Directory.Exists(env))
         {
-            string? smallest = new DirectoryInfo(env).EnumerateFiles("*.dem")
-                .OrderBy(f => f.Length)
-                .Select(f => f.FullName)
-                .FirstOrDefault();
-            return smallest ?? throw new SkipTestException($"DEMO_PATH folder holds no .dem: {env}");
+            string[] resolved = DemoTestHelper.ResolveDemoFolderOverride(env, out string? problem);
+            return resolved.Length == 0
+                ? throw new SkipTestException(problem ?? $"no .dem under {env}")
+                : resolved.MinBy(p => new FileInfo(p).Length)!;
         }
 
         return DemoTestHelper.RequireDemo();

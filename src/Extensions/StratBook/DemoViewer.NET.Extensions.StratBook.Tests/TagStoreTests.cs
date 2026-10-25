@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -41,8 +42,8 @@ public class TagStoreTests
                 await Assert.That(File.Exists(Path.Combine(root, "demos", Sha + ".dvtag.json"))).IsTrue();
                 await Assert.That(row.Sha256).IsEqualTo(Sha);
                 await Assert.That(row.InstanceCount).IsEqualTo(3);
-                await Assert.That(row.Codes).IsEquivalentTo(TwoCodes);
-                await Assert.That(row.StratIds).IsEquivalentTo(OneStrat);
+                await Assert.That(row.Codes).IsEquivalentTo(TwoCodes, CollectionOrdering.Matching);
+                await Assert.That(row.StratIds).IsEquivalentTo(OneStrat, CollectionOrdering.Matching);
                 await Assert.That(row.TickRate).IsEqualTo(64);
                 await Assert.That(File.Exists(Path.Combine(root, "index.json"))).IsFalse()
                     .Because("index.json is deferred to SaveIndex, the DemoCacheStore rule");
@@ -163,7 +164,7 @@ public class TagStoreTests
             File.Delete(TagStore.SidecarPathFor(root, ShaOf(1)));
 
             TagStore reopened = new(root);
-            await Assert.That(reopened.Index.Select(e => e.Sha256)).IsEquivalentTo(new[] { ShaOf(2) });
+            await Assert.That(reopened.Index.Select(e => e.Sha256)).IsEquivalentTo(new[] { ShaOf(2) }, CollectionOrdering.Matching);
         }
         finally
         {
@@ -322,7 +323,7 @@ public class TagStoreTests
             store.Save(Document(ShaOf(3), Instance("A execute", 1, 2)));
         }
 
-        await Assert.That(raised).IsEquivalentTo(new[] { ShaOf(1), null });
+        await Assert.That(raised).IsEquivalentTo(new[] { ShaOf(1), null }, CollectionOrdering.Matching);
     }
 
     [Test]

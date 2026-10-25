@@ -3,6 +3,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -131,7 +132,7 @@ public class StratLogPositionTests
             StratDocument loaded = store.TryLoad(states[^1].Id)!;
             using (Assert.Multiple())
             {
-                await Assert.That(loaded.Steps.Select(s => s.Id)).IsEquivalentTo(states[^1].Steps.Select(s => s.Id));
+                await Assert.That(loaded.Steps.Select(s => s.Id)).IsEquivalentTo(states[^1].Steps.Select(s => s.Id), CollectionOrdering.Matching);
                 await Assert.That(loaded.Steps.Select(s => s.Id).Distinct().Count()).IsEqualTo(loaded.Steps.Count);
                 await Assert.That(Committed(loaded)).IsEqualTo(Committed(states[^1]));
                 await Assert.That(File.ReadAllText(StratFile(root, states[^1]))).IsEqualTo(Committed(states[^1]));
@@ -217,7 +218,7 @@ public class StratLogPositionTests
                 using (Assert.Multiple())
                 {
                     await Assert.That(session.Document!.Notes).IsEqualTo("uncommitted");
-                    await Assert.That(session.PendingOps.Select(o => o.Path)).IsEquivalentTo(NotesOnly);
+                    await Assert.That(session.PendingOps.Select(o => o.Path)).IsEquivalentTo(NotesOnly, CollectionOrdering.Matching);
                     await Assert.That(session.RecoveryNote).IsNull();
                 }
 
@@ -328,7 +329,7 @@ public class StratLogPositionTests
             {
                 await Assert.That(Committed(store.Materialize(states[^1].Id, 12)!)).IsEqualTo(Committed(states[^1]));
                 await Assert.That(rows.Count).IsEqualTo(OwnerShape.Length);
-                await Assert.That(rows.Select(r => r.Revision)).IsEquivalentTo(Enumerable.Reverse(OwnerShape));
+                await Assert.That(rows.Select(r => r.Revision)).IsEquivalentTo(Enumerable.Reverse(OwnerShape), CollectionOrdering.Matching);
                 await Assert.That(rows.Take(OwnerShape.Length - 1).All(r => r.Changes.Count == 2)).IsTrue();
             }
         }

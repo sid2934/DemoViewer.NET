@@ -21,7 +21,7 @@ public readonly record struct FloorSlice(double MinZ, double MaxZ)
 ///         split stabilises as more of the map is seen; <see cref="Reset" /> clears it (e.g. on demo unload).
 ///     </para>
 /// </summary>
-public sealed class FloorSplitter
+internal sealed class FloorSplitter
 {
     // 3.4e38 ≈ float.MaxValue is the engine's "unused section" sentinel; anything at/above this (and 0 for
     // unused trailing slots) is not a real boundary.

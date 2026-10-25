@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -110,201 +111,222 @@ public class TagMatrixTests
     [Test]
     public async Task TheMockScreen_IsReproduced_FalconsLastSixNukeDemos_TSide()
     {
-        using Corpus corpus = await Corpus.Create();
-        TagMatrixTabViewModel matrix = corpus.Matrix;
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Corpus corpus = await Corpus.Create();
+            TagMatrixTabViewModel matrix = corpus.Matrix;
 
-        await corpus.Pick(() =>
-        {
-            matrix.Team.Selected = matrix.Team.Options.Single(o => o.Display == "Falcons");
-            matrix.Last.Selected = matrix.Last.Options.Single(o => o.Value == 6);
-        });
-        await corpus.Pick(() =>
-        {
-            matrix.Map.Selected = matrix.Map.Options.Single(o => o.Value == "de_nuke");
-            matrix.Side.Selected = matrix.Side.Options.Single(o => o.Value == 2);
-        });
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(matrix.Title).IsEqualTo("Falcons, last 6 demos, de_nuke, T side");
-            await Assert.That(matrix.RowAxis).IsEqualTo(TagMatrixAxis.Code);
-            await Assert.That(matrix.ColumnAxis).IsEqualTo(TagMatrixAxis.Label(LabelNamespace.Human, "route"))
-                .Because("the first build puts the human label group across the top, the mock's shape");
-            await Assert.That(matrix.Table!.RowKeys.SequenceEqual(OrderedCodes)).IsTrue();
-            await Assert.That(matrix.Table.ColumnKeys.SequenceEqual(OrderedRoutes)).IsTrue();
-            foreach ((string code, int[] counts) in Mock)
+            await corpus.Pick(() =>
             {
-                for (int c = 0; c < MockRoutes.Length; c++)
-                {
-                    await Assert.That(matrix.Table.Count(code, MockRoutes[c])).IsEqualTo(counts[c])
-                        .Because($"{code} × {MockRoutes[c]}");
-                }
-            }
+                matrix.Team.Selected = matrix.Team.Options.Single(o => o.Display == "Falcons");
+                matrix.Last.Selected = matrix.Last.Options.Single(o => o.Value == 6);
+            });
+            await corpus.Pick(() =>
+            {
+                matrix.Map.Selected = matrix.Map.Options.Single(o => o.Value == "de_nuke");
+                matrix.Side.Selected = matrix.Side.Options.Single(o => o.Value == 2);
+            });
 
-            await Assert.That(matrix.Table.Total).IsEqualTo(Mock.Sum(m => m.Counts.Sum()));
-            await Assert.That(matrix.SummaryLine).IsEqualTo("79 instances in 6 demos");
-            await Assert.That(matrix.Rows.Count).IsEqualTo(4);
-            await Assert.That(matrix.Rows.Single(r => r.Display == "fake → rotate").Cells.Count(c => c.IsEmpty)).IsEqualTo(2)
-                .Because("the mock's zeros are drawn as zeros, not left out");
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(matrix.Title).IsEqualTo("Falcons, last 6 demos, de_nuke, T side");
+                await Assert.That(matrix.RowAxis).IsEqualTo(TagMatrixAxis.Code);
+                await Assert.That(matrix.ColumnAxis).IsEqualTo(TagMatrixAxis.Label(LabelNamespace.Human, "route"))
+                    .Because("the first build puts the human label group across the top, the mock's shape");
+                await Assert.That(matrix.Table!.RowKeys.SequenceEqual(OrderedCodes)).IsTrue();
+                await Assert.That(matrix.Table.ColumnKeys.SequenceEqual(OrderedRoutes)).IsTrue();
+                foreach ((string code, int[] counts) in Mock)
+                {
+                    for (int c = 0; c < MockRoutes.Length; c++)
+                    {
+                        await Assert.That(matrix.Table.Count(code, MockRoutes[c])).IsEqualTo(counts[c])
+                            .Because($"{code} × {MockRoutes[c]}");
+                    }
+                }
+
+                await Assert.That(matrix.Table.Total).IsEqualTo(Mock.Sum(m => m.Counts.Sum()));
+                await Assert.That(matrix.SummaryLine).IsEqualTo("79 instances in 6 demos");
+                await Assert.That(matrix.Rows.Count).IsEqualTo(4);
+                await Assert.That(matrix.Rows.Single(r => r.Display == "fake → rotate").Cells.Count(c => c.IsEmpty)).IsEqualTo(2)
+                    .Because("the mock's zeros are drawn as zeros, not left out");
+            }
+        });
     }
 
     [Test]
     public async Task ACount_SendsExactlyItsClips_ToTheReviewQueue_UnderOneTitleCard_AndShowsReview()
     {
-        using Corpus corpus = await Corpus.Create();
-        await corpus.PickMockScope();
-
-        TagMatrixCellViewModel cell = corpus.Matrix.Rows.Single(r => r.Display == "execute")
-            .Cells.Single(c => c.ColumnDisplay == "ramp");
-        cell.OpenCommand.Execute(null);
-
-        IReadOnlyList<ReviewEntry> entries = corpus.Queue.Entries;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(cell.Count).IsEqualTo(7);
-            await Assert.That(entries.Count).IsEqualTo(8).Because("one title card, then the seven clips");
-            await Assert.That(entries[0].Kind).IsEqualTo(ReviewEntryKind.Section);
-            await Assert.That(entries[0].Title).IsEqualTo("Matrix · execute × ramp");
-            await Assert.That(entries[0].Note).IsEqualTo("Falcons, last 6 demos, de_nuke, T side");
-            await Assert.That(entries.Skip(1).All(e => e.Source == ReviewSources.Tag)).IsTrue();
-            await Assert.That(entries.Skip(1).Select(e => (e.DemoPath, e.FromTick, e.ToTick)))
-                .IsEquivalentTo(cell.Refs.Select(r => (corpus.PathOf(r.Sha256), r.FromTick, r.ToTick)));
-            await Assert.That(entries.Skip(1).All(e => e.TickRate == 64)).IsTrue().Because("the document's clock names the rate");
-            await Assert.That(corpus.SelectedTabs).IsEquivalentTo([ReviewQueueModule.TabId]);
-            await Assert.That(corpus.Matrix.StatusLine).IsEqualTo("7 clips sent to Review");
-        }
+            using Corpus corpus = await Corpus.Create();
+            await corpus.PickMockScope();
 
-        cell.OpenCommand.Execute(null);
-        using (Assert.Multiple())
-        {
-            await Assert.That(corpus.Queue.Entries.Count).IsEqualTo(8).Because("a second click adds nothing");
-            await Assert.That(corpus.Matrix.StatusLine).IsEqualTo("already in Review");
-        }
+            TagMatrixCellViewModel cell = corpus.Matrix.Rows.Single(r => r.Display == "execute")
+                .Cells.Single(c => c.ColumnDisplay == "ramp");
+            cell.OpenCommand.Execute(null);
+
+            IReadOnlyList<ReviewEntry> entries = corpus.Queue.Entries;
+            using (Assert.Multiple())
+            {
+                await Assert.That(cell.Count).IsEqualTo(7);
+                await Assert.That(entries.Count).IsEqualTo(8).Because("one title card, then the seven clips");
+                await Assert.That(entries[0].Kind).IsEqualTo(ReviewEntryKind.Section);
+                await Assert.That(entries[0].Title).IsEqualTo("Matrix · execute × ramp");
+                await Assert.That(entries[0].Note).IsEqualTo("Falcons, last 6 demos, de_nuke, T side");
+                await Assert.That(entries.Skip(1).All(e => e.Source == ReviewSources.Tag)).IsTrue();
+                await Assert.That(entries.Skip(1).Select(e => (e.DemoPath, e.FromTick, e.ToTick)))
+                    .IsEquivalentTo(cell.Refs.Select(r => (corpus.PathOf(r.Sha256), r.FromTick, r.ToTick)), CollectionOrdering.Matching);
+                await Assert.That(entries.Skip(1).All(e => e.TickRate == 64)).IsTrue().Because("the document's clock names the rate");
+                await Assert.That(corpus.SelectedTabs).IsEquivalentTo([ReviewQueueModule.TabId], CollectionOrdering.Matching);
+                await Assert.That(corpus.Matrix.StatusLine).IsEqualTo("7 clips sent to Review");
+            }
+
+            cell.OpenCommand.Execute(null);
+            using (Assert.Multiple())
+            {
+                await Assert.That(corpus.Queue.Entries.Count).IsEqualTo(8).Because("a second click adds nothing");
+                await Assert.That(corpus.Matrix.StatusLine).IsEqualTo("already in Review");
+            }
+        });
     }
 
     [Test]
     public async Task SwappingTheAxes_Transposes_TheSameCounts()
     {
-        using Corpus corpus = await Corpus.Create();
-        await corpus.PickMockScope();
-
-        corpus.Matrix.SwapAxesCommand.Execute(null);
-        await corpus.Matrix.Pending;
-
-        TagMatrixTable table = corpus.Matrix.Table!;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(corpus.Matrix.RowAxis).IsEqualTo(TagMatrixAxis.Label(LabelNamespace.Human, "route"));
-            await Assert.That(corpus.Matrix.ColumnAxis).IsEqualTo(TagMatrixAxis.Code);
-            await Assert.That(table.RowKeys.SequenceEqual(OrderedRoutes)).IsTrue();
-            foreach ((string code, int[] counts) in Mock)
+            using Corpus corpus = await Corpus.Create();
+            await corpus.PickMockScope();
+
+            corpus.Matrix.SwapAxesCommand.Execute(null);
+            await corpus.Matrix.Pending;
+
+            TagMatrixTable table = corpus.Matrix.Table!;
+            using (Assert.Multiple())
             {
-                for (int c = 0; c < MockRoutes.Length; c++)
+                await Assert.That(corpus.Matrix.RowAxis).IsEqualTo(TagMatrixAxis.Label(LabelNamespace.Human, "route"));
+                await Assert.That(corpus.Matrix.ColumnAxis).IsEqualTo(TagMatrixAxis.Code);
+                await Assert.That(table.RowKeys.SequenceEqual(OrderedRoutes)).IsTrue();
+                foreach ((string code, int[] counts) in Mock)
                 {
-                    await Assert.That(table.Count(MockRoutes[c], code)).IsEqualTo(counts[c]);
+                    for (int c = 0; c < MockRoutes.Length; c++)
+                    {
+                        await Assert.That(table.Count(MockRoutes[c], code)).IsEqualTo(counts[c]);
+                    }
                 }
             }
-        }
+        });
     }
 
     [Test]
     public async Task TheDynamicMode_RestrictsToASlice_RoundsAndAFactHeldToOneValue()
     {
-        using Corpus corpus = await Corpus.Create();
-        await corpus.PickMockScope();
-        TagMatrixTabViewModel matrix = corpus.Matrix;
-
-        await corpus.Pick(() => matrix.RoundsText = "1-6");
-        int firstHalf = corpus.Mocked.Count(m => m.Round <= 6);
-        int executeRampFirstHalf = corpus.Mocked.Count(m => m is { Round: <= 6, Code: "execute", Route: "ramp" });
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(matrix.Table!.Total).IsEqualTo(firstHalf);
-            await Assert.That(matrix.Table.Count("execute", "ramp")).IsEqualTo(executeRampFirstHalf);
-            await Assert.That(firstHalf).IsGreaterThan(0).And.IsLessThan(79).Because("the fixture must make the slice bite");
-        }
+            using Corpus corpus = await Corpus.Create();
+            await corpus.PickMockScope();
+            TagMatrixTabViewModel matrix = corpus.Matrix;
 
-        await corpus.Pick(() => matrix.RoundsText = "1-");
-        await Assert.That(matrix.RoundsProblem).IsNotEmpty().Because("a half-typed range waits and says why");
-        await Assert.That(matrix.Table!.Total).IsEqualTo(firstHalf).Because("the table is left as it was");
+            await corpus.Pick(() => matrix.RoundsText = "1-6");
+            int firstHalf = corpus.Mocked.Count(m => m.Round <= 6);
+            int executeRampFirstHalf = corpus.Mocked.Count(m => m is { Round: <= 6, Code: "execute", Route: "ramp" });
+            using (Assert.Multiple())
+            {
+                await Assert.That(matrix.Table!.Total).IsEqualTo(firstHalf);
+                await Assert.That(matrix.Table.Count("execute", "ramp")).IsEqualTo(executeRampFirstHalf);
+                await Assert.That(firstHalf).IsGreaterThan(0).And.IsLessThan(79).Because("the fixture must make the slice bite");
+            }
 
-        await corpus.Pick(() =>
-        {
-            matrix.RoundsText = "";
-            matrix.Filter.Selected = matrix.Filter.Options.Single(o => o.Display == "Fact · buy.t");
+            await corpus.Pick(() => matrix.RoundsText = "1-");
+            await Assert.That(matrix.RoundsProblem).IsNotEmpty().Because("a half-typed range waits and says why");
+            await Assert.That(matrix.Table!.Total).IsEqualTo(firstHalf).Because("the table is left as it was");
+
+            await corpus.Pick(() =>
+            {
+                matrix.RoundsText = "";
+                matrix.Filter.Selected = matrix.Filter.Options.Single(o => o.Display == "Fact · buy.t");
+            });
+            await corpus.Pick(() => matrix.FilterValue.Selected = matrix.FilterValue.Options.Single(o => o.Value == "eco"));
+            int eco = corpus.Mocked.Count(m => m.Buy == "eco");
+            using (Assert.Multiple())
+            {
+                await Assert.That(matrix.FilterValue.Options.Select(o => o.Value)).IsEquivalentTo([null, "eco", "full"], CollectionOrdering.Matching);
+                await Assert.That(matrix.Table!.Total).IsEqualTo(eco);
+                await Assert.That(eco).IsGreaterThan(0).And.IsLessThan(79);
+            }
+
+            matrix.ClearSliceCommand.Execute(null);
+            await matrix.Pending;
+            using (Assert.Multiple())
+            {
+                await Assert.That(matrix.Title).IsEqualTo("Falcons, 8 demos").Because("clear keeps the team and drops map, last and side");
+                await Assert.That(matrix.Filter.IsAny).IsTrue();
+            }
         });
-        await corpus.Pick(() => matrix.FilterValue.Selected = matrix.FilterValue.Options.Single(o => o.Value == "eco"));
-        int eco = corpus.Mocked.Count(m => m.Buy == "eco");
-        using (Assert.Multiple())
-        {
-            await Assert.That(matrix.FilterValue.Options.Select(o => o.Value)).IsEquivalentTo([null, "eco", "full"]);
-            await Assert.That(matrix.Table!.Total).IsEqualTo(eco);
-            await Assert.That(eco).IsGreaterThan(0).And.IsLessThan(79);
-        }
-
-        matrix.ClearSliceCommand.Execute(null);
-        await matrix.Pending;
-        using (Assert.Multiple())
-        {
-            await Assert.That(matrix.Title).IsEqualTo("Falcons, 8 demos").Because("clear keeps the team and drops map, last and side");
-            await Assert.That(matrix.Filter.IsAny).IsTrue();
-        }
     }
 
     [Test]
     public async Task WithNoTeam_TheScopeIsEveryTaggedDemo_AndTheSideFieldIsIgnored()
     {
-        using Corpus corpus = await Corpus.Create();
-        TagMatrixTabViewModel matrix = corpus.Matrix;
-        await corpus.Pick(() => matrix.Side.Selected = matrix.Side.Options.Single(o => o.Value == 2));
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(matrix.Title).IsEqualTo("All tagged demos");
-            await Assert.That(matrix.SummaryLine).IsEqualTo($"{corpus.AllInstances} instances in 10 demos");
-            await Assert.That(matrix.Map.Options.Select(o => o.Value)).IsEquivalentTo([null, "de_mirage", "de_nuke"]);
-            await Assert.That(matrix.HasTeam).IsFalse();
-        }
+            using Corpus corpus = await Corpus.Create();
+            TagMatrixTabViewModel matrix = corpus.Matrix;
+            await corpus.Pick(() => matrix.Side.Selected = matrix.Side.Options.Single(o => o.Value == 2));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(matrix.Title).IsEqualTo("All tagged demos");
+                await Assert.That(matrix.SummaryLine).IsEqualTo($"{corpus.AllInstances} instances in 10 demos");
+                await Assert.That(matrix.Map.Options.Select(o => o.Value)).IsEquivalentTo([null, "de_mirage", "de_nuke"], CollectionOrdering.Matching);
+                await Assert.That(matrix.HasTeam).IsFalse();
+            }
+        });
     }
 
     [Test]
     public async Task AnInstanceWhoseDemoIsNotInTheLibrary_IsNotQueued_AndTheLineSaysSo()
     {
-        using Corpus corpus = await Corpus.Create();
-        TagMatrixTabViewModel matrix = corpus.Matrix;
-        await corpus.Pick(() => matrix.RowAxis = TagMatrixAxis.Demo);
-
-        TagMatrixRowViewModel orphan = matrix.Rows.Single(r => r.Display == Corpus.OrphanFileName);
-        orphan.Cells.First(c => !c.IsEmpty).OpenCommand.Execute(null);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(corpus.Queue.Entries).IsEmpty();
-            await Assert.That(matrix.StatusLine).IsEqualTo("nothing queued: the demo is not in the library");
-            await Assert.That(corpus.SelectedTabs).IsEmpty();
-        }
+            using Corpus corpus = await Corpus.Create();
+            TagMatrixTabViewModel matrix = corpus.Matrix;
+            await corpus.Pick(() => matrix.RowAxis = TagMatrixAxis.Demo);
+
+            TagMatrixRowViewModel orphan = matrix.Rows.Single(r => r.Display == Corpus.OrphanFileName);
+            orphan.Cells.First(c => !c.IsEmpty).OpenCommand.Execute(null);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(corpus.Queue.Entries).IsEmpty();
+                await Assert.That(matrix.StatusLine).IsEqualTo("nothing queued: the demo is not in the library");
+                await Assert.That(corpus.SelectedTabs).IsEmpty();
+            }
+        });
     }
 
     [Test]
     public async Task AStoreChange_WhileTheTabIsHidden_WaitsForTheNextActivation()
     {
-        using Corpus corpus = await Corpus.Create();
-        await corpus.PickMockScope();
-        int before = corpus.Matrix.Table!.Total;
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using Corpus corpus = await Corpus.Create();
+            await corpus.PickMockScope();
+            int before = corpus.Matrix.Table!.Total;
 
-        corpus.Matrix.OnDeactivated();
-        TagDocument doc = corpus.Store.TryLoad(ShaOf(7))!;
-        TagInstance added = Instance("execute", 99_000, 99_500, ("route", "ramp"));
-        added.Round = 1;
-        doc.Instances.Add(added);
-        corpus.Store.Save(doc);
-        await corpus.Matrix.Pending;
-        await Assert.That(corpus.Matrix.Table!.Total).IsEqualTo(before).Because("a hidden tab does not rebuild");
+            corpus.Matrix.OnDeactivated();
+            TagDocument doc = corpus.Store.TryLoad(ShaOf(7))!;
+            TagInstance added = Instance("execute", 99_000, 99_500, ("route", "ramp"));
+            added.Round = 1;
+            doc.Instances.Add(added);
+            corpus.Store.Save(doc);
+            await corpus.Matrix.Pending;
+            await Assert.That(corpus.Matrix.Table!.Total).IsEqualTo(before).Because("a hidden tab does not rebuild");
 
-        corpus.Matrix.OnActivated(null!);
-        await corpus.Matrix.Pending;
-        await Assert.That(corpus.Matrix.Table!.Total).IsEqualTo(before + 1);
+            corpus.Matrix.OnActivated(null!);
+            await corpus.Matrix.Pending;
+            await Assert.That(corpus.Matrix.Table!.Total).IsEqualTo(before + 1);
+        });
     }
 
     private static string ShaOf(int n) => n.ToString("x64", System.Globalization.CultureInfo.InvariantCulture);

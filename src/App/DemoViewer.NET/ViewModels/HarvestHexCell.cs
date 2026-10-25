@@ -12,7 +12,7 @@ public sealed class HarvestHexCell(string hexText, char asciiChar, IBrush? highl
 {
     /// <summary>
     ///     Absolute byte offset of this cell within the hex view's buffer (-1 for padding cells
-    ///     past the end of data). Drives the reverse byte→node hit-test (F5.2): clicking a cell in
+    ///     past the end of data). Drives the reverse byte→node hit-test: clicking a cell in
     ///     the Frame Details view resolves the encompassing payload tree node.
     /// </summary>
     public int AbsoluteOffset { get; } = absoluteOffset;

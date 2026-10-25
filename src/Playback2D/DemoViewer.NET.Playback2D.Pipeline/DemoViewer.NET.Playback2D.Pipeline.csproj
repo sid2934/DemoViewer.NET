@@ -1,18 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      Demo-domain adaptation for the scene core: frame building, map-asset decode, fixtures, and
-      (from B4) the private tracker replay and encoder sinks. References Core + the CS2DemoKit parser
-      packages + the (now Avalonia-free) module abstractions. Still NO Avalonia — enforced by test.
+      The 2D map renderer over the published scene contract (DemoViewer.NET.Playback2D.Scene), plus the
+      demo-domain adaptation it feeds: the concrete layers, input tools, annotations, render backends and
+      export requests, frame building, map-asset decode, fixtures, the private tracker replay and the
+      encoder sinks. References the scene contract, SkiaSharp, the CS2DemoKit parser packages and the
+      (Avalonia-free) module abstractions. Still NO Avalonia, enforced by test: that is what lets export,
+      the CLI and CI render without a window.
     -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
         <RootNamespace>DemoViewer.NET.Playback2D.Pipeline</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="SkiaSharp"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
         <!-- Export sinks. FFMpegCore only builds arguments and pipes rawvideo to an ffmpeg
@@ -26,8 +27,9 @@
         <!-- The baked CS2 iconography, for SkiaIconSource. Asset-only and dependency-free,
              so it cannot reintroduce Avalonia into the headless graph. -->
         <ProjectReference Include="..\..\GameIcons\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
+        <!-- The published scene contract: frame, layer interface, compositor, floors, places, viewport. -->
         <ProjectReference
-                Include="..\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
+                Include="..\DemoViewer.NET.Playback2D.Scene\DemoViewer.NET.Playback2D.Scene.csproj"/>
         <ProjectReference
                 Include="..\..\App\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
     </ItemGroup>
@@ -37,9 +39,12 @@
         <!-- The perf recorder and its report are internal because they expose the scene's
              internal profiler types; the perf output of dv2d is their one consumer. -->
         <InternalsVisibleTo Include="dv2d"/>
+        <!-- The headless render plan, its options and the resolved backend are internal: nothing in
+             the app reaches them, and dv2d's own suite white-box-tests the plan the golden gate
+             renders through (GoldenAttributionTests, ReviewRegressionTests). -->
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Cli.Tests"/>
         <!-- PackExportTests (App.Tests) white-box-tests PackSegmentSink and PackTitleCardRenderer,
-             internal here since Pack Export's plan-then-stitch logic (Export/Pack/*.cs) moved into
-             Pipeline for dv2d pack; see the note on PackExporter.cs. -->
+             internal to Pipeline; see the note on PackExporter.cs. -->
         <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
     </ItemGroup>
 

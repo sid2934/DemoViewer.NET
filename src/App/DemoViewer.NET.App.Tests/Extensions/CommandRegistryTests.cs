@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -146,7 +147,7 @@ public class CommandRegistryTests
             await Assert.That(registry.Conflicts.Count).IsEqualTo(1);
             await Assert.That(registry.Conflicts[0]).Contains("'NextRound'");
             await Assert.That(registry.EffectiveBindings.Any(b => b.Key == Key.F9)).IsFalse();
-            await Assert.That(registry.PackOwnerByAction.Keys).IsEquivalentTo([Fake + "NextRound", Fake + "Wave"]);
+            await Assert.That(registry.PackOwnerByAction.Keys).IsEquivalentTo([Fake + "NextRound", Fake + "Wave"], CollectionOrdering.Matching);
         }
     }
 
@@ -177,7 +178,7 @@ public class CommandRegistryTests
         CommandRegistry registry = CommandRegistry.Build([compiledIn, thirdParty], isThirdParty: p => p == thirdParty);
 
         await Assert.That(registry.Conflicts.Count).IsEqualTo(1);
-        await Assert.That(registry.PackCommands.Select(c => c.Command.Label)).IsEquivalentTo(["a", "b"]);
+        await Assert.That(registry.PackCommands.Select(c => c.Command.Label)).IsEquivalentTo(["a", "b"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -365,7 +366,7 @@ public class CommandRegistryTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(reported).IsEquivalentTo(["net.demoviewer.test.throwing"]);
+            await Assert.That(reported).IsEquivalentTo(["net.demoviewer.test.throwing"], CollectionOrdering.Matching);
             await Assert.That(registry.PackCommands).IsEmpty();
             await Assert.That(registry.EffectiveBindings.Count).IsGreaterThan(0);
         }

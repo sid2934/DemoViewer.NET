@@ -3,6 +3,7 @@
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -72,7 +73,7 @@ public class StratPlacedChipsTests
         using (Assert.Multiple())
         {
             await Assert.That(session.UndoDepth).IsEqualTo(1);
-            await Assert.That(session.Document!.Steps[1].Positions.Select(p => p.Slot)).IsEquivalentTo(["A", "B", "C", "D", "E"]);
+            await Assert.That(session.Document!.Steps[1].Positions.Select(p => p.Slot)).IsEquivalentTo(["A", "B", "C", "D", "E"], CollectionOrdering.Matching);
             await Assert.That(Texts(editor.Steps[1])).IsEqualTo("spots (5)");
         }
 
@@ -107,7 +108,7 @@ public class StratPlacedChipsTests
         {
             await Assert.That(session.UndoDepth).IsEqualTo(1);
             await Assert.That(converted.Positions).IsEmpty();
-            await Assert.That(converted.Lurk!.Areas).IsEquivalentTo(["Ramp"]);
+            await Assert.That(converted.Lurk!.Areas).IsEquivalentTo(["Ramp"], CollectionOrdering.Matching);
             await Assert.That(converted.Lurk!.AreaPoints!.Single().X).IsEqualTo(1374)
                 .Because("with the places unknown the point is stored; points read after places");
             await Assert.That(editor.Steps[1].HasPlaced).IsFalse();

@@ -421,7 +421,7 @@ public sealed class ReelJobService(
 
     /// <summary>
     ///     THE emission boundary: a <see cref="ReelClip" /> window is FRAME CLOCK (the packaged clip
-    ///     planner leaves it there), and the D2 <c>TickOffset</c> shim converts it into CS2 demo-tick
+    ///     planner leaves it there), and the <c>TickOffset</c> shim converts it into CS2 demo-tick
     ///     space here, exactly once, on every path that reaches CS2 (the real compilation and the
     ///     dry-run walk both come through this method, so the two can never disagree).
     /// </summary>

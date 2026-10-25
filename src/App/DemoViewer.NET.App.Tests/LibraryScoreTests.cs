@@ -24,12 +24,8 @@ public class LibraryScoreTests
     [Category("Integration")]
     public async Task ExtractFinalScore_RealDemo_ProducesPlausibleScoreboard()
     {
-        string[] candidates =
-        [
-            "/Users/austingray/Development/DemoViewer.NET/demos/match730_003826256877184877003_0981591541_410.dem",
-            "/Users/austingray/Development/DemoViewer.NET/demos/pro-demos/vitality-vs-fut-m2-dust2.dem"
-        ];
-        string? path = candidates.FirstOrDefault(File.Exists);
+        string? path = DemoTestHelper.FindDemoPath("match730_003826256877184877003_0981591541_410.dem")
+                       ?? DemoTestHelper.FindDemoPath("vitality-vs-fut-m2-dust2.dem");
         if (path is null)
         {
             throw new SkipTestException("no score-extraction demo present");

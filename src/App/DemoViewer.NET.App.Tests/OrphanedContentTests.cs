@@ -4,6 +4,7 @@ using System.Text.Json;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -78,7 +79,7 @@ public class OrphanedContentTests
                 await Assert.That(store.OrphanAt("/m/a.dem")).IsEqualTo("sha-a");
                 await Assert.That(store.TryGetOrphan("sha-a")!.OrphanedSinceUtcTicks).IsNotNull();
                 await Assert.That(store.TryGetOrphan("sha-a")!.Path).IsEqualTo("/m/a.dem");
-                await Assert.That(Files(root)).IsEquivalentTo(before).Because("nothing is deleted on a detach");
+                await Assert.That(Files(root)).IsEquivalentTo(before, CollectionOrdering.Matching).Because("nothing is deleted on a detach");
                 await Assert.That(changes.Single()).IsEqualTo("/m/a.dem");
             }
 
@@ -171,7 +172,7 @@ public class OrphanedContentTests
             await Assert.That(attached).IsTrue();
             await Assert.That(store.TryGetOrphan("sha-a")).IsNull();
             await Assert.That(store.TryGetIndex("/smb/a.dem")!.Tier).IsEqualTo(DemoCacheTier.Analysis);
-            await Assert.That(store.TryGetIndex("/smb/a.dem")!.Locations).HasCount(1);
+            await Assert.That(store.TryGetIndex("/smb/a.dem")!.Locations).Count().IsEqualTo(1);
         }
 
         // A full read there confirms it, and a tier write at the new path keeps what the content had.
@@ -439,7 +440,7 @@ public class OrphanedContentTests
                 await Assert.That(rebuilt.TryGetIndex("/m/d.dem")!.Sha256).IsEqualTo("sha-a");
                 await Assert.That(rebuilt.TryReadSibling("/m/d.dem", Suffix)).IsEqualTo("facts");
                 await Assert.That(rebuilt.HoldsContent("sha-b")).IsTrue();
-                await Assert.That(rebuilt.TryLoadRecord("/m/b.dem")!.Scoreboard).HasCount(1);
+                await Assert.That(rebuilt.TryLoadRecord("/m/b.dem")!.Scoreboard).Count().IsEqualTo(1);
                 await Assert.That(rebuilt.TryGetIndex("/m/c.dem")).IsNotNull();
                 await Assert.That(Directory.EnumerateFiles(root, "index.json.unreadable-*").Count()).IsEqualTo(corrupt ? 1 : 0);
                 await Assert.That(new DemoCacheStore(root).TryGetIndex("/m/a.dem")).IsNotNull()

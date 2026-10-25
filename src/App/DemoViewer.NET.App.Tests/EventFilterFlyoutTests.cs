@@ -3,6 +3,7 @@
 using System.Collections.ObjectModel;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Playback;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -99,7 +100,7 @@ public class EventFilterFlyoutTests
 
         // Exactly the round_* union is enabled. Reproduces the removed NavPrev/NextRound target set.
         await Assert.That(filters.Where(f => f.IsEnabled).Select(f => f.EventName).OrderBy(n => n))
-            .IsEquivalentTo(_expectedRoundSet);
+            .IsEquivalentTo(_expectedRoundSet, CollectionOrdering.Matching);
         // And the chip reads the preset name, not "2 events".
         await Assert.That(flyout.TargetSummary).IsEqualTo("Round");
     }

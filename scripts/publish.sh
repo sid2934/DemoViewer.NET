@@ -9,7 +9,7 @@
 #                          Default is self-contained: the bundle carries both runtimes, so
 #                          the target has NO runtime prerequisite.
 #
-# Produces artifacts/publish/DemoViewer.NET-<RID>/ and a versioned zip beside it.
+# Produces artifacts/publish/DemoViewer.NET-<RID>/.
 #
 # Beyond `dotnet publish`, the bundle needs two asset families the SDK doesn't handle the same way:
 #   1. cs2-assets/baked/<map>/   — pre-baked radar/floor/collision bundles (gitignored dev
@@ -171,31 +171,3 @@ if [ -n "$missing" ] && [ "${DV_PUBLISH_STRICT_NATIVES:-0}" = "1" ]; then
 fi
 
 echo "publish: $OUT ($TIER, $RID)"
-
-# Convenience zip of the publish dir (for standalone off-machine testing). This is NOT what the
-# release matrix ships — vpk packs from $OUT directly — so it must NEVER be fatal: the archiver
-# varies by OS (macOS ditto, Linux `zip`, Windows git-bash has NEITHER but has PowerShell), and a
-# missing one shouldn't fail the whole publish. Best-effort, warn-and-continue on failure.
-SHA=$(git rev-parse --short HEAD)
-csvg_tag=$(printf %s "${csvg_ver:-unknown}" | tr -c 'A-Za-z0-9._-' '-')
-ZIP=artifacts/publish/DemoViewer.NET-$RID-$SHA-csvg-$csvg_tag.zip
-ZIP_ABS="$PWD/$ZIP"
-rm -f "$ZIP"
-make_zip() {
-    if command -v ditto >/dev/null 2>&1; then
-        ditto -c -k --keepParent "$OUT" "$ZIP"                                   # macOS: keeps symlinks
-    elif command -v zip >/dev/null 2>&1; then
-        ( cd "$(dirname "$OUT")" && zip -qr -X "$ZIP_ABS" "$(basename "$OUT")" ) # Linux
-    elif command -v pwsh >/dev/null 2>&1 || command -v powershell >/dev/null 2>&1; then
-        local ps; ps=$(command -v pwsh 2>/dev/null || command -v powershell)     # Windows
-        "$ps" -NoProfile -NonInteractive -Command \
-            "Compress-Archive -Force -Path '$OUT' -DestinationPath '$ZIP'"
-    else
-        return 1
-    fi
-}
-if make_zip; then
-    echo "zip:     $ZIP ($(du -h "$ZIP" 2>/dev/null | cut -f1 | tr -d ' '))"
-else
-    echo "NOTE: no archiver available to build $ZIP — skipped (convenience only; $OUT is complete)" >&2
-fi

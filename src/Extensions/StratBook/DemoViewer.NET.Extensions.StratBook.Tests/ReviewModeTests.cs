@@ -15,6 +15,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Views.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -42,7 +43,7 @@ public class ReviewModeTests
             {
                 await Assert.That(mode.IsOn).IsFalse().Because("plain playback keeps the full player cards");
                 await Assert.That(mode.IsAvailable).IsTrue();
-                await Assert.That(vm.Surface.ModeToggles).IsEquivalentTo([mode]);
+                await Assert.That(vm.Surface.ModeToggles).IsEquivalentTo([mode], CollectionOrdering.Matching);
                 await Assert.That(vm.IsReviewAvailable).IsTrue();
                 await Assert.That(review.PalettePanel!.IsShown).IsFalse();
                 await Assert.That(review.QueuePanel!.IsShown).IsFalse();

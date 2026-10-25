@@ -2,6 +2,7 @@
 
 using System.Text;
 using DemoViewer.NET.Services;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -26,7 +27,7 @@ public class AtomicFileTests
             using (Assert.Multiple())
             {
                 await Assert.That(await File.ReadAllTextAsync(path)).IsEqualTo("two");
-                await Assert.That(Directory.GetFiles(Path.GetDirectoryName(path)!)).IsEquivalentTo([path]);
+                await Assert.That(Directory.GetFiles(Path.GetDirectoryName(path)!)).IsEquivalentTo([path], CollectionOrdering.Matching);
             }
         }
         finally
@@ -56,8 +57,8 @@ public class AtomicFileTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(await File.ReadAllBytesAsync(path)).IsEquivalentTo(new byte[] { 1, 2, 3 });
-                await Assert.That(Directory.GetFiles(root)).IsEquivalentTo([path]);
+                await Assert.That(await File.ReadAllBytesAsync(path)).IsEquivalentTo(new byte[] { 1, 2, 3 }, CollectionOrdering.Matching);
+                await Assert.That(Directory.GetFiles(root)).IsEquivalentTo([path], CollectionOrdering.Matching);
             }
         }
         finally
@@ -82,8 +83,8 @@ public class AtomicFileTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(await File.ReadAllBytesAsync(path)).IsEquivalentTo(new byte[] { 7 });
-                await Assert.That(Directory.GetFiles(root)).IsEquivalentTo([path]);
+                await Assert.That(await File.ReadAllBytesAsync(path)).IsEquivalentTo(new byte[] { 7 }, CollectionOrdering.Matching);
+                await Assert.That(Directory.GetFiles(root)).IsEquivalentTo([path], CollectionOrdering.Matching);
             }
         }
         finally

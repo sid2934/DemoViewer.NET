@@ -7,6 +7,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -107,7 +108,7 @@ public class DemoVisitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(ran).IsEquivalentTo(["upstream"]);
+            await Assert.That(ran).IsEquivalentTo(["upstream"], CollectionOrdering.Matching);
             await Assert.That(ended).IsEquivalentTo([("upstream", PassOutcome.Ran), ("downstream", PassOutcome.Skipped)],
                 TUnit.Assertions.Enums.CollectionOrdering.Matching);
         }
@@ -134,7 +135,7 @@ public class DemoVisitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(ran).IsEquivalentTo(["upstream"]);
+            await Assert.That(ran).IsEquivalentTo(["upstream"], CollectionOrdering.Matching);
             await Assert.That(ended).Contains(("stuck", PassOutcome.Skipped));
         }
     }
@@ -167,7 +168,7 @@ public class DemoVisitTests
         IDemoQueueHandle mixed = queue.SubmitVisit(new DemoVisitRequest("/d/mixed.dem", PassLevel.Background, [walk]));
         queue.Resume();
         await mixed.Completion;
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && inputs.Count == 4, "both visits");
+        await queue.IdleAsync("both visits", () => inputs.Count == 4);
 
         using (Assert.Multiple())
         {
@@ -226,7 +227,7 @@ public class DemoVisitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(seen?.All.Select(c => c.Id)).IsEquivalentTo(["c.a", "c.b"])
+            await Assert.That(seen?.All.Select(c => c.Id)).IsEquivalentTo(["c.a", "c.b"], CollectionOrdering.Matching)
                 .Because("the run the first pass makes must carry every collector on the visit");
             await Assert.That(queue.CollectorsFor(Demo).IsEmpty).IsTrue().Because("the visit ended");
         }
@@ -339,7 +340,7 @@ public class DemoVisitTests
             await Assert.That(ended.Any(e => e.Item1 == "stopped" && e.Item2 == PassOutcome.Cancelled)).IsTrue();
             await Assert.That(ended).Contains(("fine", PassOutcome.Ran, (string?)null));
             await Assert.That(ended).Contains(("onbad", PassOutcome.ParseFailed, "corrupt"));
-            await Assert.That(onBad.Failed).IsEquivalentTo(["corrupt"]);
+            await Assert.That(onBad.Failed).IsEquivalentTo(["corrupt"], CollectionOrdering.Matching);
             await Assert.That(good.State).IsEqualTo(DemoQueueItemState.Completed).Because("one pass's throw never fails the visit");
             await Assert.That(bad.State).IsEqualTo(DemoQueueItemState.Failed);
         }
@@ -357,7 +358,7 @@ public class DemoVisitTests
         using (Assert.Multiple())
         {
             await Assert.That(row.Priority).IsEqualTo(DemoJobPriority.UserRequested);
-            await Assert.That(row.Owners).IsEquivalentTo(["a", "b"]);
+            await Assert.That(row.Owners).IsEquivalentTo(["a", "b"], CollectionOrdering.Matching);
         }
 
         queue.Resume();
@@ -410,7 +411,7 @@ public class DemoVisitTests
 
         List<IDemoPass> plan = VisitPlanner.Plan([library, index, tags], new VisitedDemo(Demo), PassLevel.Backlog);
 
-        await Assert.That(plan.Select(p => p.Id)).IsEquivalentTo(["library", "tags"]);
+        await Assert.That(plan.Select(p => p.Id)).IsEquivalentTo(["library", "tags"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -425,8 +426,8 @@ public class DemoVisitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(plan.Select(p => p.Id)).IsEquivalentTo(["library"]);
-            await Assert.That(faulted).IsEquivalentTo(["broken: boom"]);
+            await Assert.That(plan.Select(p => p.Id)).IsEquivalentTo(["library"], CollectionOrdering.Matching);
+            await Assert.That(faulted).IsEquivalentTo(["broken: boom"], CollectionOrdering.Matching);
         }
     }
 
@@ -450,8 +451,8 @@ public class DemoVisitTests
         {
             await Assert.That(withRules.Select(p => p.Id)).IsEquivalentTo(["library", "highlights", "grenades"],
                 TUnit.Assertions.Enums.CollectionOrdering.Matching);
-            await Assert.That(riders).IsEquivalentTo(["highlights"]);
-            await Assert.That(withoutRules.Select(p => p.Id)).IsEquivalentTo(["library"])
+            await Assert.That(riders).IsEquivalentTo(["highlights"], CollectionOrdering.Matching);
+            await Assert.That(withoutRules.Select(p => p.Id)).IsEquivalentTo(["library"], CollectionOrdering.Matching)
                 .Because("a read without rules would have to be upgraded for the rider");
             await Assert.That(alone).IsEmpty().Because("a rider never pays for a read");
         }
@@ -473,7 +474,7 @@ public class DemoVisitTests
         using (Assert.Multiple())
         {
             await Assert.That(handle.State).IsEqualTo(DemoQueueItemState.Cancelled);
-            await Assert.That(ended).IsEquivalentTo([("grenades", PassOutcome.Cancelled), ("highlights", PassOutcome.Cancelled)]);
+            await Assert.That(ended).IsEquivalentTo([("grenades", PassOutcome.Cancelled), ("highlights", PassOutcome.Cancelled)], CollectionOrdering.Matching);
             await Assert.That(highlights.Ran).IsEmpty();
         }
 
@@ -493,12 +494,12 @@ public class DemoVisitTests
             "match.dem", null, new HashSet<string> { "highlights" }));
 
         queue.CancelOwned("grenades");
-        await Assert.That(queue.Snapshot().Single(s => s.Id == handle.Id).Owners).IsEquivalentTo(["library"])
+        await Assert.That(queue.Snapshot().Single(s => s.Id == handle.Id).Owners).IsEquivalentTo(["library"], CollectionOrdering.Matching)
             .Because("the rider would turn the library's read into a rules run");
         queue.Resume();
         await handle.Completion;
 
-        await Assert.That(ran).IsEquivalentTo(["library"]);
+        await Assert.That(ran).IsEquivalentTo(["library"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -513,7 +514,7 @@ public class DemoVisitTests
             "match.dem", null, new HashSet<string> { "highlights" }));
         await handle.Completion;
 
-        await Assert.That(ran).IsEquivalentTo(["grenades", "highlights"]);
+        await Assert.That(ran).IsEquivalentTo(["grenades", "highlights"], CollectionOrdering.Matching);
     }
 
     private sealed class FakePass(string id, params string[] after) : IDemoPass

@@ -14,47 +14,48 @@ This doc
 
 When you touch one of those files, replace the dangling citation with a link to this doc.
 
-**Theming model (L0b structure + L1 real Light palette, 2026-07-16).** The palette is **theme-variant
+**Theming model (structure + real Light palette, 2026-07-16).** The palette is **theme-variant
 aware**. `Styles/DarkPalette.axaml` holds the 98 colour tokens inside `ResourceDictionary.ThemeDictionaries`
-keyed by `ThemeVariant`: a `Dark` dictionary (the canonical dev-tool values) and, **as of L1, a real
+keyed by `ThemeVariant`: a `Dark` dictionary (the canonical dev-tool values) and **a real
 designed `Light` dictionary** (54 tokens re-authored for light; 44 held identical to Dark on purpose, see
-[Light palette design (L1)](#light-palette-design-l1)). Every one of the 98 palette keys is referenced from
+[Light palette design](#light-palette-design)). Every one of the 98 palette keys is referenced from
 markup via **`{DynamicResource TokenName}`** (migrated from `{StaticResource}`), so a change to a window's /
 the app's `RequestedThemeVariant` **re-resolves each token live**. `{StaticResource}` resolves once at load
 and never reacts. Non-palette resources (the `BarRowTemplate`/`KvRowTemplate`/`StatsRowTemplate` DataTemplates,
 converters) deliberately stay `{StaticResource}`. **Update (2026-07-16): the live theme selector
 shipped.** The central theme system (a Settings theme picker + `ThemeRegistry`, built-in Dark / Light /
 High Contrast / E-Girl, plus user JSON drop-ins) is on main; the token-authoring reference is
-[`theme-token-catalog.md`](./theme-token-catalog.md). The L0b/L1 phase notes below are the historical
+[`theme-token-catalog.md`](./theme-token-catalog.md). The phase notes below are the historical
 build order.
 - **Dark-pixel-identical gate (PASSED).** All 9 headless capture variants (`primitives`, `chrome`,
   `tables`, `swatches`, `navstrip-real`, `library-populated`, `settings`, `workbench`, `framelist`)
   render **byte-identical (`cmp -s`)** at `--theme Dark` before → after the migration. The restructure +
   `DynamicResource` conversion changed **nothing** about how Dark looks. 51 App.Tests render at the app's
   `Default` variant and stay green (the palette resolves through `ThemeDictionaries` at `Default`).
-- **Light is a no-op for the palette, NOT for Fluent's base controls (important for L0c/L1).** Because the
+- **Light is a no-op for the palette, NOT for Fluent's base controls.** Because the
   Light dict equals Dark this phase, palette-painted surfaces are identical across variants. But the
   **`FluentTheme` is independently variant-aware**: its own un-classed base controls (a raw `Button`,
   `TabItem` foreground, `ComboBox`/`TextBox`/`CheckBox`/`ScrollBar` chrome) flip to Fluent's **light**
   rendering when the variant is Light, so `--theme Light` is **not** a full visual no-op (8/9 variants
   differ from Dark; only `framelist`, which has no un-classed Fluent controls, is identical). Observed:
   in this headless env `ThemeVariant.Default` resolves to **Light**, so the app's un-classed Fluent chrome
-  already follows the variant today (a pre-existing condition, unchanged by L0b). **Consequence for L0c:**
-  the plan's "Light stub = pure visual no-op" holds for the palette but not for Fluent chrome. Selecting
-  Light today yields a half-light look until L1 authors the real light palette (and decides whether
-  un-classed Fluent controls should be dark-pinned or embraced as light).
+  already follows the variant today (a pre-existing condition, unchanged by the restructure).
+  **Consequence for wiring the variant up:** the plan's "Light stub = pure visual no-op" holds for the
+  palette but not for Fluent chrome. Selecting
+  Light today yields a half-light look until the real light palette lands, which also decides whether
+  un-classed Fluent controls should be dark-pinned or embraced as light.
 - **What the gate proves.** The load-bearing completeness proof is the **grep** (zero `{StaticResource
   paletteKey}` remain; all 570 palette refs are Dynamic; the 3 non-palette DataTemplate keys stay Static).
   The **Dark `cmp -s`** proves no value regression. `Light == Dark` was **not** used as proof of the
-  dynamic path (L0a already proved that with a garish stub); the FluentTheme divergence above is why an
+  dynamic path (an earlier garish stub already proved that); the FluentTheme divergence above is why an
   identical-stub `Light` still differs from `Dark`.
 
-_Superseded finding (P3.3): "the app is dark-only in practice … theme-awareness is aspirational, not
-live." As of L0b the token layer is live-capable; **L0c** wires `AppSettings.Theme` →
-`Application.RequestedThemeVariant`, and **L1 (below) ships the real Light palette**._
+_Superseded finding: "the app is dark-only in practice … theme-awareness is aspirational, not
+live." The token layer is live-capable, the theme wiring from `AppSettings.Theme` →
+`Application.RequestedThemeVariant` landed, and **the real Light palette shipped** (below)._
 
-<a id="light-palette-design-l1"></a>
-### Light palette design (L1, 2026-07-16)
+<a id="light-palette-design"></a>
+### Light palette design (2026-07-16)
 The `ThemeDictionaries[Light]` block is a **genuinely-designed** comfortable light variant, **NOT** a naive
 inversion. Only the `[Light]` dict was edited (`[Dark]` is untouched and renders **byte-identical**, 9/9
 `cmp -s`). **54 tokens re-authored, 44 held identical to Dark.** Design rules:
@@ -94,31 +95,32 @@ inversion. Only the `[Light]` dict was edited (`[Dark]` is untouched and renders
    `DeltaRowBg` (unused in live markup) is an amber tint that reads as a warm wash on both.
    > Verified in-render: `library-populated` at Light shows the white-on-thumbnail overlays + CT/T score
    > badges **fully legible** over the dark radar images, the theme-independent call is correct.
-   > **Flagged (unsure):** the hex swatches over now-**dark** hex-cell text aren't in the L1 capture set
-   > (`BinaryPane` isn't a variant); verify that pairing in-app at L2/L3.
-2. **L1-DEFERRED: the 29 `Pb2d*` 2D-HUD tokens.** *Not* theme-independent (a `Pb2d*`-lit tab could go
+   > **Flagged (unsure):** the hex swatches over now-**dark** hex-cell text aren't in the capture set
+   > (`BinaryPane` isn't a variant); verify that pairing in-app later.
+2. **DEFERRED: the 29 `Pb2d*` 2D-HUD tokens.** *Not* theme-independent (a `Pb2d*`-lit tab could go
    light) but deliberately kept dark: the 2D Playback tab wraps a still-dark **Skia** viewport
-   (`Playback2DViewport.cs`, code-held). Lightening only the `Pb2d*` markup chrome now would make the tab a
-   light HUD around a dark map canvas (an incoherent half-tab). Kept a **coherent dark island** and re-themed
-   **together with the Skia viewport in L2**.
-3. **Code-held, not palette (out of L1 by definition).** The message-type accent classifiers
+   (code-held, in the pre-v2 renderer). Lightening only the `Pb2d*` markup chrome now would make the tab a
+   light HUD around a dark map canvas (an incoherent half-tab). Kept a **coherent dark island**, to be
+   re-themed **together with the Skia viewport**.
+3. **Code-held, not palette (out of the palette pass by definition).** The message-type accent classifiers
    (`HarvestCardViewModel.HeaderBg`/`SelectedHeaderBg`/`AccentBrush`), the RuleWorkbench syntax highlighting
    (`WorkbenchYamlHighlighting`), the 2D Skia colors, and the **depth ramp + 0xC0-alpha depth brushes**
-   (`MainViewModel.DepthBrushes` / `DepthHighlightConverter`, code-owned, **not** palette keys) stay dark in
-   L1. That is L2. **Known L1 rough edge:** the InspectorCard message-card **header** uses the code-held-dark
-   `HeaderBg`, so under Light its title (`TextCardHeader`, now dark) is **dark-on-dark / low-contrast** until
-   L2 makes `HeaderBg` theme-aware. `TextCardHeader` **must** stay dark (it also paints the light
-   `PlayerDetailsView` hero-tile values), so this is unfixable in the palette. It *is* the L2 "VM accent
-   classifiers (HarvestCard)" task. The `tables` Dark-vs-Light comparison render shows this exactly.
+   (`MainViewModel.DepthBrushes` / `DepthHighlightConverter`, code-owned, **not** palette keys) stayed dark
+   through it; re-theming them is separate work. **Known rough edge:** the InspectorCard message-card
+   **header** uses the code-held-dark `HeaderBg`, so under Light its title (`TextCardHeader`, now dark)
+   is **dark-on-dark / low-contrast** until
+   `HeaderBg` becomes theme-aware. `TextCardHeader` **must** stay dark (it also paints the light
+   `PlayerDetailsView` hero-tile values), so this is unfixable in the palette. It is covered by the
+   HarvestCard VM accent-classifier work. The `tables` Dark-vs-Light comparison render shows this exactly.
 
 **Rendered for sign-off:** all 9 variants at `--theme Light` (read + iterated) + 6 labeled Dark-vs-Light
 comparison PNGs (`primitives`, `chrome`, `tables`, `settings`, `library-populated`, `workbench`) under
 `%TEMP%/demoviewer-uitests/`-style paths. **Gate:** full `slnx -c Release` clean (analyzers-as-errors; WASM
 head compiles); render App.Tests **94/94** green at Default→Light (all keys resolve, no magenta). NOTE: those
 render assertions are floor-based (`nonBg > N`) so they pass under either variant but no longer validate the
-canonical Dark look. L3 should pin the render harness to `ThemeVariant.Dark`.
+canonical Dark look. The render harness should be pinned to `ThemeVariant.Dark`.
 
-**Capture-infra note (L1):** `UiCapture/CaptureHost` now sets `Application.Current.RequestedThemeVariant`
+**Capture-infra note:** `UiCapture/CaptureHost` now sets `Application.Current.RequestedThemeVariant`
 (not just the window) before building a variant, so code-built mock variants whose helpers resolve via
 `Application.Current.ActualThemeVariant` (`Tok()`/`WrapInShell` in `Variants.cs`) honor `--theme` too.
 Without it, `--theme Dark` on those 4 mocks (`primitives`/`chrome`/`tables`/`swatches`) pulled the
@@ -126,23 +128,23 @@ Default→Light dict and diverged from the Dark baseline (a harness artifact, no
 
 Foundation: **dark-only** `FluentTheme`; ~71 semantic brush tokens in `Styles/DarkPalette.axaml`; the
 shared design-system style files **`Styles/Primitives.axaml` · `Cards.axaml` · `Tables.axaml` ·
-`Chrome.axaml`** (P1.3, replaced the old 2-rule `Styles/Components.axaml`, now removed); strong shared
+`Chrome.axaml`** (replaced the old 2-rule `Styles/Components.axaml`, now removed); strong shared
 controls (`InspectorCard`, `KeyValueTable`, `NavStrip`, `BinaryPane`). WASM/browser head is a **hard
 constraint**: no filesystem/native-dialog/thread/native-menu assumptions without an overlay/in-window
 fallback.
 
-### Styles/ file layout (P1.3 foundation)
+### Styles/ file layout (foundation)
 Loaded by `App.axaml` **after** `FluentTheme` (so these are additive layers, never template replacements):
 | File | Holds | Selector kinds |
 |---|---|---|
-| `Styles/DarkPalette.axaml` | Color tokens, keyed by `ThemeVariant` in `ResourceDictionary.ThemeDictionaries` (`Dark` canonical + a real designed `Light`, L1, see [Light palette design](#light-palette-design-l1)), merged into `App.Resources`. | `SolidColorBrush` keys (+ one `LinearGradientBrush`, `LibraryCardScrim`, P3.3) in each variant dict |
+| `Styles/DarkPalette.axaml` | Color tokens, keyed by `ThemeVariant` in `ResourceDictionary.ThemeDictionaries` (`Dark` canonical + a real designed `Light`, see [Light palette design](#light-palette-design)), merged into `App.Resources`. | `SolidColorBrush` keys (+ one `LinearGradientBrush`, `LibraryCardScrim`) in each variant dict |
 | `Styles/Primitives.axaml` | Interactive-control classes: Button/ToggleButton/TabItem/TextBox/ComboBox. | `.primary` `.ghost` `.chip` `.nav-btn` `.bp-btn` `.icon-btn` `.ctx-action` `.shell-tab` `.mono` `.field` |
 | `Styles/Cards.axaml` | Reusable card/flyout **surfaces**. | `Border.card` `Border.card-flyout` |
 | `Styles/Tables.axaml` | List/tabular primitives. | `ListBox.data-list` `ListBox.card-grid` `TextBlock.col-label` |
 | `Styles/Chrome.axaml` | Shell/section furniture. | `Border.sectionHeader` `TextBlock.sectionLabel` `TextBlock.group-label` `Border.badge` `Rectangle.divider` |
 | `Styles/Stats.axaml` | The stats component library's theme layer (v0.8.1): default property values for the four drawn controls, `ControlTheme`s for the two templated ones, and the table-furniture classes. | `stats\|StatValue` (+`.untracked` `.chip`) `stats\|SegmentedBar` (+`.compact`) `stats\|Sparkline` `stats\|RingGauge` `stats\|DivergingBar` `stats\|PipStrip` (+`.good` `.rare`) · `Button.stat-col-header` `TextBlock.stat-sort-caret` `Border.stat-group-header` `TextBlock.stat-group-label` |
 
-**Design decision (P1.3):** these are **additive style classes**, NOT template-replacing
+**Design decision:** these are **additive style classes**, NOT template-replacing
 `ControlTheme`s. A full `<ControlTheme TargetType="Button">` would swap the Fluent template globally and
 risk regressing every un-classed control; instead each class overrides only the setters that give a
 role. **Dark Fluent stays the conservative base look.** This also matches the repo's existing pattern
@@ -157,8 +159,8 @@ currently stay green precisely because nothing leaks onto un-classed controls.
 Single source of truth for color. **Never inline hex in a view**: bind `{DynamicResource TokenName}`
 (Dynamic, not Static, so the token tracks the `ThemeVariant`; see the Theming model above). The Dark
 palette is a cool blue-purple dark ramp (shell near-black `#080816` → text near-white `#C0C0F0`); the
-`Light` variant (L1) is a real designed light palette: cool-neutral surfaces + a value-flipped text ramp,
-44 tokens held identical to Dark (see [Light palette design](#light-palette-design-l1)).
+`Light` variant is a real designed light palette: cool-neutral surfaces + a value-flipped text ramp,
+44 tokens held identical to Dark (see [Light palette design](#light-palette-design)).
 
 ### Naming policy
 (Supersedes the "UI v2 review §6" note in `DarkPalette.axaml`.)
@@ -187,9 +189,9 @@ palette is a cool blue-purple dark ramp (shell near-black `#080816` → text nea
 | `CardBg` | `#171726` | Card/flyout surface (`InspectorCard`, bookmark & filter flyouts, frame readout pill). |
 | `PrimaryButtonBg` | `#1A1A38` | Filled "primary" button face (Debugger panel Add/Continue). |
 | `ChainSummaryBadgeBg` | `#1A1A3A` | Parse-chain summary badge. |
-| `FrameRowSelectedBg` | `#1C1C38` | Parser frame-list **selected** row fill. Near-dup of `PrimaryButtonBg` (unify candidate); kept exact for pixel-identity (P3.4). |
-| `FrameRowHoverBg` | `#12122A` | Parser frame-list **hover** row fill. Near-dup of `PanelHeaderHover`/`Deep` (unify candidate); exact for pixel-identity (P3.4). |
-| `FrameMsgBadgeBg` | `#16162E` | Parser frame-list message-count badge pill. Near-dup of `PanelHeaderHoverDeep` (unify candidate); exact (P3.4). |
+| `FrameRowSelectedBg` | `#1C1C38` | Parser frame-list **selected** row fill. Near-dup of `PrimaryButtonBg` (unify candidate); kept exact for pixel-identity. |
+| `FrameRowHoverBg` | `#12122A` | Parser frame-list **hover** row fill. Near-dup of `PanelHeaderHover`/`Deep` (unify candidate); exact for pixel-identity. |
+| `FrameMsgBadgeBg` | `#16162E` | Parser frame-list message-count badge pill. Near-dup of `PanelHeaderHoverDeep` (unify candidate); exact. |
 
 ### Borders / dividers
 | Token | Hex | Role |
@@ -200,7 +202,7 @@ palette is a cool blue-purple dark ramp (shell near-black `#080816` → text nea
 | `HexBannerBorder` | `#252548` | Hex banner edges. |
 | `BorderAccent` | `#252545` | Card outer border (`InspectorCard`). |
 | `PrimaryButtonBorder` | `#2A2A54` | Primary button border. |
-| `BorderTranslucent` | `#33FFFFFF` | Translucent white hairline: the **RuleWorkbench pane outlines** (7×). A deliberate fork from the blue-purple border ramp. **Value coincides with `Pb2dKillFeedBorder`** (a walled-off 2D-HUD domain token), **not** reused across the domain boundary (P3.3). |
+| `BorderTranslucent` | `#33FFFFFF` | Translucent white hairline: the **RuleWorkbench pane outlines** (7×). A deliberate fork from the blue-purple border ramp. **Value coincides with `Pb2dKillFeedBorder`** (a walled-off 2D-HUD domain token), **not** reused across the domain boundary. |
 
 ### Text ramp (dim → bright; cool blue-purple)
 Use the **dim** end for labels/metadata, the **bright** end for primary values. Common picks in bold.
@@ -218,7 +220,7 @@ Use the **dim** end for labels/metadata, the **bright** end for primary values. 
 | `TextMid` | `#7878A8` | **Default body text; `nav-btn` foreground.** |
 | `TextHexBanner` | `#8080B8` | Hex banner text. |
 | `TextHeaderHex` | `#9090C8` | Header hex value. |
-| `TextFrameType` | `#9090C0` | Parser frame-list full type-name text. Near-dup of `TextHeaderHex` (unify candidate); exact for pixel-identity (P3.4). |
+| `TextFrameType` | `#9090C0` | Parser frame-list full type-name text. Near-dup of `TextHeaderHex` (unify candidate); exact for pixel-identity. |
 | `TextEntityFieldVal` | `#9898C8` | Entity field values; KeyValueTable value. |
 | `TextBright` | `#A0A0D8` | **Emphasis text; breakpoint rows; frame-input.** |
 | `TextFieldName` | `#A8A8D8` | Card field names. |
@@ -236,8 +238,8 @@ Use the **dim** end for labels/metadata, the **bright** end for primary values. 
 | `AccentAmberOpaque` | `#FFFFC107` | Opaque amber variant. |
 | `DeltaRowBg` | `#25FFC107` | Amber-tinted delta-row background (12% alpha). |
 | `AccentError` | `#E53935` | Errors (tracker/decode error text). |
-| `AccentErrorSoft` | `#E57373` | Softer error red for secondary error text: RuleWorkbench diagnostic `file:line` location (P3.3). |
-| `AccentCaution` | `#E0A030` | Muted caution gold: RuleWorkbench "shipped, read-only (use Save As)" indicator. Distinct from brighter `AccentAmber`. **Value coincides with `Pb2dTeamT`** (2D-HUD domain), **not** reused across the boundary (P3.3). |
+| `AccentErrorSoft` | `#E57373` | Softer error red for secondary error text: RuleWorkbench diagnostic `file:line` location. |
+| `AccentCaution` | `#E0A030` | Muted caution gold: RuleWorkbench "shipped, read-only (use Save As)" indicator. Distinct from brighter `AccentAmber`. **Value coincides with `Pb2dTeamT`** (2D-HUD domain), **not** reused across the boundary. |
 | `StatPositive` | `#4CAF50` | Strong-good end of the stat heat ramp; matches depth-2 green. |
 | `StatPositiveSoft` | `#5FA894` | Mild-good tier of the ramp (teal). |
 | `StatNegativeSoft` | `#D98A3F` | Mild-bad tier (amber, **not** a desaturated red: the two bad tiers must differ in lightness too). |
@@ -252,12 +254,12 @@ Use the **dim** end for labels/metadata, the **bright** end for primary values. 
 `HexSwatchAncestor` `#55C07C28` (ancestor).
 
 <a id="playback2d-palette"></a>
-### Playback2D palette (`Pb2d*` prefix, P3.3a)
+### Playback2D palette (`Pb2d*` prefix)
 The **2D Playback** tab reads like a game radar/HUD, **not** the parser dev-tool. It deliberately uses
 its own **cool-grey HUD text ramp** + **game-semantic status colors**, distinct from the app's
 blue-purple chrome ramp above. **Key finding:** *no* Playback2D value coincides (exact hex, alpha
 included) with an existing app token, e.g. app `TextOnAccent #12121E` ≠ Playback2D on-team-chip
-`Pb2dTextOnTeam #101418`. So P3.3a **reused 0 existing tokens and added 29**: that is correct (a
+`Pb2dTextOnTeam #101418`. So this pass **reused 0 existing tokens and added 29**: that is correct (a
 distinct domain palette), not a duplication miss. All are prefixed `Pb2d`; the chrome/domain split
 below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 
@@ -275,8 +277,8 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 `Pb2dFlashAssist` `#B66CD8`, `Pb2dAssist` `#5BC0BE`, `Pb2dDefuser` `#E0C040`, `Pb2dBomb` `#E08040`,
 `Pb2dAdr` `#E0A878`, `Pb2dDefuseTime` `#5AB0E0`, `Pb2dMapApprox` `#C0A060`.
 
-> **Scope + follow-up (P3.3a).** Only `Views/Playback2D/Playback2DView.axaml` was de-inlined
-> (67 bare-inline markup literals → tokens). The Skia renderer `Modules/Playback2D/Playback2DViewport.cs`
+> **Scope + follow-up.** Only `Views/Playback2D/Playback2DView.axaml` was de-inlined
+> (67 bare-inline markup literals → tokens). The then-current Skia renderer under `Modules/Playback2D/`
 > (~34 hex) and the `PlayerAttributes.TeamColor` VM (3 hex) **keep** their colors: they already hold them
 > as **named `static readonly` brushes/pens** and a named property (already centralized, not bare-inline);
 > converting Skia static-init `Color.Parse` fields to `FindResource` is init-order/WASM-fragile and would
@@ -285,8 +287,8 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 > **and** `PlayerAttributes.TeamColor`: the token is the canonical value the copies match **exactly**;
 > because the tokens are app-level (not `UserControl.Resources`), a later pass can reference them from the
 > renderer/VM to collapse the triplication. Same for viewport-bg/grid/label. **Verified no-op:** every
-> token's hex == its original literal (value-equivalence table) **and** `Playback2DHeadlessSmokeTests`
-> instantiates the real `Playback2DView` with a synthetic VM (no demo) → all `Pb2d*` `{StaticResource}`
+> token's hex == its original literal (value-equivalence table) **and** the App's headless smoke suite
+> instantiated the real `Playback2DView` with a synthetic VM (no demo) → all `Pb2d*` `{StaticResource}`
 > keys resolve at control-load; the rendered frame is correct (team chips / HP-green / grey HUD ramp).
 >
 > **Follow-up CLOSED (recorded v0.6.0):** the "keep their colors" state and the triplication described
@@ -294,18 +296,19 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 > (`BuildPalette` + `ActualThemeVariantChanged`; the remaining hex are fallbacks) and a follow-up deleted
 > `PlayerAttributes.TeamColor`. The correction block below covers the theme-reactivity half.
 
-> **Correction (CSVG Phase-3, 2026-07-18): the `Pb2d*` palette is now fully THEME-REACTIVE: L2 has
-> shipped; the "kept dark in every theme" / `{StaticResource}` phrasing above is stale.** The `[Light]`
+> **Correction (2026-07-18): the `Pb2d*` palette is now fully THEME-REACTIVE: the deferred 2D re-theme
+> has shipped; the "kept dark in every theme" / `{StaticResource}` phrasing above is stale.** The `[Light]`
 > `ThemeDictionaries` block re-authors the 2D tokens (`Pb2dOverlayBg #CC15181C→#E6EDEFF3`, `Pb2dTextBright
 > #C0C8D0→#363D47`, `Pb2dPositive #86C786→#2A7530`, `Pb2dCanvasBg #15181C→#E7E9ED`, …) and the Skia
-> viewport re-resolves them on `ActualThemeVariantChanged` (`Playback2DViewport.BuildPalette`). So the 2D
+> surface re-resolves them on `ActualThemeVariantChanged` (`Scene2DHost` via `ScenePaletteFactory.Build`). So the 2D
 > tab is a **dark island on dark, a light island on light**. Verified by rendering `playback2d-canvas`
-> (light) as a light grid and `playback2d-livesync-hud` (dark/light/high-contrast). Any doc line that says
+> (light) as a light canvas and `playback2d-livesync-hud` (dark/light/high-contrast). The canvas variant
+> mounts a bare host with no frame, so it shows the resolved `Pb2dCanvasBg` and no grid. Any doc line that says
 > a `Pb2d*` token is "held identical to Dark" is superseded by this.
 
 <a id="pb2d-hud-dot"></a>
-**`Ellipse.pb2dDot.*`: the walled-off HUD-dot styles (CSVG Phase-3, §5.3).** The 2D Playback tab's
-in-context CS2 live-sync indicator (`Views/Playback2D/Playback2DView.axaml`, top-right HUD stack above the
+**`Ellipse.pb2dDot.*`: the walled-off HUD-dot styles (CSVG design notes in git history, §5.3).**
+The 2D Playback tab's in-context CS2 live-sync indicator (`Views/Playback2D/Playback2DView.axaml`, top-right HUD stack above the
 kill feed) uses a **Pb2d-domain sibling of the app-chrome `Ellipse.dot.*`**: same bound-class→token
 mechanism, but resolving `Pb2d*` tokens so it stays in the walled-off HUD palette (D21), NOT the
 blue-purple chrome ramp. Defined in the view's local `UserControl.Styles` (a Pb2d-domain style belongs
@@ -317,11 +320,11 @@ pause), and a `.pulsing` opacity animation (Following = CS2 is the clock master)
 non-interactive** (the whole HUD stack is `IsHitTestVisible=False`). See decision D-CSVG3 below.
 
 <a id="librarycard-palette"></a>
-### Library card overlay palette (`LibraryCard*` prefix, P3.3)
+### Library card overlay palette (`LibraryCard*` prefix)
 The **Library** tab paints text / scrim / badges **over a baked radar THUMBNAIL**, so, like Playback2D,
 it needs a domain palette distinct from the app's blue-purple chrome ramp: a **white-on-image legibility
 ramp**, a **darkening scrim**, and **dark translucent badges**. **None of the 9 values coincide with an
-existing app token**, so P3.3 reused 0 and added 9 (correct, a distinct domain, not a duplication miss).
+existing app token**, so this pass reused 0 and added 9 (correct, a distinct domain, not a duplication miss).
 The card **title stays literal `White`** (the ramp's 100% top; not inline hex, so left as-is).
 
 **Scrim (1 composed brush):** `LibraryCardScrim`: a `LinearGradientBrush` (stops `#C805050F`@0 /
@@ -346,12 +349,12 @@ blue), `LibraryCardScoreT` `#F0B23C` (T gold).
 places that **must stay in sync**. Candidate for future promotion into the palette as an indexed
 resource; not done here.
 
-> **Token note (RESOLVED P1.3):** the `.primary`/`.ghost` button classes now live in `Primitives.axaml`
+> **Token note (RESOLVED):** the `.primary`/`.ghost` button classes now live in `Primitives.axaml`
 > bound to the existing `PrimaryButton*` / `TextMid` / `PanelHeaderHover` tokens. The DebuggerPanel no
 > longer hand-rolls `Button.primary` and the NavStrip no longer re-declares `.nav-btn`. **No new tokens
-> were required** for the entire P1.3 foundation: the palette already carried every color the promoted
+> were required** for the entire foundation: the palette already carried every color the promoted
 > looks needed (`PrimaryButton*`, `AccentAmber`, `TextFrameInfo`, `ChainSummaryBadgeBg`, `TextLabelAlt`,
-> `BorderSubtle`/`BorderStrong`). This is expected: P1.3 de-duplicated existing looks rather than
+> `BorderSubtle`/`BorderStrong`). This is expected: the foundation de-duplicated existing looks rather than
 > inventing new ones. Adding a token remains the same process (right group + semantic name + role note).
 
 ---
@@ -844,8 +847,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   a `TextMid` ✕), `.caution` swaps the border for `AccentCaution`. The zip warning also lands in the row's issue text.
 
 ### Strat routes on the canvas (the Strats canvas, the Detected preview, a strat export)
-- **Files:** `AddRoutes` in `Playback2D.Pipeline/Frames/StratFrameSource.cs`, `DrawRoute` in
-  `Playback2D.Core/Layers/MarkerLayer.cs`, `Playback2D.Scene/TokenRouteLine.cs`, `ScenePalette.RouteT`/`RouteCt`.
+- **Files:** `AddRoutes` in `Extensions/StratBook/.../Playback2D/Frames/StratFrameSource.cs`, `DrawRoute` in
+  `Playback2D.Pipeline/Layers/MarkerLayer.cs`, `Playback2D.Scene/TokenRouteLine.cs`, `ScenePalette.RouteT`/`RouteCt`.
 - **What:** while a token moves, a line from where it is through each corner of the move to where it stops: its way
   ahead, so a viewer reads which way round a wall it goes. Gone on arrival, at a hold, and before a run starts (a
   step's hold). Only when the tracks are routed (`stratbook.routing` on and the map's nav in memory); off draws
@@ -862,8 +865,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
 ### Review mode (2D Playback)
 - **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the toolbar's mode toggles, the right column's rows
-  and the panel host), `Extensions/ModeToggle.cs` (a contributed mode: label, tooltip, keymap action, on/off),
-  `Modules/Playback2D/Timeline/ILaneBehaviour.cs` (a contributed lane's handlers and its handle),
+  and the panel host), `src/Sdk/DemoViewer.NET.Extensions.Sdk/Playback/ModeToggle.cs` (a contributed mode: label,
+  tooltip, keymap action, on/off), `Modules/Playback2D/Timeline/IHostLaneBehaviour.cs` (a contributed lane's
+  handlers and its handle),
   `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs` (the mode, the lanes, the
   session, the panels and their behaviour), `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/RoundTagger/ReviewPanelView.axaml` (toggle,
   editor, Labels list), `Views/RoundTagger/TagEditorView.axaml`, `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`,
@@ -945,9 +949,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
 ### NavStrip
 - **File:** `Controls/NavStrip.axaml` (+ `.axaml.cs`). **DataContext:** `MainViewModel` (shell).
-- **Purpose:** the single shell navigation surface (navigation-review **Option 1**, Phase C),
-  rendered **once** as a docked row in `MainView`. Three groups in a **responsive `DockPanel`** (P3.1,
-  see [Responsive layout](#navstrip-responsive) below):
+- **Purpose:** the single shell navigation surface (navigation-review **Option 1**),
+  rendered **once** as a docked row in `MainView`. Three groups in a **responsive `DockPanel`**
+  (see [Responsive layout](#navstrip-responsive) below):
   1. **CLOCK**: `◀` frame · editable `frame N / MAX · tick T` readout pill · `▶` · play/pause
      ToggleButton · speed ComboBox. Movement is **frame-index based**; tick is a read-only label
      (locked decision).
@@ -959,21 +963,21 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   3. **BREAKPOINT (`TO BREAKPOINT`)**: `▶▶` continue / `▶|` step-tick / `▶||` step-round, amber
      (`bp-btn`), **distinct** commands + `HasFile`/`CanDebugStep` gates. Kept visually separate on
      purpose (see [breakpoint coherence](#3-the-three-breakpoint-surfaces)).
-- **Style classes (PROMOTED to the design system in P1.3):** `Button.nav-btn`, `Button.bp-btn`,
+- **Style classes (PROMOTED to the design system):** `Button.nav-btn`, `Button.bp-btn`,
   `Button.ctx-action` now live in `Primitives.axaml`; `TextBlock.group-label` in `Chrome.axaml`. NavStrip
-  keeps only `CheckBox.event-filter` locally (the sole CheckBox styling; CheckBox is not a P1.3
+  keeps only `CheckBox.event-filter` locally (the sole CheckBox styling; CheckBox is not a shared
   primitive). Render verified byte-identical (default state) after the move (`navstrip-real`, nonBg
   2871); the moved `:pointerover` setters are still added after FluentTheme, so hover state is unchanged
   too (not separately captured).
 - **Gating:** whole strip `IsVisible="{Binding HasFile}"`. The BREAKPOINT sub-group is a **dev/power**
-  concern (see visibility matrix), gated as a unit by `IsBreakpointNavEnabled` (`chrome.breakpointNav`,
-  P1.2 chunk B-ii). The responsive right-dock (P3.1) and the gate **compose**: an invisible right-docked
+  concern (see visibility matrix), gated as a unit by `IsBreakpointNavEnabled` (`chrome.breakpointNav`).
+  The responsive right-dock and the gate **compose**: an invisible right-docked
   child reserves no `DockPanel` space, so gating the cluster off simply reflows the JUMP fill to full
   width (no dangling gap).
-- <a id="navstrip-responsive"></a>**Responsive layout (P3.1):** the outer
+- <a id="navstrip-responsive"></a>**Responsive layout:** the outer
   container is a **`DockPanel`**, not a non-wrapping `StackPanel`. **CLOCK** is pinned `Dock="Left"`
   (playback always reachable); the amber **TO-BREAKPOINT** cluster is pinned `Dock="Right"` so it can
-  **never clip**: the P0.3 defect (previously the trailing amber buttons clipped off the right edge,
+  **never clip**: the defect this fixed (previously the trailing amber buttons clipped off the right edge,
   verified 880/1050/1300). **JUMP** fills the middle inside a horizontal `ScrollViewer`
   (`HorizontalScrollBarVisibility="Auto"`) so the semantic-nav buttons **scroll rather than clip** when
   the strip is genuinely too narrow. Everything fits with no scrollbar at ≥~940px; below that only the
@@ -1009,7 +1013,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
     `BorderSubtle` dividers; chevrons are `Button.nav-btn`; the chip is `Button.ghost` (`TextBright`
     summary + `TextDim ▾`), `MaxWidth=128 + TextTrimming` so a long CS2 name can't blow out the strip.
     The dropdown reuses `Border.card-flyout` / `.ctx-action` / `.col-label` / `CheckBox.event-filter`
-    (no new tokens or classes). CLOCK + amber TO-BREAKPOINT + the `IsBreakpointNavEnabled` gate + the P3.1
+    (no new tokens or classes). CLOCK + amber TO-BREAKPOINT + the `IsBreakpointNavEnabled` gate + the
     responsive DockPanel are **unchanged** (only the JUMP fill swapped to SEEK/EVENT).
   - **Narrow behavior: improved by the consolidation.** The single event stepper (~200px) is far
     narrower than the old 6-button JUMP (~280px), so at **820px the whole EVENT stepper fits with room to
@@ -1037,7 +1041,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
     the text is the substrate, the icon is the enhancement.
 
 <a id="timelinecontrol"></a>
-### TimelineControl: the 2D playback timeline (Playback2D v2, phase A1)
+### TimelineControl: the 2D playback timeline (Playback2D v2)
 - **Files:** `Views/Playback2D/TimelineControl.axaml(.cs)`. **DataContext:**
   `Modules/Playback2D/Timeline/Playback2DTimelineViewModel`. Docked as an `Auto` row under the viewport
   in `Playback2DView.axaml`'s left cell; the viewport keeps the `*` row.
@@ -1051,7 +1055,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
      cursor.
      - **A right press is the band's menu, and it never seeks.** The control builds a `ContextMenu` from
        `Playback2DTimelineViewModel.MenuFor(band)`: the entries of the lane that made the band, from its
-       `ILaneBehaviour.MenuFor` (edit, delete, review on a tag or suggestion band, Review mode only), then
+       `IHostLaneBehaviour.MenuFor` (edit, delete, review on a tag or suggestion band, Review mode only), then
        the `BandMenus` contributors in order, whatever the extension packs attached through
        `IPlaybackSurface.AddBandMenu` (Create Strat From Round on a round band, while the Strat Book pack
        is on). No entries, no menu. The control holds no entry text of its own; a new entry is a lane's or
@@ -1063,12 +1067,12 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   3. **Footer (26 px).** The current round label, `frame N / M · tick T`, the hover readout, the follow
      status, the speed-lock note, the `Status` readout **moved here from the floating bottom-left
      overlay**, and one `CheckBox` per available track.
-     - **26 px, not 18 (changed in D5).** A stock Fluent `CheckBox` cannot be made to fit an 18 px row:
+     - **26 px, not 18.** A stock Fluent `CheckBox` cannot be made to fit an 18 px row:
        its template hangs the 20×20 check box inside a `Grid` with a hard-coded `Height="32"`,
        top-aligned, which pins the box to **y = 6..26** of that band. A template part's `Height` is a
        *local* value, so it outranks a style setter and `MinHeight="0"` on the `CheckBox` cannot compress
        it. Measured, the box hung 8 px below the row, through the panel's own bottom padding and out of
-       the control, where the window edge cut it off ("the toggles are partially hidden", D5 item 5.2).
+       the control, where the window edge cut it off ("the toggles are partially hidden").
        26 px is the box's exact extent. `Padding="4,6,0,0"` on the `CheckBox` re-centres the LABEL on the
        box: `Padding` is the Fluent template's content *margin*, and the box is centred on that 32 px
        band rather than on the row.
@@ -1087,8 +1091,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
        remaining-space measure becomes their drop order, each taking its natural width if there is room
        and ellipsizing (`TextTrimming="CharacterEllipsis"` on all of them now, not just `Status`) into
        what is left if there is not. This is the shape D35's
-       "[responsive horizontal strips MUST wrap or scroll](#responsive-strip)" prescribes and P3.1 already
-       applied to the NavStrip. **Reordering the `ItemsControl` below the readouts silently restores the
+       "[responsive horizontal strips MUST wrap or scroll](#responsive-strip)" prescribes and the NavStrip
+       already applied. **Reordering the `ItemsControl` below the readouts silently restores the
        bug.**
 - **Marker colour is the TRACK's to decide, and a track may not reach for a brush.**
   `TimelineMarker.Argb == 0` means "host, use the kind default", and `BrushForMarker` honours any non-zero
@@ -1127,9 +1131,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
 <a id="playback2d-hud-corners"></a>
 <a id="playback2d-viewport-chrome"></a>
-### The 2D viewport's chrome: what is docked, what floats, who owns which pixels (Playback2D v2, A4/B2/B3/B4, **restructured by D4**)
+### The 2D viewport's chrome: what is docked, what floats, who owns which pixels (Playback2D v2, **restructured 2026-08-25**)
 
-> **Superseded (D4, 2026-08-25).** Until D4 this section allocated four *corners* of one canvas cell,
+> **Superseded (2026-08-25).** Until that restructure this section allocated four *corners* of one canvas cell,
 > because every toolbar floated over the map. The corner allocation is gone: the persistent chrome is
 > **docked in its own `Auto` grid row** and the canvas cell now holds three small, mode-scoped widgets and
 > nothing else. The rules the corner contract existed to enforce did not go away (they moved down a
@@ -1156,9 +1160,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 |---|---|---|---|
 | **Top edge** | `ViewportToolbar`: `ChromeHeader`, then `OverlayToggles`, then `AnnotationToolbarHost` | 0 (`Auto`) | yes |
 | **Canvas top-left** | `ChromeRestoreButton`, 26×17, present **only** while the toolbar is collapsed | 1 | yes |
-| **Canvas top-right** | `HudStack`: live-sync dot ([`Ellipse.pb2dDot`](#pb2d-hud-dot)) over the A4 kill feed | 1 | **no** (`IsHitTestVisible=False`) |
+| **Canvas top-right** | `HudStack`: live-sync dot ([`Ellipse.pb2dDot`](#pb2d-hud-dot)) over the kill feed | 1 | **no** (`IsHitTestVisible=False`) |
 | **Canvas bottom-left** | `TransportBar`: camera-mode `SplitButton`, mode label, kill nav | 1 | yes |
-| **Canvas right centre** | `LevelStrip` (B3), vertical margins clearing the kill feed and the transport bar | 1 | yes |
+| **Canvas right centre** | `LevelStrip`, vertical margins clearing the kill feed and the transport bar | 1 | yes |
 | **Canvas right edge, full height** | The side panes: the export pane and the contributed side pane (`Surface.SidePane`), 360 px, `Pb2dPanelBg` over a `Pb2dGridSplitter` hairline, a `Close` button in their footer. One shows at a time: opening either closes the other. | 1 | yes |
 | **Bottom edge** | [`TimelineControl`](#timelinecontrol): its own `Auto` grid row | 2 | yes |
 
@@ -1195,10 +1199,10 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **The docked stack is ordered ALWAYS-PRESENT → OPTIONAL → GATED, top down, and that order is the
   contract.** A member may only ever move what is *below* it, so neither the `playback2d.annotations` gate
   nor the overlay-bar toggle can shove the header's own controls around. This is the same rule the old
-  corner contract stated for its top-left stack, and it exists for the same reason: B2 mounted the
-  annotation toolbar in a corner A4's strip already owned and covered its whole tool row (485×40 px),
+  corner contract stated for its top-left stack, and it exists for the same reason: the annotations work mounted the
+  annotation toolbar in a corner the kill-feed strip already owned and covered its whole tool row (485×40 px),
   leaving Pan/Draw/Erase unclickable.
-- **The header's right-hand cluster is `Dock="Right"` and declared FIRST**, which is D5's timeline-footer
+- **The header's right-hand cluster is `Dock="Right"` and declared FIRST**, which is the timeline footer's
   reservation trick: a `DockPanel` measures each child against what is still unclaimed, so declaring first
   makes the reservation structural. `Export video…` lives there rather than floating bottom-right. It is a
   viewport-level command and that corner is canvas now.
@@ -1247,8 +1251,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   standalone; the panel seeds itself with `Playback2DKeymapProfile.Default`, so an unpushed panel still
   shows the shipped gestures instead of blanks.
 - **`ColorPicker` needs its own control theme.** `FluentTheme` does not carry it (it ships in the
-  `Avalonia.Controls.ColorPicker` package), so both annotation ink pickers were **templateless** from B2
-  until D4: 46×24 of nothing that painted no swatch and took no click. `App.axaml` now includes
+  `Avalonia.Controls.ColorPicker` package), so both annotation ink pickers were **templateless** until the
+  package include below landed: 46×24 of nothing that painted no swatch and took no click. `App.axaml` now includes
   `avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml` beside the AvaloniaEdit include, which
   is there for the identical reason. The pickers' hard-coded `Width`/`Height` went with it: they were
   authored against a control that rendered nothing, and the real template's 32 px drop-down button hung 4 px
@@ -1294,7 +1298,7 @@ never listed in this table and still are not. The keybind settings list groups a
 Strat Book extension's master switch is off.
 
 <a id="playback2d-keybind-profile"></a>
-#### The gestures are configurable (D1): `Playback2DKeymapProfile`
+#### The gestures are configurable: `Playback2DKeymapProfile`
 The table above stays static, stays conflict-checked, and **still throws**: it is a compile-time contract
 and a collision in it is a bug. What a running tab actually routes is a `Playback2DKeymapProfile`: that
 table with `Playback2DSettings.KeybindOverrides` composed over it. **The two types exist separately
@@ -1344,19 +1348,19 @@ therefore validates, **drops, and reports** instead. `FromOverrides(rows, out re
 |---|---|---|---|
 | `Space` | Always | Play / pause | **Unless a drawing tool is active**; see the row below. |
 | `Space` (held) | WhenToolActive | Temporary pan | Shadows play/pause while `Draw`/`Erase` is selected, and a tap does **not** toggle playback: every pan would otherwise start by un-pausing the demo under the user's pen. |
-| `←` / `→` | Always | Step one frame | Owned by the transport, not by the player-card `ItemsControl`. The cards became selectable in A1, and the tunnelling handler is what keeps arrows from being silently swallowed. |
+| `←` / `→` | Always | Step one frame | Owned by the transport, not by the player-card `ItemsControl`. The cards became selectable, and the tunnelling handler is what keeps arrows from being silently swallowed. |
 | `↑` / `↓` | Always | Speed ladder `0.25 · 0.5 · 1 · 2 · 4 · 8` | Inert (with a footer note) while Live Sync pins the speed. A refused key is still CONSUMED, so it cannot fall through to the card list. |
 | `Q` / `E` | Always | Previous / next round | Rounds open at `round_freeze_end`, not `round_start`. |
 | `Shift+Q` / `Shift+E` | Always | Previous / next kill | |
 | `F` / `Shift+F` | Always | Cycle the follow target | |
 | `D` | Always | Draw tool (press again for pan) | |
-| `X` | Always | **Erase** tool (press again for pan) | **Not `E`.** Design §7.5 assigned `E` to both round-nav and erase; the keybind audit resolved it in favour of round nav (market parity), and erase pairs coherently with `Ctrl+X` below. B5 D1. The values are pinned by `Playback2DKeymapTests`; that the two never collide again, whatever keys they carry, by `Playback2DKeybindConflictTests.Erase_AndRoundNav_AreDifferentGestures`. |
+| `X` | Always | **Erase** tool (press again for pan) | **Not `E`.** The design notes in git history (§7.5) assigned `E` to both round-nav and erase; the keybind audit resolved it in favour of round nav (market parity), and erase pairs coherently with `Ctrl+X` below. The values are pinned by `Playback2DKeymapTests`; that the two never collide again, whatever keys they carry, by `Playback2DKeybindConflictTests.Erase_AndRoundNav_AreDifferentGestures`. |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Always | Undo / redo an annotation edit | Refused while a stroke is in flight; the gesture is the user's current intent. |
 | `Ctrl+X` | Always | Clear every annotation | CS:DM parity. Collides with Cut inside a focused `TextBox`, which the text-input rule below resolves. |
 | `Esc` | Always | Clear follow + re-fit the camera | |
 | `Esc` | WhenToolActive | Cancel the in-progress gesture | |
-| `Ctrl+F` | Always | Find rounds like this | **A `StratBookCommands` row, not a `Playback2DKeymap` one** (item 19). Snapshots the current tick's alive players by side onto the Situations tab's Query Canvas, through the same place source the round index mints its rows with, and switches to that tab. Not `F`: bare `F` is follow cycling (Strat Room plan D7). A pack-contributed toolbar item (item 20, `IPlaybackSurface.AddToolbarItem`): the button beside the kill nav, the mode menu's last entry and the key all run the one `ToolbarItem`, read from `Surface.ToolbarItems`. Present only with a demo's map open; unhandled (and the toolbar item gone) with nobody alive, no map, no seam (a host without the Situations module), or the pack off. |
-| `J` / `K` | Always | Next / previous situation result | **A `StratBookCommands` row, not a `Playback2DKeymap` one** (item 19). Walks the Situations tab's result set from inside playback: each step seeks to the next card ten seconds before its matched tick through the same shell funnels a card click takes (the shared load core for another demo, the controller's `SeekToTick`, the tab by id). Unhandled with no result set, and the ends of the set do not wrap. Strat Room, Result Cards And Walking. |
+| `Ctrl+F` | Always | Find rounds like this | **A `StratBookCommands` row, not a `Playback2DKeymap` one**. Snapshots the current tick's alive players by side onto the Situations tab's Query Canvas, through the same place source the round index mints its rows with, and switches to that tab. Not `F`: bare `F` is follow cycling. A pack-contributed toolbar item (`IPlaybackSurface.AddToolbarItem`): the button beside the kill nav, the mode menu's last entry and the key all run the one `ToolbarItem`, read from `Surface.ToolbarItems`. Present only with a demo's map open; unhandled (and the toolbar item gone) with nobody alive, no map, no seam (a host without the Situations module), or the pack off. |
+| `J` / `K` | Always | Next / previous situation result | **A `StratBookCommands` row, not a `Playback2DKeymap` one**. Walks the Situations tab's result set from inside playback: each step seeks to the next card ten seconds before its matched tick through the same shell funnels a card click takes (the shared load core for another demo, the controller's `SeekToTick`, the tab by id). Unhandled with no result set, and the ends of the set do not wrap. Strat Room, Result Cards And Walking. |
 | `Home` | Always | Fit the camera (**reserved**, unbound) | Declared so the conflict checker guards the gesture before anything claims it. |
 
 **Text-input suppression is one global rule, not a per-binding flag.** The tunnelling handler bails
@@ -1367,7 +1371,7 @@ the export dialog's filename box.
 **Follow-by-card.** The right-hand attributes panel is a `ListBox` whose containers are stripped of Fluent
 chrome (`Padding=0`, transparent, `Focusable=False`). Selecting a card runs the single follow funnel
 (`Playback2DTabViewModel.NotifyFollowSlotChanged`), which marks exactly one card (`Border.playerCard.followed`
-→ `Pb2dPositive` outline + a `⦿ requested` chip), mirrors the slot onto `Playback2DViewport.FollowSlot`, and
+→ `Pb2dPositive` outline + a `⦿ requested` chip), mirrors the slot onto `Scene2DHost.FollowSlot`, and
 calls `IModuleContext.NotifySpectateTarget`. The wording is **"requested"**, never "confirmed". CS2
 spectating has no readback. Gated by `playback2d.follow`.
 
@@ -1379,20 +1383,20 @@ spectating has no readback. Gated by `playback2d.follow`.
 - **VM surface:** `Load` / `SetSpans` / `Clear` / `ByteClicked`; `HasData`, `HasHeader`/`HasFooter`,
   `WindowRangeText`, `Rows`.
 - **Gating:** hex decode is **expensive**: VM must also check `IFeatureGate.IsEnabled("parser.hex")`
-  before populating and clear buffers on disable (plan P1.2), not just `IsVisible`.
+  before populating and clear buffers on disable, not just `IsVisible`.
 
 <a id="statuschip"></a>
-### StatusChip + StatusStrip chip region (CSVG integration, `the design notes in git history` §4.1)
+### StatusChip + StatusStrip chip region (CSVG integration, design notes in git history, §4.1)
 - **Files (as-built):** `Controls/StatusChip.axaml(.cs)` (DataContext = `StatusChipViewModel`), both in the SDK UI kit
   (`src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/Controls`);
   `Controls/StatusStrip.axaml(.cs)` gained a right-aligned `ItemsControl` chip region (spacing 12) bound to a
   new `IEnumerable? Chips` styled property (between the perf ticker and `RightText`); the shared status-dot
   styles live in **`Styles/Primitives.axaml`** (`Ellipse.dot.*`, see the class table). First consumer:
-  **Live Sync (F1)** via `ViewModels/LiveSync/LiveSyncStatusViewModel` + `Views/LiveSync/LiveSyncStatusView`
+  **Live Sync** via `ViewModels/LiveSync/LiveSyncStatusViewModel` + `Views/LiveSync/LiveSyncStatusView`
   (the flyout body, resolved by the app `ViewLocator`). **Second consumer: the Reel
-  job (F3b)** via `ViewModels/Highlights/ReelJobStatusViewModel` + `Views/Highlights/ReelJobStatusView`: the
+  job** via `ViewModels/Highlights/ReelJobStatusViewModel` + `Views/Highlights/ReelJobStatusView`: the
   ≥2× that justifies the shared control is now realized (see [Create-Reel dialog + Reel chip](#reel-surfaces)).
-  **Third consumer (demo-processing-queue.md §12): the demo-processing queue** via
+  **Third consumer: the demo-processing queue** via
   `ViewModels/DemoProcessing/ProcessingQueueStatusViewModel` + `Views/DemoProcessing/ProcessingQueueStatusView`
   (see [Processing-queue chip + flyout](#processing-queue-surface)), the queue's live management surface.
   **The library-wide highlight scan chip was the fourth consumer and is retired.** Highlights became an
@@ -1411,7 +1415,7 @@ spectating has no readback. Gated by `playback2d.follow`.
 - **Purpose:** the app's idiom for a **persistent, stateful, background-activity indicator** in the bottom
   status strip: a **dot + label** (not a filled pill) that opens a `Border.card-flyout` for detail +
   actions. Empty `Chips` ⇒ nothing rendered, so the strip reads exactly as before.
-- **Contrast rule (computed across all 4 built-in themes, ux-design §3.2):** the **label is always neutral
+- **Contrast rule (computed across all 4 built-in themes, CSVG design notes in git history, §3.2):** the **label is always neutral
   `TextMid`**: the only token that clears AA (4.5:1) on `PanelHeaderBg` in every theme (`AccentCaution` as a
   label fails Light at 3.95). **State is word-carried; the dot is a redundant colour cue** (WCAG 1.4.1), which
   legitimises the two sub-3:1 dark dots (working `AccentInteractive` 2.72, off `TextDim` 1.96). Never tint
@@ -1423,7 +1427,7 @@ spectating has no readback. Gated by `playback2d.follow`.
   class-driving bools `IsState{Off,Working,Good,Degraded,Error}`. **Colour rule (resolved fork):** the VM
   holds **NO** `DotBrush`/`LabelBrush`: the dot colour is a **bound state→class selector whose setter is
   `{DynamicResource Token}`** (the `Border.teamChip{,.teamT,.teamCt}` pattern) in `Styles/Primitives.axaml`,
-  so it re-themes live. (The ux-design §4.1 prop-list literally named `IBrush DotBrush/LabelBrush`; that
+  so it re-themes live. (The CSVG design notes' §4.1 prop-list literally named `IBrush DotBrush/LabelBrush`; that
   contradicts the theme mandate, so the class-driven form is authoritative. This note supersedes it.)
   State→token map: working `AccentInteractive` (pulsing), good `StatPositive`, **inferred = `StatPositive`
   HOLLOW ring + `(inferred)` suffix** (distinct from Degraded), degraded `AccentCaution`, error `AccentError`,
@@ -1434,9 +1438,9 @@ spectating has no readback. Gated by `playback2d.follow`.
   `Border.card-flyout`. Click (not hover) opens the flyout; the chip is focusable (Enter opens, since a
   `Button` auto-opens its `Flyout`). The **flyout body reuses the same `Ellipse.dot.*` header dot**. No new
   palette entries.
-- **CSVG Phase-3 additions to the Live Sync consumer (2026-07-18, `LiveSyncStatusViewModel` +
+- **Additions to the Live Sync consumer (2026-07-18, `LiveSyncStatusViewModel` +
   `LiveSyncStatusView`):**
-  - **v1.0-plugin capability note (§5.2 + plan §6.6).** When `ILiveSyncService.Capabilities?.IsV10Baseline`
+  - **v1.0-plugin capability note (CSVG design notes in git history, §5.2 + §6.6).** When `ILiveSyncService.Capabilities?.IsV10Baseline`
     (the plugin advertised nothing), the Synced **and** Degraded flyout sections show a verbatim caution
     note *"plugin 1.0 — update CSVG for exact pause sync"* via `ShowV10BaselineNote`. Rendered as the
     **sibling treatment** (⚠ `AccentCaution` icon + neutral `TextMid` message in a wrapping `Grid Auto,*`),
@@ -1451,7 +1455,7 @@ spectating has no readback. Gated by `playback2d.follow`.
   - **Second surface: the 2D-tab in-context indicator** (below).
 
 <a id="processing-queue-surface"></a>
-### Processing-queue chip + flyout (demo-processing-queue.md §12)
+### Processing-queue chip + flyout (queue design notes in git history, §12)
 The live management surface for the global background demo-processing queue: the **third `StatusChip`
 consumer**, placed in the bottom status strip because a queue is exactly the "persistent, stateful,
 background-activity" the idiom exists for (out of the way for developers, present-by-default for power+dev,
@@ -1510,7 +1514,8 @@ hidden for consumers).
   text carry each theme with zero per-file changes. Pure-VM coverage: `ProcessingQueueStatusViewModelTests`;
   the start order and promotion rules: `QueueStartOrderTests`.
 
-### Live Sync 2D-tab indicator + `ILiveSyncHudState` seam (CSVG Phase-3, ux-design §5.3)
+<a id="livesync-hud-seam"></a>
+### Live Sync 2D-tab indicator + `ILiveSyncHudState` seam (CSVG design notes in git history, §5.3)
 - **What:** a small **display-only** CS2 chip on the 2D Playback HUD (top-right, in the walled-off `Pb2d*`
   palette via [`Ellipse.pb2dDot.*`](#pb2d-hud-dot)), present only while `chrome.livesync` is on AND the 2D
   tab is active AND the session is non-Disconnected. Following pulses (CS2 is the clock master); inferred
@@ -1528,9 +1533,9 @@ hidden for consumers).
   `OnDeactivated`. Test doubles inherit the default null → indicator absent (no test churn).
 
 <a id="reel-surfaces"></a>
-### Create-Reel dialog + Reel job chip (CSVG integration, ux-design §8/§9)
+### Create-Reel dialog + Reel job chip (CSVG integration, design notes in git history, §8/§9)
 The **Create-Highlight-Reel** flow (Highlights footer → modal dialog → background job → status chip). Two
-VMs, both `ViewModelBase` (ViewLocator-resolved), both fully token-driven: **zero new tokens** (ux-design
+VMs, both `ViewModelBase` (ViewLocator-resolved), both fully token-driven: **zero new tokens** (CSVG design notes
 §11.1: the reel palette maps onto existing accents).
 - **`HighlightReelDialogViewModel`** (`ViewModels/Highlights/`, view `Views/Highlights/HighlightReelDialogView`,
   modal host `HighlightReelDialogWindow`, the **FirstRunWizard precedent**: `Window` DataContext = VM,
@@ -1725,7 +1730,7 @@ select on), generated at build from `Styles/DarkPalette.axaml` and those files; 
 them to what the app loads. Renaming a key or class therefore changes the SDK's public API. The UiCapture
 variants `uikit-status-chips`, `uikit-controls` and `uikit-third-party-fake` render the kit in both themes.
 
-### Shared style classes (P1.3, `Styles/Primitives|Cards|Tables|Chrome.axaml`)
+### Shared style classes (`Styles/Primitives|Cards|Tables|Chrome.axaml`)
 Apply with `Classes="…"` (XAML) or `Classes.Add("…")` (code). All colors are DarkPalette tokens.
 Each class was rendered + read this pass (variant in the last column; see §7).
 
@@ -1761,13 +1766,13 @@ Each class was rendered + read this pass (variant in the last column; see §7).
 | `Border.stat-group-header` | Border | Band spanning several leaf columns ("Quality Rating Breakdown"); pair with `TextBlock.stat-group-label`. | `PanelHeaderBg`, `BorderSubtle` | `stats-components` |
 
 **Note on `sectionHeader`/`sectionLabel` casing:** these keep their original **camelCase** (3 live
-consumer views + the UiCapture `Section()` helper depend on the names). All *new* P1.3 classes use
+consumer views + the UiCapture `Section()` helper depend on the names). All *new* classes use
 **kebab-case** (`nav-btn`, `col-label`, `group-label`, `card-flyout`), the repo majority + task
 convention. When you promote a new pattern, prefer kebab.
 
-### Adoption guide for P2/P3 per-tab streams
+### Adoption guide for per-tab streams
 The foundation is *defined + rendered*; broad *adoption* (swapping inline styling for these classes) is
-P2/P3 per-tab work. When you touch a tab:
+per-tab work. When you touch a tab:
 - **Buttons:** a confirm/apply CTA → `Classes="primary"`; a cancel/secondary → `Classes="ghost"`
   (add your own `Padding`); a compact toolbar button/toggle → `Classes="chip"`. Delete any local
   `Button.primary`/`Button.icon`/nav-button `<Style>` blocks. They're global now.
@@ -1790,7 +1795,7 @@ P2/P3 per-tab work. When you touch a tab:
   not touching (`grep -rn 'Classes=' --include='*.axaml' src/App/DemoViewer.NET`). Avalonia matches
   **exact tokens**, so `msg-card`/`cat-badge`/`card-tree`/`filterchip`/`cardBusy` do **not** collide with
   `card`/`badge`/`chip`: a collision is only an exact-token match on a control type your selector
-  targets. (P1.3's invented names were checked clean this way.)
+  targets. (The invented names were checked clean this way.)
 
 ---
 
@@ -1806,9 +1811,9 @@ Three surfaces intentionally serve **different jobs**, keep them coherent, do no
 
 Coherence model: **NavStrip = act, Debugger panel = manage, Analysis = a different breakpoint domain
 (rule graph, clearly labeled).** All three are developer-oriented chrome and should gate together as a
-`graphDebug` / `parserDeepDive`-style group (plan P1.2). The Analysis graph surface is **not
-headlessly renderable** (live MSAGL `GraphView` never settles geometry), iterate it via annotated
-static mockup or `SvgExporter`, never a promised headless before/after.
+`graphDebug` / `parserDeepDive`-style group. The Analysis graph surface is **not headlessly
+renderable** (live MSAGL `GraphView` never settles geometry), iterate it via an annotated static
+mockup, never a promised headless before/after.
 
 ---
 
@@ -1822,7 +1827,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
 - **Resizable panes = `Grid` + `GridSplitter`** with `*`/`Auto`/`px`. Avoid deep nested grids with
   hardcoded pixel widths that don't scale.
 - <a id="master-detail-split"></a>**Master-detail split = `Grid ColumnDefinitions="*,Auto,1.4*"` + a
-  `GridSplitter` in the `Auto` column** (CSVG integration, `the design notes in git history`
+  `GridSplitter` in the `Auto` column** (CSVG integration, design notes in git history,
   §4.2/§7.2; **first + only app consumer is the Highlights tab**, `Views/Highlights/HighlightsTabView.axaml`,
   the Library having no details-pane precedent). List left (`*`), detail right (`1.4*`, content-denser).
   **Responsive rule (mandatory):** below a width breakpoint (~760px) it **collapses to a single column**
@@ -1853,9 +1858,8 @@ static mockup or `SvgExporter`, never a promised headless before/after.
   content (Library needs no demo; Stats has its own empty state) and was removed. Each tab owns its
   empty state. **The Library tab owns the primary landing** (see below); the Parser tab's no-file state
   is now a lightweight *pointer* ("No demo loaded — open one from the Library tab or the toolbar", still
-  wired to `OpenFileCommand`) rather than a competing second open surface (P3.2b).
-- <a id="landing-hero"></a>**Landing hero = the Library empty state (`Views/Library/LibraryTabView.axaml`,
-  P3.2b).** When no folders are configured (`HasNoFolders`), the Library body is a **centered
+  wired to `OpenFileCommand`) rather than a competing second open surface.
+- <a id="landing-hero"></a>**Landing hero = the Library empty state (`Views/Library/LibraryTabView.axaml`).** When no folders are configured (`HasNoFolders`), the Library body is a **centered
   `Border.card` hero**: app title (`TextValue`) + tagline (`TextMid`) → a big **`Button.primary` "Open Demo…"**
   (`OpenDemoCommand`, the shared picker funnel) → a **`RECENT` list** (`TextBlock.col-label` + one clickable
   row per `RecentFileItem`, `OpenRecentCommand`) → a `Button.ghost` "+ Add a folder" → the drop hint. Recent
@@ -1865,7 +1869,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
   `ScrollViewer`-capped (`MaxHeight`) so ≤10 recents never overflow the card. **The dense filter toolbar
   (search/map/player/sort/view/refresh) is gated `IsVisible="{Binding !HasNoFolders}"`** so the hero state
   shows only `LIBRARY` + `+ Add folder` above the card, not a wall of inert dropdowns.
-  - <a id="library-card-score-repair"></a>**Card score badge has TWO states (v0.5.3 §9.8).** The scoreboard
+  - <a id="library-card-score-repair"></a>**Card score badge has TWO states (v0.5.3, redesign plan notes in git history, §9.8).** The scoreboard
     badge (`HasScore`) and a `score ?` badge (`NeedsScoreRepair`) share the same top-right slot and are
     mutually exclusive (`NeedsScoreRepair` ANDs `!HasScore`). Both reuse `LibraryCardBadgeBg`; the repair
     state is `LibraryCardTextFaint` at 11px. **Zero new tokens.** It exists because an absent score is
@@ -1875,7 +1879,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
     **State is word-carried** (`score ?` + tooltip), not colour-only, per the same WCAG 1.4.1 rule the
     `StatusChip` dots follow. The paired action is a toolbar button (`ScoreRepairLabel` /
     `RepairScoresCommand`), `IsVisible`-bound to a non-zero count so it is absent in the normal case.
-  - **Z-order gotcha (verified P3.2b):** the card/list bodies (`IsCardView` defaults **true**) stay realized
+  - **Z-order gotcha (verified):** the card/list bodies (`IsCardView` defaults **true**) stay realized
     even in the empty state, and a `ListBox.card-grid`'s `Background="Transparent"` **is hit-testable**
     in Avalonia (only `null` isn't). So the hero **must be the LAST child** of the body `Panel` (document
     order = topmost hit-test), or the empty ListBox swallows the CTA/recents clicks. **`ZIndex` alone did
@@ -1905,7 +1909,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
   **overflow `▾` flyout** below a breakpoint width; (2) `WrapPanel` the groups so they reflow to a second
   row; (3) horizontal `ScrollViewer`. Gating a group away (e.g. BREAKPOINT for consumers) also relieves
   width pressure.
-  - **Applied (P3.1, NavStrip):** the pattern is a **`DockPanel`**: right-dock the trailing
+  - **Applied (NavStrip):** the pattern is a **`DockPanel`**: right-dock the trailing
     optional/critical group (TO-BREAKPOINT) so it structurally cannot clip, pin the critical-left group
     (CLOCK) `Dock="Left"`, and put the middle group (JUMP) in a fill `ScrollViewer` that scrolls rather
     than clips. This beat the overflow-`▾` flyout **here** because only one ~40px button overflows at the
@@ -1926,7 +1930,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
     `MinWidth=220`/`MaxWidth=360` instead of the Grid's `*`. Verified `library-populated` at 700/900/1200
     (700 = 2 rows, nothing clips) + `library-landing` (collapsed filters leave no gap). See
     [D35](#library-toolbar-reflow).
-  - **Applied (Playback2D viewport chrome, D4):** all three options at once, plus the one this rule does not
+  - **Applied (Playback2D viewport chrome):** all three options at once, plus the one this rule does not
     cover. Option (1) collapses the six overlay toggles behind an `Overlays ▾` toggle: **inline**, not a
     flyout, because a popup leaves the viewport column (where the layout suite measures) and the tab's
     tunnelling `KeyDown` handler (where `Space` still has to mean play). Option (2) `WrapPanel`s both the
@@ -1936,7 +1940,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
     [the viewport chrome contract](#playback2d-viewport-chrome).
 
 <a id="match-overview-page"></a>
-> **SUPERSEDED (v0.5.3, redesign plan step 5): Match Overview is now THE PER-DEMO PAGE, not a landing
+> **SUPERSEDED (v0.5.3, redesign plan notes in git history, step 5): Match Overview is now THE PER-DEMO PAGE, not a landing
 > page.** The section below documents the v0.5.1 landing layout (single 920px column, separate identity
 > hero / 104px stage card / score card). It is kept because its *principles* still hold verbatim:
 > skeleton-first, reserved slots, centered max-width column, team colour as a redundant non-text cue,
@@ -1944,7 +1948,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
 > [Match Overview redesign](#match-overview-redesign-v053) directly below for what shipped.
 
 <a id="match-overview-redesign-v053"></a>
-### Match Overview redesign: the per-demo page (v0.5.3, plan `highlights-matchoverview-redesign.md` §3)
+### Match Overview redesign: the per-demo page (v0.5.3, redesign plan notes in git history, §3)
 
 **Two jobs, one layout.** `OverviewMode { Empty, Live, Cached }`. **Live** is the push-fed landing (shell
 calls `BeginOpening` → `SetSummary` → `BeginAnalysis` → `SetAnalysis`). **Cached** renders any indexed demo
@@ -2045,7 +2049,7 @@ loading → parsed summary** (or **failure**). Pattern rules, all reused elsewhe
   then.
 
 <a id="reels-dashboard-v053"></a>
-### Reels dashboard: the Highlights tab, promoted (v0.5.3, plan `highlights-matchoverview-redesign.md` §4)
+### Reels dashboard: the Highlights tab, promoted (v0.5.3, redesign plan notes in git history, §4)
 
 `Views/Highlights/HighlightsTabView.axaml` + `ViewModels/Highlights/HighlightsTabViewModel.cs`.
 The library-wide demo **card grid is gone**; the tab is an *authoring* surface: an ordered **clip tray**
@@ -2141,7 +2145,7 @@ overrides.
   Verified across **dark / light / high-contrast / e-girl**.
 
 <a id="addclips-picker"></a>
-#### Add-clips picker: the cross-demo entry point (v0.5.3 step 9, plan §4.4)
+#### Add-clips picker: the cross-demo entry point (v0.5.3 step 9, redesign plan notes in git history, §4.4)
 
 `Views/Highlights/AddClipsPickerView.axaml` + `ViewModels/Highlights/AddClipsPickerViewModel.cs`
 (`AddClipsRowViewModel` per row). A flat, **virtualized highlight-ROW list** over every cached demo: the
@@ -2217,7 +2221,7 @@ counterpart, a constraint that disappears with the grid.
 
 ---
 
-## 5. Category-visibility matrix (feeds the P1.2 feature gate, NOT ad-hoc `IsVisible`)
+## 5. Category-visibility matrix (feeds the feature gate, NOT ad-hoc `IsVisible`)
 
 Superset rule: **developer ⊇ power-user ⊇ consumer**. The category sets *defaults only*; every gated
 feature stays user-toggleable in Settings. `●` default-visible, `○` default-hidden (enableable),
@@ -2229,11 +2233,11 @@ feature stays user-toggleable in Settings. `●` default-visible, `○` default-
 | **Match Overview** tab | Tab | ● | ● | ● | **THE per-demo page (v0.5.3)**, two modes: *Live* (shown the instant a demo opens, before parse, so a double-click has instant feedback) and *Cached* (any indexed demo rendered from `DemoCacheRecord`, parse-free). A completeness chip names the tier and offers the one action that advances it. See [Match Overview redesign](#match-overview-redesign-v053). Cached mode is desktop-only (the cache needs a filesystem), guarded at the **entry point**, never with an `IsBrowser` branch in the view. |
 | **Stats** tab | Tab | ● | ● | ● | Player-facing scoreboard: core viewing. |
 | **2D Playback** tab | Tab | ● | ● | ● | Core viewing; module tab (gate at registration). Its five v2 sub-features follow immediately below, as one contiguous `_catalog` block. They are the rows Settings renders indented under this one. |
-| 2D Playback **`playback2d.annotations`** | SubFeature | ● | ● | ● | **Playback2D v2 (B2).** Draw and erase over the surface; static or clock-anchored ink. `ParentId "tab.playback2d"`, no `GroupId`, `Defaults(true, true, true)`. Default-ON for every category for the `tab.highlights` reason: gating a release's headline payoff away from the audience most excited by it is the wrong trade (B5 D6). Reached through `IModuleContext.Features`, never a `IFeatureGate` injected into the tab VM. Note the id is *also* the ink LAYER id (registry §3.3): deliberate, and pinned by `Playback2DFeatureWiringTests`. |
-| 2D Playback **`playback2d.timeline`** | SubFeature | ● | ● | ● | **Playback2D v2 (A1).** The scrubbable round / kill / bomb timeline under the viewport. The VM folds gate AND has-demo into `IsVisible`; the row is `Auto`-sized, so an off gate leaves no layout hole. Per-track visibility is a *setting* (`Playback2D:TimelineShow*`), not a second gate. |
-| 2D Playback **`playback2d.levels.auto`** | SubFeature | ● | ● | ● | **Playback2D v2 (B3).** Auto-switch the shown floor to the followed player's, with hysteresis. With it off, manual floor picking and the level strip stay available; the gate removes the automation, not the feature. |
-| 2D Playback **`playback2d.follow`** | SubFeature | ● | ● | ● | **Playback2D v2 (A1).** Selecting a player card follows them in the 2D camera, and mirrors to CS2 through `NotifySpectateTarget` while Live Sync is active. The wording is always "requested". CS2 spectating has no readback. |
-| 2D Playback **`playback2d.export`** | SubFeature | ● | ● | ● | **Playback2D v2 (B4). Desktop only (ANDs `!IsBrowser()`).** It writes a file and drives an ffmpeg subprocess. That AND lives in exactly ONE place, `ShellModuleFeatureGate.DesktopOnlyIds`, never re-derived per call site (B5 D4); the same treatment `chrome.livesync` and `chrome.processingQueue` get. On the browser head the Export affordance is absent from the toolbar entirely. Known cosmetic: this row's Settings toggle still shows the user's stored preference there, because the platform AND is folded one layer further out. See `docs/playback2d-v2/wasm-matrix.md`. |
+| 2D Playback **`playback2d.annotations`** | SubFeature | ● | ● | ● | **Playback2D v2.** Draw and erase over the surface; static or clock-anchored ink. `ParentId "tab.playback2d"`, no `GroupId`, `Defaults(true, true, true)`. Default-ON for every category for the `tab.highlights` reason: gating a release's headline payoff away from the audience most excited by it is the wrong trade. Reached through `IModuleContext.Features`, never a `IFeatureGate` injected into the tab VM. Note the id is *also* the ink LAYER id: deliberate, and pinned by `Playback2DFeatureWiringTests`. |
+| 2D Playback **`playback2d.timeline`** | SubFeature | ● | ● | ● | **Playback2D v2.** The scrubbable round / kill / bomb timeline under the viewport. The VM folds gate AND has-demo into `IsVisible`; the row is `Auto`-sized, so an off gate leaves no layout hole. Per-track visibility is a *setting* (`Playback2D:TimelineShow*`), not a second gate. |
+| 2D Playback **`playback2d.levels.auto`** | SubFeature | ● | ● | ● | **Playback2D v2.** Auto-switch the shown floor to the followed player's, with hysteresis. With it off, manual floor picking and the level strip stay available; the gate removes the automation, not the feature. |
+| 2D Playback **`playback2d.follow`** | SubFeature | ● | ● | ● | **Playback2D v2.** Selecting a player card follows them in the 2D camera, and mirrors to CS2 through `NotifySpectateTarget` while Live Sync is active. The wording is always "requested". CS2 spectating has no readback. |
+| 2D Playback **`playback2d.export`** | SubFeature | ● | ● | ● | **Playback2D v2. Desktop only (ANDs `!IsBrowser()`).** It writes a file and drives an ffmpeg subprocess. That AND lives in exactly ONE place, `ShellModuleFeatureGate.DesktopOnlyIds`, never re-derived per call site; the same treatment `chrome.livesync` and `chrome.processingQueue` get. On the browser head the Export affordance is absent from the toolbar entirely. Known cosmetic: this row's Settings toggle still shows the user's stored preference there, because the platform AND is folded one layer further out. See `docs/playback2d-v2/wasm-matrix.md`. |
 | **Parser** tab | Tab | ○ | ● | ● | Needs wire-format mental model → power+. |
 | **Entity Tracking** tab | Tab | ○ | ● | ● | Entity-layer knowledge → power+. |
 | **Analysis Engine** tab | Tab | ○ | ● | ● | Rule-graph knowledge → power+. |
@@ -2249,12 +2253,12 @@ feature stays user-toggleable in Settings. `●` default-visible, `○` default-
 | NavStrip **TO BREAKPOINT** group | Chrome | ○ | ○ | ● | Dev chrome (`graphDebug` group). |
 | Parser **hex `BinaryPane`** | SubFeature | ○ | ○ | ● | Expensive; dev-only; clear buffers on disable. |
 | Analysis **graph breakpoints** | SubFeature | ○ | ○ | ● | Dev-only (`graphDebug` group). |
-| **Reels** tab (was Highlights) | Tab | ● | ● | ● | **Reel AUTHORING dashboard (v0.5.3)**: clip tray + reel config, no longer a browser; per-game highlight exploration is on Match Overview. Unchanged defaults: ux-design §2.2 reasoned that gating reel generation to power+ *"would hide the feature's headline payoff from the audience most excited by it"*. ⚠ Feature id stays **`tab.highlights`** and TabId stays **`highlights.browser`**: persisted keys; only the header string changed. Desktop full; WASM **registered + degraded** (fork 7) with authoring-specific copy. See [Reels dashboard](#reels-dashboard-v053). |
+| **Reels** tab (was Highlights) | Tab | ● | ● | ● | **Reel AUTHORING dashboard (v0.5.3)**: clip tray + reel config, no longer a browser; per-game highlight exploration is on Match Overview. Unchanged defaults: the CSVG design notes' §2.2 reasoned that gating reel generation to power+ *"would hide the feature's headline payoff from the audience most excited by it"*. ⚠ Feature id stays **`tab.highlights`** and TabId stays **`highlights.browser`**: persisted keys; only the header string changed. Desktop full except macOS, where it **defaults OFF**: the owner's call is that macOS is not a supported target for Reels, and an empty tab is worse than an absent one. A default, not a gate, so Settings still lists it and a stored override wins. The rule lives in `PlatformFeatureDefaults.MacOsOffIds`, the one place a platform answers a default, and Linux is deliberately absent from it. WASM **registered + degraded** with authoring-specific copy. See [Reels dashboard](#reels-dashboard-v053). |
 | Reels **`highlights.encoding`** | SubFeature | ○ | ● | ● | **Shipped v0.5.3 (step 9).** `ParentId: "tab.highlights"`, `Defaults(false, true, true)`, no `GroupId` (so the parserDeepDive / graphDebug leader-lock ordering is undisturbed). CRF / bitrate / FPS / container are OBS encoder knobs a consumer cannot reason about, the textbook hidden-but-enableable tier, hidden not removed: every category can switch it on in Settings. Consumer face: tray + Default/No-HUD + folder/name + Generate, which never routes through it. Consumed via `ReelConfig.IsEncodingVisible` (a gate seam, **not** an inline category check), applied from an optional `IFeatureGate` ctor arg **and re-applied on `IFeatureGate.Changed`**: a one-shot read would leave the section wrong after the user toggled it. Null gate (tests / UiCapture) ⇒ visible: a missing gate must never silently remove a section. |
 | Match Overview **highlight section** | — | ● | ● | ● | **Binds the existing `tab.highlights` gate: do NOT mint a new id.** Disabling Reels should coherently remove both surfaces. Note the axis: a *feature gate* is user-initiated and stable for a whole load, so it is legitimate `IsVisible`; gating on **load state** would violate skeleton-first. |
-| **Live Sync (CS2)** chip/flyout/2D-indicator/speed-lock/F2 Verify | Chrome | ○ | ○ | ● | `chrome.livesync`. **Desktop only** (ANDs `!IsBrowser()`). Documented fork: default-off for power-users because it temporarily modifies the real CS2 install + inferred states + DV-restart-relaunch papercut → beta-grade; one Settings toggle away. See ux-design §2.3. |
-| **Processing queue** chip/flyout | Chrome | ○ | ● | ● | `chrome.processingQueue`. **Desktop only** (ANDs `!IsBrowser()`, background work needs a filesystem). Managing the background parse/analyse queue (pause/resume, per-item remove, status) is a power-user+ concern; **opening a demo never requires it** (foreground is always awaitable). The status chip appears only while the queue has activity or is paused (idle+empty adds no strip clutter). demo-processing-queue.md §12. |
-| Reels **Generate reel** | (ungated) | ● | ● | ● | Marquee action, visible to all; guarded by the reel dialog + platform check + the single-CS2 interlock (ux-design §8/§9). Real: Win/Linux; dry-run: macOS; absent: WASM. |
+| **Live Sync (CS2)** chip/flyout/2D-indicator/speed-lock/F2 Verify | Chrome | ○ | ○ | ● | `chrome.livesync`. **Desktop only** (ANDs `!IsBrowser()`). Documented fork: default-off for power-users because it temporarily modifies the real CS2 install + inferred states + DV-restart-relaunch papercut → beta-grade; one Settings toggle away. See the CSVG design notes in git history, §2.3. |
+| **Processing queue** chip/flyout | Chrome | ○ | ● | ● | `chrome.processingQueue`. **Desktop only** (ANDs `!IsBrowser()`, background work needs a filesystem). Managing the background parse/analyse queue (pause/resume, per-item remove, status) is a power-user+ concern; **opening a demo never requires it** (foreground is always awaitable). The status chip appears only while the queue has activity or is paused (idle+empty adds no strip clutter). See [Processing-queue chip + flyout](#processing-queue-surface). |
+| Reels **Generate reel** | (ungated) | ● | ● | ● | Marquee action, visible to all; guarded by the reel dialog + platform check + the single-CS2 interlock (CSVG design notes, §8/§9). Real: Win/Linux; dry-run: macOS; absent: WASM. |
 | Reels **background scan** | setting | ○ | ○ | ○ | Opt-in for **all** categories (≈30 min churn on 200 demos), a Settings default, not a category default. Desktop only. |
 | **Visual Walkthrough** (first-run tour) | Overlay | ● | ● | ○ | `chrome.tutorial` (proposed). **Consumer-scoped content for everyone**, auto-shown **once** after first-time setup for Consumer/Power (skippable; re-runnable from Settings). Default-OFF auto-show for **Developer**: devs already know the app; never nag them (they can launch it from Settings). Not a per-tab feature; the overlay + `SpotlightScrim` are always present, the *auto-trigger default* is what this row gates. |
 
@@ -2278,7 +2282,7 @@ storage-provider handoff, no-op on WASM).
   (global, not per-section). **Body = one vertical `ScrollViewer` > `StackPanel(Spacing=0)`** of four
   `sectionHeader`/`sectionLabel`-banded sections, common-first: **USER CATEGORY** (category `data-list`),
   **LIBRARY FOLDERS** (folder `data-list` + `Add Folder…`, count `badge`), **THEME** (`.field` ComboBox),
-  **FEATURES** (the P2a-ii override table; see below). Each section body is a `Border.card` (`Margin 12,10`).
+  **FEATURES** (the override table; see below). Each section body is a `Border.card` (`Margin 12,10`).
 - **Layout decision: defer a tabbed/rail split; keep the single scroll.** A `TabControl`
   split was built, rendered at both host sizes, and reverted: the three top sections are compact
   (**~450px** total < the ~590px window / ~616px overlay body), so they **already fit above the fold in
@@ -2287,7 +2291,7 @@ storage-provider handoff, no-op on WASM).
   trigger (>6 sections **or** a second long section → adopt the 2-tab `TabControl` proven clean, or a
   left-rail `SplitView`) live in the [Settings-layout decision note](#6-decisions-log--open-questions).
 
-### Settings feature-toggle list (P2a-ii): the surface that exposes this matrix
+### Settings feature-toggle list: the surface that exposes this matrix
 `Views/Settings/SettingsView.axaml` "FEATURES" section, backed by `FeatureToggleRow` +
 `SettingsViewModel`. One row per `FeatureCatalog` entry lets the user force any feature on/off regardless
 of category; every write is an explicit `AppSettings.Features.Overrides[id]`.
@@ -2314,7 +2318,7 @@ of category; every write is an explicit `AppSettings.Features.Overrides[id]`.
 - **Header:** `Border.sectionHeader` "FEATURES" + a `Border.badge` "N hidden"; a sub-line "N hidden for
   <Category>" (bound `HiddenCount` + gate `Category`).
 - **Live-apply (the flagship):** a toggle writes an override → `IOptionsMonitor.OnChange` →
-  `IFeatureGate.Changed` → **both** the shell's tabs/chrome reconcile (P1.2) **and** the rows refresh from
+  `IFeatureGate.Changed` → **both** the shell's tabs/chrome reconcile **and** the rows refresh from
   the gate. The Settings VM and the shell share the **singleton** gate (composition root), that is the
   only reason a toggle here reconciles the live app.
 - **Re-entrancy (locked decision):** the row refresh uses a **row-level `_applyingRefresh` guard, NOT the
@@ -2325,7 +2329,7 @@ of category; every write is an explicit `AppSettings.Features.Overrides[id]`.
 - **Accepted edge (not a bug):** toggling a SubFeature ON while its parent Tab is off writes the override,
   but the refresh re-reads `gate.IsEnabled` = false (cascade), so the switch snaps back with the overridden
   dot showing against an off toggle. This is *faithful* (the override is stored and takes effect once the
-  parent is enabled), not thrash, toggle-disabling is scoped to `IsRequired` only, per the P2a-ii spec.
+  parent is enabled), not thrash, toggle-disabling is scoped to `IsRequired` only.
 
 ### Settings Extensions section
 
@@ -2334,7 +2338,7 @@ starting **expanded** (unlike FEATURES, which starts collapsed): the section is 
 today's two small relocated cards, not a wall of rows, so the switch is worth surfacing without a click.
 
 - **The row list is `ExtensionsFeatureRows`**, one `ObservableCollection<FeatureToggleRow>` built from
-  `FeatureCatalog.All` by scope and `OwnerPackId`, reusing the P2a-ii `FeatureRowTemplate` resource: every
+  `FeatureCatalog.All` by scope and `OwnerPackId`, reusing the `FeatureRowTemplate` resource: every
   `FeatureScope.Pack` descriptor's own row (indent 0), then the tabs it parents directly (indent 1, each
   immediately followed by ITS `SubFeature` children at indent 2), then any sub-feature the pack docks in a
   CORE tab instead of one of its own (2D Playback's tag palette and Suggested Tags), flat at indent 1. A
@@ -2353,12 +2357,12 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 - **`FeatureGate.HiddenCount` excludes a `Pack`-scope row.** It renders as its own live master switch, not
   a hidden feature; counting it too would double against the switch itself. Everything the master cascades
   off still counts (it is still rendered, under Extensions, disabled).
-- **The two pack-only settings blocks are contributed pages now** (`IExtensionContributions.SettingsPage`,
-  item 14), content unchanged: Suggested Tags tuning and the GRENADE INDEX card (`Walk library grenades
-  in the background`, `Render lineup clips`). A `MountedSettingsPage` exists for every contribution from
+- **The two pack-only settings blocks are contributed pages now** (`IExtensionContributions.SettingsPage`),
+  content unchanged: Suggested Tags tuning and the GRENADE INDEX card (`Walk library grenades in the
+  background`, `Render lineup clips`). A `MountedSettingsPage` exists for every contribution from
   construction, but its VM and View build lazily, through `EnsureBuilt`, the first time its own
   `FeatureId` resolves on: a page must never construct whatever its VM pulls in while its pack is off
-  (plan doc §8). `RefreshContributedPageVisibility` calls `EnsureBuilt` (on a filter keystroke and on a
+  (extension plan notes in git history, §8). `RefreshContributedPageVisibility` calls `EnsureBuilt` (on a filter keystroke and on a
   gate change alike) before setting `IsVisible`, so a page builds at most once and stays built once its
   pack has been on. `SettingsView.axaml` hosts the list through one
   `ItemsControl ItemsSource="{Binding ContributedSettingsPages}"` beneath the row list, each item a header
@@ -2384,7 +2388,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   an external edit all catch it): off → `"{Label} stops its background work. Its data stays on disk."`
   (`Label` read off the watched pack's own `FeatureCatalog` descriptor, "Strat Book extension" today, so
   the string is never hand-typed); on → "Counting…" then `"{N} demos will be re-indexed in the
-  background."` once `IPackReindexEstimate.CountAsync()` lands. The notice is generic now (item 14):
+  background."` once `IPackReindexEstimate.CountAsync()` lands. The notice is generic now:
   `SettingsViewModel` watches `IReadOnlyList<IPackReindexEstimate>? reindexEstimates`'s first entry rather
   than importing `Extensions.StratBook` for `StratBookPack.PackFeatureId` and a static
   `StratBookPendingReindexCount.ComputeAsync()`. The pack's own `StratBookPendingReindexCount` class
@@ -2434,7 +2438,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 - **Open:** UiCapture fails with a cross-thread error for any custom theme (`--theme high-contrast`,
   `egirl`), including `primitives`, so the new chrome was captured in Light and Dark only.
 
-### Decisions (Reels dashboard, plan step 7, feature/v0.5.3, 2026-07-28)
+### Decisions (Reels dashboard, redesign plan notes in git history, step 7, feature/v0.5.3, 2026-07-28)
 - **D-RD1. The tray renders from the plan builder, not a parallel model.** `ReelConfig.ClipGroups` is both
   the coalescing display and the tray. Considered and rejected: a `StagedClipViewModel` collection beside it.
   A second model would let the tray and the plan disagree, which is the exact failure the promotion exists
@@ -2465,8 +2469,8 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   the build gate. It is dead-but-compiling and §9.5 owns its removal.
 - **D-RD8. Tray persistence is implemented and INERT.** `IWorkspaceTabViewModel.SnapshotState()` has a
   default returning null and **zero call sites outside tests**: module tab state is not written to disk
-  today. The tray survives tab switches; it does **not** survive a restart, which is fork 8's stated goal.
-  Recorded as a shell obligation rather than silently "done".
+  today. The tray survives tab switches; it does **not** survive a restart, which is what tray
+  persistence is for. Recorded as a shell obligation rather than silently "done".
 - **D-RD9. `Clear tray` is a two-step inline confirm.** A cross-demo tray is minutes of curation with no
   undo and the button sits beside Generate. Inline strip, same idiom as the §9 interlock, never a modal.
 
@@ -2474,7 +2478,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 - **Spotlight = one code-drawn even-odd geometry, not 4 dim panels or a converter.** A `SpotlightScrim`
   `Control` (full rect + rounded-rect hole, `FillRule.EvenOdd`) gives the rounded hole + token frame the
   brief asks for in one repaint; theme-reactivity is free via `StyledProperty<IBrush>` + `AffectsRender`
-  (no `ActualThemeVariantChanged` sub needed, nothing is cached, cf. `Playback2DViewport`). `ScrimOpacity`
+  (no `ActualThemeVariantChanged` sub needed, nothing is cached, cf. `Scene2DHost`). `ScrimOpacity`
   is baked into the fill colour (read from the `ISolidColorBrush` token) so the dim is translucent while the
   frame stroke stays crisp, avoids `PushOpacity` fragility and still re-themes (Render re-runs on token
   re-resolve).
@@ -2488,7 +2492,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   live" open question.
 - **Callout positioning is code-behind (layout, not data).** Clamping to the window needs the callout's
   *measured* size, which a converter/MultiBinding can't see; `PositionCallout` runs on `LayoutUpdated` (settles
-  under the headless render pump) + VM `PropertyChanged`. Same category as the `GraphView`/`Playback2DViewport`
+  under the headless render pump) + VM `PropertyChanged`. Same category as the `GraphView`/`Scene2DHost`
   render code-behind, not a reactive-binding violation.
 - ~~**Not integrated.**~~ **Shipped in v0.5.1** (the engine, then the sample-demo wiring). The
   walkthrough is live: `MainView`/`MainViewModel` host it, the wizard Done page offers it, it persists, and
@@ -2498,7 +2502,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   global numbering; `StepNumber`/`StepCount` remain VM-exposed, so per-segment numbering is still a
   zero-view-change switch if it's ever wanted.
 
-### Decisions (CSVG-integration UI review fixes, 2026-07-19)
+### Decisions (CSVG-integration UI review fixes, design notes in git history, 2026-07-19)
 Six confirmed review findings, all UI-surface, fixed on `feature/csvg-integration`. No new tokens; one new
 shared class (`ListBox.card-grid`, above).
 - **D-CSVG7. The open-remote-demo failure now surfaces (was swallowed).** `LiveSyncStatusViewModel`'s
@@ -2542,14 +2546,14 @@ shared class (`ListBox.card-grid`, above).
   inlined `FontFamily="Consolas,Menlo,monospace"` on the label; switched to the shared `Classes="mono"`
   (Primitives.axaml) per the §2 adoption guide.
 
-### Decisions (CSVG Highlights tab, 2026-07-18)
+### Decisions (CSVG Highlights tab, design notes in git history, 2026-07-18)
 > ⚠ **PARTLY SUPERSEDED (v0.5.3, 2026-07-28).** The master **card grid**, the four filters over it, the
 > per-demo details pane and the F2 Verify rows described below **no longer exist on this tab**: see
 > [Reels dashboard](#reels-dashboard-v053) and plan §5 for where each function landed (Match Overview for
 > per-game exploration + Verify; the Add-clips picker for the filters). What still holds: D-HL1's module +
 > persisted-id wiring, D-HL2's delegate-injection pattern, the cache/scan service contracts, and D-HL3's
 > `HighlightKey`-keyed selection set, which is exactly what the clip tray is a promotion OF.
-- **D-HL1. Registration (per ux-design §7.1).** New `IWorkspaceModule` `Modules/Highlights/HighlightsModule`
+- **D-HL1. Registration (per the CSVG design notes' §7.1).** New `IWorkspaceModule` `Modules/Highlights/HighlightsModule`
   (TabId `"highlights.browser"`, Order 3, Placement Main), **`ViewModelFactory` never `DataContext`** (the
   DataContext branch skips the `OnActivated` lifecycle the tab-activation staleness trigger needs). Registered
   in `App.BuildRegistry` (alongside Playback2D/Workbench) + `tab.highlights` `FeatureDescriptor` (verbatim
@@ -2585,9 +2589,9 @@ shared class (`ListBox.card-grid`, above).
   in-flight marker)); other Pending ⇒ `queued`; `Failed` ⇒ retry. Background scan / reel / Verify are all
   suppressed under `OperatingSystem.IsBrowser()` (WASM degrades to open-demo-only + an explanatory note).
 
-### Decisions (CSVG Phase-3 Live Sync polish, 2026-07-18)
+### Decisions (CSVG Live Sync polish, design notes in git history, 2026-07-18)
 - **D-CSVG3. The 2D-tab CS2 indicator is DISPLAY-ONLY / non-interactive** (`IsHitTestVisible=False` on the
-  whole top-right HUD stack it shares with the kill feed). ux-design §5.3 offered "click → focuses/opens the
+  whole top-right HUD stack it shares with the kill feed). The CSVG design notes' §5.3 offered "click → focuses/opens the
   shell sync flyout," but that flyout is owned by the `StatusChip` `Button` in the bottom `StatusStrip`;
   programmatically opening it from a control in the 2D viewport's visual tree is disproportionate wiring for
   a redundant affordance (the always-present shell chip IS the control centre, one click away). So the
@@ -2598,14 +2602,14 @@ shared class (`ListBox.card-grid`, above).
   default-null interface member) keeps `Modules.Abstractions` free of the App-layer `Services.LiveSync`
   contract and keeps every existing `IModuleContext` test double compiling untouched. The gate is folded into
   `IsActive` (not into seam presence) so a live `chrome.livesync` toggle reflows the indicator without a tab
-  re-activation. See the [seam contract](#live-sync-2d-tab-indicator--ilivesynchudstate-seam-csvg-phase-3-ux-design-53).
+  re-activation. See the [seam contract](#livesync-hud-seam).
 - **D-CSVG5. The v1.0-plugin flyout note uses the sibling caution treatment (⚠ `AccentCaution` + neutral
-  `TextMid`), not tinted body text.** ux-design §5.2 asked for an "`AccentCaution`-toned note"; the tone is
+  `TextMid`), not tinted body text.** The CSVG design notes' §5.2 asked for an "`AccentCaution`-toned note"; the tone is
   carried by the ⚠ icon (matching the existing "untested plugin/game pair" + §5.7 path notes), keeping the
   message text on the universally-AA-safe `TextMid` (a tinted `AccentCaution` message is razor-thin on the
   Light `CardBg`). Verified legible in dark / light / high-contrast renders.
 - **D-CSVG6. F2 "Verify in CS2" (the UI half) rides the Analysis graph node/edge context menu on
-  pointer-release** (ux-design §6.1's resolved fork; §12 table), a new item on the *same* imperatively-built
+  pointer-release** (the CSVG design notes' §6.1 resolved fork; §12 table), a new item on the *same* imperatively-built
   menu as the breakpoint items (`Views/Analysis/AnalysisTabView.axaml.cs` `AddVerifyInCs2Item`). It is scoped
   to the rule-trigger surface: the `!IsBreakpointable` early return means only nodes + trigger-backed edges
   reach it (un-backed logic edges are not triggers, correctly get no Verify item). **Zero new tokens /
@@ -2642,7 +2646,7 @@ shared class (`ListBox.card-grid`, above).
   - **Feedback (§6.4):** `IsVerifying` blocks re-entry via `CanExecute`; the shell chip's "Seeking…" is the
     primary busy/failure surface (engine-side); a `false` return additionally sets an inline `StatusText`
     note pointing at the CS2 chip. The Highlights-tab "Verify live" (§6.1 secondary) will reuse this same
-    engine call + feedback when that tab lands (F3).
+    engine call + feedback when that tab lands.
 
 <a id="library-toolbar-reflow"></a>
 ### Decisions (Library filter toolbar reflow, 2026-07-16)
@@ -2657,7 +2661,7 @@ shared class (`ListBox.card-grid`, above).
   `Border.sectionHeader` has no fixed height (`Padding 14 6`), so the band grows to the wrapped row.
   **Chosen approach = WrapPanel (§4 option 2), NOT the NavStrip DockPanel+ScrollViewer (§4 applied):** a
   horizontal scrollbar reads clunky in a filter toolbar, and a scrolled search box loses its width; wrapping
-  keeps the search box usably wide on its own row. Discharges the toolbar-reflow forward-reference in D18 (P3.2b).
+  keeps the search box usably wide on its own row. Discharges the toolbar-reflow forward-reference in D18.
 - **D36. Search box `MinWidth=220`/`MaxWidth=360`, no stretch: a deliberate, render-tuned trade-off.** In a
   `WrapPanel` a child can't stretch to fill the row (it's measured at desired width), so the Grid's
   `*`-stretch search is gone; a `MinWidth` is the lever. Verified from the three renders: **700px → 2 rows**
@@ -2714,12 +2718,12 @@ shared class (`ListBox.card-grid`, above).
 - **D27. Concept B, dependency-free + no new tokens/classes.** The pill reuses `CardBg`/`BorderAccent`/
   `BorderSubtle` + `Button.nav-btn`/`.ghost` + the dropdown's `card-flyout`/`ctx-action`/`col-label`/
   `CheckBox.event-filter`. Chip `MaxWidth=128 + TextTrimming`. CLOCK, amber TO-BREAKPOINT, the
-  `IsBreakpointNavEnabled` gate, and the P3.1 DockPanel are unchanged. **Narrow win:** the single stepper
+  `IsBreakpointNavEnabled` gate, and the DockPanel are unchanged. **Narrow win:** the single stepper
   is narrower than the old JUMP group, so 820px fits with room to spare even in the dev config (breakpoint
   on), verified `navstrip-real` + `navstrip-real-target` at 1000/820. Tests: NavStrip/flyout/settings
   49/49 (incl. 3 new preset+summary tests). Pass-2 `navstrip-v2-*` mock variants retired from `Variants.cs`.
 
-### Decisions (P3.4, HarvestFrameListControl de-inline + app-wide convergence)
+### Decisions (HarvestFrameListControl de-inline + app-wide convergence)
 - **D32. The MARKUP (`.axaml`) inline-hex sweep is COMPLETE: this is NOT "all colour lives in the
   palette."** `HarvestFrameListControl.axaml` (Parser tab's frame list, 21→0) was the **last** inline-hex
   *view* file. `grep -rE '#[0-9A-Fa-f]{6,8}' --include='*.axaml'` over `src/App/DemoViewer.NET` now returns
@@ -2740,7 +2744,7 @@ shared class (`ListBox.card-grid`, above).
   adoptions remain.** Two axes to report honestly:
   - **(i) Code-held colour (NOT converged, separate, larger question, never in the markup-sweep scope).**
     A `grep -rE '"#[0-9A-Fa-f]{6,8}"' --include='*.cs'` finds meaningful colour still defined in code:
-    the **Playback2D Skia renderer** `Modules/Playback2D/Playback2DViewport.cs` (~30 hex) + `PlayerAttributes.cs`
+    the **Playback2D scene palette** `Modules/Playback2D/ScenePaletteFactory.cs` (~30 hex) + `PlayerAttributes.cs`
     `TeamColor` (3), D21/D22, kept for init-order/WASM reasons + the team-triplication unify follow-up;
     `WorkbenchYamlHighlighting.cs` (12 syntax roles, D31); and a **family of VM accent-CLASSIFIER palettes**
     that map a semantic key → a hue in code: `HarvestCardViewModel` (17), `HarvestPropertyViewModel` (15),
@@ -2788,7 +2792,7 @@ shared class (`ListBox.card-grid`, above).
     the two style-class adoptions above (shell-tab TabItem; a shared toggle-chip), diminishing returns. No
     inline-`.axaml`-hex debt remains.
 
-### Decisions (P3.3, Library / RuleWorkbench / Stats hex de-inline)
+### Decisions (Library / RuleWorkbench / Stats hex de-inline)
 - **D28. De-inline is pixel-identical by construction; renders are confirmatory.** Every new token's
   `.Color` (or gradient stops/offsets) **exactly** equals the literal it replaced (alpha included), so each
   `{StaticResource}` `SolidColorBrush`/`LinearGradientBrush` renders identically: that value-equivalence is
@@ -2807,7 +2811,7 @@ shared class (`ListBox.card-grid`, above).
   app-chrome) → **reused** the token (0 new). But `#33FFFFFF` == `Pb2dKillFeedBorder` and `#E0A030` ==
   `Pb2dTeamT` are **Pb2d game-HUD domain** tokens (a walled-off palette, D21) → **added** app-chrome tokens
   (`BorderTranslucent`, `AccentCaution`) + recorded the value-coincidence rather than reaching across the
-  domain boundary. Same discipline the P3.3a note applies to team-color duplication.
+  domain boundary. Same discipline the Playback2D palette note applies to team-color duplication.
 - **D31. `WorkbenchYamlHighlighting.cs` syntax colours STAY code-defined (12 hex, VS-Code Dark+ roles).**
   Assessed against the task's "theme-aware named resources if a real payoff" bar and **left as-is**, because:
   (1) AvaloniaEdit **builds and CACHES the `IHighlightingDefinition` once** (`_definition ??=`) and does not
@@ -2827,8 +2831,8 @@ shared class (`ListBox.card-grid`, above).
   be referenced from the renderer/VM to collapse the team-color triplication; scoped resources can't. See
   [Playback2D palette](#playback2d-palette).
 - **D22. Scope = the AXAML only; the Skia renderer + `TeamColor` VM keep their named color symbols.**
-  `Playback2DViewport.cs` holds ~34 colors as `static readonly` brushes/pens and `PlayerAttributes.TeamColor`
-  is a named property: already centralized, not the "bare-inline-in-markup" the P0.3 backlog flagged.
+  The pre-v2 renderer held ~34 colors as `static readonly` brushes/pens and `PlayerAttributes.TeamColor`
+  is a named property: already centralized, not the "bare-inline-in-markup" the review backlog flagged.
   Converting Skia static-field `Color.Parse` initializers to `FindResource` is init-order/WASM-fragile and
   would risk the large Playback2D render-test battery for ~zero gain; left as a documented follow-up (D21's
   triplication note). The AXAML tokens' values match the renderer/VM copies exactly, so unifying later is
@@ -2840,13 +2844,13 @@ shared class (`ListBox.card-grid`, above).
   > `IsT`/`IsCt` class flags → `Pb2dTeamT/Ct` tokens. The renderer's remaining ~31 inline hex are
   > design-time FALLBACKS, not owned colors. See the resolved triplication bullet in Open questions.
 - **D23. Verified no-op by value-equivalence + one executing view-instantiation, not by A/B render.** Each
-  token's hex == its original literal (exact, alpha included); `Playback2DHeadlessSmokeTests` constructs the
-  real `Playback2DView` with a synthetic VM (no demo, so it EXECUTES rather than skips) → proves every
+  token's hex == its original literal (exact, alpha included); the App's headless smoke suite constructed the
+  real `Playback2DView` with a synthetic VM (no demo, so it EXECUTED rather than skipped) → proves every
   `{StaticResource Pb2dX}` resolves at control-load (a typo/missing-token would throw there, not at compile).
   The rendered frame reads correct (team chips, HP-green, grey HUD ramp). No new UiCapture variant was added
   (the viewport needs a demo to show markers; the smoke test already instantiates the full view).
 
-### Decisions (P3.2b, Library landing: Open Demo + recents + drag-drop)
+### Decisions (Library landing: Open Demo + recents + drag-drop)
 - **D16. The Library empty state is the primary landing hero (the "enhance the Library tab" call).** No new
   welcome tab: the Library tab's `HasNoFolders` body became a `Border.card` hero (title / tagline /
   `.primary` Open Demo / `RECENT` list / drop hint). See [Landing hero](#landing-hero). The `welcome-proposed`
@@ -2859,7 +2863,7 @@ shared class (`ListBox.card-grid`, above).
   are meaningless with zero demos and (pre-existing) crowd/clip a narrow toolbar; hiding them in the hero
   state is a clean landing AND sidesteps that density for the empty case. **The populated filter toolbar's
   pre-existing narrow-width clip (verified ~700px) is untouched here: it belongs to the toolbar-overflow
-  stream, not P3.2b.** The new right-docked actions strip (Open Demo / Recent ▾) is a `DockPanel` and does
+  stream, not this one.** The new right-docked actions strip (Open Demo / Recent ▾) is a `DockPanel` and does
   **not** clip at 700px.
 - **D19. Drag-drop uses the Avalonia 11.3 `IDataTransfer` receive API, not the obsolete `DataObject` one.**
   `e.DataTransfer.TryGetFiles()` + `DataFormat.File` (CS0618-clean); the drag-over overlay binds a VM
@@ -2870,10 +2874,10 @@ shared class (`ListBox.card-grid`, above).
   `Meta`/`RowOpacity` on the record (composition over duplication). No new DarkPalette tokens were needed
   (hero/overlay use existing `CardBg`/`PanelHeaderBg`/`AccentInteractive`/`TextValue`/`TextDim`).
 
-### Decisions (P3.1, NavStrip responsive layout)
+### Decisions (NavStrip responsive layout)
 - **D13. NavStrip is a `DockPanel`, not a single horizontal `StackPanel`.** TO-BREAKPOINT is
   `Dock="Right"` (structurally cannot clip), CLOCK is `Dock="Left"` (playback always reachable), JUMP is
-  the fill inside a horizontal `ScrollViewer`. Fixes the P0.3 clip (trailing amber buttons off the right
+  the fill inside a horizontal `ScrollViewer`. Fixes the clip (trailing amber buttons off the right
   edge). Verified `navstrip-real` at 880/1050/1300/1600: nothing clips; no-scroll threshold ~940px.
 - **D14. Scroll the JUMP middle rather than collapse it into a `▾` flyout: a deliberate deviation from
   the literal "overflow flyout" ask and §4's "ScrollViewer last resort," made because the task refined it.**
@@ -2890,9 +2894,9 @@ shared class (`ListBox.card-grid`, above).
   purpose" (§2/§3 coherence model) and composes cleanly with its `IsBreakpointNavEnabled` gate: an
   invisible right-docked child reserves no space, so the consumer/power (gated-off) case reflows JUMP to
   full width with no dangling gap. No command/readout/gate changed; `navstrip-real` still renders nonBg
-  2871 at the fitting 1280px width (byte-identical to pre-P3.1).
+  2871 at the fitting 1280px width (byte-identical to the pre-reflow strip).
 
-### Decisions (P2a-ii, Settings feature-toggle list)
+### Decisions (Settings feature-toggle list)
 - **D9. Locked rows = a disabled ToggleSwitch + a `LockHint` chip: for BOTH Required and group-followers.**
   Required → "required". A non-leader group member → "follows &lt;leader&gt;": the gate resolves a group
   atomically from its LEADER, so a follower's own override is inert: an independent toggle would persist a
@@ -2912,7 +2916,7 @@ shared class (`ListBox.card-grid`, above).
   Settings VM + shell share the **singleton** `IFeatureGate` (composition root) so a toggle live-reconciles
   the app chrome/tabs AND the rows. See §5 "Settings feature-toggle list".
 
-### Decisions (P1.3, design-system foundation)
+### Decisions (design-system foundation)
 - **D5. `Styles/Components.axaml` split into four role files** (Primitives/Cards/Tables/Chrome), loaded
   explicitly by `App.axaml` after FluentTheme. Components.axaml removed (csproj globs AXAML; the only
   references were the App.axaml include + a DebuggerPanel comment, both updated).
@@ -2930,7 +2934,7 @@ shared class (`ListBox.card-grid`, above).
   headless-renderable), the *class* is verified in isolation via `primitives`.
 - **D8. No new DarkPalette tokens**: the palette already covered every promoted look (see §1 token note).
 
-### Decisions (P0.3 review)
+### Decisions (UI review)
 - **D1. `docs/ui/design-system.md` is the canonical UI reference.** Supersedes all "UI v2 review §X"
   citations (the cited file never existed).
 - **D2. NavStrip = navigation-review Option 1, already shipped.** No re-litigation; remaining work is
@@ -2947,7 +2951,7 @@ shared class (`ListBox.card-grid`, above).
   in-window `View ▾` overflow flyout (WASM-safe). NavStrip: collapse the amber TO-BREAKPOINT cluster
   into a right-docked overflow (fixes the <~1400px clip). Both gate that dev chrome to power/dev.
 - **Functional consumer tab set.** Consumer defaults to Library + Stats + 2D Playback;
-  Parser/Entity/Analysis/Authoring default to power-user+. (Feeds the P1.2 default matrix; every tab
+  Parser/Entity/Analysis/Authoring default to power-user+. (Feeds the default matrix; every tab
   stays user-enableable in Settings.)
 - **Power-User skip-wizard fallback.** A user who skips the first-run category picker defaults to
   Power-User.
@@ -2970,9 +2974,9 @@ history.
   seeks is on-screen instead of buried. **Concept B (segmented pills)** makes each stepper an obvious
   self-documenting unit and the target chip a clear dropdown, best for the consumer→dev superset (this
   group is default-visible to **all three** audiences, §5). **Concept A (inline ghost dropdown)** is the
-  denser dev-forward fallback. Both keep the P3.1 responsive DockPanel + the ASCII clock/breakpoint
+  denser dev-forward fallback. Both keep the responsive DockPanel + the ASCII clock/breakpoint
   glyphs (only JUMP→SEEK changes), and are chip-`MaxWidth`-capped so a long CS2 event name cannot
-  re-break the P3.1 no-clip fix. Behavior maps 1:1 onto **real commands** (see feasibility below).
+  re-break the no-clip fix. Behavior maps 1:1 onto **real commands** (see feasibility below).
   Compare render: `navstrip-v2-compare`. **Reading the compare:** in the CURRENT (top) row the amber
   breakpoint buttons render cut off at 1040px: that is the *real* strip's own docking behavior (its 6
   JUMP buttons + `⚙▾` are wider than the 5-control SEEK, so it pushes its right-docked cluster off-screen
@@ -3002,7 +3006,7 @@ history.
 - **Settings sections/tabs: defer (keep the single scroll); rendered and confirmed 2026-07-16.**
   `SettingsView.axaml` is one vertical `ScrollViewer` of four `sectionHeader`-banded sections (USER
   CATEGORY, LIBRARY FOLDERS, THEME, FEATURES). The top three are compact and glanceable; only **FEATURES**
-  (the P2a-ii per-feature override *table*) is long/growing. The earlier note here was **analysis-only**;
+  (the per-feature override *table*) is long/growing. The earlier note here was **analysis-only**;
   this pass **built the real `TabControl` alternative on-branch, rendered it at true host sizes, read it,
   and reverted it**: upgrading the recommendation from reasoned to empirically-backed. What the renders
   showed:
@@ -3059,7 +3063,7 @@ history.
 - **Consumer default tab set.** *Recommend:* **functional reading**: consumer sees
   Library + Stats + 2D Playback (the viewing tabs); Parser/Entity/Analysis/Authoring are power+.
   Rationale: those four require a wire-format/entity/rule-engine mental model, matching the persona's
-  own "not consumer" rubric and the P1.2 default matrix. Reject the literal "everything built-in."
+  own "not consumer" rubric and the default matrix. Reject the literal "everything built-in."
 - **Skipped-wizard fallback category.** *Recommend:* **Power-User.** dev⊇power⊇consumer:
   consumer would hide advanced surfaces the likely early audience wants; developer would expose raw
   diagnostics to someone who didn't opt in. Power-User is the safe middle.
@@ -3068,15 +3072,15 @@ history.
 - ~~Depth ramp promotion into `DarkPalette` as an indexed resource (currently code-owned, duplicated)~~
   **Done (v0.6.0)**: the hex-view ramp is the `HexSwatchSelected/Parent/Ancestor` tokens plus a new
   `HexSwatchAncestorDeep`; `BinaryPane` resolves them on attach (and on live theme switch) via `SetPalette`.
-- ~~A `.primary`/`.secondary`/`.ghost` button ControlTheme trio in `Primitives.axaml` (P1.3)~~ **Done
-  (P1.3)**: `.primary`/`.ghost` shipped; `.chip` covers the compact "secondary" toolbar role. See §2.
-- **Broad adoption of the P1.3 classes** across tabs (swap inline styling → classes): P2/P3 per-tab
+- ~~A `.primary`/`.secondary`/`.ghost` button ControlTheme trio in `Primitives.axaml`~~ **Done**:
+  `.primary`/`.ghost` shipped; `.chip` covers the compact "secondary" toolbar role. See §2.
+- **Broad adoption of the shared classes** across tabs (swap inline styling → classes): per-tab
   streams; see the adoption guide in §2. Not done this pass (foundation only, to avoid churning
   un-rendered tabs).
 - **MainView's local `TabControl#ShellTabs > TabItem` → `.shell-tab` class**: deferred (MainView shell
-  is not headless-renderable; migrate during a P2/P3 shell pass).
-- Inline-`.axaml`-hex de-inlining backlog: **complete (app-wide markup, P3.4).** `Playback2DView` (P3.3a),
-  `LibraryTabView`/`RuleWorkbenchView`/`StatsTabView` (P3.3), and `HarvestFrameListControl` (P3.4, the
+  is not headless-renderable; migrate during a later shell pass).
+- Inline-`.axaml`-hex de-inlining backlog: **complete (app-wide markup).** `Playback2DView`,
+  `LibraryTabView`/`RuleWorkbenchView`/`StatsTabView`, and `HarvestFrameListControl` (the
   **last** one, 21→0) are all tokenized. **Verified: `grep -rE '#[0-9A-Fa-f]{6,8}' --include='*.axaml'`
   over the whole app returns zero outside `DarkPalette.axaml`.** This closes the **markup** goal only, the
   **code-held colour** item was separate, and has since narrowed: the VM accent classifiers + syntax roles
@@ -3095,10 +3099,10 @@ history.
   as dead: no tokens minted. Full accounting: D34's v0.6.0 census update.
 - ~~**Collapse Playback2D team-color triplication** (`Pb2dTeamCt`/`Pb2dTeamT` == renderer `TeamCtBrush`/
   `TeamTBrush` == `PlayerAttributes.TeamColor`) by referencing the app-level tokens from the renderer/VM
-  at runtime (a property/`FindResource` path, NOT static-init), deferred from P3.3a as out-of-scope +
+  at runtime (a property/`FindResource` path, NOT static-init), deferred as out-of-scope +
   init-order-risky. Same for viewport-bg/grid/label shared values.~~
   **Done, and had been for weeks when this was re-audited (v0.6.0):** the renderer half landed with
-  the theme-system T1a work (`BuildPalette` resolves `Pb2dTeamT`/`Pb2dTeamCt` et al. via `ThemeColors.Get`,
+  the theme-system work (`BuildPalette` resolves `Pb2dTeamT`/`Pb2dTeamCt` et al. via `ThemeColors.Get`,
   refreshed on `ActualThemeVariantChanged`; `TeamTBrush`/`TeamCtBrush` are now instance reads of the
   resolved bundle, no static-init anywhere), and the VM half followed (`PlayerAttributes.TeamColor`
   deleted: the roster chip is class-driven onto `{DynamicResource Pb2dTeamT/Ct}`). The init-order risk
@@ -3111,14 +3115,14 @@ history.
 
 ---
 
-## 7. Rendered review artifacts (P0.3)
+## 7. Rendered review artifacts
 
 Reproduce via `dotnet run --project src/App/DemoViewer.NET.UiCapture -c Release -- <variant>`
 (outputs → `%TEMP%/demoviewer-uitests/`). Variants live in `UiCapture/Variants.cs`.
 
 | Awkward area | Variants | A/B command | Recommendation |
 |---|---|---|---|
-| NavStrip responsive | `navstrip-real` (**now the fix**), `navstrip-proposed` (historical mock) | `navstrip-real --size 880x56` (and 1050/1300/1600) | **Done (P3.1)**: `navstrip-real` now renders the DockPanel fix: TO-BREAKPOINT right-docked (never clips), CLOCK pinned left, JUMP scrolls when narrow. Nothing clips at 880/1050/1300/1600; no-scroll threshold ~940px. The old clip-below-~1400 note was superseded by empirical renders (real fit width ~920px). `navstrip-proposed` is the pre-build mock (single `▾` overflow stand-in), kept for history. |
+| NavStrip responsive | `navstrip-real` (**now the fix**), `navstrip-proposed` (historical mock) | `navstrip-real --size 880x56` (and 1050/1300/1600) | **Done**: `navstrip-real` now renders the DockPanel fix: TO-BREAKPOINT right-docked (never clips), CLOCK pinned left, JUMP scrolls when narrow. Nothing clips at 880/1050/1300/1600; no-scroll threshold ~940px. The old clip-below-~1400 note was superseded by empirical renders (real fit width ~920px). `navstrip-proposed` is the pre-build mock (single `▾` overflow stand-in), kept for history. |
 | Open Demo + Debugger/Output chrome | `toolbar-current`, `toolbar-proposed` | `ab toolbar-current toolbar-proposed --size 560x140` | **Proposed**: compact Open + `View ▾` overflow (WASM-safe flyout) holding gated Debugger/Output/Parse-Chain. |
 | Landing empty-state primary | `welcome-current`, `welcome-proposed` | `ab welcome-current welcome-proposed --size 460x460` | **Illustrative**: consumer-first landing content (big Open Demo + recent + drop). NB: the real fresh-launch surface is the **Library** tab's empty state; `welcome-current` shows the Parser prompt, not Library's *"Your demo library is empty"*. The (a)-vs-(b) landing fork decides where this content lands. |
 | Three breakpoint surfaces (D3) | `breakpoints-map` | (single, annotated static) | Coherence map: act / manage / rule-graph. Analysis surface **not** headless-renderable (MSAGL). |
@@ -3130,7 +3134,7 @@ DataContext (`navstrip-real` = real `NavStrip` + `new MainViewModel { HasFile = 
 is likewise renderable (plain `DebuggerViewModel`). Full `MainView` and any MSAGL `GraphView`
 (Analysis) are **not**: mock the panel or use an annotated static.
 
-### P1.3 foundation variants (design-system smoke + verification)
+### Foundation variants (design-system smoke + verification)
 Reproduce with `dotnet run --project src/App/DemoViewer.NET.UiCapture -c Release -- <variant> --size WxH`.
 The single-render window defaults to **640×360**: pass `--size` for taller variants or the top clips.
 
@@ -3140,24 +3144,24 @@ The single-render window defaults to **640×360**: pass `--size` for taller vari
 | `chrome` | 540×450 | `sectionHeader`/`sectionLabel` `group-label` `badge` `divider` `card` `card-flyout` `ctx-action` | `.card`/`.card-flyout`/`.ctx-action`/`.badge` ("12 events" pill) read well; `sectionLabel`/`sectionHeader` band is **intentionally whisper-quiet** (dim `TextLabel` on `PanelHeaderBg`), faithful, framed by panel context in-app. |
 | `tables` | 560×600 | `data-list` (+ selection) `col-label`; **regression:** real `KeyValueTable` + `InspectorCard` | `.col-label` correctly a touch brighter than `.sectionLabel`; `.data-list` selection highlight OK; KeyValueTable delta (`100 → 90`) + InspectorCard header render unchanged under the new global styles: **no regression**. |
 | `swatches` | (dflt) | all DarkPalette tokens | every token resolves post-split: no magenta fallbacks. |
-| `navstrip-real` | (dflt) | real NavStrip after the promotion | byte-identical to pre-P1.3 (nonBg 2871); `.nav-btn`/`.group-label`/pill all correct via the global classes. |
-| `library-landing` | 900×640 | **real** `LibraryTabView` + real VM, no folders → the P3.2b hero (2 seeded recents, one missing/dimmed) | Clean hero: `LIBRARY`+`Add folder` toolbar only, centered card with title / tagline / `.primary` Open Demo / `RECENT` (mirage bright, nuke dimmed = missing) / `+ Add a folder` / drop hint. Clear primary CTA + readable map·date. |
+| `navstrip-real` | (dflt) | real NavStrip after the promotion | byte-identical to pre-promotion (nonBg 2871); `.nav-btn`/`.group-label`/pill all correct via the global classes. |
+| `library-landing` | 900×640 | **real** `LibraryTabView` + real VM, no folders → the landing hero (2 seeded recents, one missing/dimmed) | Clean hero: `LIBRARY`+`Add folder` toolbar only, centered card with title / tagline / `.primary` Open Demo / `RECENT` (mirage bright, nuke dimmed = missing) / `+ Add a folder` / drop hint. Clear primary CTA + readable map·date. |
 | `library-populated` | 900×640 (+700×520) | same VM with folders + 3 demo entries | Folder browser + the persistent right-docked `Open Demo…`/`Recent ▾` actions strip. Actions strip does NOT clip at 700px (the *filter* toolbar's pre-existing clip is toolbar-reflow territory, D18). |
 | `library-dropover` | 900×640 | the landing with `IsDragOver=true` forced | The full-surface drop overlay: `ShellBg`@0.82 scrim + `AccentInteractive` frame + "⤓ Drop a .dem file to open". (A real drag can't be synthesized headlessly: the variant forces the VM flag; see D19.) |
-| `settings` | 660×1500 | **real** `SettingsView` + real `SettingsViewModel`/`FeatureGate` (temp-dir svc, 2 seeded overrides); the P2a-ii feature-toggle list | grouped **TABS & SUB-FEATURES** (indented children) + divider + **GLOBAL CHROME**; scope chips (Tab/Sub/Chrome), toggles right-aligned; overridden rows (Stats off, Hex pane on) show the amber dot + `↺`; required rows (Library, Frame list) show the "required" chip + locked toggle; "N hidden for Power-User" + Reset all read clearly. |
-| `workbench` (**new P3.3**) | 1200×680 | **real** `RuleWorkbenchView` + real `RuleWorkbenchTabViewModel` (shipped file selected → editor content + read-only; one seeded diagnostic) | Exercises all 3 workbench de-inline tokens: `AccentCaution` muted-gold "🔒 shipped (read-only)", `AccentErrorSoft` soft-red diagnostic location, `BorderTranslucent` pane outlines. Also confirms the **code-defined** `WorkbenchYamlHighlighting` colours render (Section magenta / Literal teal / Facet blue), validating D31. AvaloniaEdit **does** settle headlessly here (same as `RuleWorkbenchModuleTests`). |
-| `framelist` (**new P3.4**) | 460×340 | **real** `HarvestFrameListControl` (Parser frame list) + mock `HarvestFrameRowViewModel` rows over a `MainViewModel` (7 varied frame types; one breakpoint-set, one selected) | Exercises the P3.4 tokens: `FrameRowSelectedBg` (selected row), `FrameMsgBadgeBg` (×N badges), `TextFrameType` (NAME col), plus the reused header/label/dim tokens + per-type accent pills + the red-dim breakpoint dot. **BEFORE/AFTER byte-for-byte identical** (D32). |
+| `settings` | 660×1500 | **real** `SettingsView` + real `SettingsViewModel`/`FeatureGate` (temp-dir svc, 2 seeded overrides); the feature-toggle list | grouped **TABS & SUB-FEATURES** (indented children) + divider + **GLOBAL CHROME**; scope chips (Tab/Sub/Chrome), toggles right-aligned; overridden rows (Stats off, Hex pane on) show the amber dot + `↺`; required rows (Library, Frame list) show the "required" chip + locked toggle; "N hidden for Power-User" + Reset all read clearly. |
+| `workbench` (**new**) | 1200×680 | **real** `RuleWorkbenchView` + real `RuleWorkbenchTabViewModel` (shipped file selected → editor content + read-only; one seeded diagnostic) | Exercises all 3 workbench de-inline tokens: `AccentCaution` muted-gold "🔒 shipped (read-only)", `AccentErrorSoft` soft-red diagnostic location, `BorderTranslucent` pane outlines. Also confirms the **code-defined** `WorkbenchYamlHighlighting` colours render (Section magenta / Literal teal / Facet blue), validating D31. AvaloniaEdit **does** settle headlessly here (same as `RuleWorkbenchModuleTests`). |
+| `framelist` (**new**) | 460×340 | **real** `HarvestFrameListControl` (Parser frame list) + mock `HarvestFrameRowViewModel` rows over a `MainViewModel` (7 varied frame types; one breakpoint-set, one selected) | Exercises the new tokens: `FrameRowSelectedBg` (selected row), `FrameMsgBadgeBg` (×N badges), `TextFrameType` (NAME col), plus the reused header/label/dim tokens + per-type accent pills + the red-dim breakpoint dot. **BEFORE/AFTER byte-for-byte identical** (D32). |
 
-**P3.3 gate results:** solution `-c Release` builds clean (analyzers-as-errors, 0 errors; WASM/Browser head
+**Library / RuleWorkbench / Stats de-inline gate results:** solution `-c Release` builds clean (analyzers-as-errors, 0 errors; WASM/Browser head
 compiles, only the pre-existing NativeFileReference warning); target-view App.Tests **47/47** green
 (`StatsTabTests`, `LibraryShellTests`/`LibraryFilterTests`/`LibraryScoreTests`/`ZLibraryRenderTests`,
 `WorkbenchHighlightingTests`, `RuleWorkbenchModuleTests`: confirms every `{StaticResource}` key resolves).
 `library-populated` BEFORE/AFTER pixel-identical.
 
-**P3.4 gate results:** solution `-c Release` clean (0 errors, 1 pre-existing NativeFileReference warning);
+**Frame-list de-inline + convergence gate results:** solution `-c Release` clean (0 errors, 1 pre-existing NativeFileReference warning);
 `framelist` BEFORE/AFTER **byte-for-byte identical** (`cmp -s`); Parser-tab App.Tests **6/6** green
 (`UnknownMessageCardTests`, `ModuleFrameworkPhase3Tests`). App-wide `.axaml` hex grep = 0 outside DarkPalette.
 
-Gate results (P1.3): App + Browser(WASM) + App.Tests all build clean; render-adjacent tests green:
+Gate results: App + Browser(WASM) + App.Tests all build clean; render-adjacent tests green:
 NavStripTests 3/3, HarnessSmokeTest 1/1, StatsTabTests 5/5, PlayerDetailsTests 9/9, StatsVisibilityTests
 4/4, UnknownMessageCardTests 3/3.

@@ -126,10 +126,10 @@ public class StratBookStoresTests
         File.WriteAllText(Path.Combine(configRoot, WatchedSituationsService.FileName), "{}");
 
         // veto-history.json: real API.
-        new VetoHistoryStore(Path.Combine(configRoot, VetoHistoryStore.FileName)).Add(new VetoEntry { OpponentTeamId = Guid.NewGuid(), Order = 0, Map = "de_dust2" });
+        new VetoHistoryStore(StoredFile.At(Path.Combine(configRoot, VetoHistoryStore.FileName))).Add(new VetoEntry { OpponentTeamId = Guid.NewGuid(), Order = 0, Map = "de_dust2" });
 
         // dossier-notes.json: real API.
-        new DossierNotesStore(Path.Combine(configRoot, DossierNotesStore.FileName)).AddNote(Guid.NewGuid(), "a note");
+        new DossierNotesStore(StoredFile.At(Path.Combine(configRoot, DossierNotesStore.FileName))).AddNote(Guid.NewGuid(), "a note");
 
         // strat-mining.json: the old layout of Strat Mining's user file, copied once into the extension's folder.
         File.WriteAllText(Path.Combine(configRoot, "strat-mining.json"), "{}");

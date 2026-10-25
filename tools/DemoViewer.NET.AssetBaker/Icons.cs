@@ -21,9 +21,8 @@ namespace DemoViewer.NET.AssetBaker;
 ///         <b>They are vector, not texture.</b> CS2 stores this artwork as compiled Panorama SVG
 ///         (<c>.vsvg_c</c>), and VRF hands back the original SVG bytes verbatim — there is no image
 ///         pipeline on the source side at all. The rasterising happens here, in the baker, for the same
-///         reason the map bake lives here: <see cref="SKSvg" /> comes from Svg.Skia, which needs
-///         SkiaSharp 3.x, and the app is pinned to 2.88.x by Avalonia's canvas-lease type identity. The
-///         file boundary is what keeps those two apart.
+///         reason the map bake lives here: <see cref="SKSvg" /> comes from Svg.Skia, a tool-only
+///         dependency the app has no use for. The file boundary keeps it out of the app.
 ///     </para>
 ///     <para>
 ///         <b>Two scales, not three.</b> Measured against a purpose-rendered target, a 96 px master

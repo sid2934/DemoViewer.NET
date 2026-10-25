@@ -16,10 +16,11 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 ///     Times the scene pipeline against the frame budget: advance, render, and steady-state
 ///     allocation, over a frame source.
 ///     <para>
-///         <b>It lives in Pipeline, not Core, deliberately.</b> The report stamps
-///         <c>DateTimeOffset.UtcNow</c> and the loop uses a <see cref="Stopwatch" />, and Core's
-///         banned-API test forbids both: Core must contain nothing that makes a render depend on when
-///         it happened. Measuring from outside is not a workaround; it is the contract.
+///         <b>It lives in its own namespace, deliberately.</b> The report stamps
+///         <c>DateTimeOffset.UtcNow</c> and the loop uses a <see cref="Stopwatch" />, and the banned-API
+///         test exempts both only here and in the export session's progress clock: nothing else in this
+///         assembly may make a render depend on when it happened. Measuring from outside is not a
+///         workaround; it is the contract.
 ///     </para>
 ///     <para>
 ///         Rendering goes through <see cref="HeadlessSceneRenderer" />, the same entry point the goldens

@@ -4,6 +4,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -87,7 +88,7 @@ public class DeferredStoreLoadTests
                 await Assert.That(loadedAtStart).IsFalse();
                 await Assert.That(teamsAtStart).IsEqualTo(0).Because("until the read, the tabs show it is loading");
                 await Assert.That(second.IsLoaded).IsTrue();
-                await Assert.That(third.Teams.Select(t => t.Id)).IsEquivalentTo(ids).Because("the early change read the file before writing it");
+                await Assert.That(third.Teams.Select(t => t.Id)).IsEquivalentTo(ids, CollectionOrdering.Matching).Because("the early change read the file before writing it");
                 await Assert.That(third.Teams.Single(t => t.Id == ids[0]).Name).IsEqualTo("Renamed early");
             }
         }
@@ -157,7 +158,20 @@ public class DeferredStoreLoadTests
 
         queued.Single().Change();
         landed.SetResult();
-        await Task.Delay(50);
+
+        // The tab clears its busy state on a continuation off `landed.Task`, so the wait is on that and
+        // not on a fixed delay: the 50 ms this replaces was a bet that the continuation had already run.
+        for (int i = 0; !vm.IsIdle; i++)
+        {
+            if (i >= 400)
+            {
+                throw new System.TimeoutException(
+                    $"waited 10s for the teams tab to go idle after the command landed; BusyLine was \"{vm.BusyLine}\"");
+            }
+
+            await Task.Delay(25);
+        }
+
         using (Assert.Multiple())
         {
             await Assert.That(busy).IsTrue();

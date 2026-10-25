@@ -28,7 +28,7 @@ internal sealed record CompositionSite(
 ///     <b>A production composition site names every seam the service offers.</b> The rule is MENTION,
 ///     not non-null: an optional parameter left out of a call is invisible, while <c>fileExists: null</c>
 ///     is a decision a reader can see. Scope is the App head's own Playback2D services and view-models.
-///     Core's layers take <c>HudStyle? style = null</c> and <c>TextBlobCache? text = null</c> as styling
+///     The Pipeline layers take <c>HudStyle? style = null</c> and <c>TextBlobCache? text = null</c> as styling
 ///     defaults and are built by <c>SceneLayerCatalog</c>, not by app composition.
 ///     <para>
 ///         <b>Source for the arguments, IL for the existence.</b> C# materialises omitted optional
@@ -170,8 +170,8 @@ public class Playback2DCompositionTests
 
     private static (List<CompositionSite> Sites, List<string> Unreadable) Analyse()
     {
-        // The App head's own module services and view-models. Core/Pipeline are excluded deliberately;
-        // see the class doc.
+        // The App head's own module services and view-models. The scene contract and Pipeline are
+        // excluded deliberately; see the class doc.
         Type[] candidates = typeof(AppSettings).Assembly.GetTypes()
             .Where(t => Playback2DWholeGraph.IsModuleNamespace(t.Namespace))
             .Where(t => Seams(t).Length > 0)

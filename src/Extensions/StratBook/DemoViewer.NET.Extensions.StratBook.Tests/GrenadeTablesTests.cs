@@ -5,6 +5,7 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -27,8 +28,8 @@ public class GrenadeTablesTests
         using (Assert.Multiple())
         {
             await Assert.That(validation.Diagnostics).IsEmpty().Because(string.Join("; ", validation.Diagnostics));
-            await Assert.That(docs.Select(d => d.Id)).IsEquivalentTo(GrenadeTables.RulesetIds);
-            await Assert.That(declared).IsEquivalentTo(GrenadeTables.Tables);
+            await Assert.That(docs.Select(d => d.Id)).IsEquivalentTo(GrenadeTables.RulesetIds, CollectionOrdering.Matching);
+            await Assert.That(declared).IsEquivalentTo(GrenadeTables.Tables, CollectionOrdering.Matching);
         }
     }
 
@@ -93,14 +94,14 @@ public class GrenadeTablesTests
         ReleaseFacts smokeRelease = rows.Releases.Single(r => r.Slot == 5);
         using (Assert.Multiple())
         {
-            await Assert.That(rows.Projectiles.Select(p => p.Id)).IsEquivalentTo(["g120-7", "g140-2", "g130-9"]).Because("spawn order, the landing between");
+            await Assert.That(rows.Projectiles.Select(p => p.Id)).IsEquivalentTo(["g120-7", "g140-2", "g130-9"], CollectionOrdering.Matching).Because("spawn order, the landing between");
             await Assert.That(he.ThrowerSlot).IsEqualTo(3);
             await Assert.That(he.InitialPosition).IsNull().Because("NaN is no position");
             await Assert.That(he.LastPosition).IsEqualTo(new Vector3(460, 0, 64));
             await Assert.That(he.ExplodeTickBegin).IsEqualTo(9000);
             await Assert.That(he.SmokeTickBegin).IsNull().Because("0 is unset");
             await Assert.That(he.LastTick).IsEqualTo(203);
-            await Assert.That(he.AtSpawn!.Value.OnGround).IsEqualTo(false);
+            await Assert.That(he.AtSpawn!.Value.OnGround).IsFalse();
             await Assert.That(he.AtSpawn!.Value.Team).IsEqualTo(2);
             await Assert.That(he.AtSpawn!.Value.LastJumpTick).IsEqualTo(94);
             await Assert.That(he.OffsetRelease).IsNull().Because("a look-back from before the thrower had a pawn is no read");
@@ -132,7 +133,7 @@ public class GrenadeTablesTests
             await Assert.That(rows.Releases[0].Pawn.Team).IsEqualTo(2);
             await Assert.That(rows.Releases[0].Before).IsNull();
             await Assert.That(smokeRelease.Pawn.Position).IsEqualTo(new Vector3(100, 200, 0));
-            await Assert.That(smokeRelease.Pawn.Ducked).IsEqualTo(true);
+            await Assert.That(smokeRelease.Pawn.Ducked).IsTrue();
             await Assert.That(smokeRelease.Pawn.Team).IsEqualTo(3);
             await Assert.That(smokeRelease.Pawn.ThrowStrength).IsEqualTo(1f);
             await Assert.That(smokeRelease.Before).IsEqualTo(new Vector3(92, 200, 0));

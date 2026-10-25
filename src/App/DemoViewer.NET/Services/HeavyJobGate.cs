@@ -91,7 +91,7 @@ public sealed class HeavyJobGate : IDisposable
 
     /// <summary>
     ///     True while a 2D video export owns the machine's spare CPU. Background parses pause for its
-    ///     duration; an interactive demo load does NOT (plan B4 D10: an export is CPU-bound, not
+    ///     duration; an interactive demo load does NOT (an export is CPU-bound, not
     ///     multi-GB-RAM-bound, so making a user wait to open a demo would be a UX regression bought with
     ///     nothing).
     /// </summary>
@@ -310,7 +310,7 @@ public sealed class HeavyJobGate : IDisposable
     /// <summary>
     ///     Marks a 2D-export session for its whole duration.
     ///     <para>
-    ///         Deliberately <b>not</b> an interactive or a background slot (plan B4 D10). An export is
+    ///         Deliberately <b>not</b> an interactive or a background slot. An export is
     ///         CPU-bound and holds one extra <c>EntityTracker</c>, not a multi-gigabyte parse: taking an
     ///         interactive slot would block the user's next demo open for the whole render, and taking a
     ///         background one would queue it behind, and then in front of, the user's own work.

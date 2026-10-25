@@ -4,12 +4,11 @@
       The read-only playback contract a module sees (IModuleContext and what it returns). No package
       references at all, so the Avalonia-free Playback2D.Pipeline can consume it; the Avalonia-shaped half
       of the module contract lives in DemoViewer.NET.Extensions.Sdk under the same namespace.
-      Published alongside the SDK and versioned with it (version.json); its public API is pinned the same way.
+      Published alongside the SDK and versioned with it; its public API is pinned the same way.
     -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
+        <!-- The SDK's version, computed from its version.json, whose path filters include this project. -->
+        <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
         <IsPackable>true</IsPackable>
         <PackageId>DemoViewer.NET.Modules.Abstractions</PackageId>
         <Description>The read-only playback contract DemoViewer.NET extensions and modules see. Install DemoViewer.NET.Extensions.Sdk, which depends on it.</Description>

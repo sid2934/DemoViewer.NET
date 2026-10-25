@@ -12,10 +12,10 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     A direct-execution stand-in for the host's tool services: real panes and real cameras, no
-///     Avalonia. This is the whole point of the <see cref="IToolServices" /> seam: the draw and erase
+///     Avalonia. This is the whole point of the <see cref="IInkToolServices" /> seam: the draw and erase
 ///     tools are exercised with no window, no dispatcher and no platform.
 /// </summary>
-internal sealed class FakeToolServices : IToolServices
+internal sealed class FakeToolServices : IInkToolServices
 {
     private readonly PaneSet? _panes;
     private readonly LevelPane? _single;

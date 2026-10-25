@@ -8,6 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -116,8 +117,8 @@ public class ScenePerfRecorderTests
         HashSet<string> advanced = [.. report.Layers.Where(r => r.Phase == LayerPhase.Advance).Select(r => r.Name)];
         HashSet<string> rendered = [.. report.Layers.Where(r => r.Phase == LayerPhase.Render).Select(r => r.Name)];
 
-        await Assert.That(advanced).IsEquivalentTo(ids);
-        await Assert.That(rendered).IsEquivalentTo(ids);
+        await Assert.That(advanced).IsEquivalentTo(ids, CollectionOrdering.Matching);
+        await Assert.That(rendered).IsEquivalentTo(ids, CollectionOrdering.Matching);
         await Assert.That(report.Frames).IsEqualTo(128); // Window runs the 64-frame loop twice
 
         // Every layer row must be a real sample set, and its cost must sit inside the frame that contains

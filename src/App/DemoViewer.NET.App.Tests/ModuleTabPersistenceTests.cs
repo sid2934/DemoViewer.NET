@@ -4,6 +4,7 @@ using System.Text.Json;
 using Avalonia.Controls;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules.Abstractions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -87,7 +88,7 @@ public class ModuleTabPersistenceTests
                 {
                     "alpha",
                     "bravo"
-                });
+                }, CollectionOrdering.Matching);
                 await Assert.That(created.State.Version).IsEqualTo(3);
                 await Assert.That(tab.PendingRestoreState).IsNull()
                     .Because("the snapshot is consumed once");
@@ -118,7 +119,7 @@ public class ModuleTabPersistenceTests
                 await Assert.That(created.State.Items).IsEquivalentTo(new List<string>
                 {
                     "user-changed-this"
-                });
+                }, CollectionOrdering.Matching);
             }
         });
 
@@ -149,7 +150,7 @@ public class ModuleTabPersistenceTests
             {
                 "one",
                 "two"
-            });
+            }, CollectionOrdering.Matching);
             await Assert.That(restored.State.Version).IsEqualTo(7);
         }
     }
@@ -223,7 +224,7 @@ public class ModuleTabPersistenceTests
                 .IsEquivalentTo(new List<string>
                 {
                     "mine"
-                });
+                }, CollectionOrdering.Matching);
         });
 
     private sealed record FakeState(List<string> Items, int Version);

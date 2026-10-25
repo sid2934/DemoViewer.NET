@@ -10,6 +10,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -288,12 +289,12 @@ public class ForwardQueueTests
         queue.SubmitBackground(new DemoProcessingRequest("b.dem", "roundindex", DemoJobPriority.Background, 99, _ => { },
             NeedsUserCommands: false));
         IDemoQueueHandle index = queue.SubmitBackground(Owner("roundindex", null));
-        await WaitForAsync(() => ran.Count == 3 && parses.Count == 2 && queue.ActiveWorkerCount == 0, "both demos");
+        await queue.IdleAsync("both demos", () => ran.Count == 3 && parses.Count == 2);
 
         using (Assert.Multiple())
         {
-            await Assert.That(ran).IsEquivalentTo(["library", "roundfacts", "roundindex"]);
-            await Assert.That(parses).IsEquivalentTo(["a.dem", "b.dem"]).Because("a.dem is parsed once, and first");
+            await Assert.That(ran).IsEquivalentTo(["library", "roundfacts", "roundindex"], CollectionOrdering.Matching);
+            await Assert.That(parses).IsEquivalentTo(["a.dem", "b.dem"], CollectionOrdering.Matching).Because("a.dem is parsed once, and first");
             await Assert.That(parses[0]).IsEqualTo("a.dem");
             await Assert.That(forwarded).IsEqualTo(0);
             await Assert.That(failed).IsEqualTo(0);
@@ -323,11 +324,11 @@ public class ForwardQueueTests
         queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.FinalState, _ => library++));
         started.Wait(TimeSpan.FromSeconds(5));
         queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.Rules, _ => facts++));
-        await WaitForAsync(() => facts + library == 2 && queue.ActiveWorkerCount == 0, "both owners");
+        await queue.IdleAsync("both owners", () => facts + library == 2);
 
         using (Assert.Multiple())
         {
-            await Assert.That(passes).IsEquivalentTo([ForwardNeeds.FinalState, ForwardNeeds.FinalState | ForwardNeeds.Rules]);
+            await Assert.That(passes).IsEquivalentTo([ForwardNeeds.FinalState, ForwardNeeds.FinalState | ForwardNeeds.Rules], CollectionOrdering.Matching);
             await Assert.That(facts).IsEqualTo(1);
             await Assert.That(library).IsEqualTo(1);
         }
@@ -358,7 +359,7 @@ public class ForwardQueueTests
         queue.Resume();
         await two.Completion;
 
-        await Assert.That(calls).IsEquivalentTo(["one", "two", "released"]);
+        await Assert.That(calls).IsEquivalentTo(["one", "two", "released"], CollectionOrdering.Matching);
         await Assert.That(calls[^1]).IsEqualTo("released");
         await Assert.That(ReferenceEquals(released, seen)).IsTrue();
     }
@@ -483,12 +484,12 @@ public class ForwardQueueTests
         await Assert.That(highlights.PendingPaths()).IsEmpty().Because("the highlight fingerprint did not move");
 
         coordinator.RecheckAll();
-        await WaitForAsync(() => facts.PendingPaths().Count == 0 && queue.ActiveWorkerCount == 0, "every demo re-evaluated");
+        await queue.IdleAsync("every demo re-evaluated", () => facts.PendingPaths().Count == 0);
 
         using (Assert.Multiple())
         {
-            await Assert.That(passes.Order()).IsEquivalentTo(Enumerable.Range(0, demos).Select(i => $"/d/{i}.dem"));
-            await Assert.That(priorities.Distinct()).IsEquivalentTo([DemoJobPriority.Background]);
+            await Assert.That(passes.Order()).IsEquivalentTo(Enumerable.Range(0, demos).Select(i => $"/d/{i}.dem"), CollectionOrdering.Matching);
+            await Assert.That(priorities.Distinct()).IsEquivalentTo([DemoJobPriority.Background], CollectionOrdering.Matching);
             await Assert.That(maxQueued).IsLessThanOrEqualTo(3).Because("the backlog feeds the cap, it is not submitted at once");
         }
     }
@@ -530,7 +531,7 @@ public class ForwardQueueTests
 
         await Assert.That(facts.PendingPaths().Count).IsEqualTo(3);
         scheduler.RecheckAll();
-        await WaitForAsync(() => facts.PendingPaths().Count == 0 && queue.ActiveWorkerCount == 0, "the backlog drained");
+        await queue.IdleAsync("the backlog drained", () => facts.PendingPaths().Count == 0);
         scheduler.RecheckAll();
         await Task.Delay(100);
 
@@ -538,8 +539,8 @@ public class ForwardQueueTests
         {
             await Assert.That(seen.Select(s => s.Path).Distinct().Count()).IsEqualTo(3);
             await Assert.That(seen.Count).IsEqualTo(3).Because("a demo whose run had no rows is not visited again this session");
-            await Assert.That(seen.Select(s => s.Priority).Distinct()).IsEquivalentTo([DemoJobPriority.Background]);
-            await Assert.That(seen.Select(s => s.Owners).Distinct()).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
+            await Assert.That(seen.Select(s => s.Priority).Distinct()).IsEquivalentTo([DemoJobPriority.Background], CollectionOrdering.Matching);
+            await Assert.That(seen.Select(s => s.Owners).Distinct()).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId], CollectionOrdering.Matching);
         }
     }
 

@@ -204,7 +204,7 @@
         "bytes_per_frame": 0
       },
       "pending": true,
-      "notes": "PENDING for dv2d, permanently as things stand, and NOT because an input is missing. This golden is the PRE-V2 control's own output: captured through headless Avalonia by Playback2DGoldenCaptureTests, under the LIGHT palette the headless theme resolves, and it is gated against a delta DISTRIBUTION (99 % within +/-8, 99.5 % within +/-32, GoldenDistribution.PreV2Capture) by both of its readers - GoldenParityTests for the v2 compositor, and Playback2DGoldenCaptureTests whenever it runs off the platform that authored the corpus - because neither two rasterisers nor two OS text stacks agree pixel for pixel. dv2d renders Dark and compares at GoldenTolerance.DefaultPerceptual, which can express neither. The note here used to say 'pending clears when the compositor can render it'; that shipped, and the reason it still cannot is the palette and the tolerance, not the pane model."
+      "notes": "PENDING for dv2d, permanently as things stand, and NOT because an input is missing. This golden is the PRE-V2 control's own output: captured through headless Avalonia by the pre-v2 control, under the LIGHT palette the headless theme resolves, and it is gated against a delta DISTRIBUTION (99 % within +/-8, 99.5 % within +/-32, GoldenDistribution.PreV2Capture) by GoldenParityTests, because neither two rasterisers nor two OS text stacks agree pixel for pixel. The control that produced it is deleted, so this golden is frozen. dv2d renders Dark and compares at GoldenTolerance.DefaultPerceptual, which can express neither. The note here used to say 'pending clears when the compositor can render it'; that shipped, and the reason it still cannot is the palette and the tolerance, not the pane model."
     },
     {
       "name": "nuke-multilevel-upper",
@@ -487,6 +487,42 @@
         "hud.clock"
       ],
       "notes": "PENDING for dv2d: this entry names hud.clock, which render/golden/bench refuse outright (a fixture carries no clock; dv2d.md, 'Current limitations'), so only StratGoldenCaptureTests can verify it. Between the molotov and peek steps: A linearly interpolating toward its peek keyframe (past the molotov step's 2.5 s hold, about a fifth of the way to the peek position), B, C and O1 each held at their one keyframe, the smoke step's area effect still up (18 s after it goes off, at the end of its flight), the molotov step's added arrow at full opacity and the peek step's text not yet fading in. Not the literal midpoint of the two steps' ticks (2848): see the class remarks for why the entry stays at 2750."
+    },
+    {
+      "name": "mirage-roundstart",
+      "scene": "scenes/prev2-mirage-roundstart.scene.json",
+      "size": {
+        "width": 900,
+        "height": 900
+      },
+      "map": "de_mirage",
+      "map_version": "9e86faf4",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "notes": "PENDING FOR ONE REASON ONLY: THE BYTES WERE AUTHORED ON macOS AND CI IS ubuntu-latest. The v2 compositor's own render of the mirage round start capture, over the baked de_mirage floors and radar at the capture's 900x900, written by `dv2d golden update`. Distinct from prev2-mirage-roundstart@900x900.png, which is the PRE-V2 control's output of the SAME scene and is frozen because the control that produced it is deleted; that one is gated on a delta distribution by GoldenParityTests, this one is meant to be the regenerable v2 regression gate. It is not gating yet. Three EXISTING goldens already fail GoldenAttributionTests on macOS by 11 to 13 against a ceiling of 8, nuke-single-upper among them at the same 10 labels and 900x900 as this entry, which is direct evidence that the two platforms disagree by more than the gate allows on exactly this shape of picture. Pending keeps it out of both corpus enumerations (they skip pending) so it cannot red the Linux lane on first push. TO ARM IT: run scripts/update-playback2d-goldens.sh step 3 on the CI platform, review the diff, and flip this to false in the same commit."
+    },
+    {
+      "name": "dust2-roundstart",
+      "scene": "scenes/prev2-dust2-roundstart.scene.json",
+      "size": {
+        "width": 900,
+        "height": 900
+      },
+      "map": "de_dust2",
+      "map_version": "85d8da96",
+      "tolerance": "perceptual",
+      "budget": {
+        "render_p99_ms": 8.0,
+        "advance_p99_ms": 2.0,
+        "bytes_per_frame": 0
+      },
+      "pending": true,
+      "notes": "PENDING FOR ONE REASON ONLY: THE BYTES WERE AUTHORED ON macOS AND CI IS ubuntu-latest. The v2 compositor's own render of the dust2 round start capture, over the baked de_dust2 floors and radar at the capture's 900x900, written by `dv2d golden update`. Distinct from prev2-dust2-roundstart@900x900.png, which is the PRE-V2 control's output of the SAME scene and is frozen because the control that produced it is deleted; that one is gated on a delta distribution by GoldenParityTests, this one is meant to be the regenerable v2 regression gate. It is not gating yet. Three EXISTING goldens already fail GoldenAttributionTests on macOS by 11 to 13 against a ceiling of 8, nuke-single-upper among them at the same 10 labels and 900x900 as this entry, which is direct evidence that the two platforms disagree by more than the gate allows on exactly this shape of picture. Pending keeps it out of both corpus enumerations (they skip pending) so it cannot red the Linux lane on first push. TO ARM IT: run scripts/update-playback2d-goldens.sh step 3 on the CI platform, review the diff, and flip this to false in the same commit."
     }
   ]
 }

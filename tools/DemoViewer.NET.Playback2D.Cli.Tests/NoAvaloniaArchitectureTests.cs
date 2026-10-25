@@ -38,7 +38,7 @@ public class NoAvaloniaArchitectureTests
     }
 
     [Test]
-    public async Task CoreAndPipeline_ReferenceClosures_ContainNoAvalonia()
+    public async Task SceneAndPipeline_ReferenceClosures_ContainNoAvalonia()
     {
         await AssertClosureIsAvaloniaFree(typeof(Scene2DFrame).Assembly);
         await AssertClosureIsAvaloniaFree(typeof(SceneFrameBuilder).Assembly);

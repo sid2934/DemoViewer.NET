@@ -132,7 +132,7 @@ public class ModuleFrameworkPhase3Tests
             // Establish the authoritative tracker at a mid-match frame (players spread on the map).
             int mid = vm.Frames.Count / 2;
             vm.Navigation.SeekToFrame(mid);
-            await WaitUntil(() => vm.Playback.AuthoritativeTracker?.CurrentFrameIndex == mid);
+            await vm.Playback.TrackerAtFrameAsync(mid);
 
             // Activate the sandbox. Its OnActivated pulls context.CurrentPlayers, proving the host
             // player-join (PawnLookup reverse m_hController + PositionUtil) is reachable end-to-end.
@@ -169,17 +169,6 @@ public class ModuleFrameworkPhase3Tests
     private static async Task PumpFor(int ms)
     {
         for (int elapsed = 0; elapsed < ms; elapsed += 25)
-        {
-            Dispatcher.UIThread.RunJobs();
-            await Task.Delay(25);
-        }
-
-        Dispatcher.UIThread.RunJobs();
-    }
-
-    private static async Task WaitUntil(Func<bool> condition)
-    {
-        for (int i = 0; i < 200 && !condition(); i++)
         {
             Dispatcher.UIThread.RunJobs();
             await Task.Delay(25);

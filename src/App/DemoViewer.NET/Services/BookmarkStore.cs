@@ -8,7 +8,7 @@ using DemoViewer.NET.Models;
 namespace DemoViewer.NET.Services;
 
 /// <summary>
-///     Best-effort disk persistence for <see cref="Bookmark" />s (F8.5 / A4).
+///     Best-effort disk persistence for <see cref="Bookmark" />s.
 ///     <para>
 ///         File I/O does NOT work in the WASM/browser sandbox, so every method short-circuits when
 ///         <see cref="System.OperatingSystem.IsBrowser()" /> is true: bookmarks stay in-memory there.

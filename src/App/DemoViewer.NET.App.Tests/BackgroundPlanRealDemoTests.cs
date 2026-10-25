@@ -16,6 +16,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -36,17 +37,10 @@ public class BackgroundPlanRealDemoTests
 
     internal static string SmallestDemo(int which)
     {
-        string? env = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar);
-        string? folder = Directory.Exists(env) ? env : File.Exists(env) ? Path.GetDirectoryName(env) : null;
-        if (folder is null)
-        {
-            throw new SkipTestException($"{DemoTestHelper.DemoPathEnvVar} names no demo folder");
-        }
-
-        List<FileInfo> demos = [.. new DirectoryInfo(folder).EnumerateFiles("*.dem").OrderBy(f => f.Length)];
+        List<FileInfo> demos = [.. DemoTestHelper.RequireReplayDemos().Select(f => new FileInfo(f)).OrderBy(f => f.Length)];
         return which < demos.Count
             ? demos[which].FullName
-            : throw new SkipTestException($"fewer than {which + 1} demos in {folder}");
+            : throw new SkipTestException($"fewer than {which + 1} demos in the {DemoTestHelper.DemoPathEnvVar} folder");
     }
 
     internal static ParsedDemo ParseMapped(string path, DecodePlan plan) =>
@@ -65,7 +59,7 @@ public class BackgroundPlanRealDemoTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(narrow.Keys).IsEquivalentTo(full.Keys);
+            await Assert.That(narrow.Keys).IsEquivalentTo(full.Keys, CollectionOrdering.Matching);
             foreach ((string key, string value) in full)
             {
                 await Assert.That(narrow[key]).IsEqualTo(value).Because($"{key} on {Path.GetFileName(path)}");

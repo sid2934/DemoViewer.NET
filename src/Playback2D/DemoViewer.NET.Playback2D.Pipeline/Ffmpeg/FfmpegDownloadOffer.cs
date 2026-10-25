@@ -8,11 +8,11 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 ///         drifts from the binary it covers is worse than no copy.
 ///     </para>
 /// </summary>
-/// <param name="Url">The immutable release-asset URL. Never a <c>-latest-</c> asset (plan R5).</param>
+/// <param name="Url">The immutable release-asset URL. Never a <c>-latest-</c> asset.</param>
 /// <param name="ArchiveSha256">Lower-case hex SHA-256 of the archive, verified before extraction.</param>
 /// <param name="ReleaseTag">The dated BtbN release tag the asset belongs to.</param>
 /// <param name="SourceUrl">Where the build's source and build scripts live.</param>
-/// <param name="LicenseName">The licence the build carries: always <c>LGPL-2.1</c> here (plan D9).</param>
+/// <param name="LicenseName">The licence the build carries: always <c>LGPL-2.1</c> here.</param>
 /// <param name="ApproxBytes">Archive size, for the progress UI and the "this is a big download" warning.</param>
 /// <param name="TargetDirectory">Where <c>ffmpeg</c> and <c>ffprobe</c> will be written.</param>
 public sealed record FfmpegDownloadOffer(

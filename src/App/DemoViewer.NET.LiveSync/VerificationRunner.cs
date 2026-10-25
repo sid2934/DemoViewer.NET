@@ -8,7 +8,7 @@ using Cs2VideoGenerator.Core;
 namespace DemoViewer.NET.LiveSync;
 
 /// <summary>
-///     The UI-free core of F2 verify-in-CS2: computes the pre/post-roll
+///     The UI-free core of verify-in-CS2: computes the pre/post-roll
 ///     range around a frame-clock trigger tick, optionally spectates the attributed player, and
 ///     plays the range live in CS2, with deterministic paused arrival via the range's auto-pause.
 ///     The caller (the service) owns step 2/5: engine <c>BeginVerification</c> before, DV
@@ -39,7 +39,7 @@ public static class VerificationRunner
         CancellationToken cancellationToken)
     {
         // The ClipWindows precedent: establish ALL clamps in the frame clock,
-        // then apply the D2 TickOffset exactly once per emitted value. Clamping in CS2-tick
+        // then apply the TickOffset exactly once per emitted value. Clamping in CS2-tick
         // space with a literal-0 floor skews the range whenever TickOffset ≠ 0.
         long startFrameClock = Math.Max(0, (long)frameClockTick - preRollTicks);
         long maxFrameClock = mapper.DvTick(mapper.MaxCs2DemoTick);

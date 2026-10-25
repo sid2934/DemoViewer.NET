@@ -49,7 +49,7 @@ public class GoldenCorpusTests
     ///         <c>nuke-multilevel-noradar@900x900.png</c> was committed with no entry at all.
     ///         <c>nuke-single-upper</c> had goldens at 640×360 AND 900×900 with different
     ///         meanings, so one name described two pictures and the manifest could only ever describe
-    ///         one of them. And <c>Playback2DGoldenCaptureTests</c> wrote 900×900 captures under
+    ///         one of them. And the pre-v2 capture suite wrote 900×900 captures under
     ///         <c>duel-mirage-b</c> / <c>fitmap-mirage-eco</c> (names the manifest declares at 640×360),
     ///         so its output landed at a path nothing reads, on top of two hand-authored fixtures.
     ///     </para>

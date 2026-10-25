@@ -269,7 +269,7 @@ public class IdentityServiceTests
             using IdentityService identity = new(settings);
             using (Assert.Multiple())
             {
-                await Assert.That(Ids(identity)).IsEquivalentTo([A]);
+                await Assert.That(Ids(identity)).IsEquivalentTo([A], CollectionOrdering.Matching);
                 await Assert.That(settings.Current.Identity.MigratedFromTeamsJson).IsTrue();
             }
         }
@@ -320,7 +320,7 @@ public class IdentityServiceTests
             empty.AcceptSuggestion(empty.Suggest()!);
             using (Assert.Multiple())
             {
-                await Assert.That(Ids(empty)).IsEquivalentTo(["76561198000000009"]);
+                await Assert.That(Ids(empty)).IsEquivalentTo(["76561198000000009"], CollectionOrdering.Matching);
                 await Assert.That(empty.ActiveSteamId64).IsEqualTo("76561198000000009");
                 await Assert.That(empty.Suggest()).IsNull().Because("it is the user's now");
             }
@@ -361,7 +361,7 @@ public class IdentityServiceTests
             using IdentityService restarted = new(new SettingsService(dir), library);
             using (Assert.Multiple())
             {
-                await Assert.That(restarted.DismissedSuggestions).IsEquivalentTo(["76561198000000009"]);
+                await Assert.That(restarted.DismissedSuggestions).IsEquivalentTo(["76561198000000009"], CollectionOrdering.Matching);
                 await Assert.That(restarted.Suggest()).IsNull();
             }
         }

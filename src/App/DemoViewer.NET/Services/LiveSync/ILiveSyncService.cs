@@ -1,8 +1,7 @@
 namespace DemoViewer.NET.Services.LiveSync;
 
 /// <summary>
-///     App-facing contract for the live CS2 playback-sync engine (docs/csvg-integration/
-///     implementation-plan.md). The implementation lives in the desktop-only
+///     App-facing contract for the live CS2 playback-sync engine. The implementation lives in the desktop-only
 ///     <c>DemoViewer.NET.LiveSync</c> project (CSVG + ASP.NET Core dependencies, WASM poison,
 ///     so nothing CSVG-typed appears here) and reaches the App through
 ///     <see cref="DemoViewer.NET.Services.AppHostHooks.LiveSyncFactory" />. Null service = no
@@ -63,7 +62,7 @@ public interface ILiveSyncService : IAsyncDisposable
     Task ResyncAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     F2 verify-in-CS2: suspends the sync follower, optionally spectates
+    ///     Verify-in-CS2: suspends the sync follower, optionally spectates
     ///     <paramref name="spectateName" /> (exact in-demo roster name), plays the pre/post-roll
     ///     range around <paramref name="frameClockTick" /> live in CS2 (deterministic paused
     ///     arrival), then remote-applies DV's playhead to the trigger frame and resumes the

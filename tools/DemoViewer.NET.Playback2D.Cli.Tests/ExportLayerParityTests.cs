@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core.Layers;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -45,6 +46,6 @@ public class ExportLayerParityTests
             new[]
             {
                 SceneLayerIds.Radar, SceneLayerIds.Vision
-            }.Order());
+            }.Order(), CollectionOrdering.Matching);
     }
 }

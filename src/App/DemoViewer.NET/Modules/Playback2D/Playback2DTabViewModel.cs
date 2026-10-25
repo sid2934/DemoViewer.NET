@@ -341,9 +341,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <param name="roundFacts">The round facts the winner tint reads; null leaves the pre-facts tint.</param>
     public Playback2DTabViewModel(IRoundFactsSource? roundFacts)
     {
-        // Every dependency is optional, resolved the way Playback2DRenderer resolves its setting: the
-        // descriptor's ViewModelFactory is a bare new(), and a headless test builds this with no
-        // container at all. No store and no settings means annotations still work, session only.
+        // Every dependency is optional: the descriptor's ViewModelFactory is a bare new(), and a
+        // headless test builds this with no container at all. No store and no settings means
+        // annotations still work, session only.
         _annotationController = new AnnotationSessionController(
             TryResolveAnnotationStore(AnnotationDemoKey), TryResolveSettings());
         _annotationController.LoadRecentColors();
@@ -440,7 +440,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public GameInfo GameInfo { get; } = new();
 
     /// <summary>
-    ///     True when this build can export: the feature is on, a host is wired, and a demo is loaded.
+    ///     True when this build can export: the feature is on, a host is wired with its export plumbing,
+    ///     and a demo is loaded.
     ///     <para>
     ///         Re-raised from <see cref="RefreshGates" />, which is the one place every input to this
     ///         changes: the gate flip, activation, and the demo reset all land there. Without that the
@@ -450,7 +451,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public bool CanExport =>
         _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
-        _context?.GetService<Playback2DExportHost>() is not null &&
+        _context?.GetService<Playback2DExportHost>()?.Exports is not null &&
         _context.HasDemo;
 
     // OperatingSystem.IsBrowser() is a JIT-folded intrinsic, so the WASM branch of ExportUnavailableNote
@@ -497,16 +498,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>
     ///     The live surface's camera capture, supplied by the View when it binds (and cleared when it
-    ///     unbinds). The VM cannot reach the mounted control itself (the View owns the surface), and the
-    ///     legacy viewport has no pane cameras to capture, so this is null under the escape hatch and on
-    ///     any host that never mounted a surface at all.
+    ///     unbinds). The VM cannot reach the mounted control itself (the View owns the surface), so this
+    ///     is null on any host that never mounted a surface at all.
     /// </summary>
     internal Func<CameraScript>? LiveCameraSource { get; set; }
 
     /// <summary>
     ///     The mounted surface's map levels, supplied by the View like <see cref="LiveCameraSource" />: a captured
-    ///     pawn's level key is its level's <c>ZMin</c> on these. Null under the legacy
-    ///     viewport, where the Z itself is quantized instead.
+    ///     pawn's level key is its level's <c>ZMin</c> on these. Null with no surface mounted, where the
+    ///     Z itself is quantized instead.
     /// </summary>
     internal Func<IReadOnlyList<MapLevel>>? CaptureLevelsSource { get; set; }
 
@@ -884,7 +884,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     [RelayCommand]
     private void OpenExport()
     {
-        if (!CanExport || _context?.GetService<Playback2DExportHost>() is not { } host)
+        if (!CanExport || _context?.GetService<Playback2DExportHost>() is not { Exports: { } exports } host)
         {
             return;
         }
@@ -905,7 +905,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             // and the fully-spelled form below compile to identical IL. An omission is not a fact about the
             // program, and nothing distinguishes "this composition chose the default" from "this
             // composition forgot the parameter".
-            _exportJob = new ExportJobService(
+            _exportJob = exports.NewJob(
                 new SceneExportRunner(
                     request => BuildExportSetup(host, request),
 
@@ -922,7 +922,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                     // Process-wide, so an app session pays for one two-frame test encode per rung rather
                     // than one per export.
                     EncoderProbeCache.Shared),
-                host.Gate,
                 host.IsLiveSyncBusy,
                 host.IsReelRunning,
                 AppendExportLog);
@@ -934,13 +933,13 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         ExportDialog = new Playback2DExportDialogViewModel(
             BuildExportRanges(),
-            host.Settings().Playback2D,
+            exports.Settings.Playback2D,
             _exportJob,
             CaptureExportMoment,
             OutputFrameCount,
             () => FfmpegLocationFor(FfmpegDependency.Locate()),
             host.IsLiveSyncBusy,
-            host.PersistSettings,
+            exports.PersistSettings,
 
             // Named, not positional, and not omitted. File.Exists is the right probe in the app, so this
             // seam exists for the tests alone, and a bare null here says none of that. Playback2DCompositionTests
@@ -1066,9 +1065,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             rosterAt: _ => src.LastRoster);
 
     // A CAPTURE, taken once when Start is pressed. Panning the live window afterwards changes nothing
-    // about the video. With no live surface (the legacy escape hatch, a designer, a VM-only test) the
-    // fallback is an empty Fixed script, which leaves every pane on the fit its own level was born
-    // with. That is a correct framing, just not the user's.
+    // about the video. With no live surface (a designer, a VM-only test) the fallback is an empty Fixed
+    // script, which leaves every pane on the fit its own level was born with. That is a correct
+    // framing, just not the user's.
     //
     // The ink is captured beside it, from the dialog's Start, and both for the same reason: Start is the
     // one moment the dialog is on the UI THREAD before the job is handed to Task.Run, and copying a List
@@ -1335,6 +1334,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         remove => Surface.LayersChanged -= value;
     }
 
+    event Action? ISceneFrameHost.ContributedRenderRequested
+    {
+        add => Surface.RenderRequested += value;
+        remove => Surface.RenderRequested -= value;
+    }
+
     private static string[] BuildMyWeaponsPaths()
     {
         string[] paths = new string[MyWeaponsSlots];
@@ -1459,8 +1464,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         HasKillEvents = _context?.AvailableEventNames.Contains(KillEventName) ?? false;
 
     /// <summary>
-    ///     Raised when the user picks a Follow-Player target in the viewport (csvg-integration
-    ///     the DV→CS2 spectate seam). Payload = roster slot. The pick is also
+    ///     Raised when the user picks a Follow-Player target in the viewport (the DV→CS2 spectate
+    ///     seam). Payload = roster slot. The pick is also
     ///     relayed to the host via <see cref="IModuleContext.NotifySpectateTarget" />.
     /// </summary>
     public event Action<int>? FollowSlotChanged;
@@ -1906,8 +1911,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // Settings reach the tab through the container rather than the constructor, because the module
     // descriptor's ViewModelFactory is a bare new() by contract and a headless test builds this
-    // with no container at all. A missing service means the defaults, exactly as Playback2DRenderer
-    // resolves its own escape hatch.
+    // with no container at all. A missing service means the defaults.
     private static SettingsService? Settings()
     {
         try

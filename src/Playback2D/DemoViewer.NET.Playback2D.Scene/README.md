@@ -6,8 +6,8 @@ only, no UI framework. It is versioned with `DemoViewer.NET.Extensions.Sdk`.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.1.*" />
-  <PackageReference Include="DemoViewer.NET.Playback2D.Scene" Version="1.1.*" />
+  <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.2.*" />
+  <PackageReference Include="DemoViewer.NET.Playback2D.Scene" Version="1.2.*" />
 </ItemGroup>
 ```
 
@@ -28,22 +28,23 @@ zone loaders, the sidecar identity records and the content key under `DemoViewer
 | `Playback2D.Core.Zones` | `PlaceResolver`, `ZoneSet`, `PlaceHit` and the zone geometry |
 | `Playback2D.Core.Cameras` | `ICameraRig` and the built-in rigs |
 | `Playback2D.Core.Tools` | `IMapTool`, `MapToolEvent`, `IMapToolContext`, `MapToolButton`, `MapToolModifiers` |
-| `Playback2D.Core.Layers` (drawing) | `OverlayHeatmapLayer`, `QueryTokenLayer`, `UtilityMapLayer` |
-| `Playback2D.Core.Overlay`, `.Query`, `.Utility` | the documents those three layers draw |
+| `Playback2D.Core.Layers` (drawing) | `OverlayHeatmapLayer`, `QueryTokenLayer` |
+| `Playback2D.Core.Overlay`, `.Query` | the documents those two layers draw |
 | `Playback2D.Core.Annotations` | `AnnotationDocument`, `AnnotationElement`, `AnnotationSession`, `DocDelta` and the styles and timing they carry |
 | `Playback2D.Core.Timeline` | `ITimelineTrack`, `ITimelineData`, `TimelineMarker`, `TimelineBand`, `AnnotationTrack` |
-| `Playback2D.Core.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens or annotations needs |
+| `Playback2D.Core.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens needs. Writing ink is first-party: the session and the authoring clock are not on `IToolServices` |
 | `Playback2D.Core.Hud` | `IHudDataSource`, `HudSnapshot`, `IIconSource` |
 | `Playback2D.Core.Vision` | `IVisionSolver`, `VisionSolution` |
 | `Playback2D.Core.Zones` (overlays) | `ZoneOverlayDocument`, `ZoneOverlayApplier`: a user's zone edits over the baked set |
-| `Playback2D.Pipeline.Assets` | `ZoneAssetPipeline`, `ZoneSetReader`, `ZoneOverlayReader`: a map's places loaded from its bundle directory |
+| `Playback2D.Pipeline.Assets` | `ZoneAssetPipeline`, `ZoneLoadResult`: a map's places loaded from its bundle directory |
 | `Playback2D.Pipeline.Annotations` | `DemoIdentity`, `ClockIdentity`: which demo and which parse a sidecar was written against |
 | `Playback2D.Pipeline` | `DemoContentHash`, the demo content key every store joins on |
 | `Playback2D.Core` (more) | `MarkerSmoother`, `SceneGuides`, `TrailGeometry`, `SceneDefaults`; `Levels.MapSpaceFactory`; `Zones.NavPathfinder` |
 
 The app's own layers (radar, markers, roster and the rest), the drawing tools, video export, keyframes and the
 render backends are not published. `IMapTool` is the contract to write a new tool against; `IPointerTool`
-is published for tools that hold the playback tab's token editor or annotation session.
+is published for tools that hold the playback tab's token editor. Ink authoring is not: the annotation
+session and the authoring clock are not reachable from `IToolServices`.
 
 ## Frames and layers
 

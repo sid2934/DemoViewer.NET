@@ -3,6 +3,7 @@
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -16,7 +17,7 @@ public class RoundIndexTableTests
         RulesetDoc doc = RoundIndexTableParityTests.LoadRuleset();
 
         await Assert.That(doc.Id).IsEqualTo(RoundIndexTable.RulesetId);
-        await Assert.That(doc.Show!.Tables.Select(t => t.Name)).IsEquivalentTo([RoundIndexTable.TableName]);
+        await Assert.That(doc.Show!.Tables.Select(t => t.Name)).IsEquivalentTo([RoundIndexTable.TableName], CollectionOrdering.Matching);
     }
 
     [Test]

@@ -6,6 +6,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.Testing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -203,7 +204,7 @@ public class LibraryContributionsTests
             using (Assert.Multiple())
             {
                 await Assert.That(contribution.HasBadge).IsTrue();
-                await Assert.That(contribution.BadgeLabels).IsEquivalentTo(["official", "scrim", "our scrim", "matchmaking"]);
+                await Assert.That(contribution.BadgeLabels).IsEquivalentTo(["official", "scrim", "our scrim", "matchmaking"], CollectionOrdering.Matching);
                 await Assert.That(contribution.BadgeResetLabel).IsEqualTo("Automatic");
                 await Assert.That(contribution.BadgeResetTooltip).IsEqualTo("Let the clan tags, the header and Team Identity decide");
             }

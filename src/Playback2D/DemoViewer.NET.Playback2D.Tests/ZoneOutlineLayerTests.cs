@@ -9,6 +9,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -34,7 +35,7 @@ public class ZoneOutlineLayerTests
         PlaceResolver resolver = new(ZoneFixtures.Build());
 
         IReadOnlyList<PlaceOutline> upper = resolver.OutlinesFor(ZoneFixtures.Upper);
-        await Assert.That(upper.Select(o => o.Name).ToArray()).IsEquivalentTo(Names("Ramp", "Hut", "Outside"));
+        await Assert.That(upper.Select(o => o.Name).ToArray()).IsEquivalentTo(Names("Ramp", "Hut", "Outside"), CollectionOrdering.Matching);
         await Assert.That(ReferenceEquals(upper, resolver.OutlinesFor(ZoneFixtures.Upper))).IsTrue();
 
         PlaceOutline ramp = upper.Single(o => o.Name == "Ramp");
@@ -73,7 +74,7 @@ public class ZoneOutlineLayerTests
 
         // The lower floor holds one place and the island holds none.
         await Assert.That(resolver.OutlinesFor(ZoneFixtures.Lower).Select(o => o.Name).ToArray())
-            .IsEquivalentTo(Names("Tunnels"));
+            .IsEquivalentTo(Names("Tunnels"), CollectionOrdering.Matching);
         await Assert.That(resolver.OutlinesFor(4096).Count).IsEqualTo(0);
     }
 

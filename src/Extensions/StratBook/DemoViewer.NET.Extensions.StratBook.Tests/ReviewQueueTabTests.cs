@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -55,7 +56,7 @@ public class ReviewQueueTabTests
         await Assert.That(tab.Rows[1].Position).IsEqualTo(1);
 
         await tab.Rows[2].OpenCommand.ExecuteAsync(null);
-        await Assert.That(seam.Seeks).IsEquivalentTo([("/d/a.dem", 640)]);
+        await Assert.That(seam.Seeks).IsEquivalentTo([("/d/a.dem", 640)], CollectionOrdering.Matching);
 
         // A pick needs an open demo, then takes five seconds either side of its playhead.
         await Assert.That(tab.AddAtPlayheadCommand.CanExecute(null)).IsFalse();

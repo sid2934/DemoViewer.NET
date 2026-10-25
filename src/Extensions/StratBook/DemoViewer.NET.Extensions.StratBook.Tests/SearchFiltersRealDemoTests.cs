@@ -7,6 +7,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -93,7 +94,7 @@ public class SearchFiltersRealDemoTests
             await Assert.That(index.Count(all)).IsEqualTo(everyRound.Count);
             await Assert.That(index.Count(postPlant)).IsEqualTo(planted.Count);
             await Assert.That(index.Count(ctFullLate)).IsEqualTo(fullAndLate.Count);
-            await Assert.That(counted.Select(c => c.Count)).IsEquivalentTo([planted.Count]).Because("the live counter runs the same path");
+            await Assert.That(counted.Select(c => c.Count)).IsEquivalentTo([planted.Count], CollectionOrdering.Matching).Because("the live counter runs the same path");
             await Assert.That(planted.Count).IsEqualTo(sampledAfterPlant)
                 .Because("every planted round with a sampled step after its plant is a post-plant hit");
             await Assert.That(planted.Count).IsLessThan(everyRound.Count).Because("post-plant narrows the hits");

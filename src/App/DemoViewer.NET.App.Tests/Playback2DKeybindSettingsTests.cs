@@ -8,6 +8,7 @@ using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -82,7 +83,7 @@ public class Playback2DKeybindSettingsTests
                 Capture(vm, row, Key.W, KeyModifiers.Shift);
 
                 string[] expected = ["NextRound=Shift+W"];
-                await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEquivalentTo(expected);
+                await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEquivalentTo(expected, CollectionOrdering.Matching);
                 await Assert.That(row.Gesture).IsEqualTo("Shift+W");
                 await Assert.That(row.IsOverridden).IsTrue();
                 await Assert.That(row.Conflict).IsEqualTo("");
@@ -200,7 +201,7 @@ public class Playback2DKeybindSettingsTests
                 await Assert.That(next.Gesture).IsEqualTo("E");
                 await Assert.That(next.IsOverridden).IsFalse();
                 string[] remaining = ["PrevRound=Shift+T"];
-                await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEquivalentTo(remaining);
+                await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEquivalentTo(remaining, CollectionOrdering.Matching);
 
                 vm.ResetAllKeybindsCommand.Execute(null);
                 await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEmpty();
@@ -277,7 +278,7 @@ public class Playback2DKeybindSettingsTests
 
                 string[] expected = ["NextRound=Shift+W", TagNote + "=Ctrl+Alt+M"];
                 await Assert.That(row.Conflict).IsEqualTo("");
-                await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEquivalentTo(expected);
+                await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEquivalentTo(expected, CollectionOrdering.Matching);
                 await Assert.That(row.Gesture).IsEqualTo("Ctrl+Alt+M");
 
                 vm.Dispose();

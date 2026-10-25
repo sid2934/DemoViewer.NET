@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Analysis.Yaml;
+using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -31,11 +32,7 @@ public class ShippedSchemaDriftTests
     [Test]
     public async Task RepoSchema_MatchesThePackagesEmbeddedCopy()
     {
-        string? repoRoot = FindRepoRoot();
-        if (repoRoot is null)
-        {
-            throw new SkipTestException("not running from a repo checkout");
-        }
+        string repoRoot = DemoTestHelper.RequireRepoRoot();
 
         string repoSchema = Path.Combine(repoRoot, "rules", SchemaFileName);
         await Assert.That(File.Exists(repoSchema)).IsTrue()
@@ -68,21 +65,5 @@ public class ShippedSchemaDriftTests
         {
             Directory.Delete(extractDir, true);
         }
-    }
-
-    private static string? FindRepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        return null;
     }
 }

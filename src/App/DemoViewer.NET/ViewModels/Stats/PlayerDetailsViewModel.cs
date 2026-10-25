@@ -38,7 +38,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
     ];
 
     /// <summary>
-    ///     Rounds-table column order (design P-10). <c>__opn__</c> is the synthetic ▲/▼ opening-duel
+    ///     Rounds-table column order (P-10). <c>__opn__</c> is the synthetic ▲/▼ opening-duel
     ///     glyph column derived from FK/FD.
     /// </summary>
     private static readonly string[] _roundDetailKeys =
@@ -477,7 +477,7 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
     {
         List<KeyValueItem> items = BuildKvItems(gameRow, columns, ["EnemyDmg"]);
 
-        // Display-only derived accuracy (design P-9): HitFoe / Shots · 100, never a golden column.
+        // Display-only derived accuracy (P-9): HitFoe / Shots · 100, never a golden column.
         if (columns.Contains("Shots") && columns.Contains("HitFoe"))
         {
             double shots = AsDouble(gameRow?.Values.GetValueOrDefault("Shots"));

@@ -7,7 +7,7 @@ using Avalonia.Interactivity;
 using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Utility;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Layers;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 using SkiaSharp;
 
@@ -134,7 +134,7 @@ public sealed class UtilityMapHost : Decorator
         SKPoint local = new(x - pane.ViewportRect.Left, y - pane.ViewportRect.Top);
         bool Belongs(double z) => pane.LevelIndex < 0 || space.Levels.Count <= 1 || space.LevelIndexFor(z) == pane.LevelIndex;
 
-        IReadOnlyList<UtilityThrow> throws = UtilityMapLayer.ThrowsAt(_vm.Document, pane.Camera.Current, Belongs, local);
+        IReadOnlyList<UtilityMapThrow> throws = UtilityMapLayer.ThrowsAt(_vm.Document, pane.Camera.Current, Belongs, local);
         if (throws.Count > 0)
         {
             // A second click on a stack moves to the next one under the pointer; on a lone disc it toggles.
@@ -153,7 +153,7 @@ public sealed class UtilityMapHost : Decorator
             return;
         }
 
-        IReadOnlyList<UtilityLanding> landings = UtilityMapLayer.LandingsAt(_vm.Document, pane.Camera.Current, Belongs, local);
+        IReadOnlyList<UtilityMapLanding> landings = UtilityMapLayer.LandingsAt(_vm.Document, pane.Camera.Current, Belongs, local);
         if (landings.Count > 0)
         {
             string? current = landings.Where(l => l.Focused).Select(l => l.Id).FirstOrDefault();

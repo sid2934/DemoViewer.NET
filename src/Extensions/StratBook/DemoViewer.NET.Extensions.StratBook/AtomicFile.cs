@@ -8,8 +8,9 @@ namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
 ///     Whole-file writes that a crash cannot tear: the bytes go to a hidden temporary file beside the target,
-///     which then replaces it. A reader sees the previous file or the new one, never half of either. Every
-///     store of the extension that writes a file writes through here.
+///     are flushed to the disk, and the file then replaces it. A reader sees the previous file or the new one,
+///     never half of either, after a process crash or a power loss alike. The stores that work in a folder by
+///     its path write through here; a store of one file writes through the host's <see cref="IExtensionFile" />.
 /// </summary>
 internal static class AtomicFile
 {
@@ -44,6 +45,8 @@ internal static class AtomicFile
             using (FileStream stream = new(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 write(stream);
+                // On disk before the rename: a rename can reach the disk before the data it points at.
+                stream.Flush(flushToDisk: true);
             }
 
             File.Move(temp, full, overwrite: true);

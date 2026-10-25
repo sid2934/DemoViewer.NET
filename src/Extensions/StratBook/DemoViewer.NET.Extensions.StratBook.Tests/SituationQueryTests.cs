@@ -5,6 +5,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -278,7 +279,7 @@ public class SituationQueryTests
         using (Assert.Multiple())
         {
             await Assert.That(hits.Select(x => (x.DemoPath, x.RoundNumber)))
-                .IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1)]);
+                .IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1)], CollectionOrdering.Matching);
             await Assert.That(hits[0].DemoPath).IsEqualTo(DemoA).Because("A was modified last");
             await Assert.That(hits[2].DemoPath).IsEqualTo(DemoB);
         }
@@ -433,7 +434,7 @@ public class SituationQueryTests
             using (Assert.Multiple())
             {
                 await Assert.That(index.IndexedDemoCount).IsEqualTo(1);
-                await Assert.That(index.Query(Q("de_nuke")).Select(hit => hit.DemoPath)).IsEquivalentTo([DemoA]);
+                await Assert.That(index.Query(Q("de_nuke")).Select(hit => hit.DemoPath)).IsEquivalentTo([DemoA], CollectionOrdering.Matching);
                 await Assert.That(index.IndexedAtTicks(DemoA)).IsGreaterThan(0);
             }
         }

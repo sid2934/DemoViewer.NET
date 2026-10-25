@@ -9,6 +9,7 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using Sdk = DemoViewer.NET.Extensions.Sdk.Playback;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -83,8 +84,8 @@ public class ExtensionPlaybackFaultTests
     {
         (Playback2DTabViewModel vm, FaultRig rig, SdkPlaybackContribution hosted, ThrowingContribution fake) = Attach();
 
-        IReadOnlyList<MenuEntry> menu = vm.Timeline.MenuFor(RoundBand);
-        await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo([ThrowingContribution.EntryHeader])
+        IReadOnlyList<Sdk.MenuEntry> menu = vm.Timeline.MenuFor(RoundBand);
+        await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo([ThrowingContribution.EntryHeader], CollectionOrdering.Matching)
             .Because("the throwing menu contributed nothing; the good one its entry");
 
         menu[0].Run();

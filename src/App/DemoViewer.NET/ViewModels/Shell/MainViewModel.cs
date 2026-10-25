@@ -208,7 +208,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly Process? _process =
         OperatingSystem.IsBrowser() ? null : Process.GetCurrentProcess();
 
-    // The global demo-processing queue (demo-processing-queue.md). An interactive open is submitted as
+    // The global demo-processing queue. An interactive open is submitted as
     // the highest-priority AWAITABLE foreground request (preempts background, refuses during a reel,
     // best-effort coalesces onto an in-flight parse). Null (designer / tests): opens use a queue the shell owns.
     private readonly IDemoProcessingQueue? _processingQueue;
@@ -787,9 +787,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         _repoRoot = FindRepoRoot();
-        _protoIndex = _repoRoot != null
-            ? ProtoIndex.Build(Path.Combine(_repoRoot, "cs2-opendocs", "data", "Protobufs"))
-            : new ProtoIndex();
+        _protoIndex = ProtoIndex.Build();
 
         // Command palette. Sources read live so the palette always reflects
         // the loaded demo: tracker from EntityTab, the startup ProtoIndex, current frame count.
@@ -1201,8 +1199,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool IsLiveSyncEnabled => (_gate?.IsEnabled("chrome.livesync") ?? false) && !OperatingSystem.IsBrowser();
 
     /// <summary>
-    ///     Gate shim: the demo-processing-queue chip / flyout (<c>chrome.processingQueue</c>, demo-processing-
-    ///     queue.md). <b>Fail-CLOSED</b> like Live Sync (a null gate returns <c>false</c>) and ANDed with
+    ///     Gate shim: the demo-processing-queue chip / flyout (<c>chrome.processingQueue</c>).
+    ///     <b>Fail-CLOSED</b> like Live Sync (a null gate returns <c>false</c>) and ANDed with
     ///     <c>!OperatingSystem.IsBrowser()</c>: background parse/analyse work needs a filesystem, so a browser
     ///     build never surfaces the queue surface. Power-user+ default; the chip appears only while the queue
     ///     has activity or is paused (see <see cref="ReconcileQueueChip" />).

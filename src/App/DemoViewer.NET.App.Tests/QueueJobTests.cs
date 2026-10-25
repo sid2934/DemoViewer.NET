@@ -4,6 +4,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export.Pack;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -100,7 +101,7 @@ public class QueueJobTests
         await WaitForAsync(() => order.Contains("pack"), "the pack, while paused");
         await Assert.That(queue.QueuedCount).IsEqualTo(4);
         queue.Resume();
-        await WaitForAsync(() => order.Count == 5 && queue.ActiveWorkerCount == 0, "drain");
+        await queue.IdleAsync("drain", () => order.Count == 5);
 
         await Assert.That(string.Join(",", order)).IsEqualTo("pack,demo,migrate,mine,clips");
     }
@@ -124,7 +125,7 @@ public class QueueJobTests
         }));
 
         await user.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "the workers to go idle");
+        await queue.IdleAsync("the workers to go idle");
         await Assert.That(ran).IsEqualTo(1).Because("the clips job waits for Resume");
         await Assert.That(user.State).IsEqualTo(DemoQueueItemState.Completed);
 
@@ -158,7 +159,7 @@ public class QueueJobTests
         running.Cancel();
         await running.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(running.State).IsEqualTo(DemoQueueItemState.Cancelled);
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+        await queue.IdleAsync("worker exit");
         await Assert.That(queuedRan).IsFalse();
         await Assert.That(gate.InFlight).IsEqualTo(0);
     }
@@ -204,7 +205,7 @@ public class QueueJobTests
         await running.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         await other.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         await shared.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+        await queue.IdleAsync("worker exit");
 
         using (Assert.Multiple())
         {
@@ -213,7 +214,7 @@ public class QueueJobTests
             await Assert.That(packQueuedRan).IsFalse();
             await Assert.That(packOnly.State).IsEqualTo(DemoQueueItemState.Cancelled).Because("no co-owner wanted that parse");
             await Assert.That(shared.State).IsEqualTo(DemoQueueItemState.Completed).Because("the library still owned the shared parse");
-            await Assert.That(queue.Snapshot().Single(s => s.Path == "/d/a.dem").Owners).IsEquivalentTo(["library"]);
+            await Assert.That(queue.Snapshot().Single(s => s.Path == "/d/a.dem").Owners).IsEquivalentTo(["library"], CollectionOrdering.Matching);
             await Assert.That(other.State).IsEqualTo(DemoQueueItemState.Completed);
             await Assert.That(otherOwnersJobRan).IsTrue();
         }
@@ -380,7 +381,7 @@ public class QueueJobTests
         }
 
         await Task.WhenAll(many.Select(h => h.Completion)).WaitAsync(TimeSpan.FromSeconds(10));
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+        await queue.IdleAsync("worker exit");
         await Assert.That(queue.Snapshot().Count).IsLessThanOrEqualTo(30);
     }
 

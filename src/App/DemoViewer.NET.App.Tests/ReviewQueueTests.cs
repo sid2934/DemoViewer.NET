@@ -16,6 +16,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -76,13 +77,13 @@ public class ReviewQueueTests
         Guid[] ids = [.. queue.Entries.Select(e => e.Id)];
 
         queue.Move(ids[0], +1);
-        await Assert.That(queue.Entries.Select(e => e.Note)).IsEquivalentTo(["b", "a", "c", "d"]);
+        await Assert.That(queue.Entries.Select(e => e.Note)).IsEquivalentTo(["b", "a", "c", "d"], CollectionOrdering.Matching);
         queue.MoveTo(ids[3], -5);
-        await Assert.That(queue.Entries.Select(e => e.Note)).IsEquivalentTo(["d", "b", "a", "c"]).Because("clamped to the top");
+        await Assert.That(queue.Entries.Select(e => e.Note)).IsEquivalentTo(["d", "b", "a", "c"], CollectionOrdering.Matching).Because("clamped to the top");
 
         // The subset a and c swap between the two slots they hold; b and d stay put.
         queue.ReorderSubset([ids[2], ids[0]]);
-        await Assert.That(queue.Entries.Select(e => e.Note)).IsEquivalentTo(["d", "b", "c", "a"]);
+        await Assert.That(queue.Entries.Select(e => e.Note)).IsEquivalentTo(["d", "b", "c", "a"], CollectionOrdering.Matching);
 
         ReviewEntry card = queue.AddSection("Retakes", 2);
         queue.SetQuestion(ids[1], "  why did\nB fall?  ");
@@ -253,19 +254,19 @@ public class ReviewQueueTests
         vm.Stage(a, a.Highlights[0]);
         queue.Add([Clip("/d/x.dem", 1, 2, "from a search", ReviewSources.Situation)]);
         vm.Stage(b, b.Highlights[0]);
-        await Assert.That(queue.Clips.Select(c => c.Note)).IsEquivalentTo(["ace at 5000", "from a search", "clutch at 9000"]);
+        await Assert.That(queue.Clips.Select(c => c.Note)).IsEquivalentTo(["ace at 5000", "from a search", "clutch at 9000"], CollectionOrdering.Matching);
 
         // The tray moves b's group to the top: the search clip keeps its slot between them.
         vm.MoveGroup(ClipTrayKeys.Group("/d/b.dem", "2"), -1);
         using (Assert.Multiple())
         {
-            await Assert.That(vm.StagedSelections.Select(s => s.Record.Path)).IsEquivalentTo(["/d/b.dem", "/d/a.dem"]);
-            await Assert.That(queue.Clips.Select(c => c.Note)).IsEquivalentTo(["clutch at 9000", "from a search", "ace at 5000"]);
+            await Assert.That(vm.StagedSelections.Select(s => s.Record.Path)).IsEquivalentTo(["/d/b.dem", "/d/a.dem"], CollectionOrdering.Matching);
+            await Assert.That(queue.Clips.Select(c => c.Note)).IsEquivalentTo(["clutch at 9000", "from a search", "ace at 5000"], CollectionOrdering.Matching);
         }
 
         // A move in the Review tab is a tray reorder too.
         queue.MoveTo(queue.Clips[2].Id, 0);
-        await Assert.That(vm.StagedSelections.Select(s => s.Record.Path)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"]);
+        await Assert.That(vm.StagedSelections.Select(s => s.Record.Path)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"], CollectionOrdering.Matching);
 
         // Clear tray empties the tray and nothing else.
         vm.ClearTrayCommand.Execute(null);
@@ -273,7 +274,7 @@ public class ReviewQueueTests
         using (Assert.Multiple())
         {
             await Assert.That(vm.StagedCount).IsEqualTo(0);
-            await Assert.That(queue.Clips.Select(c => c.Note)).IsEquivalentTo(["from a search"]);
+            await Assert.That(queue.Clips.Select(c => c.Note)).IsEquivalentTo(["from a search"], CollectionOrdering.Matching);
         }
     }
 
@@ -295,12 +296,12 @@ public class ReviewQueueTests
             // The restart: a fresh queue over the same file, a fresh tray over it.
             ReviewQueue second = new(root);
             (_, HighlightsTabViewModel after) = Tray(second, a, b);
-            await Assert.That(after.StagedSelections.Select(s => s.Record.Path)).IsEquivalentTo(["/d/b.dem", "/d/a.dem"]);
+            await Assert.That(after.StagedSelections.Select(s => s.Record.Path)).IsEquivalentTo(["/d/b.dem", "/d/a.dem"], CollectionOrdering.Matching);
 
             // The session's list is older than the queue: with the tray's clips already queued it is not replayed.
             second.MoveTo(second.Clips[1].Id, 0);
             after.RestoreState(session);
-            await Assert.That(after.StagedSelections.Select(s => s.Record.Path)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"]);
+            await Assert.That(after.StagedSelections.Select(s => s.Record.Path)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"], CollectionOrdering.Matching);
             await Assert.That(second.ClipCount).IsEqualTo(2);
         }
         finally
@@ -329,7 +330,7 @@ public class ReviewQueueTests
         {
             await Assert.That(vm.StagedCount).IsEqualTo(1);
             await Assert.That(vm.StatusMessage).Contains("no longer in the highlights cache");
-            await Assert.That(queue.Clips.Select(c => c.Note)).IsEquivalentTo(["ace at 5000", "a manual pick in the same demo"])
+            await Assert.That(queue.Clips.Select(c => c.Note)).IsEquivalentTo(["ace at 5000", "a manual pick in the same demo"], CollectionOrdering.Matching)
                 .Because("only the tray's own clip rests on the cache");
         }
     }
@@ -412,7 +413,7 @@ public class ReviewQueueTests
             queue.Flush();
             ReviewQueue reread = new(root);
             await reread.Loaded;
-            await Assert.That(reread.Clips.Select(c => c.DemoPath)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"]);
+            await Assert.That(reread.Clips.Select(c => c.DemoPath)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"], CollectionOrdering.Matching);
         }
         finally
         {
@@ -466,21 +467,21 @@ public class ReviewQueueTests
             await Assert.That(card.IsCollapsed).IsTrue();
             await Assert.That(tab.Rows[2].Position).IsEqualTo(ReviewQueueTabViewModel.CollapseAbove + 2)
                 .Because("positions count every clip, shown or not");
-            await Assert.That(tab.SourceFilters).IsEquivalentTo([ReviewQueueTabViewModel.AllSources, "dossier", "lineup"]);
+            await Assert.That(tab.SourceFilters).IsEquivalentTo([ReviewQueueTabViewModel.AllSources, "dossier", "lineup"], CollectionOrdering.Matching);
         }
 
         card.ToggleCommand.Execute(null);
         await Assert.That(tab.Rows.Count).IsEqualTo(ReviewQueueTabViewModel.CollapseAbove + 4);
 
         tab.SelectedSource = ReviewSources.Dossier;
-        await Assert.That(tab.Rows.Select(r => r.IsSection ? r.Entry.Title : r.Entry.Note)).IsEquivalentTo(["Dossier", "a plant"]);
+        await Assert.That(tab.Rows.Select(r => r.IsSection ? r.Entry.Title : r.Entry.Note)).IsEquivalentTo(["Dossier", "a plant"], CollectionOrdering.Matching);
 
         tab.SelectedSource = ReviewQueueTabViewModel.AllSources;
         card.ToggleCommand.Execute(null);
         tab.SearchText = "smoke 7";
         using (Assert.Multiple())
         {
-            await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Entry.Note)).IsEquivalentTo(["smoke 7"])
+            await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Entry.Note)).IsEquivalentTo(["smoke 7"], CollectionOrdering.Matching)
                 .Because("a search opens the collapsed section it finds a clip in");
             await Assert.That(tab.Rows[0].ClipCountText).IsEqualTo("1 of 51 clips match");
         }

@@ -4,6 +4,7 @@ using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -210,7 +211,7 @@ public class RoundFactsCacheTests
                 await Assert.That(rows.ClockIdentity().LastTick).IsEqualTo(1000);
                 RoundFacts round = rows.Rounds[0];
                 await Assert.That(round.EndReason).IsEqualTo(RoundEndReason.BombDefused);
-                await Assert.That(round.Ct.Slots).IsEquivalentTo([1, 2, 3, 4, 5]);
+                await Assert.That(round.Ct.Slots).IsEquivalentTo([1, 2, 3, 4, 5], CollectionOrdering.Matching);
                 await Assert.That(round.Ct.BuyType).IsEqualTo(BuyType.Pistol);
                 await Assert.That(round.Ct.Thresholds).IsEqualTo(BuyThresholds.Default);
                 await Assert.That(round.Kills[0].AttackerSlot).IsEqualTo(1);

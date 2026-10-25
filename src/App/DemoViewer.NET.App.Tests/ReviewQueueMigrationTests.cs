@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using DemoViewer.NET.Services.Review;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -49,7 +50,7 @@ public class ReviewQueueMigrationTests
             {
                 await Assert.That(queue.Migration).IsEqualTo(new ReviewQueueMigrationResult(3, 2, 1));
                 await Assert.That(queue.Entries.Select(e => e.Kind == ReviewEntryKind.Section ? e.Title : e.Note))
-                    .IsEquivalentTo(["Lineup clips, de_nuke", asked.Note, renoted.Note, "Dossier", "plant"]);
+                    .IsEquivalentTo(["Lineup clips, de_nuke", asked.Note, renoted.Note, "Dossier", "plant"], CollectionOrdering.Matching);
                 await Assert.That(await File.ReadAllTextAsync(Path.Combine(root, ReviewQueueMigration.BackupFileName)))
                     .IsEqualTo(original);
                 await Assert.That(File.Exists(Path.Combine(root, ReviewQueue.FileName + ".migrating"))).IsFalse();
@@ -85,7 +86,7 @@ public class ReviewQueueMigrationTests
         {
             await Assert.That(result).IsEqualTo(new ReviewQueueMigrationResult(1, 2, 1));
             await Assert.That(kept.Select(e => e.Kind == ReviewEntryKind.Section ? e.Title : e.Note))
-                .IsEquivalentTo(["Mine", moved.Note, "B flashes to learn", renamed.Note]);
+                .IsEquivalentTo(["Mine", moved.Note, "B flashes to learn", renamed.Note], CollectionOrdering.Matching);
         }
     }
 
@@ -115,7 +116,7 @@ public class ReviewQueueMigrationTests
             await reread.Loaded;
             using (Assert.Multiple())
             {
-                await Assert.That(reread.Clips.Select(c => c.Note)).IsEquivalentTo(["plant"]);
+                await Assert.That(reread.Clips.Select(c => c.Note)).IsEquivalentTo(["plant"], CollectionOrdering.Matching);
                 await Assert.That(await File.ReadAllTextAsync(Path.Combine(root, ReviewQueueMigration.BackupFileName))).IsEqualTo(original);
             }
         }

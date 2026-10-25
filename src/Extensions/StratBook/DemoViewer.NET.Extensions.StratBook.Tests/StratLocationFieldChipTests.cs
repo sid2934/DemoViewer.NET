@@ -16,6 +16,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratMapFirstTests;
 using DemoViewer.NET.Extensions.StratBook.Controls;
 
@@ -50,8 +51,8 @@ public partial class StratLocationFieldTests
         IReadOnlyList<PlaceRef> point = model.Commit()!;
         using (Assert.Multiple())
         {
-            await Assert.That(picked.Select(p => p.Place ?? "")).IsEquivalentTo(["Stairs", "Jungle"]);
-            await Assert.That(typed.Select(p => p.Place ?? "")).IsEquivalentTo(["Stairs", "Jungle", "PalaceInterior"]).Because("an alias resolves");
+            await Assert.That(picked.Select(p => p.Place ?? "")).IsEquivalentTo(["Stairs", "Jungle"], CollectionOrdering.Matching);
+            await Assert.That(typed.Select(p => p.Place ?? "")).IsEquivalentTo(["Stairs", "Jungle", "PalaceInterior"], CollectionOrdering.Matching).Because("an alias resolves");
             await Assert.That((point[3].X, point[3].Y, point[3].LevelMinZ)).IsEqualTo(((double?)10, (double?)-20.5, (double?)-256));
             await Assert.That(model.Text).IsEmpty();
         }
@@ -79,16 +80,16 @@ public partial class StratLocationFieldTests
         model.Load([Named("Stairs"), Named("Jungle"), a, b]);
         using (Assert.Multiple())
         {
-            await Assert.That(model.Shift(1, -1)!.Select(p => p.Place)).IsEquivalentTo(["Jungle", "Stairs", null, null]);
+            await Assert.That(model.Shift(1, -1)!.Select(p => p.Place)).IsEquivalentTo(["Jungle", "Stairs", null, null], CollectionOrdering.Matching);
             await Assert.That(model.Shift(0, -1)).IsNull().Because("the first chip has nowhere to go");
             await Assert.That(model.Shift(1, 1)).IsNull().Because("a list is stored places first, then points");
-            await Assert.That(model.Shift(3, -1)!.Select(p => p.X)).IsEquivalentTo([null, null, (double?)1.4, 1.2]);
+            await Assert.That(model.Shift(3, -1)!.Select(p => p.X)).IsEquivalentTo([null, null, (double?)1.4, 1.2], CollectionOrdering.Matching);
         }
 
         IReadOnlyList<PlaceRef> left = model.Remove(0);
         using (Assert.Multiple())
         {
-            await Assert.That(left.Select(p => p.Place ?? $"{p.X}")).IsEquivalentTo(["Stairs", "1.4", "1.2"])
+            await Assert.That(left.Select(p => p.Place ?? $"{p.X}")).IsEquivalentTo(["Stairs", "1.4", "1.2"], CollectionOrdering.Matching)
                 .Because("two points that print alike stay two points");
             await Assert.That(StratLocations.Same(left[1], b)).IsTrue();
             await Assert.That(StratLocations.Same(left[2], a)).IsTrue();
@@ -123,7 +124,7 @@ public partial class StratLocationFieldTests
             Dispatcher.UIThread.RunJobs();
             using (Assert.Multiple())
             {
-                await Assert.That(field.Value!.Select(p => p.Place ?? $"{p.X},{p.Y}")).IsEquivalentTo(["Stairs", "Jungle", "10,20"]);
+                await Assert.That(field.Value!.Select(p => p.Place ?? $"{p.X},{p.Y}")).IsEquivalentTo(["Stairs", "Jungle", "10,20"], CollectionOrdering.Matching);
                 await Assert.That(field.Chips.Count).IsEqualTo(3);
                 await Assert.That(BoxOf(field).Text ?? "").IsEmpty();
                 await Assert.That(row.Enters).IsEqualTo(1).Because("Enter on typed text stays with the field");
@@ -137,7 +138,7 @@ public partial class StratLocationFieldTests
             Dispatcher.UIThread.RunJobs();
             using (Assert.Multiple())
             {
-                await Assert.That(field.Value!.Select(p => p.Place ?? "")).IsEquivalentTo(["Stairs", "Jungle"]);
+                await Assert.That(field.Value!.Select(p => p.Place ?? "")).IsEquivalentTo(["Stairs", "Jungle"], CollectionOrdering.Matching);
                 await Assert.That(BoxOf(field).IsFocused).IsTrue();
             }
 
@@ -148,7 +149,7 @@ public partial class StratLocationFieldTests
             Dispatcher.UIThread.RunJobs();
             using (Assert.Multiple())
             {
-                await Assert.That(field.Value!.Select(p => p.Place ?? "")).IsEquivalentTo(["Jungle", "Stairs"]);
+                await Assert.That(field.Value!.Select(p => p.Place ?? "")).IsEquivalentTo(["Jungle", "Stairs"], CollectionOrdering.Matching);
                 await Assert.That(field.Chips[0].IsFocused).IsTrue();
                 await Assert.That(row.Enters).IsEqualTo(1);
             }
@@ -215,7 +216,7 @@ public partial class StratLocationFieldTests
             using (Assert.Multiple())
             {
                 await Assert.That(vm.Session.Document!.Steps[index].Lurk!.AreaPoints).IsNull();
-                await Assert.That(vm.Session.Document!.Steps[index].Lurk!.Areas).IsEquivalentTo(["PalaceInterior", "Connector"]);
+                await Assert.That(vm.Session.Document!.Steps[index].Lurk!.Areas).IsEquivalentTo(["PalaceInterior", "Connector"], CollectionOrdering.Matching);
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(areas.Chips.Count).IsEqualTo(2);
             }
@@ -245,7 +246,7 @@ public partial class StratLocationFieldTests
             string added = Bytes(vm);
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Session.Document!.Steps[index].Lurk!.Areas).IsEquivalentTo(["PalaceInterior", "Connector", "Jungle"]);
+                await Assert.That(vm.Session.Document!.Steps[index].Lurk!.Areas).IsEquivalentTo(["PalaceInterior", "Connector", "Jungle"], CollectionOrdering.Matching);
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 2);
                 await Assert.That(areas.Chips.Count).IsEqualTo(3);
                 await Assert.That(BoxOf(areas).Text ?? "").IsEmpty();
@@ -292,7 +293,7 @@ public partial class StratLocationFieldTests
             StratDocument document = vm.Session.Document!;
             using (Assert.Multiple())
             {
-                await Assert.That(document.Steps[index].Assignments!.Single().Watch!.Places).IsEquivalentTo(["Jungle", "Stairs"]);
+                await Assert.That(document.Steps[index].Assignments!.Single().Watch!.Places).IsEquivalentTo(["Jungle", "Stairs"], CollectionOrdering.Matching);
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(document.Steps.Count).IsEqualTo(steps).Because("Alt+Left on a chip is not a step move");
             }
@@ -331,7 +332,7 @@ public partial class StratLocationFieldTests
             using (Assert.Multiple())
             {
                 await Assert.That(StratLocations.Via(vm.Session.Document!.Steps[index].Via, vm.Session.Document!.Steps[index].ViaPoints)
-                    .Select(p => p.Place ?? "")).IsEquivalentTo(["Connector", "BombsiteB"]);
+                    .Select(p => p.Place ?? "")).IsEquivalentTo(["Connector", "BombsiteB"], CollectionOrdering.Matching);
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(via.Chips.Count).IsEqualTo(2);
             }
@@ -351,7 +352,7 @@ public partial class StratLocationFieldTests
             await Assert.That(model.Highlight).IsEqualTo(-1).Because("\"palace\" is PalaceInterior's alias, already chosen");
             await Assert.That(model.Accept()).IsNull();
             await Assert.That(model.Commit()).IsNull();
-            await Assert.That(model.Value.Select(p => p.Place ?? "")).IsEquivalentTo(["PalaceInterior"]);
+            await Assert.That(model.Value.Select(p => p.Place ?? "")).IsEquivalentTo(["PalaceInterior"], CollectionOrdering.Matching);
         }
     }
 

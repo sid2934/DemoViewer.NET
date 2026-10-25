@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -28,7 +29,7 @@ public class CoalescedWriterTests
         using (Assert.Multiple())
         {
             await Assert.That(failures.Count).IsEqualTo(1);
-            await Assert.That(written).IsEquivalentTo(["good"]);
+            await Assert.That(written).IsEquivalentTo(["good"], CollectionOrdering.Matching);
             await Assert.That(writer.Flush()).IsTrue();
         }
     }
@@ -68,7 +69,7 @@ public class CoalescedWriterTests
             await Assert.That(queued).IsEqualTo(1).Because("the first drain was dropped, so the next Post schedules again");
             await Assert.That(pendingBeforeFlush).IsTrue();
             await Assert.That(flushed).IsTrue();
-            await Assert.That(written).IsEquivalentTo(["c"]).Because("the newest snapshot wins and nothing is written twice");
+            await Assert.That(written).IsEquivalentTo(["c"], CollectionOrdering.Matching).Because("the newest snapshot wins and nothing is written twice");
         }
     }
 

@@ -10,6 +10,7 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Playback2D.Pipeline.Overlay;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -85,7 +86,7 @@ public class OverlayViewTests
 
         byte[] first = Render(document, out IReadOnlyList<LevelPaneSnapshot> panes, out ScenePalette palette);
         byte[] second = Render(document, out _, out _);
-        await Assert.That(second).IsEquivalentTo(first).Because("one document under one camera is one set of bytes");
+        await Assert.That(second).IsEquivalentTo(first, CollectionOrdering.Matching).Because("one document under one camera is one set of bytes");
 
         using SKBitmap bitmap = SKBitmap.Decode(first);
         await Assert.That(panes.Count).IsEqualTo(2);
@@ -124,7 +125,7 @@ public class OverlayViewTests
         SceneTime time = new(0, 0, 0, 1 / 64.0, true);
         byte[] withoutLayer = renderer.RenderPng(Frame(), in time, renderer.Size);
 
-        await Assert.That(withLayer).IsEquivalentTo(withoutLayer);
+        await Assert.That(withLayer).IsEquivalentTo(withoutLayer, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -153,12 +154,12 @@ public class OverlayViewTests
                 new OverlayPoint(620, -420, -416, QuerySide.Ct),
                 new OverlayPoint(-1300, -900, -416, QuerySide.Ct),
                 new OverlayPoint(1420.5f, -760.25f, -700, QuerySide.T)
-            ]);
+            ], CollectionOrdering.Matching);
         }
 
         using MemoryStream second = new();
         OverlayFixtureStore.Write(again, second);
-        await Assert.That(second.ToArray()).IsEquivalentTo(first.ToArray()).Because("a fixture round-trips byte for byte");
+        await Assert.That(second.ToArray()).IsEquivalentTo(first.ToArray(), CollectionOrdering.Matching).Because("a fixture round-trips byte for byte");
         string text = System.Text.Encoding.UTF8.GetString(first.ToArray());
         await Assert.That(text).DoesNotContain("\r\n");
         await Assert.That(text).Contains("    [620, -420, -416]").Because("one point per line, the shape a diff can read");

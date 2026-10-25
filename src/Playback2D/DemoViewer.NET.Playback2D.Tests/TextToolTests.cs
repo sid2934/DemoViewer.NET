@@ -4,6 +4,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -31,7 +32,7 @@ public class TextToolTests
         await Assert.That(element.Points[0].Y).IsEqualTo(-20f);
         await Assert.That(element.Text).IsEqualTo("");
 
-        await Assert.That(h.Services.TextEditRequests).IsEquivalentTo([element.Id]);
+        await Assert.That(h.Services.TextEditRequests).IsEquivalentTo([element.Id], CollectionOrdering.Matching);
         await Assert.That(h.Tool.EditingElementId).IsEqualTo(element.Id);
         await Assert.That(h.Document.IsGestureOpen).IsTrue()
             .Because("the add and the typed text are one gesture, so the mark stays open for the editor");

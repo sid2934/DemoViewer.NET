@@ -12,6 +12,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.DemoProcessing;
 using DemoViewer.NET.Views.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -118,7 +119,7 @@ public class ProcessingQueueViewTests
             {
                 await Assert.That(list.ItemCount).IsEqualTo(5);
                 await Assert.That(vm.Rows.Select(r => r.KindLabel).Where(k => k.Length > 0).Distinct().Order())
-                    .IsEquivalentTo(["clips", "migration", "mining", "pack export"]);
+                    .IsEquivalentTo(["clips", "migration", "mining", "pack export"], CollectionOrdering.Matching);
                 await Assert.That(vm.Rows[0]).IsSameReferenceAs(mine);
                 await Assert.That(string.Join("|", vm.Rows.Skip(1).Select(r => r.DisplayText))).IsEqualTo(string.Join("|", ranked));
                 await Assert.That(mine.HasProgress).IsTrue();
@@ -143,7 +144,7 @@ public class ProcessingQueueViewTests
             using (Assert.Multiple())
             {
                 await Assert.That(entries.Select(m => (string)m.Header!)).IsEquivalentTo(
-                    [last.PromoteLabel, "Remove from queue"]);
+                    [last.PromoteLabel, "Remove from queue"], CollectionOrdering.Matching);
                 await Assert.That(entries[0].Header as string).StartsWith("Move to top");
             }
 

@@ -249,26 +249,10 @@ public class Playback2DExportHudSourceTests
 
     private static string ResolveNuke()
     {
-        string bundled = Path.Combine(RepoRoot(), NukeSample.Replace('/', Path.DirectorySeparatorChar));
+        string bundled = Path.Combine(DemoTestHelper.RequireRepoRoot(), NukeSample.Replace('/', Path.DirectorySeparatorChar));
         return File.Exists(bundled)
             ? bundled
             : DemoTestHelper.FindDemoPath()
               ?? throw new SkipTestException($"no demo (tried {NukeSample} and the staged locations)");
-    }
-
-    private static string RepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new SkipTestException("could not locate the repository root");
     }
 }

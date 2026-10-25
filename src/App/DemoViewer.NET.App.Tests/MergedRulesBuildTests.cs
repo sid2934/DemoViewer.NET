@@ -14,6 +14,7 @@ using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -227,7 +228,7 @@ public class MergedRulesBuildTests
             {
                 await Assert.That(composed).IsNotNull().Because("the broken override does not compose on its own");
                 await Assert.That(build.Fingerprint(64).Fingerprint).IsEqualTo(ShippedFingerprint64);
-                await Assert.That(run.Build.ExcludedRulesets.Select(r => r.Id)).IsEquivalentTo([RoundFacts])
+                await Assert.That(run.Build.ExcludedRulesets.Select(r => r.Id)).IsEquivalentTo([RoundFacts], CollectionOrdering.Matching)
                     .Because("the merged run every highlights visit makes drops the broken ruleset alone");
             }
         }
@@ -358,7 +359,7 @@ public class MergedRulesBuildTests
             await Assert.That(onAgain).IsSameReferenceAs(on);
             await Assert.That(off.Build.Outputs?.Select(o => o.Id) ?? []).Contains(RoundFacts)
                 .Because("round_facts is core and rides every run");
-            await Assert.That(Recorded(on)).IsEquivalentTo(WithLibrary(RoundFacts))
+            await Assert.That(Recorded(on)).IsEquivalentTo(WithLibrary(RoundFacts), CollectionOrdering.Matching)
                 .Because("the bare build keeps round_facts and the library tables, and only those");
         }
     }
@@ -388,9 +389,9 @@ public class MergedRulesBuildTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(Recorded(narrow)).IsEquivalentTo(WithLibrary(RoundFacts)).Because("the facts are current, so only round_facts and the library tables are recorded");
+                await Assert.That(Recorded(narrow)).IsEquivalentTo(WithLibrary(RoundFacts), CollectionOrdering.Matching).Because("the facts are current, so only round_facts and the library tables are recorded");
                 await Assert.That(wide).IsNotSameReferenceAs(narrow).Because("the narrow run lacks a table the caller needs");
-                await Assert.That(Recorded(wide)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
+                await Assert.That(Recorded(wide)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts), CollectionOrdering.Matching);
                 await Assert.That(wideAgain).IsSameReferenceAs(wide);
             }
         }
@@ -464,7 +465,7 @@ public class MergedRulesBuildTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(Recorded(wide)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
+                await Assert.That(Recorded(wide)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts), CollectionOrdering.Matching);
                 await Assert.That(narrow).IsSameReferenceAs(wide).Because("the cached run recorded a superset of the cut");
                 await Assert.That(everything).IsSameReferenceAs(wide).Because("the cached run recorded every stamped output");
             }
@@ -502,7 +503,7 @@ public class MergedRulesBuildTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(build.StampedRulesets.Select(r => r.Owner)).IsEquivalentTo([StampedRuleset.CoreOwner]);
+            await Assert.That(build.StampedRulesets.Select(r => r.Owner)).IsEquivalentTo([StampedRuleset.CoreOwner], CollectionOrdering.Matching);
             await Assert.That(Ids(build.Docs)).Contains(Gated).Because("core registers first, so an extension cannot switch its ruleset off");
         }
     }
@@ -528,7 +529,7 @@ public class MergedRulesBuildTests
     [Test]
     public async Task NoStampedRulesetReferencesEnemySpotted()
     {
-        string root = DemoTestHelper.FindRepoRoot() ?? throw new InvalidOperationException("repo root not found");
+        string root = DemoTestHelper.RequireRepoRoot();
         string[] files =
         [
             .. Directory.EnumerateFiles(Shipped, "*.rules.yaml"),
@@ -550,7 +551,7 @@ public class MergedRulesBuildTests
             await Assert.That(aim.Highlights ?? []).IsEmpty().Because("highlights are persisted from the bake-free runs");
             await Assert.That(aim.Show?.Tables ?? []).IsEmpty().Because("stamped tables are persisted from the bake-free runs");
             await Assert.That(aim.Exports ?? []).IsEmpty().Because("an export could feed a persisted column");
-            await Assert.That((match.Show?.Tables ?? []).Select(t => t.Name)).IsEquivalentTo([PlayerMatchFacet.Table])
+            await Assert.That((match.Show?.Tables ?? []).Select(t => t.Name)).IsEquivalentTo([PlayerMatchFacet.Table], CollectionOrdering.Matching)
                 .Because("HasVisibility speaks for the facet table alone");
             await Assert.That(match.Show!.Tables.Single().Columns.Select(c => c.Label ?? c.Stat)).Contains(ColumnCatalogue.VisibilityAnchorColumn)
                 .Because("the stamp's HasVisibility is read off this column");
@@ -609,8 +610,8 @@ public class MergedRulesBuildTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(Recorded(without)).IsEquivalentTo(WithLibrary(RoundFacts));
-            await Assert.That(Recorded(with)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
+            await Assert.That(Recorded(without)).IsEquivalentTo(WithLibrary(RoundFacts), CollectionOrdering.Matching);
+            await Assert.That(Recorded(with)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts), CollectionOrdering.Matching);
             await Assert.That(rows.Count).IsEqualTo(projected);
             await Assert.That(build.ReaderOf(AnalysisFactsTests.FactsRuleset)).IsEqualTo("ext.reader");
             await Assert.That(new StampedFacts(build).Facets()).IsEmpty().Because("a pass's table is its input, not a fact");
@@ -714,7 +715,7 @@ public class MergedRulesBuildTests
         {
             await Assert.That(plan.Cut).IsEmpty();
             await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.CoreDocs)));
-            await Assert.That(Recorded(run)).IsEquivalentTo(Recorded(DemoAnalysis.Run(parsed, build.CoreDocs)));
+            await Assert.That(Recorded(run)).IsEquivalentTo(Recorded(DemoAnalysis.Run(parsed, build.CoreDocs)), CollectionOrdering.Matching);
             await Assert.That(build.Seed(parsed, OpenPath, plan, run)).IsFalse();
             await Assert.That(noPath.Cut).IsEmpty().Because("a demo with no file has no visit to seed");
         }
@@ -776,7 +777,7 @@ public class MergedRulesBuildTests
             await Assert.That(noPathPlan.Cut).IsEmpty();
             await Assert.That(Graph(fresh)).IsEqualTo(Graph(core));
             await Assert.That(Graph(noPath)).IsEqualTo(Graph(core));
-            await Assert.That(Recorded(currentPlan.Shown(fresh))).IsEquivalentTo(Recorded(core));
+            await Assert.That(Recorded(currentPlan.Shown(fresh))).IsEquivalentTo(Recorded(core), CollectionOrdering.Matching);
         }
     });
 
@@ -812,10 +813,10 @@ public class MergedRulesBuildTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(plan.Cut!.Order(StringComparer.Ordinal)).IsEquivalentTo(WithLibrary(RoundFacts));
+            await Assert.That(plan.Cut!.Order(StringComparer.Ordinal)).IsEquivalentTo(WithLibrary(RoundFacts), CollectionOrdering.Matching);
             await Assert.That(seeded).IsFalse();
             await Assert.That(visit).IsNotSameReferenceAs(run);
-            await Assert.That(Recorded(visit)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
+            await Assert.That(Recorded(visit)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts), CollectionOrdering.Matching);
         }
     });
 
@@ -863,8 +864,8 @@ public class MergedRulesBuildTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(Recorded(run)).IsEquivalentTo([.. core.Append(AnalysisFactsTests.FactsTable).Append(RoundFacts).Order(StringComparer.Ordinal)]);
-            await Assert.That(Recorded(plan.Shown(run))).IsEquivalentTo(core);
+            await Assert.That(Recorded(run)).IsEquivalentTo([.. core.Append(AnalysisFactsTests.FactsTable).Append(RoundFacts).Order(StringComparer.Ordinal)], CollectionOrdering.Matching);
+            await Assert.That(Recorded(plan.Shown(run))).IsEquivalentTo(core, CollectionOrdering.Matching);
             await Assert.That(core).IsNotEmpty().Because("the shipped core rulesets declare tables");
         }
     });

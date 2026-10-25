@@ -57,7 +57,7 @@ public sealed record RecentFileItem(
 }
 
 /// <summary>How demos sort in the browser.</summary>
-public enum LibrarySort
+public enum LibraryBrowserSort
 {
     Newest,
     Oldest,
@@ -150,7 +150,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private string _selectedPlayer = AllPlayers;
 
     [ObservableProperty]
-    private LibrarySort _sort = LibrarySort.Newest;
+    private LibraryBrowserSort _sort = LibraryBrowserSort.Newest;
 
     // Set while a bulk filter change (Clear) is in flight so per-control change handlers don't each re-apply.
     private bool _suppressApply;
@@ -302,11 +302,11 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     [ObservableProperty]
     private PlayerOverviewEntry _selectedPlayerOverview = PlayerOverviewEntry.None;
 
-    /// <summary>Two-way index binding for the sort ComboBox (its items mirror <see cref="LibrarySort" /> order).</summary>
+    /// <summary>Two-way index binding for the sort ComboBox (its items mirror <see cref="LibraryBrowserSort" /> order).</summary>
     public int SortIndex
     {
         get => (int)Sort;
-        set => Sort = (LibrarySort)value;
+        set => Sort = (LibraryBrowserSort)value;
     }
 
     /// <summary>Inverse of <see cref="IsCardView" /> for the list-view toggle button.</summary>
@@ -808,7 +808,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         OnPropertyChanged(nameof(HasActiveFilters));
     }
 
-    partial void OnSortChanged(LibrarySort value)
+    partial void OnSortChanged(LibraryBrowserSort value)
     {
         OnPropertyChanged(nameof(SortIndex));
         ApplyFilter();
@@ -1069,11 +1069,11 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
         q = Sort switch
         {
-            LibrarySort.Newest => q.OrderByDescending(e => e.Modified),
-            LibrarySort.Oldest => q.OrderBy(e => e.Modified),
-            LibrarySort.MapAz => q.OrderBy(e => e.MapDisplay, StringComparer.OrdinalIgnoreCase).ThenByDescending(e => e.Modified),
-            LibrarySort.NameAz => q.OrderBy(e => e.FileName, StringComparer.OrdinalIgnoreCase),
-            LibrarySort.LargestFirst => q.OrderByDescending(e => e.FileSizeBytes),
+            LibraryBrowserSort.Newest => q.OrderByDescending(e => e.Modified),
+            LibraryBrowserSort.Oldest => q.OrderBy(e => e.Modified),
+            LibraryBrowserSort.MapAz => q.OrderBy(e => e.MapDisplay, StringComparer.OrdinalIgnoreCase).ThenByDescending(e => e.Modified),
+            LibraryBrowserSort.NameAz => q.OrderBy(e => e.FileName, StringComparer.OrdinalIgnoreCase),
+            LibraryBrowserSort.LargestFirst => q.OrderByDescending(e => e.FileSizeBytes),
             _ => q
         };
 

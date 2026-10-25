@@ -13,6 +13,7 @@ using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 
 #endregion
@@ -41,403 +42,427 @@ public class StratCanvasTests
     [Test]
     public async Task AFiveStepStrat_PlaysBack_AndScrubs()
     {
-        (StratStore _, StratSession session) = Opened(FiveSteps());
-        ManualTicker ticker = new();
-        using StratCanvasViewModel canvas = Canvas(session, ticker);
-
-        StratSceneProjection projection = canvas.Projection!;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(projection.Ticks).IsEquivalentTo(new[] { Step1, Step2, Step3, Step4, Step5 });
-            await Assert.That(canvas.Timeline.TotalFrames).IsEqualTo(Step5 + 1);
-            await Assert.That(canvas.Timeline.Markers.Count(m => m.TrackId == StepTrack.TrackId)).IsEqualTo(5);
-            await Assert.That(canvas.Transport.StartTick).IsEqualTo(Step1);
-            await Assert.That(canvas.Transport.EndTick).IsEqualTo(Step5);
-        }
+            (StratStore _, StratSession session) = Opened(FiveSteps());
+            ManualTicker ticker = new();
+            using StratCanvasViewModel canvas = Canvas(session, ticker);
 
-        // Before the first step nothing is placed yet, so nothing is drawn.
-        await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(0);
+            StratSceneProjection projection = canvas.Projection!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(projection.Ticks).IsEquivalentTo(new[] { Step1, Step2, Step3, Step4, Step5 }, CollectionOrdering.Matching);
+                await Assert.That(canvas.Timeline.TotalFrames).IsEqualTo(Step5 + 1);
+                await Assert.That(canvas.Timeline.Markers.Count(m => m.TrackId == StepTrack.TrackId)).IsEqualTo(5);
+                await Assert.That(canvas.Transport.StartTick).IsEqualTo(Step1);
+                await Assert.That(canvas.Transport.EndTick).IsEqualTo(Step5);
+            }
 
-        // ] walks the steps: each lands on its tick, is active, and shows its keyframes and its own strokes.
-        await Assert.That(canvas.ExecuteAction(StratBookActions.NextStep)).IsTrue();
-        using (Assert.Multiple())
-        {
-            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step1);
-            await Assert.That(canvas.ActiveStepIndex).IsEqualTo(0);
-            await Assert.That(canvas.CurrentFrame.Time.IsDiscontinuity).IsTrue();
-            await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(6).Because("A to E and O1 are placed at step 1");
-            await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(0f);
-            await Assert.That(Marker(canvas, "1").Team).IsEqualTo(3).Because("an opponent draws in the other side's colour");
-            await Assert.That(canvas.CurrentFrame.GameInfo.RoundTime).IsEqualTo("1:50");
-            await Assert.That(Ink(canvas, ArrowId).Time.OpacityAt(Step1)).IsEqualTo(1.0);
-            await Assert.That(Ink(canvas, TextId).Time.OpacityAt(Step1)).IsEqualTo(0.0);
-        }
+            // Before the first step nothing is placed yet, so nothing is drawn.
+            await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(0);
 
-        for (int i = 1; i < 5; i++)
-        {
+            // ] walks the steps: each lands on its tick, is active, and shows its keyframes and its own strokes.
             await Assert.That(canvas.ExecuteAction(StratBookActions.NextStep)).IsTrue();
-            await Assert.That(canvas.ActiveStepIndex).IsEqualTo(i);
-            await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(600f * i);
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(canvas.Transport.Tick).IsEqualTo(Step1);
+                await Assert.That(canvas.ActiveStepIndex).IsEqualTo(0);
+                await Assert.That(canvas.CurrentFrame.Time.IsDiscontinuity).IsTrue();
+                await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(6).Because("A to E and O1 are placed at step 1");
+                await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(0f);
+                await Assert.That(Marker(canvas, "1").Team).IsEqualTo(3).Because("an opponent draws in the other side's colour");
+                await Assert.That(canvas.CurrentFrame.GameInfo.RoundTime).IsEqualTo("1:50");
+                await Assert.That(Ink(canvas, ArrowId).Time.OpacityAt(Step1)).IsEqualTo(1.0);
+                await Assert.That(Ink(canvas, TextId).Time.OpacityAt(Step1)).IsEqualTo(0.0);
+            }
 
-        await Assert.That(canvas.ExecuteAction(StratBookActions.NextStep)).IsFalse().Because("the last step has no next");
-        await Assert.That(Ink(canvas, TextId).Time.OpacityAt(Step3)).IsEqualTo(1.0);
+            for (int i = 1; i < 5; i++)
+            {
+                await Assert.That(canvas.ExecuteAction(StratBookActions.NextStep)).IsTrue();
+                await Assert.That(canvas.ActiveStepIndex).IsEqualTo(i);
+                await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(600f * i);
+            }
 
-        // Scrub back to the middle of step 1's window: A halfway along its move, B and C still where step 1
-        // put them (the stationary rule), and the frame is a jump.
-        canvas.Timeline.RequestSeek((Step1 + Step2) / 2);
-        using (Assert.Multiple())
-        {
-            await Assert.That(canvas.Transport.Tick).IsEqualTo((Step1 + Step2) / 2);
-            await Assert.That(canvas.ActiveStepIndex).IsEqualTo(0);
-            await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(300f);
-            await Assert.That(Marker(canvas, "B").WorldY).IsEqualTo(0f);
-            await Assert.That(canvas.CurrentFrame.Time.IsDiscontinuity).IsTrue();
-        }
+            await Assert.That(canvas.ExecuteAction(StratBookActions.NextStep)).IsFalse().Because("the last step has no next");
+            await Assert.That(Ink(canvas, TextId).Time.OpacityAt(Step3)).IsEqualTo(1.0);
 
-        // B moves only in step 2's window, the segment ending at its next entry.
-        canvas.Timeline.RequestSeek((Step2 + Step3) / 2);
-        await Assert.That(Marker(canvas, "B").WorldY).IsEqualTo(450f);
-        await Assert.That(Marker(canvas, "C").WorldY).IsEqualTo(0f);
+            // Scrub back to the middle of step 1's window: A halfway along its move, B and C still where step 1
+            // put them (the stationary rule), and the frame is a jump.
+            canvas.Timeline.RequestSeek((Step1 + Step2) / 2);
+            using (Assert.Multiple())
+            {
+                await Assert.That(canvas.Transport.Tick).IsEqualTo((Step1 + Step2) / 2);
+                await Assert.That(canvas.ActiveStepIndex).IsEqualTo(0);
+                await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(300f);
+                await Assert.That(Marker(canvas, "B").WorldY).IsEqualTo(0f);
+                await Assert.That(canvas.CurrentFrame.Time.IsDiscontinuity).IsTrue();
+            }
 
-        // Play from step 1: the clock advances at 64 ticks a wall second, frames are continuous, and it stops at
-        // the last step with every token where step 5 put it.
-        canvas.ExecuteAction(StratBookActions.PrevStep);
-        await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2);
-        canvas.Timeline.RequestSeek(Step1);
-        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.TogglePlay))).IsTrue();
-        await Assert.That(canvas.IsPlaying).IsTrue();
+            // B moves only in step 2's window, the segment ending at its next entry.
+            canvas.Timeline.RequestSeek((Step2 + Step3) / 2);
+            await Assert.That(Marker(canvas, "B").WorldY).IsEqualTo(450f);
+            await Assert.That(Marker(canvas, "C").WorldY).IsEqualTo(0f);
 
-        ticker.Fire(1.0);
-        using (Assert.Multiple())
-        {
-            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step1 + 64);
-            await Assert.That(canvas.CurrentFrame.Time.IsDiscontinuity).IsFalse();
-            await Assert.That(canvas.CurrentFrame.Time.Tick).IsEqualTo(Step1 + 64);
-        }
+            // Play from step 1: the clock advances at 64 ticks a wall second, frames are continuous, and it stops at
+            // the last step with every token where step 5 put it.
+            canvas.ExecuteAction(StratBookActions.PrevStep);
+            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2);
+            canvas.Timeline.RequestSeek(Step1);
+            await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.TogglePlay))).IsTrue();
+            await Assert.That(canvas.IsPlaying).IsTrue();
 
-        int frames = 1;
-        while (ticker.Fire(0.5))
-        {
-            frames++;
-        }
+            ticker.Fire(1.0);
+            using (Assert.Multiple())
+            {
+                await Assert.That(canvas.Transport.Tick).IsEqualTo(Step1 + 64);
+                await Assert.That(canvas.CurrentFrame.Time.IsDiscontinuity).IsFalse();
+                await Assert.That(canvas.CurrentFrame.Time.Tick).IsEqualTo(Step1 + 64);
+            }
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(canvas.IsPlaying).IsFalse();
-            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step5);
-            await Assert.That(frames).IsEqualTo(1 + (Step5 - Step1 - 64) / 32);
-            await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(2400f);
-            await Assert.That(Marker(canvas, "C").WorldY).IsEqualTo(-600f);
-            await Assert.That(canvas.CurrentFrame.GameInfo.RoundTime).IsEqualTo("1:10");
-        }
+            int frames = 1;
+            while (ticker.Fire(0.5))
+            {
+                frames++;
+            }
 
-        // Scrubbing is pure in the tick: every sampled tick shows the same world backwards as forwards.
-        List<(float X, float Y)> forward = [];
-        for (int tick = Step1; tick <= Step5; tick += 160)
-        {
-            canvas.Timeline.RequestSeek(tick);
-            forward.Add((Marker(canvas, "B").WorldX, Marker(canvas, "B").WorldY));
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(canvas.IsPlaying).IsFalse();
+                await Assert.That(canvas.Transport.Tick).IsEqualTo(Step5);
+                await Assert.That(frames).IsEqualTo(1 + (Step5 - Step1 - 64) / 32);
+                await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(2400f);
+                await Assert.That(Marker(canvas, "C").WorldY).IsEqualTo(-600f);
+                await Assert.That(canvas.CurrentFrame.GameInfo.RoundTime).IsEqualTo("1:10");
+            }
 
-        List<(float X, float Y)> backward = [];
-        for (int tick = Step1 + (Step5 - Step1) / 160 * 160; tick >= Step1; tick -= 160)
-        {
-            canvas.Timeline.RequestSeek(tick);
-            backward.Add((Marker(canvas, "B").WorldX, Marker(canvas, "B").WorldY));
-        }
+            // Scrubbing is pure in the tick: every sampled tick shows the same world backwards as forwards.
+            List<(float X, float Y)> forward = [];
+            for (int tick = Step1; tick <= Step5; tick += 160)
+            {
+                canvas.Timeline.RequestSeek(tick);
+                forward.Add((Marker(canvas, "B").WorldX, Marker(canvas, "B").WorldY));
+            }
 
-        backward.Reverse();
-        await Assert.That(backward).IsEquivalentTo(forward);
+            List<(float X, float Y)> backward = [];
+            for (int tick = Step1 + (Step5 - Step1) / 160 * 160; tick >= Step1; tick -= 160)
+            {
+                canvas.Timeline.RequestSeek(tick);
+                backward.Add((Marker(canvas, "B").WorldX, Marker(canvas, "B").WorldY));
+            }
+
+            backward.Reverse();
+            await Assert.That(backward).IsEquivalentTo(forward, CollectionOrdering.Matching);
+        });
     }
 
     [Test]
     public async Task ATokenDrag_OfFortyMoves_IsOneEntry_OnTheStepsTo_AndUndoAndRedoAreByteExact()
     {
-        (StratStore _, StratSession session) = Opened(FiveSteps());
-        using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.Timeline.RequestSeek(Step2 + 10);
-        await Assert.That(canvas.ActiveStepIndex).IsEqualTo(1);
-
-        List<IReadOnlyList<PatchOp>> applied = [];
-        session.OpsApplied += applied.Add;
-        int depth = session.UndoDepth;
-        string before = StratHistory.ToNode(session.Document!).ToJsonString();
-
-        canvas.BeginDrag("A", TokenGrip.Body);
-        await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2 + 10).Because("a drag edits the moment it grabbed, with no seek");
-        for (int i = 1; i <= 40; i++)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            canvas.MoveTo("A", new SKPoint(600 + i * 5, i * 10), 0);
-        }
+            (StratStore _, StratSession session) = Opened(FiveSteps());
+            using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
+            canvas.Timeline.RequestSeek(Step2 + 10);
+            await Assert.That(canvas.ActiveStepIndex).IsEqualTo(1);
 
-        await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(800f).Because("the drag shows before it commits");
-        await Assert.That(applied.Count).IsEqualTo(0);
-        canvas.EndDrag();
+            List<IReadOnlyList<PatchOp>> applied = [];
+            session.OpsApplied += applied.Add;
+            int depth = session.UndoDepth;
+            string before = StratHistory.ToNode(session.Document!).ToJsonString();
 
-        // A stands on step 2's spot between steps, so the drag is that step's to: a move takes the point, its spot stays.
-        PatchOp op = applied.Single().Single();
-        string after = StratHistory.ToNode(session.Document!).ToJsonString();
-        using (Assert.Multiple())
-        {
-            await Assert.That(session.UndoDepth).IsEqualTo(depth + 1);
-            await Assert.That(op.Op).IsEqualTo(PatchOp.Replace).Because("the lines writer replaces an absent member, as the applier allows");
-            await Assert.That(op.Path).IsEqualTo("/steps/1/to");
-            await Assert.That(op.Value!["x"]!.GetValue<double>()).IsEqualTo(800);
-            await Assert.That(op.Value!["y"]!.GetValue<double>()).IsEqualTo(400);
-            await Assert.That(session.Document!.Steps[1].Positions[0].X).IsEqualTo(600);
-            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2 + 10);
-        }
+            canvas.BeginDrag("A", TokenGrip.Body);
+            await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2 + 10).Because("a drag edits the moment it grabbed, with no seek");
+            for (int i = 1; i <= 40; i++)
+            {
+                canvas.MoveTo("A", new SKPoint(600 + i * 5, i * 10), 0);
+            }
 
-        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsTrue();
-        await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(before);
-        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Redo))).IsTrue();
-        await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(after);
+            await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(800f).Because("the drag shows before it commits");
+            await Assert.That(applied.Count).IsEqualTo(0);
+            canvas.EndDrag();
+
+            // A stands on step 2's spot between steps, so the drag is that step's to: a move takes the point, its spot stays.
+            PatchOp op = applied.Single().Single();
+            string after = StratHistory.ToNode(session.Document!).ToJsonString();
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.UndoDepth).IsEqualTo(depth + 1);
+                await Assert.That(op.Op).IsEqualTo(PatchOp.Replace).Because("the lines writer replaces an absent member, as the applier allows");
+                await Assert.That(op.Path).IsEqualTo("/steps/1/to");
+                await Assert.That(op.Value!["x"]!.GetValue<double>()).IsEqualTo(800);
+                await Assert.That(op.Value!["y"]!.GetValue<double>()).IsEqualTo(400);
+                await Assert.That(session.Document!.Steps[1].Positions[0].X).IsEqualTo(600);
+                await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2 + 10);
+            }
+
+            await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsTrue();
+            await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(before);
+            await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Redo))).IsTrue();
+            await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(after);
+        });
     }
 
     [Test]
     public async Task ADrag_OfAPlayerTheStepDoesNotName_JoinsItAsALine_AltPins_AndACancelChangesNothing()
     {
-        // A hold watches, so a turn there is a line's view angle.
-        StratDocument document = FiveSteps();
-        document.Steps[1].Verb = "hold";
-        (StratStore _, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.Timeline.RequestSeek(Step2);
-
-        canvas.BeginDrag("D", TokenGrip.Body);
-        canvas.MoveTo("D", new SKPoint(999, 999), 0);
-        canvas.CancelDrag();
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(Marker(canvas, "D").WorldX).IsEqualTo(300f);
-            await Assert.That(session.UndoDepth).IsEqualTo(0);
-        }
+            // A hold watches, so a turn there is a line's view angle.
+            StratDocument document = FiveSteps();
+            document.Steps[1].Verb = "hold";
+            (StratStore _, StratSession session) = Opened(document);
+            using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
+            canvas.Timeline.RequestSeek(Step2);
 
-        canvas.BeginDrag("D", TokenGrip.Body);
-        canvas.MoveTo("D", new SKPoint(350, 50), 0);
-        canvas.EndDrag();
-        StratStep joined = session.Document!.Steps[1];
-        using (Assert.Multiple())
-        {
-            await Assert.That(joined.Assignments!.Select(l => l.Slot)).IsEquivalentTo(["A", "D"]);
-            await Assert.That(joined.Assignments![1].To!.X).IsEqualTo(350);
-            await Assert.That(joined.Positions.Any(p => p.Slot == "D")).IsFalse();
-            await Assert.That(session.UndoDepth).IsEqualTo(1);
-        }
+            canvas.BeginDrag("D", TokenGrip.Body);
+            canvas.MoveTo("D", new SKPoint(999, 999), 0);
+            canvas.CancelDrag();
+            using (Assert.Multiple())
+            {
+                await Assert.That(Marker(canvas, "D").WorldX).IsEqualTo(300f);
+                await Assert.That(session.UndoDepth).IsEqualTo(0);
+            }
 
-        // Alt pins the spot: a position entry, which the row shows as a placed chip.
-        canvas.BeginDrag("D", TokenGrip.Body);
-        canvas.MoveTo("D", new SKPoint(360, 60), 0, ToolModifiers.Alt);
-        canvas.EndDrag(ToolModifiers.Alt);
-        StepPosition pinned = session.Document!.Steps[1].Positions.Single(p => p.Slot == "D");
-        using (Assert.Multiple())
-        {
-            await Assert.That(pinned.X).IsEqualTo(360);
-            await Assert.That(pinned.Carried).IsNull();
-            await Assert.That(session.Document!.Steps[1].Assignments![1].To!.X).IsEqualTo(350).Because("a pin leaves the field alone");
-            await Assert.That(session.UndoDepth).IsEqualTo(2);
-        }
+            canvas.BeginDrag("D", TokenGrip.Body);
+            canvas.MoveTo("D", new SKPoint(350, 50), 0);
+            canvas.EndDrag();
+            StratStep joined = session.Document!.Steps[1];
+            using (Assert.Multiple())
+            {
+                await Assert.That(joined.Assignments!.Select(l => l.Slot)).IsEquivalentTo(["A", "D"], CollectionOrdering.Matching);
+                await Assert.That(joined.Assignments![1].To!.X).IsEqualTo(350);
+                await Assert.That(joined.Positions.Any(p => p.Slot == "D")).IsFalse();
+                await Assert.That(session.UndoDepth).IsEqualTo(1);
+            }
 
-        // A heading drag turns without moving: an own token's turn is its line's view angle.
-        canvas.BeginDrag("D", TokenGrip.Heading);
-        canvas.MoveTo("D", new SKPoint(360, 160), 0);
-        canvas.EndDrag();
-        StratStep step = session.Document!.Steps[1];
-        using (Assert.Multiple())
-        {
-            await Assert.That(step.Positions.Single(p => p.Slot == "D").X).IsEqualTo(360);
-            await Assert.That(step.Assignments![1].Watch!.YawDegrees).IsEqualTo(90);
-            await Assert.That(Marker(canvas, "D").YawDegrees).IsEqualTo(90f);
-            await Assert.That(session.UndoDepth).IsEqualTo(3);
-        }
+            // Alt pins the spot: a position entry, which the row shows as a placed chip.
+            canvas.BeginDrag("D", TokenGrip.Body);
+            canvas.MoveTo("D", new SKPoint(360, 60), 0, ToolModifiers.Alt);
+            canvas.EndDrag(ToolModifiers.Alt);
+            StepPosition pinned = session.Document!.Steps[1].Positions.Single(p => p.Slot == "D");
+            using (Assert.Multiple())
+            {
+                await Assert.That(pinned.X).IsEqualTo(360);
+                await Assert.That(pinned.Carried).IsNull();
+                await Assert.That(session.Document!.Steps[1].Assignments![1].To!.X).IsEqualTo(350).Because("a pin leaves the field alone");
+                await Assert.That(session.UndoDepth).IsEqualTo(2);
+            }
+
+            // A heading drag turns without moving: an own token's turn is its line's view angle.
+            canvas.BeginDrag("D", TokenGrip.Heading);
+            canvas.MoveTo("D", new SKPoint(360, 160), 0);
+            canvas.EndDrag();
+            StratStep step = session.Document!.Steps[1];
+            using (Assert.Multiple())
+            {
+                await Assert.That(step.Positions.Single(p => p.Slot == "D").X).IsEqualTo(360);
+                await Assert.That(step.Assignments![1].Watch!.YawDegrees).IsEqualTo(90);
+                await Assert.That(Marker(canvas, "D").YawDegrees).IsEqualTo(90f);
+                await Assert.That(session.UndoDepth).IsEqualTo(3);
+            }
+        });
     }
 
     [Test]
     public async Task AStroke_IsOneAddOnTheActiveStep_AndUndoIsAMigration()
     {
-        (StratStore _, StratSession session) = Opened(FiveSteps());
-        using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.Timeline.RequestSeek(Step2 + 100);
-        AnnotationSession ink = canvas.Ink;
-
-        // What a shape tool does: one gesture, one element stamped with the session's envelope.
-        AnnotationElement arrow = new(Guid.NewGuid(), AnnotationKind.Arrow, AnnotationStyle.Default,
-            new SpaceRef.World(0), ink.EnvelopeForNewElement(canvas.Transport.Tick),
-            [new InkPoint(10, 10, 0.5f), new InkPoint(500, 500, 0.5f)], null);
-        using (ink.Document.BeginGesture("arrow"))
+        await HeadlessSession.RunOnUi(async () =>
         {
-            ink.Document.Apply(new DocDelta.Add(arrow, ink.Document.Elements.Count));
-        }
+            (StratStore _, StratSession session) = Opened(FiveSteps());
+            using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
+            canvas.Timeline.RequestSeek(Step2 + 100);
+            AnnotationSession ink = canvas.Ink;
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(arrow.Time.FromTick).IsEqualTo(Step2).Because("the tool stamps the active step's window");
-            await Assert.That(session.UndoDepth).IsEqualTo(1);
-            await Assert.That(session.Document!.Steps[1].Strokes.Count).IsEqualTo(1);
-            await Assert.That(session.Document.Steps[1].Strokes[0]["id"]!.GetValue<string>()).IsEqualTo(arrow.Id.ToString());
-            await Assert.That(session.Document.Steps[1].Strokes[0].ContainsKey("fromTick")).IsFalse();
-            await Assert.That(ink.Document.UndoDepth).IsEqualTo(0).Because("the session holds the history, not the ink");
-            await Assert.That(Ink(canvas, arrow.Id).Time.UntilTick).IsEqualTo(Step3 - 1);
-        }
+            // What a shape tool does: one gesture, one element stamped with the session's envelope.
+            AnnotationElement arrow = new(Guid.NewGuid(), AnnotationKind.Arrow, AnnotationStyle.Default,
+                new SpaceRef.World(0), ink.EnvelopeForNewElement(canvas.Transport.Tick),
+                [new InkPoint(10, 10, 0.5f), new InkPoint(500, 500, 0.5f)], null);
+            using (ink.Document.BeginGesture("arrow"))
+            {
+                ink.Document.Apply(new DocDelta.Add(arrow, ink.Document.Elements.Count));
+            }
 
-        int version = ink.Document.Version;
-        await Assert.That(session.Undo()).IsTrue();
-        using (Assert.Multiple())
-        {
-            await Assert.That(ink.Document.Elements.Any(e => e.Id == arrow.Id)).IsFalse();
-            await Assert.That(ink.Document.UndoDepth).IsEqualTo(0);
-            await Assert.That(ink.Document.Version).IsGreaterThan(version);
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(arrow.Time.FromTick).IsEqualTo(Step2).Because("the tool stamps the active step's window");
+                await Assert.That(session.UndoDepth).IsEqualTo(1);
+                await Assert.That(session.Document!.Steps[1].Strokes.Count).IsEqualTo(1);
+                await Assert.That(session.Document.Steps[1].Strokes[0]["id"]!.GetValue<string>()).IsEqualTo(arrow.Id.ToString());
+                await Assert.That(session.Document.Steps[1].Strokes[0].ContainsKey("fromTick")).IsFalse();
+                await Assert.That(ink.Document.UndoDepth).IsEqualTo(0).Because("the session holds the history, not the ink");
+                await Assert.That(Ink(canvas, arrow.Id).Time.UntilTick).IsEqualTo(Step3 - 1);
+            }
+
+            int version = ink.Document.Version;
+            await Assert.That(session.Undo()).IsTrue();
+            using (Assert.Multiple())
+            {
+                await Assert.That(ink.Document.Elements.Any(e => e.Id == arrow.Id)).IsFalse();
+                await Assert.That(ink.Document.UndoDepth).IsEqualTo(0);
+                await Assert.That(ink.Document.Version).IsGreaterThan(version);
+            }
+        });
     }
 
     [Test]
     public async Task AnEraseOfThreeStrokes_IsThreeRemoves_WithTheirFrom()
     {
-        StratDocument document = FiveSteps();
-        document.Steps[3].Strokes =
-        [
-            .. Enumerable.Range(0, 3).Select(i => JsonNode.Parse(
-                $$"""{ "id": "{{Guid.NewGuid()}}", "kind": "Line", "space": "world", "levelMinZ": 0, "points": [{{i}}, 0, 0.5, {{i}}, 100, 0.5] }""")!.AsObject())
-        ];
-        (StratStore _, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        AnnotationDocument ink = canvas.Ink.Document;
-
-        List<IReadOnlyList<PatchOp>> applied = [];
-        session.OpsApplied += applied.Add;
-        List<Guid> erased = [.. ink.Elements.Where(e => e.Kind == AnnotationKind.Line).Select(e => e.Id)];
-        using (ink.BeginGesture("erase"))
+        await HeadlessSession.RunOnUi(async () =>
         {
-            foreach (Guid id in erased)
+            StratDocument document = FiveSteps();
+            document.Steps[3].Strokes =
+            [
+                .. Enumerable.Range(0, 3).Select(i => JsonNode.Parse(
+                    $$"""{ "id": "{{Guid.NewGuid()}}", "kind": "Line", "space": "world", "levelMinZ": 0, "points": [{{i}}, 0, 0.5, {{i}}, 100, 0.5] }""")!.AsObject())
+            ];
+            (StratStore _, StratSession session) = Opened(document);
+            using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
+            AnnotationDocument ink = canvas.Ink.Document;
+
+            List<IReadOnlyList<PatchOp>> applied = [];
+            session.OpsApplied += applied.Add;
+            List<Guid> erased = [.. ink.Elements.Where(e => e.Kind == AnnotationKind.Line).Select(e => e.Id)];
+            using (ink.BeginGesture("erase"))
             {
-                ink.Apply(new DocDelta.Remove(id));
+                foreach (Guid id in erased)
+                {
+                    ink.Apply(new DocDelta.Remove(id));
+                }
             }
-        }
 
-        IReadOnlyList<PatchOp> ops = applied.Single();
-        using (Assert.Multiple())
-        {
-            await Assert.That(ops.Count).IsEqualTo(3);
-            await Assert.That(ops.All(o => o.Op == PatchOp.Remove && o.From is JsonObject)).IsTrue();
-            await Assert.That(ops.Select(o => o.Path)).IsEquivalentTo(_erasedPaths);
-            await Assert.That(session.Document!.Steps[3].Strokes.Count).IsEqualTo(0);
-            await Assert.That(session.UndoDepth).IsEqualTo(1);
-        }
+            IReadOnlyList<PatchOp> ops = applied.Single();
+            using (Assert.Multiple())
+            {
+                await Assert.That(ops.Count).IsEqualTo(3);
+                await Assert.That(ops.All(o => o.Op == PatchOp.Remove && o.From is JsonObject)).IsTrue();
+                await Assert.That(ops.Select(o => o.Path)).IsEquivalentTo(_erasedPaths, CollectionOrdering.Matching);
+                await Assert.That(session.Document!.Steps[3].Strokes.Count).IsEqualTo(0);
+                await Assert.That(session.UndoDepth).IsEqualTo(1);
+            }
 
-        session.Undo();
-        await Assert.That(ink.Elements.Count(e => e.Kind == AnnotationKind.Line)).IsEqualTo(3);
+            session.Undo();
+            await Assert.That(ink.Elements.Count(e => e.Kind == AnnotationKind.Line)).IsEqualTo(3);
+        });
     }
 
     [Test]
     public async Task TheStepKeys_EachMakeOneUndoEntry()
     {
-        (StratStore _, StratSession session) = Opened(FiveSteps());
-        using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.Timeline.RequestSeek(Step2 + 320);
-
-        // Shift+N: a step after the active one, at the playhead's round-clock time, made active.
-        await Assert.That(canvas.ExecuteAction(StratBookActions.AddStep)).IsTrue();
-        StratStep inserted = session.Document!.Steps[2];
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(session.Document.Steps.Count).IsEqualTo(6);
-            await Assert.That(inserted.AtSeconds).IsEqualTo(95.0);
-            await Assert.That(canvas.ActiveStep!.Id).IsEqualTo(inserted.Id);
-            await Assert.That(session.UndoDepth).IsEqualTo(1);
-        }
+            (StratStore _, StratSession session) = Opened(FiveSteps());
+            using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
+            canvas.Timeline.RequestSeek(Step2 + 320);
 
-        // Ctrl+D on step 1: its positions and strokes 5 s later, the strokes under new ids.
-        canvas.Timeline.RequestSeek(Step1);
-        await Assert.That(canvas.ExecuteAction(StratBookActions.DuplicateStep)).IsTrue();
-        StratStep copy = session.Document!.Steps[1];
-        using (Assert.Multiple())
-        {
-            await Assert.That(copy.AtSeconds).IsEqualTo(105.0);
-            await Assert.That(copy.Positions.Count).IsEqualTo(6);
-            await Assert.That(copy.Strokes.Single()["id"]!.GetValue<string>()).IsNotEqualTo(ArrowId.ToString());
-            await Assert.That(session.UndoDepth).IsEqualTo(2);
-        }
+            // Shift+N: a step after the active one, at the playhead's round-clock time, made active.
+            await Assert.That(canvas.ExecuteAction(StratBookActions.AddStep)).IsTrue();
+            StratStep inserted = session.Document!.Steps[2];
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.Document.Steps.Count).IsEqualTo(6);
+                await Assert.That(inserted.AtSeconds).IsEqualTo(95.0);
+                await Assert.That(canvas.ActiveStep!.Id).IsEqualTo(inserted.Id);
+                await Assert.That(session.UndoDepth).IsEqualTo(1);
+            }
 
-        // Ctrl+X on the copy clears its strokes only.
-        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.ClearAnnotations))).IsTrue();
-        await Assert.That(session.Document!.Steps[1].Strokes.Count).IsEqualTo(0);
-        await Assert.That(session.Document.Steps[0].Strokes.Count).IsEqualTo(1);
+            // Ctrl+D on step 1: its positions and strokes 5 s later, the strokes under new ids.
+            canvas.Timeline.RequestSeek(Step1);
+            await Assert.That(canvas.ExecuteAction(StratBookActions.DuplicateStep)).IsTrue();
+            StratStep copy = session.Document!.Steps[1];
+            using (Assert.Multiple())
+            {
+                await Assert.That(copy.AtSeconds).IsEqualTo(105.0);
+                await Assert.That(copy.Positions.Count).IsEqualTo(6);
+                await Assert.That(copy.Strokes.Single()["id"]!.GetValue<string>()).IsNotEqualTo(ArrowId.ToString());
+                await Assert.That(session.UndoDepth).IsEqualTo(2);
+            }
 
-        // Ctrl+Delete on step 2 of the original takes the branch that hangs from it too.
-        canvas.Timeline.RequestSeek(canvas.Projection!.Ticks[2]);
-        await Assert.That(canvas.ActiveStep!.Id).IsEqualTo(StratTestData.StepId(2));
-        await Assert.That(canvas.ExecuteAction(StratBookActions.DeleteStep)).IsTrue();
-        using (Assert.Multiple())
-        {
-            await Assert.That(session.Document!.Steps.Any(s => s.Id == StratTestData.StepId(2))).IsFalse();
-            await Assert.That(session.Document.Branches.Count).IsEqualTo(0);
-            await Assert.That(session.UndoDepth).IsEqualTo(4);
-        }
+            // Ctrl+X on the copy clears its strokes only.
+            await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.ClearAnnotations))).IsTrue();
+            await Assert.That(session.Document!.Steps[1].Strokes.Count).IsEqualTo(0);
+            await Assert.That(session.Document.Steps[0].Strokes.Count).IsEqualTo(1);
 
-        // Ctrl+Z walks them back in order, through the one history.
-        for (int i = 0; i < 4; i++)
-        {
-            await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsTrue();
-        }
+            // Ctrl+Delete on step 2 of the original takes the branch that hangs from it too.
+            canvas.Timeline.RequestSeek(canvas.Projection!.Ticks[2]);
+            await Assert.That(canvas.ActiveStep!.Id).IsEqualTo(StratTestData.StepId(2));
+            await Assert.That(canvas.ExecuteAction(StratBookActions.DeleteStep)).IsTrue();
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.Document!.Steps.Any(s => s.Id == StratTestData.StepId(2))).IsFalse();
+                await Assert.That(session.Document.Branches.Count).IsEqualTo(0);
+                await Assert.That(session.UndoDepth).IsEqualTo(4);
+            }
 
-        await Assert.That(session.Document!.Steps.Count).IsEqualTo(5);
-        await Assert.That(session.Document.Branches.Count).IsEqualTo(1);
-        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsFalse();
+            // Ctrl+Z walks them back in order, through the one history.
+            for (int i = 0; i < 4; i++)
+            {
+                await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsTrue();
+            }
+
+            await Assert.That(session.Document!.Steps.Count).IsEqualTo(5);
+            await Assert.That(session.Document.Branches.Count).IsEqualTo(1);
+            await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsFalse();
+        });
     }
 
     [Test]
     public async Task ABranchPath_PlaysTheTargetSteps_WithPositionsInheritedAcrossTheJoin()
     {
-        (StratStore store, StratSession session) = Opened(FiveSteps());
-        using StratCanvasViewModel canvas = Canvas(session, new ManualTicker(), store);
-
-        await Assert.That(canvas.HasBranches).IsTrue();
-        int undo = session.UndoDepth;
-        canvas.SelectedPath = canvas.PathOptions.Single(o => o.BranchId == BranchId);
-
-        StratSceneProjection projection = canvas.Projection!;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(projection.Path.Select(p => p.Step.Id))
-                .IsEquivalentTo(new[] { StratTestData.StepId(1), StratTestData.StepId(2), StratTestData.StepId(4), StratTestData.StepId(5) });
-            await Assert.That(session.UndoDepth).IsEqualTo(undo).Because("a path is view state, not an edit");
-            await Assert.That(canvas.Timeline.Markers.Single(m => m.TrackId == StepTrack.TrackId && m.Tick == Step2).Glyph)
-                .IsEqualTo("2" + StepTrack.ForkGlyph);
-        }
+            (StratStore store, StratSession session) = Opened(FiveSteps());
+            using StratCanvasViewModel canvas = Canvas(session, new ManualTicker(), store);
 
-        // Step 3 is skipped, so B never walks to its peek spot, and A goes from step 2's spot to step 4's.
-        canvas.Timeline.RequestSeek(Step4);
-        await Assert.That(Marker(canvas, "B").WorldY).IsEqualTo(0f);
-        await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(1800f);
-        canvas.Timeline.RequestSeek((Step2 + Step4) / 2);
-        await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(1200f);
+            await Assert.That(canvas.HasBranches).IsTrue();
+            int undo = session.UndoDepth;
+            canvas.SelectedPath = canvas.PathOptions.Single(o => o.BranchId == BranchId);
 
-        canvas.SelectedPath = canvas.PathOptions[0];
-        await Assert.That(canvas.Projection!.Path.Count).IsEqualTo(5);
+            StratSceneProjection projection = canvas.Projection!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(projection.Path.Select(p => p.Step.Id))
+                    .IsEquivalentTo(new[] { StratTestData.StepId(1), StratTestData.StepId(2), StratTestData.StepId(4), StratTestData.StepId(5) }, CollectionOrdering.Matching);
+                await Assert.That(session.UndoDepth).IsEqualTo(undo).Because("a path is view state, not an edit");
+                await Assert.That(canvas.Timeline.Markers.Single(m => m.TrackId == StepTrack.TrackId && m.Tick == Step2).Glyph)
+                    .IsEqualTo("2" + StepTrack.ForkGlyph);
+            }
+
+            // Step 3 is skipped, so B never walks to its peek spot, and A goes from step 2's spot to step 4's.
+            canvas.Timeline.RequestSeek(Step4);
+            await Assert.That(Marker(canvas, "B").WorldY).IsEqualTo(0f);
+            await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(1800f);
+            canvas.Timeline.RequestSeek((Step2 + Step4) / 2);
+            await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(1200f);
+
+            canvas.SelectedPath = canvas.PathOptions[0];
+            await Assert.That(canvas.Projection!.Path.Count).IsEqualTo(5);
+        });
     }
 
     [Test]
     public async Task PlaceTokens_PutsEveryUnplacedSlotOnTheMap_AsOneEdit()
     {
-        StratDocument document = FiveSteps();
-        foreach (StratStep step in document.Steps)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            step.Positions.Clear();
-        }
+            StratDocument document = FiveSteps();
+            foreach (StratStep step in document.Steps)
+            {
+                step.Positions.Clear();
+            }
 
-        (StratStore _, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.ExecuteAction(StratBookActions.NextStep);
-        await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(0);
+            (StratStore _, StratSession session) = Opened(document);
+            using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
+            canvas.ExecuteAction(StratBookActions.NextStep);
+            await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(0);
 
-        canvas.PlaceTokensCommand.Execute(null);
-        using (Assert.Multiple())
-        {
-            await Assert.That(session.Document!.Steps[0].Positions.Count).IsEqualTo(10);
-            await Assert.That(session.UndoDepth).IsEqualTo(1);
-            await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(10);
-        }
+            canvas.PlaceTokensCommand.Execute(null);
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.Document!.Steps[0].Positions.Count).IsEqualTo(10);
+                await Assert.That(session.UndoDepth).IsEqualTo(1);
+                await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(10);
+            }
+        });
     }
 
     [Test]
@@ -449,23 +474,29 @@ public class StratCanvasTests
     [Arguments(Key.OemCloseBrackets, KeyModifiers.None, StratBookActions.NextStep)]
     public async Task TheStepAuthoringRows_Resolve_InBothScopes(Key key, KeyModifiers modifiers, string expected)
     {
-        // Step Authoring is a Strat Book extension command: the profile a canvas routes through
-        // resolves it, the bare core table (Playback2DKeymap) does not.
-        Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
-        await Assert.That(keymap.TryResolve(key, modifiers, false, out string? idle)).IsTrue();
-        await Assert.That(idle).IsEqualTo(expected);
-        await Assert.That(keymap.TryResolve(key, modifiers, true, out string? drawing)).IsTrue();
-        await Assert.That(drawing).IsEqualTo(expected);
-        await Assert.That(Playback2DKeymap.FindConflicts(CommandRegistry.Default.EffectiveBindings, Playback2DKeymap.ShellReservedGestures)).IsEmpty();
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            // Step Authoring is a Strat Book extension command: the profile a canvas routes through
+            // resolves it, the bare core table (Playback2DKeymap) does not.
+            Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
+            await Assert.That(keymap.TryResolve(key, modifiers, false, out string? idle)).IsTrue();
+            await Assert.That(idle).IsEqualTo(expected);
+            await Assert.That(keymap.TryResolve(key, modifiers, true, out string? drawing)).IsTrue();
+            await Assert.That(drawing).IsEqualTo(expected);
+            await Assert.That(Playback2DKeymap.FindConflicts(CommandRegistry.Default.EffectiveBindings, Playback2DKeymap.ShellReservedGestures)).IsEmpty();
+        });
     }
 
     [Test]
     public async Task TheBracketRows_ReadAsBrackets()
     {
-        Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
-        await Assert.That(keymap.GestureText(StratBookActions.PrevStep)).IsEqualTo("[");
-        await Assert.That(keymap.GestureText(StratBookActions.NextStep)).IsEqualTo("]");
-        await Assert.That(keymap.GestureText(StratBookActions.AddStep)).IsEqualTo("Shift+N");
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
+            await Assert.That(keymap.GestureText(StratBookActions.PrevStep)).IsEqualTo("[");
+            await Assert.That(keymap.GestureText(StratBookActions.NextStep)).IsEqualTo("]");
+            await Assert.That(keymap.GestureText(StratBookActions.AddStep)).IsEqualTo("Shift+N");
+        });
     }
 
     /// <summary>The same rows on the 2D Playback tab have nothing to act on and stay unhandled.</summary>
@@ -478,46 +509,55 @@ public class StratCanvasTests
     [Arguments(StratBookActions.NextStep)]
     public async Task OnThe2DTab_TheStepAuthoringRows_AreUnhandled(string action)
     {
-        (Playback2DTabViewModel vm, _) = Playback2DActivation.Activated();
-        await Assert.That(vm.ExecuteAction(action)).IsFalse();
-        await Assert.That(vm.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, _) = Playback2DActivation.Activated();
+            await Assert.That(vm.ExecuteAction(action)).IsFalse();
+            await Assert.That(vm.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
+        });
     }
 
     [Test]
     public async Task TheCanvasKeys_ComeOffTheUsersOverrides()
     {
-        (StratStore _, StratSession session) = Opened(FiveSteps());
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null,
-            StratTestKeymap.WithOverrides(Playback2DKeymapProfile.Row(StratBookActions.ToolToken, Key.U, KeyModifiers.None)));
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (StratStore _, StratSession session) = Opened(FiveSteps());
+            using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null,
+                StratTestKeymap.WithOverrides(Playback2DKeymapProfile.Row(StratBookActions.ToolToken, Key.U, KeyModifiers.None)));
 
-        string? action = canvas.ResolveKey(Key.U, KeyModifiers.None);
-        await Assert.That(action).IsEqualTo(StratBookActions.ToolToken);
-        await Assert.That(canvas.Tools.TokenToolTip).Contains("(U)").Because("the hint names the user's key");
-        await Assert.That(canvas.ExecuteAction(action!)).IsTrue();
-        await Assert.That(canvas.IsTokenToolSelected).IsTrue();
-        await Assert.That(canvas.IsToolActive).IsTrue().Because("the token tool shadows Space and Esc like any tool");
+            string? action = canvas.ResolveKey(Key.U, KeyModifiers.None);
+            await Assert.That(action).IsEqualTo(StratBookActions.ToolToken);
+            await Assert.That(canvas.Tools.TokenToolTip).Contains("(U)").Because("the hint names the user's key");
+            await Assert.That(canvas.ExecuteAction(action!)).IsTrue();
+            await Assert.That(canvas.IsTokenToolSelected).IsTrue();
+            await Assert.That(canvas.IsToolActive).IsTrue().Because("the token tool shadows Space and Esc like any tool");
+        });
     }
 
     [Test]
     public async Task TheCanvas_IsASceneSourceWithNoDemo()
     {
-        (StratStore _, StratSession session) = Opened(FiveSteps());
-        using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.ExecuteAction(StratBookActions.NextStep);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(canvas.TokenEditor).IsSameReferenceAs(canvas);
-            await Assert.That(((ISceneSource)canvas).Ink).IsSameReferenceAs(canvas.Ink).Because("the strat's ink is always drawn");
-            await Assert.That(canvas.ShowViewCones).IsTrue();
-            await Assert.That(canvas.CurrentFrame.Map.NetworkedBounds).IsNotNull();
-            await Assert.That(canvas.CurrentFrame.Map.ObservedBounds).IsEqualTo(canvas.CurrentFrame.Map.NetworkedBounds!.Value);
-            await Assert.That(canvas.CurrentFrame.Map.MapName).IsEqualTo("de_mirage");
-        }
+            (StratStore _, StratSession session) = Opened(FiveSteps());
+            using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
+            canvas.ExecuteAction(StratBookActions.NextStep);
 
-        session.Close();
-        await Assert.That(canvas.HasDocument).IsFalse();
-        await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(0);
+            using (Assert.Multiple())
+            {
+                await Assert.That(canvas.TokenEditor).IsSameReferenceAs(canvas);
+                await Assert.That(((ISceneSource)canvas).Ink).IsSameReferenceAs(canvas.Ink).Because("the strat's ink is always drawn");
+                await Assert.That(canvas.ShowViewCones).IsTrue();
+                await Assert.That(canvas.CurrentFrame.Map.NetworkedBounds).IsNotNull();
+                await Assert.That(canvas.CurrentFrame.Map.ObservedBounds).IsEqualTo(canvas.CurrentFrame.Map.NetworkedBounds!.Value);
+                await Assert.That(canvas.CurrentFrame.Map.MapName).IsEqualTo("de_mirage");
+            }
+
+            session.Close();
+            await Assert.That(canvas.HasDocument).IsFalse();
+            await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(0);
+        });
     }
 
     private static AnnotationElement Ink(StratCanvasViewModel canvas, Guid id) =>

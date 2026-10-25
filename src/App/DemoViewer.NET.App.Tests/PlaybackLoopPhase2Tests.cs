@@ -38,7 +38,7 @@ public class PlaybackLoopPhase2Tests
 
             // Establish the authoritative tracker at frame 5 (discrete seek; wait for it to land).
             vm.Navigation.SeekToFrame(5);
-            await WaitUntil(() => vm.Playback.AuthoritativeTracker?.CurrentFrameIndex == 5);
+            await vm.Playback.TrackerAtFrameAsync(5);
 
             DemoFrame? selectedBeforePlay = vm.SelectedFrame;
 
@@ -78,7 +78,7 @@ public class PlaybackLoopPhase2Tests
             await Assert.That(vm.Frames.Count).IsGreaterThan(100);
 
             vm.Navigation.SeekToFrame(2);
-            await WaitUntil(() => vm.Playback.AuthoritativeTracker?.CurrentFrameIndex == 2);
+            await vm.Playback.TrackerAtFrameAsync(2);
 
             int pushCount = 0;
             int maxFrameJumpPerPush = 0;
@@ -143,17 +143,6 @@ public class PlaybackLoopPhase2Tests
     private static async Task PumpFor(int ms)
     {
         for (int elapsed = 0; elapsed < ms; elapsed += 25)
-        {
-            Dispatcher.UIThread.RunJobs();
-            await Task.Delay(25);
-        }
-
-        Dispatcher.UIThread.RunJobs();
-    }
-
-    private static async Task WaitUntil(Func<bool> condition)
-    {
-        for (int i = 0; i < 200 && !condition(); i++)
         {
             Dispatcher.UIThread.RunJobs();
             await Task.Delay(25);

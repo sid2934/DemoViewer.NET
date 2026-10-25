@@ -314,8 +314,8 @@ public interface IHeldParse : IDisposable
 }
 
 /// <summary>
-///     The single global source all background demo parse/analyse work is pulled from
-///     (demo-processing-queue). Lives in the shared App project and must COMPILE for WASM: no
+///     The single global source all background demo parse/analyse work is pulled from.
+///     Lives in the shared App project and must COMPILE for WASM: no
 ///     ASP.NET, no physical-file assumptions in the abstraction, no blocking waits.
 /// </summary>
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",

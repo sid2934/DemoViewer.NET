@@ -2,6 +2,7 @@
 
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Diagnostics;
@@ -17,7 +18,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
-///     The global demo-processing queue (demo-processing-queue.md). The single source all background
+///     The global demo-processing queue. The single source all background
 ///     demo parse/analyse work is pulled from, plus the awaitable highest-priority foreground open.
 ///     <para>
 ///         <b>Two authorities, one live number.</b> This pump is the PRIMARY limiter: it starts
@@ -62,6 +63,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private readonly ObservableCollection<DemoQueueItem> _items = [];
     private readonly Func<ReadOnlyMemory<byte>, ParsedDemo> _parseBytes; // foreground: parse in-hand bytes
     private readonly Func<string, DecodePlan, ParsedDemo> _parseFile; // background: read file at path → parse
+
+    // The rank update a retained read captured, keyed by the parse it came off. The parse delegates return
+    // the ParsedDemo alone, and an injected one captures nothing, which reads as no update rather than
+    // throwing. Weak, so the rows die with the parse.
+    private readonly ConditionalWeakTable<ParsedDemo, IReadOnlyList<ServerRankUpdate>> _parseRanks = new();
     private readonly Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? _forwardPass;
 
     private readonly ActiveCollectors _visitCollectors = new();
@@ -152,7 +158,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         _gate = gate;
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
         _parseFile = parseFileWithPlan ?? (parseFile is null ? ParseFileDefault : (path, _) => parseFile(path));
-        _parseBytes = parseBytes ?? (bytes => DemoParser.Parse(bytes));
+        _parseBytes = parseBytes ?? ParseBytesDefault;
         _forwardPass = forwardPass;
         _parseReleased = parseReleased;
         _compactHeap = compactHeap ?? HeapCompactor.CompactAsync;
@@ -212,11 +218,44 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     /// </summary>
     private ParsedDemo ParseFileDefault(string path, DecodePlan plan)
     {
-        ParseOptions options = new() { Plan = plan };
-        return _fileRead.Prepare(path, _shutdownToken) is { } bytes
+        // The 352 rides this read's unknown-message tap. Reading the payload back from the file, not the
+        // bytes, keeps the closure off the demo: the mapping is released and the byte[] dropped below.
+        ServerRankCapture ranks = ServerRankCapture.OverFile(path);
+        ParseOptions options = ranks.Attach(new ParseOptions { Plan = plan });
+        ParsedDemo parsed = _fileRead.Prepare(path, _shutdownToken) is { } bytes
             ? DemoParser.Parse(bytes.AsMemory(), options)
             : MemoryMappedDemoSource.ParseFile(path, options);
+        return NoteRanks(parsed, ranks);
     }
+
+    /// <summary>The foreground parse of bytes in hand, with the same rank tap the background read carries.</summary>
+    private ParsedDemo ParseBytesDefault(ReadOnlyMemory<byte> bytes)
+    {
+        ServerRankCapture ranks = ServerRankCapture.Over(bytes);
+        ParsedDemo parsed = DemoParser.Parse(bytes, ranks.Attach(new ParseOptions()));
+        return NoteRanks(parsed, ranks);
+    }
+
+    // Decoded here, in the read, so nothing downstream holds the capture and through it the demo's bytes.
+    // The rows ride the parse; they must never cost it. A file that moved under the seek, or a payload
+    // that will not inflate, leaves the read good and the update absent.
+    private ParsedDemo NoteRanks(ParsedDemo parsed, ServerRankCapture ranks)
+    {
+        try
+        {
+            _parseRanks.AddOrUpdate(parsed, ranks.DecodeHeld(parsed.Frames));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
+                                       or InvalidOperationException or ArgumentException)
+        {
+            AppLog.RankUpdateUnread(DiagLog, ex, parsed.MapName);
+        }
+
+        return parsed;
+    }
+
+    private IReadOnlyList<ServerRankUpdate> RanksOf(ParsedDemo parsed) =>
+        _parseRanks.TryGetValue(parsed, out IReadOnlyList<ServerRankUpdate>? rows) ? rows : [];
 
     public ReadOnlyObservableCollection<DemoQueueItem> Items { get; }
 
@@ -229,6 +268,53 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 return _activeWorkers;
             }
+        }
+    }
+
+    // Completed and replaced each time the last worker, heavy or light, exits. Under _sync.
+    private TaskCompletionSource _idleSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes when no worker is running. Idle means no worker, as <see cref="ActiveWorkerCount"/> does:
+    /// queued entries a paused or full queue is holding back do not count.
+    /// <para>
+    /// A queue that is already idle satisfies the call at once. Otherwise it completes at the next moment the
+    /// queue is idle, and a later enqueue does not revoke that. Observes only: it takes no part in scheduling.
+    /// </para>
+    /// <para>
+    /// <paramref name="and"/> is checked each time the queue is idle, on the caller's thread and outside any
+    /// queue lock. If it is false the wait continues to the next idle moment, so it must become true by
+    /// the queue's own work. Bound the wait with <c>WaitAsync(TimeSpan)</c>.
+    /// </para>
+    /// </summary>
+    public async Task WhenIdleAsync(Func<bool>? and = null, CancellationToken cancellationToken = default)
+    {
+        while (true)
+        {
+            Task next;
+            bool idle;
+            lock (_sync)
+            {
+                idle = _activeWorkers == 0 && _activeLightWorkers == 0;
+                next = _idleSignal.Task;
+            }
+
+            if (idle && (and is null || and()))
+            {
+                return;
+            }
+
+            await next.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    // Under _sync, after PumpLocked so a worker the pump just started keeps the queue busy.
+    private void SignalIdleLocked()
+    {
+        if (_activeWorkers == 0 && _activeLightWorkers == 0)
+        {
+            _idleSignal.TrySetResult();
+            _idleSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
     }
 
@@ -1487,6 +1573,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 _activeLightWorkers--;
                 PumpLocked();
+                SignalIdleLocked();
             }
         }
     }
@@ -1617,6 +1704,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 _activeWorkers--;
                 PumpLocked(); // work may have arrived during teardown
+                SignalIdleLocked();
             }
         }
     }
@@ -1788,6 +1876,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 {
                     RetainedCollected = RetainedCollected(parsed, open.Path),
                     RetainedRun = RetainedRun(parsed, open.Path),
+                    RetainedRanks = RanksOf(parsed),
                     TableOf = TableOf
                 });
             }
@@ -2343,6 +2432,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 {
                     RetainedCollected = RetainedCollected(parsed!, demo.Path),
                     RetainedRun = RetainedRun(parsed!, demo.Path),
+                    RetainedRanks = RanksOf(parsed!),
                     TableOf = TableOf
                 });
             }

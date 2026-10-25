@@ -9,6 +9,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -97,7 +98,7 @@ public class QueryCanvasTests
         using (Assert.Multiple())
         {
             await Assert.That(query.Ct).IsEmpty().Because("an empty side is unconstrained");
-            await Assert.That(query.T).IsEquivalentTo([new PlaceQuery("Ramp", 1)]);
+            await Assert.That(query.T).IsEquivalentTo([new PlaceQuery("Ramp", 1)], CollectionOrdering.Matching);
             await Assert.That(h.Vm.CtToken).IsEqualTo("");
             await Assert.That(h.Vm.TToken).IsEqualTo("Ramp:1");
             await Assert.That(h.Index.Count(query)).IsEqualTo(0).Because("exact means exactly one on Ramp, and the row holds two");
@@ -311,7 +312,7 @@ public class QueryCanvasTests
         }
 
         using SituationsTabViewModel tab = new(h.Index, null, h.Cache.Library(), h.Sources, () => RoundIndexTokenSource.Pawn, isBrowser: false);
-        await Assert.That(tab.Canvas.Maps).IsEquivalentTo(["de_nuke"]);
+        await Assert.That(tab.Canvas.Maps).IsEquivalentTo(["de_nuke"], CollectionOrdering.Matching);
         await Assert.That(tab.Canvas.CanSearch).IsTrue();
     }
 

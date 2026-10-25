@@ -9,7 +9,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using DemoViewer.NET.GameIcons;
 
 #endregion
 
@@ -30,6 +29,12 @@ namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 ///         3.42× wider than it is tall), so <see cref="IconHeight" /> is the input and the width follows
 ///         from the manifest's intrinsic aspect. Measuring the bitmap instead would work, but only after a
 ///         decode; the manifest knows the aspect without touching pixels.
+///     </para>
+///     <para>
+///         <b>The artwork comes from the app, not from this package.</b> The icons are Valve's, so they are
+///         not redistributed on NuGet; the app installs the catalogue behind this control at startup. Outside
+///         the app nothing is installed, every key resolves to nothing, and the control draws
+///         <see cref="Fallback" />.
 ///     </para>
 /// </summary>
 public sealed class GameIcon : Control
@@ -71,6 +76,9 @@ public sealed class GameIcon : Control
         AffectsRender<GameIcon>(KeyProperty, IconHeightProperty, ForegroundProperty, FallbackProperty,
             FontFamilyProperty, FontSizeProperty);
     }
+
+    /// <summary>The catalogue the app installs; null outside it, where every key resolves to nothing.</summary>
+    internal static IGameIconBackend? Backend { get; set; }
 
     /// <summary>The namespace-qualified icon key, e.g. <c>equipment/ak47</c>.</summary>
     public string? Key
@@ -139,7 +147,7 @@ public sealed class GameIcon : Control
     protected override Size MeasureOverride(Size availableSize)
     {
         double h = IconHeight;
-        if (Resolve(out IconAvailability availability) is { } icon)
+        if (Resolve(out GameIconAvailability availability) is { } icon)
         {
             return new Size(icon.WidthAt(h), h);
         }
@@ -155,7 +163,7 @@ public sealed class GameIcon : Control
         ArgumentNullException.ThrowIfNull(context);
 
         IBrush? brush = Foreground;
-        if (Resolve(out IconAvailability availability) is not { } icon)
+        if (Resolve(out GameIconAvailability availability) is not { } icon)
         {
             if (ShowsFallback(availability) && brush is not null && Text() is { } text)
             {
@@ -172,7 +180,8 @@ public sealed class GameIcon : Control
 
         double h = IconHeight;
         Rect area = new(0, 0, icon.WidthAt(h), h);
-        if (area.Width <= 0 || area.Height <= 0 || Bitmap(icon, h) is not { } bitmap)
+        if (area.Width <= 0 || area.Height <= 0 || Backend is not { } backend
+            || Bitmap(backend, icon, h) is not { } bitmap)
         {
             return;
         }
@@ -195,22 +204,33 @@ public sealed class GameIcon : Control
         }
     }
 
-    private IconRef? Resolve(out IconAvailability availability) =>
-        IconCatalogue.Demand(Key, out availability);
+    private GameIconMetrics? Resolve(out GameIconAvailability availability)
+    {
+        if (Backend is { } backend)
+        {
+            return backend.Resolve(Key, out availability);
+        }
+
+        // No host, so no artwork at all. None rather than Missing: a key nobody could have answered is
+        // not a bad key, and the fallback is the right render either way.
+        availability = GameIconAvailability.None;
+        return null;
+    }
 
     /// <summary>
     ///     Whether the fallback text stands in for the icon.
     ///     <para>
-    ///         <b>Only <see cref="IconAvailability.Blank" /> suppresses it.</b> A missing key falls back
-    ///         because something should have drawn and did not; a <see cref="IconAvailability.None" />
-    ///         (no key bound at all) also falls back, because that is a caller who has a glyph of its
-    ///         own and simply no icon to prefer over it, which is how the timeline draws annotation and
-    ///         round markers CS2 has no artwork for. Blank is the one case where the game itself is
-    ///         saying there is nothing here, and inventing a word for it would be a lie.
+    ///         <b>Only <see cref="GameIconAvailability.Blank" /> suppresses it.</b> A missing key falls
+    ///         back because something should have drawn and did not; a
+    ///         <see cref="GameIconAvailability.None" /> (no key bound at all, or no catalogue installed)
+    ///         also falls back, because that is a caller who has a glyph of its own and simply no icon to
+    ///         prefer over it, which is how the timeline draws annotation and round markers CS2 has no
+    ///         artwork for. Blank is the one case where the game itself is saying there is nothing here,
+    ///         and inventing a word for it would be a lie.
     ///     </para>
     /// </summary>
-    private static bool ShowsFallback(IconAvailability availability) =>
-        availability is IconAvailability.Missing or IconAvailability.None;
+    private static bool ShowsFallback(GameIconAvailability availability) =>
+        availability is GameIconAvailability.Missing or GameIconAvailability.None;
 
     // Memoised: the fallback is re-rendered only when its text, face, size or colour changes.
     private FormattedText? Text()
@@ -225,16 +245,16 @@ public sealed class GameIcon : Control
             new Typeface(FontFamily), FontSize, brush);
     }
 
-    private static Bitmap? Bitmap(IconRef icon, double drawnHeight)
+    private static Bitmap? Bitmap(IGameIconBackend backend, GameIconMetrics icon, double drawnHeight)
     {
         // Pick the master by the height actually being drawn, so a 16 px chip decodes the 32 px file
         // rather than a 96 px one it would only throw away.
-        int scale = IconCatalogue.ScaleFor(drawnHeight);
+        int scale = backend.ScaleFor(drawnHeight);
         return Decoded.GetOrAdd($"{icon.Key}@{scale}", _ =>
         {
             try
             {
-                using Stream stream = icon.Open(scale);
+                using Stream stream = backend.Open(icon.Key, scale);
                 return new Bitmap(stream);
             }
             catch (ArgumentOutOfRangeException)
@@ -245,4 +265,57 @@ public sealed class GameIcon : Control
             }
         });
     }
+}
+
+/// <summary>
+///     The baked catalogue <see cref="GameIcon" /> draws from, installed by the app. The artwork is the
+///     game's own, so it travels inside the application and not in this package; nothing is installed
+///     outside the app.
+/// </summary>
+internal interface IGameIconBackend
+{
+    /// <summary>
+    ///     What to draw for a key, or null when there is no picture: no key, artwork CS2 ships empty, or a
+    ///     key absent from the bake. <paramref name="availability" /> says which, and only
+    ///     <see cref="GameIconAvailability.Blank" /> means nothing at all should be drawn.
+    /// </summary>
+    GameIconMetrics? Resolve(string? key, out GameIconAvailability availability);
+
+    /// <summary>The baked scale to decode for a draw at this height in device-independent pixels.</summary>
+    int ScaleFor(double pixelHeight);
+
+    /// <summary>
+    ///     Opens the PNG for one key at one baked scale; the caller owns the stream. Throws
+    ///     <see cref="ArgumentOutOfRangeException" /> when the key was not baked at that scale.
+    /// </summary>
+    Stream Open(string key, int scale);
+}
+
+/// <summary>One resolved icon: enough to lay it out and decide whether it may be tinted.</summary>
+/// <param name="Key">The namespace-qualified key, which also keys the decoded-bitmap cache.</param>
+/// <param name="Aspect">Intrinsic width divided by intrinsic height.</param>
+/// <param name="Tintable">
+///     True when the artwork carries no hue and may be masked with the foreground brush; false when it is
+///     a picture to draw as baked, such as a rank badge or a Premier emblem.
+/// </param>
+internal readonly record struct GameIconMetrics(string Key, double Aspect, bool Tintable)
+{
+    /// <summary>The drawn width for a given drawn height, preserving the source aspect.</summary>
+    internal double WidthAt(double pixelHeight) => pixelHeight * Aspect;
+}
+
+/// <summary>Why a key resolved to the artwork it did, or to none.</summary>
+internal enum GameIconAvailability
+{
+    /// <summary>No key was asked for, or no catalogue is installed.</summary>
+    None,
+
+    /// <summary>Artwork exists and was returned.</summary>
+    Available,
+
+    /// <summary>CS2 ships deliberately empty artwork for this key, so drawing nothing is correct.</summary>
+    Blank,
+
+    /// <summary>The key is not in the bake: a typo, never curated, or renamed by a CS2 update.</summary>
+    Missing
 }

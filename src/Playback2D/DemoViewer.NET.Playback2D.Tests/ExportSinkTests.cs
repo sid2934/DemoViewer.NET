@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using FFMpegCore;
 using FFMpegCore.Pipes;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -196,7 +197,7 @@ public class ChannelVideoFrameSourceTests
 
         using MemoryStream sink = new();
         frame.Serialize(sink);
-        await Assert.That(sink.ToArray()).IsEquivalentTo(payload);
+        await Assert.That(sink.ToArray()).IsEquivalentTo(payload, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -308,7 +309,7 @@ public class ManagedGifSinkTests
             for (int i = 0; i < 6; i++)
             {
                 await Assert.That(gif.Frames[i].DelayCentiseconds).IsEqualTo(5);
-                await Assert.That(gif.Frames[i].Rgb).IsEquivalentTo(Rgb(Frame(8, 8, (byte)(i * 40))));
+                await Assert.That(gif.Frames[i].Rgb).IsEquivalentTo(Rgb(Frame(8, 8, (byte)(i * 40))), CollectionOrdering.Matching);
             }
         }
         finally
@@ -339,7 +340,7 @@ public class ManagedGifSinkTests
         await Assert.That(gif.Frames.Count).IsEqualTo(4);
         for (int i = 0; i < frames.Length; i++)
         {
-            await Assert.That(gif.Frames[i].Rgb).IsEquivalentTo(Rgb(frames[i]));
+            await Assert.That(gif.Frames[i].Rgb).IsEquivalentTo(Rgb(frames[i]), CollectionOrdering.Matching);
             await Assert.That(gif.Frames[i].Disposal).IsEqualTo(1);
         }
 
@@ -392,7 +393,7 @@ public class ManagedGifSinkTests
         byte[] once = await Encode(frames, 64, 48);
         byte[] again = await Encode(frames, 64, 48);
 
-        await Assert.That(again).IsEquivalentTo(once);
+        await Assert.That(again).IsEquivalentTo(once, CollectionOrdering.Matching);
     }
 
     /// <summary>

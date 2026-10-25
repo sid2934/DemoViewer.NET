@@ -12,6 +12,7 @@ using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -190,7 +191,7 @@ public class RenderCorrectnessTests
         compositor.Render(surface.Canvas, in lightCtx);
         byte[] light = Snapshot(surface);
 
-        await Assert.That(light).IsNotEquivalentTo(dark)
+        await Assert.That(light).IsNotEquivalentTo(dark, CollectionOrdering.Matching)
             .Because("a dark grid surviving a light swap at the same epoch is exactly the cache-key defect this guards");
     }
 

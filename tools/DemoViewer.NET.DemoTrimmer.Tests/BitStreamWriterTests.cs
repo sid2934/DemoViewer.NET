@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -30,7 +31,7 @@ public sealed class BitStreamWriterTests
         }
 
         uint[] decoded = DecodeUBitVars(writer.ToArray(), values.Length);
-        await Assert.That(decoded).IsEquivalentTo(values);
+        await Assert.That(decoded).IsEquivalentTo(values, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -45,7 +46,7 @@ public sealed class BitStreamWriterTests
         }
 
         uint[] decoded = DecodeUVarInts(writer.ToArray(), values.Length);
-        await Assert.That(decoded).IsEquivalentTo(values);
+        await Assert.That(decoded).IsEquivalentTo(values, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -62,7 +63,7 @@ public sealed class BitStreamWriterTests
         (uint typeId, uint size, byte[] bytes) = DecodeOneMessage(writer.ToArray());
         await Assert.That(typeId).IsEqualTo(9u);
         await Assert.That(size).IsEqualTo((uint)payload.Length);
-        await Assert.That(bytes).IsEquivalentTo(payload);
+        await Assert.That(bytes).IsEquivalentTo(payload, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -108,9 +109,9 @@ public sealed class BitStreamWriterTests
         await Assert.That(survivors[0].Bytes).IsEquivalentTo(new byte[]
         {
             1, 2, 3
-        });
+        }, CollectionOrdering.Matching);
         await Assert.That(survivors[1].TypeId).IsEqualTo(55u);
-        await Assert.That(survivors[1].Bytes).IsEquivalentTo(Enumerable.Repeat((byte)0xAB, 300).ToArray());
+        await Assert.That(survivors[1].Bytes).IsEquivalentTo(Enumerable.Repeat((byte)0xAB, 300).ToArray(), CollectionOrdering.Matching);
     }
 
     private static (uint TypeId, byte[] Payload)[] SampleMessages() =>

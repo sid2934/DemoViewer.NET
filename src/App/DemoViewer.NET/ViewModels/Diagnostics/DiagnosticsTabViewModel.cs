@@ -28,7 +28,7 @@ namespace DemoViewer.NET.ViewModels.Diagnostics;
 ///     the parse + entity panels populate only when a run was profiled at RUNTIME
 ///     (<see cref="CS2DemoKit.Parser.Profiling.Enabled" />). The <b>Re-run with capture</b> button
 ///     turns the switch on and re-runs the analysis, populating the entity panel; the parse panel
-///     (B1) needs a re-parse, so after a Re-run the user reloads the demo (or starts with
+///     needs a re-parse, so after a Re-run the user reloads the demo (or starts with
 ///     <c>DEMOVIEWER_PROFILE=1</c>). The evaluator-runtime panel ships in every build and is idle until
 ///     the user attaches the live capture toggle.
 ///     <para>
@@ -91,7 +91,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
     private readonly DiagnosticsTelemetryHub _telemetry;
     private ActivityListener? _activityListener;
 
-    // ── A4. Copy fallback ─────────────────────────────────────────────────────
+    // ── Copy fallback ─────────────────────────────────────────────────────
 
     /// <summary>The plain-text diagnostics block surfaced in the read-only fallback TextBox.</summary>
     [ObservableProperty]
@@ -172,7 +172,7 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     private IReadOnlyList<KvpRow> _parseProfilingRows = [];
 
-    // ── B1. Parse profiling (runtime-gated: Profiling.Enabled at parse time) ──
+    // ── Parse profiling (runtime-gated: Profiling.Enabled at parse time) ──
 
     /// <summary>True when the last parse was profiled and captured data.</summary>
     [ObservableProperty]
@@ -842,7 +842,10 @@ public sealed partial class DiagnosticsTabViewModel : ObservableObject, IDisposa
 
     // ── Copy-to-clipboard text builder ────────────────────────────────────────
 
-    /// <summary>Builds the plain-text diagnostics block (A1–A3) for the clipboard / fallback TextBox.</summary>
+    /// <summary>
+    ///     Builds the plain-text diagnostics block (system, environment and session) for the
+    ///     clipboard / fallback TextBox.
+    /// </summary>
     public string BuildCopyText()
     {
         StringBuilder sb = new();

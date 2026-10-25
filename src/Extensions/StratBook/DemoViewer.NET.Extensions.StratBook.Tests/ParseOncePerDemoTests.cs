@@ -14,6 +14,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -245,12 +246,12 @@ public class ParseOncePerDemoTests
         {
             foreach (string demo in Demos(folder))
             {
-                await Assert.That(outcomes.Of(demo, "library")).IsEquivalentTo([PassOutcome.Ran]).Because($"{demo}: library");
-                await Assert.That(outcomes.Of(demo, RoundFactsEvaluator.EvaluatorId)).IsEquivalentTo([PassOutcome.Ran])
+                await Assert.That(outcomes.Of(demo, "library")).IsEquivalentTo([PassOutcome.Ran], CollectionOrdering.Matching).Because($"{demo}: library");
+                await Assert.That(outcomes.Of(demo, RoundFactsEvaluator.EvaluatorId)).IsEquivalentTo([PassOutcome.Ran], CollectionOrdering.Matching)
                     .Because($"{demo}: round facts ran on the Library's read instead of sitting it out");
                 if (roundIndex && cache.TryGetIndex(demo)?.HasRoundFacts() == true)
                 {
-                    await Assert.That(outcomes.Of(demo, RoundIndexEvaluator.EvaluatorId)).IsEquivalentTo([PassOutcome.Ran])
+                    await Assert.That(outcomes.Of(demo, RoundIndexEvaluator.EvaluatorId)).IsEquivalentTo([PassOutcome.Ran], CollectionOrdering.Matching)
                         .Because($"{demo}: the round index ran on the same read as the rows it indexes");
                 }
             }
@@ -304,9 +305,8 @@ public class ParseOncePerDemoTests
 
     private static string Corpus(string name)
     {
-        string? root = DemoTestHelper.FindRepoRoot();
-        string folder = root is null ? "" : Path.Combine(root, "demos", name);
-        if (!Directory.Exists(folder) || Demos(folder).Count == 0)
+        string folder = DemoTestHelper.RequireCorpusDir(name);
+        if (Demos(folder).Count == 0)
         {
             throw new TUnit.Core.Exceptions.SkipTestException($"no demos under demos/{name}");
         }

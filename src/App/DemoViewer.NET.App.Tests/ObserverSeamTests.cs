@@ -17,6 +17,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -54,7 +55,7 @@ public class ObserverSeamTests
             await Assert.That(declared.ObservedProjectileClasses).IsEquivalentTo(["CMolotovProjectile", "CSmokeGrenadeProjectile"],
                 TUnit.Assertions.Enums.CollectionOrdering.Matching);
             await Assert.That(declared.FrameObserver).IsSameReferenceAs(observer);
-            await Assert.That(declared.CaptureSnapshots).IsEqualTo(false).Because("the caller's options are kept");
+            await Assert.That(declared.CaptureSnapshots).IsFalse().Because("the caller's options are kept");
             await Assert.That(untouched).IsSameReferenceAs(plain).Because("a run with no collector declares nothing");
             await Assert.That(none).IsNull();
             await Assert.That(set.IsSupersetOf(CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("a",
@@ -224,7 +225,7 @@ public class ObserverSeamTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(contributions.Collectors.Select(c => c.Id)).IsEquivalentTo(["dev.example.collectors.good"]);
+            await Assert.That(contributions.Collectors.Select(c => c.Id)).IsEquivalentTo(["dev.example.collectors.good"], CollectionOrdering.Matching);
             await Assert.That(RegisteredCollector.Refusal(CollectorKit.Counting("x", providers: ["entity.pawn.no_such_read"]))).Contains("entity.pawn.no_such_read");
             await Assert.That(faults.StateOf(pack.FeatureId).Count).IsEqualTo(3).Because("each refusal is reported against the extension");
         }
@@ -242,7 +243,7 @@ public class ObserverSeamTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(contributions.Collectors.Select(c => c.Id)).IsEquivalentTo(["dev.example.collectors.positions"])
+            await Assert.That(contributions.Collectors.Select(c => c.Id)).IsEquivalentTo(["dev.example.collectors.positions"], CollectionOrdering.Matching)
                 .Because("two extensions must never share a collector's results");
             await Assert.That(faults.StateOf(pack.FeatureId).Count).IsEqualTo(1);
         }

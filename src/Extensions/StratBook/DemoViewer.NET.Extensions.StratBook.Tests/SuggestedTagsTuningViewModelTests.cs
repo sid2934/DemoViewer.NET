@@ -4,6 +4,7 @@ using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion
@@ -59,7 +60,7 @@ public class SuggestedTagsTuningViewModelTests
         {
             await Assert.That(vm.CanManageTuning).IsTrue();
             await Assert.That(vm.ParameterRows.Count).IsEqualTo(expectedParameters);
-            await Assert.That(vm.DetectorRows.Select(r => r.Detector)).IsEquivalentTo(ProposalDetection.All.Select(d => d.Id));
+            await Assert.That(vm.DetectorRows.Select(r => r.Detector)).IsEquivalentTo(ProposalDetection.All.Select(d => d.Id), CollectionOrdering.Matching);
             await Assert.That(vm.DetectorRows.Single(r => r.Detector == "execute").Made).IsEqualTo(1)
                 .Because("the demo now has a verdict, so its entries count toward the history table");
             await Assert.That(vm.IsDirty).IsFalse();

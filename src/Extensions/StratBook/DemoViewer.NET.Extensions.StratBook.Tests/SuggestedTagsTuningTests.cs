@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion
@@ -149,7 +150,7 @@ public class SuggestedTagsTuningTests
             new Dictionary<string, IReadOnlyList<HandTagWindow>>(), 0, 0);
 
         await Assert.That(report.Rows.Select(r => r.Detector))
-            .IsEquivalentTo(ProposalDetection.All.Select(d => d.Id));
+            .IsEquivalentTo(ProposalDetection.All.Select(d => d.Id), CollectionOrdering.Matching);
         await Assert.That(report.Rows.All(r => r is { Made: 0, Recall: null, Precision: null })).IsTrue();
     }
 

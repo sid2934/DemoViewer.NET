@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -79,7 +80,7 @@ public class StratTriggerClockTests
         StratSceneProjection projection = StratSceneProjection.Build(document, StratPath.MainLine(document));
         using (Assert.Multiple())
         {
-            await Assert.That(projection.Ticks).IsEquivalentTo([0, 640, 1312]);
+            await Assert.That(projection.Ticks).IsEquivalentTo([0, 640, 1312], CollectionOrdering.Matching);
             await Assert.That(projection.CountsUp).IsTrue();
             await Assert.That(projection.ClockTextAt(640)).IsEqualTo("+0:10");
             await Assert.That(projection.ClockClamped).IsFalse();
@@ -130,11 +131,11 @@ public class StratTriggerClockTests
         {
             await Assert.That(session.UndoDepth).IsEqualTo(depth + 1).Because("one entry");
             await Assert.That(after.Clock.Kind).IsEqualTo(StratClock.TriggerKind);
-            await Assert.That(after.Steps.Select(s => s.AtSeconds)).IsEquivalentTo([5.0, 57.2, 70, 127.5]);
+            await Assert.That(after.Steps.Select(s => s.AtSeconds)).IsEquivalentTo([5.0, 57.2, 70, 127.5], CollectionOrdering.Matching);
             await Assert.That(after.Steps[0].Lurk!.Rotate!.AtSeconds).IsEqualTo(75);
             await Assert.That(after.Steps[1].HoldSeconds).IsEqualTo(1.5).Because("a hold is a duration");
             await Assert.That(after.Trigger!.AtSeconds).IsEqualTo(75).Because("the trigger's time is a round time");
-            await Assert.That(now.Ticks).IsEquivalentTo(was.Ticks);
+            await Assert.That(now.Ticks).IsEquivalentTo(was.Ticks, CollectionOrdering.Matching);
             await Assert.That(now.ContentEndTick).IsEqualTo(was.ContentEndTick);
             foreach (TokenTrack track in was.Tracks)
             {
@@ -159,7 +160,7 @@ public class StratTriggerClockTests
         // And back: the round clock has its countdown and its after-plant time again.
         editor.Project();
         editor.ClockChoice = StratEditorViewModel.RoundClockChoice;
-        await Assert.That(session.Document!.Steps.Select(s => s.AtSeconds)).IsEquivalentTo([110.0, 57.8, 45, -12.5]);
+        await Assert.That(session.Document!.Steps.Select(s => s.AtSeconds)).IsEquivalentTo([110.0, 57.8, 45, -12.5], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -194,7 +195,7 @@ public class StratTriggerClockTests
             .Because("a new step is later on a clock that counts up");
         StratSceneProjection projection = StratSceneProjection.Build(session.Document!, StratPath.MainLine(session.Document!));
         await Assert.That(StepAuthoringPatches.DuplicateStep(session.Document!, 1, Guid.NewGuid()).Value!["atSeconds"]!.GetValue<double>())
-            .IsGreaterThan(12).IsLessThanOrEqualTo(17);
+            .IsGreaterThan(12).And.IsLessThanOrEqualTo(17);
         await Assert.That(projection.ClockClamped).IsFalse();
     }
 
@@ -202,7 +203,7 @@ public class StratTriggerClockTests
     public async Task ATemplate_OnATriggerStrat_IsLaidOutInSecondsAfterTheStart()
     {
         List<StratStep> steps = StratTemplates.BuildSteps(StratTemplates.Find("rush-a")!, Trigger);
-        await Assert.That(steps.Select(s => s.AtSeconds)).IsEquivalentTo([5.0, 7, 9, 20, 25]);
+        await Assert.That(steps.Select(s => s.AtSeconds)).IsEquivalentTo([5.0, 7, 9, 20, 25], CollectionOrdering.Matching);
     }
 
     [Test]

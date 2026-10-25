@@ -8,6 +8,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.DemoLibraryScanTests;
 
 #endregion
@@ -169,7 +170,7 @@ public class LibraryFingerprintTests
                     .Because("a possible copy's header is read only once its fingerprint places it nowhere");
                 await Assert.That(library.Reader.FullReads(onNfs)).IsEqualTo(1);
                 await Assert.That(svc.Entries[0].FilePath).IsEqualTo(onNfs);
-                await Assert.That(svc.Entries[0].DuplicateFolders).IsEquivalentTo([smb]);
+                await Assert.That(svc.Entries[0].DuplicateFolders).IsEquivalentTo([smb], CollectionOrdering.Matching);
                 await Assert.That(library.Store.LocationOf(onSmb)?.ContentId).IsEqualTo(sha);
                 await Assert.That(library.Store.LocationOf(onSmb)?.Location.Confirmed).IsFalse();
                 await Assert.That(library.Store.Contents.Count).IsEqualTo(1);
@@ -493,7 +494,7 @@ public class LibraryFingerprintTests
             using (Assert.Multiple())
             {
                 await Assert.That(library.TotalParses).IsEqualTo(1);
-                await Assert.That(library.Parses.Keys).IsEquivalentTo([primary]);
+                await Assert.That(library.Parses.Keys).IsEquivalentTo([primary], CollectionOrdering.Matching);
                 await Assert.That(library.Reader.FullReads(primary)).IsEqualTo(1);
                 await Assert.That(library.Reader.FullReads(shadow)).IsEqualTo(0);
                 await Assert.That(library.Reader.WindowReads(onNfs)).IsEqualTo(1);
@@ -562,7 +563,7 @@ public class LibraryFingerprintTests
                 await Assert.That(atSmb?.Scoreboard).IsEmpty().Because("the other file's analysis never ran");
                 await Assert.That(atSmb?.Analysis.IsPresent).IsFalse();
                 await Assert.That(atNfs?.Scoreboard.Count).IsEqualTo(1);
-                await Assert.That(library.Store.TryGetByContentId(sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([onNfs]);
+                await Assert.That(library.Store.TryGetByContentId(sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([onNfs], CollectionOrdering.Matching);
             }
 
             await svc.RescanAsync();

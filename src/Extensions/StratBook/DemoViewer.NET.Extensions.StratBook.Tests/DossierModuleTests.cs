@@ -8,6 +8,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -197,7 +198,7 @@ public class DossierModuleTests
         DossierMapSectionViewModel nuke = vm.MapSections.Single(m => m.Map == "de_nuke");
         using (Assert.Multiple())
         {
-            await Assert.That(vm.MapSections.Select(m => m.Map)).IsEquivalentTo(vm.Maps.Select(m => m.Map));
+            await Assert.That(vm.MapSections.Select(m => m.Map)).IsEquivalentTo(vm.Maps.Select(m => m.Map), CollectionOrdering.Matching);
             await Assert.That(nuke.Record?.Map).IsEqualTo("de_nuke");
             await Assert.That(nuke.Findings.All(f => f.Map == "de_nuke")).IsTrue();
             await Assert.That(nuke.Findings.Any(f => f.Key == "map|de_nuke")).IsTrue();

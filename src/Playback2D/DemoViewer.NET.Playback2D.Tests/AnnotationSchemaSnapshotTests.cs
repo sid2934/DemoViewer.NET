@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -63,7 +64,7 @@ public class AnnotationSchemaSnapshotTests
         await Assert.That(loaded.Elements.Select(e => e.Kind).ToArray()).IsEquivalentTo([
             AnnotationKind.Freehand, AnnotationKind.Freehand, AnnotationKind.Line, AnnotationKind.Arrow,
             AnnotationKind.Rect, AnnotationKind.Ellipse, AnnotationKind.Text
-        ]);
+        ], CollectionOrdering.Matching);
         await Assert.That(loaded.Elements[6].Text).IsEqualTo("A main smoke");
 
         // The `timing` field is additive and NULLABLE, which is the only reason the byte comparison below

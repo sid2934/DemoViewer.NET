@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The port of the App's <c>Playback2DInterpolationTests</c> onto <see cref="MarkerSmoother" />,
+///     The pre-v2 marker-interpolation cases, ported onto <see cref="MarkerSmoother" />,
 ///     case for case, plus the discontinuity snap this suite adds.
 ///     <para>
 ///         The four original cases are the behaviour a viewer notices immediately when it breaks: a dot

@@ -15,7 +15,7 @@
         <Description>Controls, theme token names and style class names for DemoViewer.NET extension views, so an extension looks like the app it runs in.</Description>
         <PackageTags>demoviewer;cs2;counter-strike;demo;extension;sdk;avalonia</PackageTags>
         <!-- Every public member is documented: this package is read by people who cannot see the app. -->
-        <NoWarn>$(NoWarn.Replace('CS1591', ''));NU5104</NoWarn>
+        <NoWarn>$(NoWarn.Replace('CS1591', ''))</NoWarn>
         <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
     </PropertyGroup>
 
@@ -30,7 +30,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
-        <ProjectReference Include="..\..\GameIcons\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -39,7 +38,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- The app installs the renderer a MapView draws through. -->
+        <!-- The app installs the renderer a MapView draws through and the catalogue a GameIcon draws from. -->
         <InternalsVisibleTo Include="DemoViewer.NET"/>
         <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
         <InternalsVisibleTo Include="DemoViewer.NET.UiCapture"/>

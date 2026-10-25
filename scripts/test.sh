@@ -1,51 +1,58 @@
 #!/usr/bin/env bash
 # The one entry point for running this repository's tests, at a chosen TIER.
 #
-#   scripts/test.sh [-t fast|standard|full] [-p PROJECT|all] [-c Release|Debug] [-n] [-l]
+#   scripts/test.sh [-t fast|standard|full] [-p PROJECT|all] [-c Release|Debug] [-b skip|only] [-n] [-l]
 #
 #   -t  tier (default: standard, the in-flight default; see tests/shared/TestTiers.cs)
 #   -p  project key or `all` (default: all).  Keys: playback2d cli app ext livesync trimmer
 #       visualization gameicons ruleauthoring
 #   -c  configuration (default: Release, matching CI)
+#   -b  benchmark half: `skip` drops [Category(Budget)], `only` runs nothing else (needs -t full)
 #   -n  no build; assume the binaries are current
 #   -l  list only; discover and count, run nothing
 #
 # ── Why this script exists ──────────────────────────────────────────────────────────────────────────
 #
-# Three runner behaviours make hand-typed invocations unsafe, and all three are encapsulated here.
+# Three runner behaviours shape every invocation here, and all three are encapsulated below.
 #
-#  1. `dotnet test --filter "Category=X"` is SILENTLY IGNORED by this runner. TUnit runs on
-#     Microsoft.Testing.Platform and registers no `--filter` option; in VSTest mode the argument is
-#     swallowed and the ENTIRE suite runs, reporting success. Everything must go through
-#     `-- --treenode-filter`, and this script is the only place that string is written.
+#  1. `--filter "Category=X"` is not an option this runner has. TUnit runs on
+#     Microsoft.Testing.Platform, which registers no `--filter` and rejects it with exit 5.
+#     Everything must go through `-- --treenode-filter`, and this script is the only place that
+#     string is written.
 #
 #  2. The tree-node filter parser CRASHES on the obvious spelling of a boolean. Inside `[...]`, `&`
 #     and `|` bind TIGHTER than `=`, so `[Category!=A&Category!=B]` throws InvalidOperationException
 #     out of `TreeNodeFilter.ProcessStackOperator`. Parenthesise every operand instead. Worse
 #     spellings fail SILENTLY: top-level `|` between two whole paths matches EVERYTHING, top-level `&`
 #     drops the second clause, and unary `!` is not a token, so `[!(Category=A)]` also matches all.
+#     All of that survived the TUnit 1.76 upgrade, because the parser is Microsoft.Testing.Platform's
+#     and 2.5.1 is the newest MTP there is. Do not relax the parenthesisation on the grounds that the
+#     runner has been updated.
 #
-#  3. `dotnet test` collapses every platform exit code to MSBuild's `1`, which loses the distinction
-#     between "tests failed" (2), "the filter matched nothing" (8) and "bad arguments" (5), exactly
-#     the distinctions a tier runner has to report. `dotnet run` preserves them, so `dotnet run` is
-#     what this script uses.
+#  3. `dotnet run` is what this script uses, for `--no-build` on the single-project inner loop and
+#     for the per-project timings printed below. Exit codes are no longer the reason: with the
+#     `test.runner` opt-in in global.json, `dotnet test --project` propagates 2 (tests failed) and
+#     8 (the filter matched nothing), though 5 still collapses to MSBuild's 1. Without that opt-in
+#     `dotnet test` does not run at all on the .NET 10 SDK.
 set -u
 
 TIER=standard
 PROJECT=all
 CONFIG=Release
+BUDGET=tier
 BUILD=1
 LIST_ONLY=0
 
-while getopts "t:p:c:nlh" opt; do
+while getopts "t:p:c:b:nlh" opt; do
   case $opt in
     t) TIER=$OPTARG ;;
     p) PROJECT=$OPTARG ;;
     c) CONFIG=$OPTARG ;;
+    b) BUDGET=$OPTARG ;;
     n) BUILD=0 ;;
     l) LIST_ONLY=1 ;;
-    h) sed -n '2,12p' "$0"; exit 0 ;;
-    *) echo "usage: $0 [-t fast|standard|full] [-p PROJECT|all] [-c CONFIG] [-n] [-l]" >&2; exit 2 ;;
+    h) sed -n '2,13p' "$0"; exit 0 ;;
+    *) echo "usage: $0 [-t fast|standard|full] [-p PROJECT|all] [-c CONFIG] [-b skip|only] [-n] [-l]" >&2; exit 2 ;;
   esac
 done
 
@@ -68,6 +75,30 @@ case "$TIER" in
     TIER_BLURB='everything except a known, deterministic failure: CI and a pre-push review run' ;;
   *)
     echo "unknown tier '$TIER' (expected fast, standard or full)" >&2; exit 2 ;;
+esac
+
+# ── The benchmark half ──────────────────────────────────────────────────────────────────────────────
+# `skip` and `only` are complementary and have to be applied PER PROJECT: hand one half to a project
+# and not its sibling and the sibling's Budget cases run in no job at all. Here rather than at the
+# call sites so a CI lane names a half instead of composing a filter.
+case "$BUDGET" in
+  tier) ;;
+  skip)
+    case "$TIER_FILTER" in
+      *'(Category!=Budget)'*) ;;   # fast and standard already drop it
+      *) TIER_FILTER="${TIER_FILTER%]}&(Category!=Budget)]" ;;
+    esac
+    TIER_BLURB="$TIER_BLURB, benchmarks excluded" ;;
+  only)
+    # Only `full` keeps Budget, so only `full` has a half left to select; against the others the two
+    # clauses intersect in nothing and the run would be a silent no-op.
+    if [ "$TIER" != full ]; then
+      echo "-b only needs -t full; the $TIER tier already drops Budget" >&2; exit 2
+    fi
+    TIER_FILTER='/*/*/*/*[(Category=Budget)&(Category!=KnownFailure)]'
+    TIER_BLURB='benchmarks only: the half every correctness lane drops' ;;
+  *)
+    echo "unknown -b '$BUDGET' (expected skip or only)" >&2; exit 2 ;;
 esac
 
 # ── Project registry ────────────────────────────────────────────────────────────────────────────────
@@ -121,6 +152,15 @@ if [ "$BUILD" -eq 1 ]; then
 fi
 
 # ── Run ─────────────────────────────────────────────────────────────────────────────────────────────
+# The runner prefixes its summary with an ANSI reset when stdout can take colour, so the line reads
+# ESC[m followed by "  total: N". Every `^  total:` match below then fails and the lane reports
+# total=?. That was cosmetic until the -b only floor started reading TOTAL, at which point a green
+# budget lane exited 1 for want of two leading spaces. A literal ESC rather than \x1b: BSD sed does
+# not understand the escape and this script runs on macOS too.
+strip_ansi() {
+  printf '%s\n' "$1" | sed -E "s/$(printf '\033')\[[0-9;]*[A-Za-z]//g"
+}
+
 TOTAL=0; FAILED=0; SKIPPED=0; BROKEN=0
 SUITE_START=$(date +%s)
 
@@ -128,7 +168,7 @@ for entry in "${SELECTED[@]}"; do
   KEY="${entry%%|*}"
   PATH_="${entry#*|}"
 
-  ARGS=(--treenode-filter "$TIER_FILTER" --disable-logo --no-progress)
+  ARGS=(--treenode-filter "$TIER_FILTER" --disable-logo --progress off)
   [ "$LIST_ONLY" -eq 1 ] && ARGS+=(--list-tests)
   # DV_TEST_EXTRA_ARGS: runner options appended verbatim (CI serialises the ext suite with it).
   if [ -n "${DV_TEST_EXTRA_ARGS:-}" ]; then
@@ -139,6 +179,25 @@ for entry in "${SELECTED[@]}"; do
   START=$(date +%s%N)
   OUT=$(dotnet run --project "$PATH_" -c "$CONFIG" --no-build -- "${ARGS[@]}" 2>&1)
   EXIT=$?
+  OUT=$(strip_ansi "$OUT")
+
+  # Known CoreCLR fault: the host dies with SIGSEGV/SIGABRT during startup, before any summary is
+  # printed. Retry exactly once, and only when nothing was reported: no summary line and no failed
+  # test. What that guarantees is narrow: a crash that reported either one is never retried. A host
+  # that dies mid-run with every test so far passing reports neither, so a timing-dependent fault of
+  # that shape can still be retried past. The retry's own exit code is final.
+  if { [ $EXIT -eq 139 ] || [ $EXIT -eq 134 ]; } \
+     && ! echo "$OUT" | grep -qE '^  total: [0-9]+|^failed '; then
+    echo "[test] !!! $KEY: TEST HOST CRASHED (exit=$EXIT) WITH NO RESULTS REPORTED !!!" >&2
+    echo "[test] !!! Known CoreCLR startup fault (thread-static init race), not a test result. Retrying once." >&2
+    START=$(date +%s%N)
+    OUT=$(dotnet run --project "$PATH_" -c "$CONFIG" --no-build -- "${ARGS[@]}" 2>&1)
+    EXIT=$?
+    OUT=$(strip_ansi "$OUT")
+    if [ $EXIT -eq 139 ] || [ $EXIT -eq 134 ]; then
+      echo "[test] !!! $KEY: HOST CRASHED AGAIN (exit=$EXIT). No results. Treating as FAILED. !!!" >&2
+    fi
+  fi
   MS=$(( ( $(date +%s%N) - START ) / 1000000 ))
 
   if [ "$LIST_ONLY" -eq 1 ]; then
@@ -155,8 +214,13 @@ for entry in "${SELECTED[@]}"; do
 
   # Exit 8 is "the filter matched no tests". For a tier run that is a defect in the tier, not a pass:
   # it means every test in the suite carries a tag this tier drops, which is never intended.
+  #
+  # Under `-b only` it is expected, because most projects hold no benchmarks and the selection still
+  # has to reach every one of them. The whole-run floor below is what still catches a budget filter
+  # that selects nothing anywhere.
   STATUS=ok
-  if [ $EXIT -eq 8 ]; then STATUS="NO-TESTS-MATCHED"; BROKEN=$(( BROKEN + 1 ));
+  if [ $EXIT -eq 8 ] && [ "$BUDGET" = only ]; then STATUS="no-budget-tests";
+  elif [ $EXIT -eq 8 ]; then STATUS="NO-TESTS-MATCHED"; BROKEN=$(( BROKEN + 1 ));
   elif [ $EXIT -ne 0 ]; then STATUS="FAILED(exit=$EXIT)"; BROKEN=$(( BROKEN + 1 )); fi
 
   printf '  %-14s %7sms  total=%-5s failed=%-4s skipped=%-4s %s\n' \
@@ -167,11 +231,33 @@ for entry in "${SELECTED[@]}"; do
   fi
 done
 
+# ── RealDemo resolution guard ───────────────────────────────────────────────────────────────────────
+# See scripts/check-realdemo-lane.sh. It self-disarms unless a corpus or source is configured, and it
+# lives in its own script because CI's App lane reaches the suite through test-app-suite.sh, never
+# through here.
+# Not under `-b only`: the guard is about the App suite's demo-reading cases, and that selection
+# contains none of them.
+if [ "$TIER" = "full" ] && [ "$LIST_ONLY" -eq 0 ] && [ "$BUDGET" != only ]; then
+  for entry in "${SELECTED[@]}"; do
+    if [ "${entry%%|*}" = "app" ]; then
+      "$ROOT/scripts/check-realdemo-lane.sh" "$CONFIG" || BROKEN=$(( BROKEN + 1 ))
+    fi
+  done
+fi
+
 echo "[test] ─────────────────────────────────────────────────────────────"
 if [ "$LIST_ONLY" -eq 1 ]; then
   echo "[test] tier=$TIER discovered=$TOTAL across ${#SELECTED[@]} project(s) in $(( $(date +%s) - SUITE_START ))s"
   exit 0
 fi
 echo "[test] tier=$TIER  total=$TOTAL  failed=$FAILED  skipped=$SKIPPED  wall=$(( $(date +%s) - SUITE_START ))s"
+
+# A budget-only run where every project reported nothing is a filter that parses and selects nothing.
+# The per-project exit-8 tolerance above would otherwise swallow that into a green run.
+if [ "$BUDGET" = only ] && [ "$TOTAL" -eq 0 ]; then
+  echo "[test] no benchmark ran in any selected project: the Budget selection matched nothing" >&2
+  BROKEN=$(( BROKEN + 1 ))
+fi
+
 [ $BROKEN -eq 0 ] || exit 1
 exit 0

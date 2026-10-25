@@ -5,6 +5,7 @@ using CS2DemoKit.Analysis.Yaml;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.ViewModels.Stats;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -82,7 +83,7 @@ public class ColumnRuleSweepTests
         using (Assert.Multiple())
         {
             await Assert.That(facet.Distinct(StringComparer.Ordinal).Count()).IsEqualTo(facet.Count);
-            await Assert.That(facet.Order(StringComparer.Ordinal)).IsEquivalentTo(ColumnRules.FacetColumns.Order(StringComparer.Ordinal));
+            await Assert.That(facet.Order(StringComparer.Ordinal)).IsEquivalentTo(ColumnRules.FacetColumns.Order(StringComparer.Ordinal), CollectionOrdering.Matching);
             await Assert.That(facet).Contains(ColumnRules.Rounds);
         }
     }

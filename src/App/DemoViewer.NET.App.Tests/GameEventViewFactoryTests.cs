@@ -52,7 +52,7 @@ public class GameEventViewFactoryTests
             await Assert.That(view.Tick).IsNotEqualTo(death.ServerTick);
         }
 
-        // The kill-NAV (A3) uses frame INDICES (SemanticNavigator), so confirm the player_death MESSAGE sits
+        // The kill-NAV uses frame INDICES (SemanticNavigator), so confirm the player_death MESSAGE sits
         // in the frame at the TRUE game tick, i.e. the event is NOT delivered in a later frame. If this
         // holds, "jump to next kill" lands correctly and shares no bug with the feed (which used the wrong
         // tick FIELD, not a late frame).

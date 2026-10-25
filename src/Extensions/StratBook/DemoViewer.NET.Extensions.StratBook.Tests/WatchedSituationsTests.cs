@@ -12,6 +12,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -66,13 +67,13 @@ public class WatchedSituationsTests
             ];
 
             WatchedSituation saved;
-            using (WatchedSituationsService first = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => 5000))
+            using (WatchedSituationsService first = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), h.Index, h.Cache.Library(), now: () => 5000))
             {
                 saved = first.Watch("  their A hold  ", "de_nuke", tokens, SituationTolerance.Adjacent, filters);
                 first.Watch("", "de_dust2", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
             }
 
-            using WatchedSituationsService second = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => 9000);
+            using WatchedSituationsService second = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), h.Index, h.Cache.Library(), now: () => 9000);
             WatchedSituation loaded = second.Watches[0];
             JsonDocument json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, WatchedSituationsService.FileName)));
 
@@ -87,7 +88,7 @@ public class WatchedSituationsTests
                 await Assert.That(loaded.Tolerance).IsEqualTo(SituationTolerance.Adjacent);
                 await Assert.That(loaded.CreatedTicks).IsEqualTo(5000);
                 await Assert.That(loaded.WatermarkTicks).IsEqualTo(5000).Because("a new watch has seen what it matches today");
-                await Assert.That(loaded.Tokens).IsEquivalentTo(tokens.Select(WatchedToken.From));
+                await Assert.That(loaded.Tokens).IsEquivalentTo(tokens.Select(WatchedToken.From), CollectionOrdering.Matching);
                 await Assert.That(loaded.Filters).IsEqualTo(filters);
                 await Assert.That(loaded.TokenFor(QuerySide.Ct)).IsEqualTo("BombsiteA:2");
                 await Assert.That(loaded.TokenFor(QuerySide.T)).IsEqualTo("Lobby:1").Because("the unresolved token is kept on the canvas and left out of the query");
@@ -100,8 +101,8 @@ public class WatchedSituationsTests
             }
 
             second.Remove(saved.Id);
-            using WatchedSituationsService third = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library());
-            await Assert.That(third.Watches.Select(w => w.Map)).IsEquivalentTo(["de_dust2"]);
+            using WatchedSituationsService third = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), h.Index, h.Cache.Library());
+            await Assert.That(third.Watches.Select(w => w.Map)).IsEquivalentTo(["de_dust2"], CollectionOrdering.Matching);
         }
         finally
         {
@@ -123,7 +124,7 @@ public class WatchedSituationsTests
             await File.WriteAllTextAsync(path, "{ not json");
             using Harness h = new();
 
-            using WatchedSituationsService service = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library());
+            using WatchedSituationsService service = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), h.Index, h.Cache.Library());
             service.Watch("kept for the session", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
 
             using (Assert.Multiple())
@@ -149,7 +150,7 @@ public class WatchedSituationsTests
         try
         {
             using Harness h = new();
-            using WatchedSituationsService service = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => Before);
+            using WatchedSituationsService service = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), h.Index, h.Cache.Library(), now: () => Before);
             int raised = 0;
             service.Changed += () => raised++;
 
@@ -201,7 +202,7 @@ public class WatchedSituationsTests
 
             // The restart path: a fresh service reads the same file and counts at the watermark through
             // the index stamps, with no Indexed event, and lands on the same number.
-            using (WatchedSituationsService restarted = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => Before))
+            using (WatchedSituationsService restarted = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), h.Index, h.Cache.Library(), now: () => Before))
             {
                 using (Assert.Multiple())
                 {
@@ -221,7 +222,7 @@ public class WatchedSituationsTests
                 await Assert.That(service.Watches.Single().WatermarkTicks).IsGreaterThanOrEqualTo(newest);
             }
 
-            using (WatchedSituationsService restarted = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => Before))
+            using (WatchedSituationsService restarted = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), h.Index, h.Cache.Library(), now: () => Before))
             {
                 await Assert.That(restarted.NewCount).IsEqualTo(0).Because("the seen watermark survives a restart");
             }
@@ -325,7 +326,7 @@ public class WatchedSituationsTests
         using (Assert.Multiple())
         {
             await Assert.That(canvas.Map).IsEqualTo("de_nuke");
-            await Assert.That(canvas.Document.Placed.Select(WatchedToken.From)).IsEquivalentTo(watch.Tokens);
+            await Assert.That(canvas.Document.Placed.Select(WatchedToken.From)).IsEquivalentTo(watch.Tokens, CollectionOrdering.Matching);
             await Assert.That(canvas.Draft.Tolerance).IsEqualTo(SituationTolerance.AnyPlace);
             await Assert.That(canvas.Filters.Values).IsEqualTo(watch.Filters);
             await Assert.That(searched.Count).IsEqualTo(3)

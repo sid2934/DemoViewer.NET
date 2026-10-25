@@ -1,33 +1,14 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D.Pipeline.Headless;
 
 #endregion
 
 namespace DemoViewer.NET.Playback2D.Cli;
 
-/// <summary>A resolved render backend plus why it was chosen.</summary>
-/// <param name="Provider">The surface provider. The caller disposes it.</param>
-/// <param name="Requested">What the caller asked for, before any fallback.</param>
-/// <param name="Reason">A one-line explanation, printed when the request was not honoured.</param>
-internal sealed record ResolvedBackend(IRenderSurfaceProvider Provider, string Requested, string? Reason)
-{
-    /// <summary>
-    ///     The backend actually in use, <b>captured at construction</b> rather than read through
-    ///     <see cref="Provider" /> on demand.
-    ///     <para>
-    ///         <c>GoldenCommand</c> keeps the first entry's <see cref="ResolvedBackend" /> for its summary
-    ///         payload but disposes each entry's plan, and with it that provider, at the end of every
-    ///         loop iteration. Reading the provider afterwards is a use-after-dispose: inert against
-    ///         <c>CpuSurfaceProvider</c> (constant property, no-op <c>Dispose</c>), a fault against
-    ///         <c>GpuSurfaceProvider</c>, which owns an EGL context and is handed over by this very type.
-    ///     </para>
-    /// </summary>
-    public RenderBackend Backend { get; } = Provider.Backend;
-}
-
 /// <summary>
-///     Applies the precedence for the surface backend: explicit flag → <c>--backend</c> →
+///     Reads the surface-backend flags and applies their precedence: explicit flag → <c>--backend</c> →
 ///     <c>DV2D_RENDER_BACKEND</c> → auto-probe. The app's fourth rung (
 ///     <c>
 ///         AppSettings.Playback2D
@@ -35,12 +16,10 @@ internal sealed record ResolvedBackend(IRenderSurfaceProvider Provider, string R
 ///     </c>
 ///     ) is deliberately absent: a headless tool reads no UI state.
 ///     <para>
-///         Every construction goes through <see cref="RenderSurfaceProviderFactory" />, the single site
-///         in the repo that knows how to stand an EGL context up. A <c>--gpu</c> request on a machine
-///         without one degrades to CPU with a stated reason; <c>--strict-backend</c> (equivalently
-///         <c>--backend force-gpu</c>) turns that degradation into
-///         <see cref="ExitCode.EnvironmentUnavailable" />, never a silent software-rendered
-///         measurement.
+///         Only the reading lives here. Standing a provider up from the settled preference is
+///         <see cref="RenderBackendResolver" />, which is also where <c>--strict-backend</c> turns a
+///         missing GPU into <see cref="ExitCode.EnvironmentUnavailable" /> rather than a silent
+///         software-rendered measurement.
 ///     </para>
 /// </summary>
 internal static class BackendResolver
@@ -56,48 +35,12 @@ internal static class BackendResolver
     ///     <c>--strict-backend</c>.
     /// </summary>
     /// <param name="args">The parsed arguments.</param>
-    /// <param name="fallback">
-    ///     What the bottom rung of the chain means when nobody expressed a preference.
-    ///     <see cref="RenderBackendPreference.Auto" /> everywhere except the golden lane, which pins
-    ///     <see cref="RenderBackendPreference.ForceCpu" />: the committed corpus lives in
-    ///     <c>goldens/cpu/</c> and is compared byte-exact, so auto-probing onto a GPU would report a
-    ///     rasterizer difference as a pixel regression on any developer machine that happens to have one.
-    /// </param>
+    /// <param name="fallback">What "nobody said" resolves to. See <see cref="Preference" />.</param>
     /// <exception cref="CliUsageException">Conflicting flags, or an unparseable backend name.</exception>
     /// <exception cref="BackendUnavailableException">A strict request cannot be satisfied.</exception>
     public static ResolvedBackend Resolve(CliArgs args,
-        RenderBackendPreference fallback = RenderBackendPreference.Auto)
-    {
-        ArgumentNullException.ThrowIfNull(args);
-
-        RenderBackendPreference preference = Preference(args, fallback);
-        string requested = Token(preference);
-
-        IRenderSurfaceProvider provider;
-        try
-        {
-            provider = RenderSurfaceProviderFactory.Create(preference, ConsoleOut.Info);
-        }
-        catch (InvalidOperationException e)
-        {
-            // The factory's one throw: force-gpu with no GPU. Re-shaped into the tool's exit-6 channel
-            // rather than the generic runtime-failure exit 3. "This machine cannot do what you asked"
-            // is an environment answer, and CI distinguishes the two.
-            throw new BackendUnavailableException(e.Message, e);
-        }
-
-        string? reason = null;
-        if (provider.Backend == RenderBackend.CpuRaster &&
-            preference is RenderBackendPreference.PreferGpu or RenderBackendPreference.ForceGpu)
-        {
-            // Read from the cached probe rather than scraped out of the log callback: the reason is
-            // data on RenderSurfaceProbe, so it never has to be parsed back out of a sentence.
-            reason = string.Create(CultureInfo.InvariantCulture,
-                $"the GPU surface provider is unavailable ({RenderSurfaceProviderFactory.Probe().Reason}); using CpuRaster");
-        }
-
-        return new ResolvedBackend(provider, requested, reason);
-    }
+        RenderBackendPreference fallback = RenderBackendPreference.Auto) =>
+        RenderBackendResolver.Resolve(Preference(args, fallback), ConsoleOut.Info);
 
     /// <summary>
     ///     Applies the precedence chain to the flags actually given. Split from
@@ -105,7 +48,13 @@ internal static class BackendResolver
     ///     provider.
     /// </summary>
     /// <param name="args">The parsed arguments.</param>
-    /// <param name="fallback">What "nobody said" resolves to. See <see cref="Resolve" />.</param>
+    /// <param name="fallback">
+    ///     What the bottom rung of the chain means when nobody expressed a preference.
+    ///     <see cref="RenderBackendPreference.Auto" /> everywhere except the golden lane, which pins
+    ///     <see cref="RenderBackendPreference.ForceCpu" />: the committed corpus lives in
+    ///     <c>goldens/cpu/</c> and is compared byte-exact, so auto-probing onto a GPU would report a
+    ///     rasterizer difference as a pixel regression on any developer machine that happens to have one.
+    /// </param>
     /// <exception cref="CliUsageException">Conflicting flags, or an unparseable backend name.</exception>
     public static RenderBackendPreference Preference(CliArgs args,
         RenderBackendPreference fallback = RenderBackendPreference.Auto)
@@ -161,34 +110,6 @@ internal static class BackendResolver
 
     /// <summary>The token echoed back in JSON payloads as <c>backend_requested</c>.</summary>
     /// <param name="preference">The resolved preference.</param>
-    public static string Token(RenderBackendPreference preference) => preference switch
-    {
-        RenderBackendPreference.ForceCpu => "cpu",
-        RenderBackendPreference.PreferGpu => "gpu",
-        RenderBackendPreference.ForceGpu => "force-gpu",
-        _ => "auto"
-    };
-}
-
-/// <summary>Raised when a strictly-requested backend cannot be provided. Maps to exit 6.</summary>
-internal sealed class BackendUnavailableException : Exception
-{
-    /// <summary>Creates the exception.</summary>
-    /// <param name="message">Why the backend is unavailable.</param>
-    public BackendUnavailableException(string message) : base(message)
-    {
-    }
-
-    /// <summary>Parameterless overload required by CA1032.</summary>
-    public BackendUnavailableException()
-    {
-    }
-
-    /// <summary>Wrapping overload required by CA1032.</summary>
-    /// <param name="message">Why the backend is unavailable.</param>
-    /// <param name="innerException">The cause.</param>
-    public BackendUnavailableException(string message, Exception innerException)
-        : base(message, innerException)
-    {
-    }
+    public static string Token(RenderBackendPreference preference) =>
+        RenderBackendResolver.Token(preference);
 }

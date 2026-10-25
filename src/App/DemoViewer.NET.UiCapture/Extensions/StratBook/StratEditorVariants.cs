@@ -431,6 +431,7 @@ public static partial class Variants
     }
 
     // The Strat Book reads no demo; the hub only needs a context to activate its section.
+    // Not the shared fake: UiCapture has no TUnit, and the kit's props file compiles HeadlessSession.cs, which needs it.
     private sealed class StillContext : IModuleContext
     {
         public bool HasDemo => false;

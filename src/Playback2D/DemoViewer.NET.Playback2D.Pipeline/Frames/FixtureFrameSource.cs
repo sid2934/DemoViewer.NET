@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 ///     <para>
 ///         The point is that a benchmark and a golden can be driven from the <b>same JSON</b> as the
 ///         thing they are supposed to measure, with no demo, no parser and no tracker, which is what
-///         makes the budget lane runnable on a CI container. <c>TrackerFrameSource</c> (C1) is the
+///         makes the budget lane runnable on a CI container. <c>TrackerFrameSource</c> is the
 ///         real-demo counterpart and shares this interface.
 ///     </para>
 ///     <para>

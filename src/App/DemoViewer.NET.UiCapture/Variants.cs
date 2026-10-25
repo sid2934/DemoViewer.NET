@@ -199,7 +199,7 @@ public static partial class Variants
             ["msgcard-accents"] = MsgCardAccents,
             ["analysis-progress"] = AnalysisProgress,
             ["pb2d-vision"] = Pb2DVision,
-            ["playback2d-canvas"] = () => new Playback2DViewport(),
+            ["playback2d-canvas"] = () => new Scene2DHost(),
             ["pb2d-hud-accents"] = Pb2DHudAccents,
             // v0.8.1 stats component library. Render under BOTH built-in
             // themes AND a custom one: the five new Stat* tokens are retintable like any other, and
@@ -1210,7 +1210,7 @@ public static partial class Variants
     ///     (<c>assets/de_dust2</c>, radar + collision.tris). A fake module
     ///     context seeds a 2v2 roster around mid; the BVH is built synchronously through the
     ///     <c>LoadVisionEngineSyncForTest</c> seam (InternalsVisibleTo: the production off-thread load
-    ///     can't be pumped headlessly, same as ZVisionOverlayRenderTests), each player is then
+    ///     can't be pumped headlessly), each player is then
     ///     ground-snapped via <see cref="VisibilityEngine.RayDownDistance" /> and one Advanced push
     ///     rebuilds the markers, so the FOV cones + could-see sightlines come from REAL map geometry.
     /// </summary>
@@ -1265,7 +1265,7 @@ public static partial class Variants
             Height = 720,
             Background = Tok("ShellBg"),
             Padding = new Thickness(10),
-            Child = new Playback2DViewport
+            Child = new Scene2DHost
             {
                 DataContext = vm
             }
@@ -3813,7 +3813,7 @@ public static partial class Variants
 
     /// <summary>
     ///     The 2D-tab in-context CS2 indicator in the Pb2d HUD palette, rendered over a real
-    ///     Playback2DViewport (the authentic dark HUD island) in each state, so the Pb2dPositive-on-dark
+    ///     Scene2DHost (the authentic dark HUD island) in each state, so the Pb2dPositive-on-dark
     ///     legibility + the hollow-vs-solid shape can be read back (render-only design-system items).
     ///     The dot fill/stroke are set to the SAME Pb2d tokens the view's <c>Ellipse.pb2dDot.*</c> styles
     ///     resolve (good=Pb2dPositive, working=Pb2dTextBright, degraded=Pb2dTeamT); the class path itself is
@@ -3901,7 +3901,7 @@ public static partial class Variants
             Width = 640,
             Height = 440
         };
-        root.Children.Add(new Playback2DViewport());
+        root.Children.Add(new Scene2DHost());
         root.Children.Add(new StackPanel
         {
             HorizontalAlignment = HorizontalAlignment.Right,
@@ -4988,6 +4988,8 @@ public static partial class Variants
         public (float X, float Y, float Z)? WorldPosition => (X, Y, Z);
     }
 
+    // Not the shared fake: this is also the IPlaybackSnapshot, and its players' Z is ground-snapped after the BVH
+    // loads. UiCapture also has no TUnit, which the kit's props file needs.
     private sealed class VisionModuleContext(string mapName, IReadOnlyList<VisionPlayer> players)
         : IModuleContext, IPlaybackSnapshot
     {
@@ -5052,6 +5054,7 @@ public static partial class Variants
 
     // Minimal IModuleContext double: the LiveSyncStatusViewModel only reads DemoPath + MapName and (no-op)
     // subscribes to the default DemoReset. The rest are stubbed; none are exercised by the flyout capture.
+    // Not the shared fake: UiCapture has no TUnit, and the kit's props file compiles HeadlessSession.cs, which needs it.
     private sealed class FakeModuleContext(string? demoPath, string? mapName) : IModuleContext
     {
         public bool HasDemo => demoPath is not null;

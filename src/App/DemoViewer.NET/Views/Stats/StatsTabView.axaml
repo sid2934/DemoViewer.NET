@@ -698,7 +698,7 @@
                        FontSize="13"
                        Foreground="{DynamicResource TextDimGray}" />
 
-            <!-- ── Player-details overlay (docs/ui/player-details-ux-design.md): spans the whole
+            <!-- ── Player-details overlay: spans the whole
                      tab so the scoreboard underneath is fully occluded and non-interactive while
                      its state (sort/category/scroll) stays frozen. Inline overlay, never a Window
                      (WASM parity). Esc closes; opened from a row double-tap / context menu. ── -->

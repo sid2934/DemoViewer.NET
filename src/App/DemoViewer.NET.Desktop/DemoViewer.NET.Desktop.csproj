@@ -3,11 +3,10 @@
         <OutputType>WinExe</OutputType>
         <!--If you are willing to use platform-specific APIs, use conditional compilation.
         See https://docs.avaloniaui.net/docs/guides/platforms/platform-specific-code/dotnet for more details.-->
-        <TargetFramework>net10.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <NoWarn>NU1903</NoWarn>
-        <!-- Workstation GC (reverses an earlier Server GC choice): 24x less resident after close — 112 MB vs
-             2745 MB — for ~32% slower parse. Matrix + rejected alternatives: `AnalysisBench gc-sweep`. -->
+        <!-- Workstation GC (reverses an earlier Server GC choice): 24x less resident after close, 112 MB
+             against 2745 MB, for about 32% slower parse. The gc-sweep harness that measured the matrix went
+             out with the retained parse path; to re-measure, take tools/AnalysisBench/GcSweepCommand.cs
+             from 8515439, the last commit on main that carries it. -->
         <ServerGarbageCollection>false</ServerGarbageCollection>
         <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     </PropertyGroup>

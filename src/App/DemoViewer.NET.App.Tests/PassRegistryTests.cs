@@ -4,6 +4,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -158,7 +159,7 @@ public class PassRegistryTests
         {
             await Assert.That(resolved.Select(e => e.Id)).IsEquivalentTo(["core", "fine"],
                 TUnit.Assertions.Enums.CollectionOrdering.Matching);
-            await Assert.That(reported).IsEquivalentTo(["broken: factory", "misnamed"]);
+            await Assert.That(reported).IsEquivalentTo(["broken: factory", "misnamed"], CollectionOrdering.Matching);
         }
     }
 
@@ -179,7 +180,7 @@ public class PassRegistryTests
 
         IReadOnlyList<IDemoPass> resolved = registry.Resolve();
 
-        await Assert.That(resolved.Select(e => e.Id)).IsEquivalentTo(["library"]);
+        await Assert.That(resolved.Select(e => e.Id)).IsEquivalentTo(["library"], CollectionOrdering.Matching);
         await Assert.That(packFactoryCalls).IsEqualTo(0)
             .Because("a disabled pack's pass must never be constructed, not merely excluded after construction");
     }
@@ -195,11 +196,11 @@ public class PassRegistryTests
             registry.AddPackPass("pack", () => new Fake("pack"), [], () => packOn);
         });
 
-        await Assert.That(registry.Resolve().Select(e => e.Id)).IsEquivalentTo(["library"]);
+        await Assert.That(registry.Resolve().Select(e => e.Id)).IsEquivalentTo(["library"], CollectionOrdering.Matching);
 
         packOn = true;
 
-        await Assert.That(registry.Resolve().Select(e => e.Id)).IsEquivalentTo(["library", "pack"]);
+        await Assert.That(registry.Resolve().Select(e => e.Id)).IsEquivalentTo(["library", "pack"], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -319,7 +320,7 @@ public class PassRegistryTests
         using (Assert.Multiple())
         {
             await Assert.That(pass.Id).IsEqualTo("e");
-            await Assert.That(pass.After).IsEquivalentTo(["library"]);
+            await Assert.That(pass.After).IsEquivalentTo(["library"], CollectionOrdering.Matching);
             await Assert.That(pass.Interest(new VisitedDemo("/yes.dem"), PassLevel.Background)).IsEqualTo(PassInterest.Yes);
             await Assert.That(pass.Interest(new VisitedDemo("/later.dem"), PassLevel.Background)).IsEqualTo(PassInterest.IfUpstreamRuns);
             await Assert.That(pass.Interest(new VisitedDemo("/no.dem"), PassLevel.Background)).IsEqualTo(PassInterest.No);
@@ -351,9 +352,9 @@ public class PassRegistryTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(evaluator.Evaluated).IsEquivalentTo(["/x.dem"]);
-            await Assert.That(evaluator.EvaluatedForward).IsEquivalentTo(["/x.dem"]);
-            await Assert.That(evaluator.Failed).IsEquivalentTo(["/x.dem"]);
+            await Assert.That(evaluator.Evaluated).IsEquivalentTo(["/x.dem"], CollectionOrdering.Matching);
+            await Assert.That(evaluator.EvaluatedForward).IsEquivalentTo(["/x.dem"], CollectionOrdering.Matching);
+            await Assert.That(evaluator.Failed).IsEquivalentTo(["/x.dem"], CollectionOrdering.Matching);
         }
     }
 

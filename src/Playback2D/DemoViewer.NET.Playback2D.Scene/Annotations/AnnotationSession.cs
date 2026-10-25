@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Playback2D.Core.Annotations;
 ///         zero bytes.
 ///     </para>
 /// </summary>
-public sealed class WetStroke
+internal sealed class WetStroke
 {
     private const int InitialCapacity = 4096;
 
@@ -330,7 +330,7 @@ public sealed class WetStroke
 
 /// <summary>
 ///     The shared mutable seam between the pointer tools, the render layer and the UI. The "annotation
-///     session" <c>IToolServices</c> names. It owns the document, the wet stroke, the current paint and
+///     session" <c>IInkToolServices</c> names. It owns the document, the wet stroke, the current paint and
 ///     the envelope template new elements are stamped with.
 ///     <para>
 ///         Deliberately NOT a view-model: Core has no Avalonia, and the tools have to be drivable from a
@@ -403,7 +403,7 @@ public sealed class AnnotationSession
     public Func<int, (int From, int? Until)?>? RoundWindowResolver { get; set; }
 
     /// <summary>The stroke currently under the pointer.</summary>
-    public WetStroke Wet { get; } = new();
+    internal WetStroke Wet { get; } = new();
 
     /// <summary>The paint new elements are stamped with. The PRIMARY (left) button's ink.</summary>
     public AnnotationStyle Style { get; set; } = AnnotationStyle.Default;

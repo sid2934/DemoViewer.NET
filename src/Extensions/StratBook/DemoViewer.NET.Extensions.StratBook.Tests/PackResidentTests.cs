@@ -8,6 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -207,7 +208,7 @@ public class PackResidentTests
             using (Assert.Multiple())
             {
                 await Assert.That(teams.IsLoaded).IsTrue();
-                await Assert.That(teams.AllTeams.Select(t => t.Name)).IsEquivalentTo(["us"])
+                await Assert.That(teams.AllTeams.Select(t => t.Name)).IsEquivalentTo(["us"], CollectionOrdering.Matching)
                     .Because("Attach read the file as the attached service left it; the detached mutation is gone");
             }
         }

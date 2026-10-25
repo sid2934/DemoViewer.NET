@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -39,9 +40,16 @@ public class SuggestedTagsGoldenTests
         }
     }
 
-    // Known failure, tracked by category rather than by eye.
+    /// <summary>
+    ///     Every detector has at least one pinned round behind it, so a detector cannot be added
+    ///     without a fixture that exercises it.
+    ///     <para>
+    ///         Unordered on purpose: the left side is a HashSet, which enumerates in first-seen order,
+    ///         and the right side is declaration order. Comparing those two as sequences asserts
+    ///         something neither side promises.
+    ///     </para>
+    /// </summary>
     [Test]
-    [Category("KnownFailure")]
     public async Task ThePinnedRounds_ExerciseEveryDetector()
     {
         string? repo = DemoTestHelper.FindRepoRoot();
@@ -56,6 +64,6 @@ public class SuggestedTagsGoldenTests
                 .SelectMany(f => SuggestedTagsGolden.Load(f).Proposals.Select(p => p.Detector))
         ];
 
-        await Assert.That(detectors).IsEquivalentTo(DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.ProposalDetection.All.Select(d => d.Id));
+        await Assert.That(detectors).IsEquivalentTo(DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.ProposalDetection.All.Select(d => d.Id), CollectionOrdering.Any);
     }
 }

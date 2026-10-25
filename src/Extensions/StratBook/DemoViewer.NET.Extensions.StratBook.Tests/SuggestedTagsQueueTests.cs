@@ -10,6 +10,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.Sdk.Playback;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion
@@ -58,396 +59,446 @@ public class SuggestedTagsQueueTests
     [Test]
     public async Task AnOpenDemoWithTheSweepOff_ReadsTheIndexNotTheWalk()
     {
-        using SuggestedTagsReviewHarness h = new();
-        h.Seed();
-        RoundIndexStore index = new(h.Cache.Data());
-        RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        int walks = 0;
-        SuggestedTagsService service = new(h.Cache.Library(), h.Cache.RoundFacts(), h.Proposals, h.Tags, h.Regions,
-            () => DetectorProfile.Default, () => true, () => false, index, sources, openDemo: () => DemoPath,
-            walk: _ =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using SuggestedTagsReviewHarness h = new();
+            h.Seed();
+            RoundIndexStore index = new(h.Cache.Data());
+            RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
+            int walks = 0;
+            SuggestedTagsService service = new(h.Cache.Library(), h.Cache.RoundFacts(), h.Proposals, h.Tags, h.Regions,
+                () => DetectorProfile.Default, () => true, () => false, index, sources, openDemo: () => DemoPath,
+                walk: _ =>
+                {
+                    walks++;
+                    return [];
+                });
+            // The pack's wiring: the index is wanted wherever Suggested Tags wants the demo.
+            RoundIndexEvaluator roundIndex = new(h.Cache.Library(), h.Cache.RoundFacts(), index, sources, () => false,
+                walk: _ => Walk(), wantedDownstream: path => service.Interest(path) != DemoInterest.No);
+
+            using (Assert.Multiple())
             {
-                walks++;
-                return [];
-            });
-        // The pack's wiring: the index is wanted wherever Suggested Tags wants the demo.
-        RoundIndexEvaluator roundIndex = new(h.Cache.Library(), h.Cache.RoundFacts(), index, sources, () => false,
-            walk: _ => Walk(), wantedDownstream: path => service.Interest(path) != DemoInterest.No);
+                await Assert.That(service.Wants(DemoPath)).IsTrue().Because("the open demo is evaluated with the sweep off");
+                await Assert.That(roundIndex.Wants(DemoPath)).IsTrue().Because("Suggested Tags reads the index for it");
+            }
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(service.Wants(DemoPath)).IsTrue().Because("the open demo is evaluated with the sweep off");
-            await Assert.That(roundIndex.Wants(DemoPath)).IsTrue().Because("Suggested Tags reads the index for it");
-        }
+            // The visit's order: the index first, then Suggested Tags on the same parse.
+            CS2DemoKit.Parser.ParsedDemo parsed = Parse();
+            roundIndex.Evaluate(DemoPath, parsed);
+            service.Evaluate(DemoPath, parsed);
 
-        // The visit's order: the index first, then Suggested Tags on the same parse.
-        CS2DemoKit.Parser.ParsedDemo parsed = Parse();
-        roundIndex.Evaluate(DemoPath, parsed);
-        service.Evaluate(DemoPath, parsed);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(walks).IsEqualTo(0).Because("the index written on the visit is current, so the walk is not reached");
-            await Assert.That(h.Proposals.TryRead(DemoPath)?.OccupancySource).IsEqualTo(ProposalDocument.FromRoundIndex);
-            await Assert.That(service.Wants(DemoPath)).IsFalse();
-            await Assert.That(roundIndex.Wants(DemoPath)).IsFalse();
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(walks).IsEqualTo(0).Because("the index written on the visit is current, so the walk is not reached");
+                await Assert.That(h.Proposals.TryRead(DemoPath)?.OccupancySource).IsEqualTo(ProposalDocument.FromRoundIndex);
+                await Assert.That(service.Wants(DemoPath)).IsFalse();
+                await Assert.That(roundIndex.Wants(DemoPath)).IsFalse();
+            }
+        });
     }
 
     [Test]
     public async Task TheTrack_MergesOverlapsIntoRuns_LabelledCodeAtSite()
     {
-        ProposalTrack track = new();
-        int changed = 0;
-        track.Changed += () => changed++;
-        track.SetProposals([Execute, Opener, Default]);
-        HalfTickData data = new(20000);
-
-        IReadOnlyList<TimelineBand> bands = track.BuildBands(data);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(changed).IsEqualTo(1);
-            await Assert.That(bands.Count).IsEqualTo(2).Because("the execute and the opener overlap");
-            await Assert.That(bands[0].Label).IsEqualTo("2");
-            await Assert.That(bands[0].StartFrameIndex).IsEqualTo(650);
-            await Assert.That(bands[0].EndFrameIndex).IsEqualTo(900);
-            await Assert.That(bands[1].Label).IsEqualTo("default").Because("no site: the code alone");
-            await Assert.That(((ITimelineTrack)track).BuildMarks(data)).IsEmpty();
-            await Assert.That(string.Join(' ', track.ProposalsInRun(data, 650))).IsEqualTo($"{Opener.Id} {Execute.Id}");
-            await Assert.That(track.ProposalsInRun(data, 660)).IsEmpty();
-        }
+            ProposalTrack track = new();
+            int changed = 0;
+            track.Changed += () => changed++;
+            track.SetProposals([Execute, Opener, Default]);
+            HalfTickData data = new(20000);
 
-        track.SetProposals([Execute]);
-        await Assert.That(track.BuildBands(data).Single().Label).IsEqualTo("execute@BombsiteA");
+            IReadOnlyList<TimelineBand> bands = track.BuildBands(data);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(changed).IsEqualTo(1);
+                await Assert.That(bands.Count).IsEqualTo(2).Because("the execute and the opener overlap");
+                await Assert.That(bands[0].Label).IsEqualTo("2");
+                await Assert.That(bands[0].StartFrameIndex).IsEqualTo(650);
+                await Assert.That(bands[0].EndFrameIndex).IsEqualTo(900);
+                await Assert.That(bands[1].Label).IsEqualTo("default").Because("no site: the code alone");
+                await Assert.That(((ITimelineTrack)track).BuildMarks(data)).IsEmpty();
+                await Assert.That(string.Join(' ', track.ProposalsInRun(data, 650))).IsEqualTo($"{Opener.Id} {Execute.Id}");
+                await Assert.That(track.ProposalsInRun(data, 660)).IsEmpty();
+            }
+
+            track.SetProposals([Execute]);
+            await Assert.That(track.BuildBands(data).Single().Label).IsEqualTo("execute@BombsiteA");
+        });
     }
 
     [Test]
     public async Task TheTrack_TintsByThreeConfidenceSteps_ThroughTheHost()
     {
-        ProposalTrack track = new() { StepColour = step => step == ConfidenceStep.High ? 0xFF00FF00u : null };
-        track.SetProposals([Execute]);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(ProposalTrack.StepOf(0.49)).IsEqualTo(ConfidenceStep.Low);
-            await Assert.That(ProposalTrack.StepOf(0.5)).IsEqualTo(ConfidenceStep.Medium);
-            await Assert.That(ProposalTrack.StepOf(0.75)).IsEqualTo(ConfidenceStep.Medium);
-            await Assert.That(ProposalTrack.StepOf(0.76)).IsEqualTo(ConfidenceStep.High);
-            await Assert.That(track.BuildBands(new HalfTickData(20000)).Single().Argb).IsEqualTo(0xFF00FF00u);
-        }
+            ProposalTrack track = new() { StepColour = step => step == ConfidenceStep.High ? 0xFF00FF00u : null };
+            track.SetProposals([Execute]);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(ProposalTrack.StepOf(0.49)).IsEqualTo(ConfidenceStep.Low);
+                await Assert.That(ProposalTrack.StepOf(0.5)).IsEqualTo(ConfidenceStep.Medium);
+                await Assert.That(ProposalTrack.StepOf(0.75)).IsEqualTo(ConfidenceStep.Medium);
+                await Assert.That(ProposalTrack.StepOf(0.76)).IsEqualTo(ConfidenceStep.High);
+                await Assert.That(track.BuildBands(new HalfTickData(20000)).Single().Argb).IsEqualTo(0xFF00FF00u);
+            }
+        });
     }
 
     [Test]
     public async Task WithNothingSelected_TheSixKeysDoNothing()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, List<int> seeks) = Queue(Execute, Opener, Default);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            foreach (string action in (string[])
-                     [
-                         StratBookActions.SuggestionNext, StratBookActions.SuggestionPrev,
-                         StratBookActions.SuggestionAccept, StratBookActions.SuggestionReject,
-                         StratBookActions.SuggestionEdit, StratBookActions.SuggestionAcceptAll
-                     ])
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, List<int> seeks) = Queue(Execute, Opener, Default);
+            using (h)
             {
-                await Assert.That(queue.Execute(action)).IsFalse().Because($"{action} is inert without a selection");
-            }
+                foreach (string action in (string[])
+                         [
+                             StratBookActions.SuggestionNext, StratBookActions.SuggestionPrev,
+                             StratBookActions.SuggestionAccept, StratBookActions.SuggestionReject,
+                             StratBookActions.SuggestionEdit, StratBookActions.SuggestionAcceptAll
+                         ])
+                {
+                    await Assert.That(queue.Execute(action)).IsFalse().Because($"{action} is inert without a selection");
+                }
 
-            await Assert.That(queue.Rows.Count).IsEqualTo(3);
-            await Assert.That(seeks).IsEmpty();
-            await Assert.That(h.Tags.TryLoad(Sha)).IsNull();
-        }
+                await Assert.That(queue.Rows.Count).IsEqualTo(3);
+                await Assert.That(seeks).IsEmpty();
+                await Assert.That(h.Tags.TryLoad(Sha)).IsNull();
+            }
+        });
     }
 
     [Test]
     public async Task TheRows_AreInRoundThenTriggerOrder_AndReviewSelectsTheFirst()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, List<int> seeks) = Queue(Default, Execute, Opener);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            // The opener triggers at 1400, before the execute at 1500, and both are round 1.
-            await Assert.That(string.Join(' ', queue.Rows.Select(r => r.Proposal.Id)))
-                .IsEqualTo($"{Opener.Id} {Execute.Id} {Default.Id}");
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, List<int> seeks) = Queue(Default, Execute, Opener);
+            using (h)
+            {
+                // The opener triggers at 1400, before the execute at 1500, and both are round 1.
+                await Assert.That(string.Join(' ', queue.Rows.Select(r => r.Proposal.Id)))
+                    .IsEqualTo($"{Opener.Id} {Execute.Id} {Default.Id}");
 
-            queue.ReviewCommand.Execute(null);
-            await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Opener.Id);
-            await Assert.That(queue.HasSelection).IsTrue();
-            await Assert.That(seeks.Single()).IsEqualTo(Opener.FromTick);
-            await Assert.That(queue.Rows[0].SecondText).IsEqualTo("0:06").Because("(1400 - 1000) / 64 is 6.25 s");
-        }
+                queue.ReviewCommand.Execute(null);
+                await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Opener.Id);
+                await Assert.That(queue.HasSelection).IsTrue();
+                await Assert.That(seeks.Single()).IsEqualTo(Opener.FromTick);
+                await Assert.That(queue.Rows[0].SecondText).IsEqualTo("0:06").Because("(1400 - 1000) / 64 is 6.25 s");
+            }
+        });
     }
 
     [Test]
     public async Task TheWalk_SeeksToEachStart_AndStopsAtTheEnds()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, List<int> seeks) = Queue(Execute, Opener, Default);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            queue.ReviewCommand.Execute(null);
-            await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Opener.Id);
-            await Assert.That(queue.Execute(StratBookActions.SuggestionPrev)).IsFalse().Because("the ends do not wrap");
-            await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsTrue();
-            await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsTrue();
-            await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsFalse();
-            await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Default.Id);
-            await Assert.That(queue.Execute(StratBookActions.SuggestionPrev)).IsTrue();
-            int[] expected = [Opener.FromTick, Execute.FromTick, Default.FromTick, Execute.FromTick];
-            await Assert.That(string.Join(',', seeks)).IsEqualTo(string.Join(',', expected));
-        }
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, List<int> seeks) = Queue(Execute, Opener, Default);
+            using (h)
+            {
+                queue.ReviewCommand.Execute(null);
+                await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Opener.Id);
+                await Assert.That(queue.Execute(StratBookActions.SuggestionPrev)).IsFalse().Because("the ends do not wrap");
+                await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsTrue();
+                await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsTrue();
+                await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsFalse();
+                await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Default.Id);
+                await Assert.That(queue.Execute(StratBookActions.SuggestionPrev)).IsTrue();
+                int[] expected = [Opener.FromTick, Execute.FromTick, Default.FromTick, Execute.FromTick];
+                await Assert.That(string.Join(',', seeks)).IsEqualTo(string.Join(',', expected));
+            }
+        });
     }
 
     [Test]
     public async Task Y_AcceptsIntoTheTagStore_AndAdvances_N_Rejects()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, ProposalTrack track, _) = Queue(Execute, Opener, Default);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            queue.ReviewCommand.Execute(null);
-
-            await Assert.That(queue.Execute(StratBookActions.SuggestionAccept)).IsTrue();
-            await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Execute.Id).Because("a verdict advances");
-            await Assert.That(queue.Execute(StratBookActions.SuggestionReject)).IsTrue();
-
-            TagInstance accepted = h.Tags.TryLoad(Sha)!.Instances.Single();
-            Dictionary<string, SuggestionVerdict> verdicts = h.Tags.LoadVerdicts(Sha)!.Verdicts;
-            using (Assert.Multiple())
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, ProposalTrack track, _) = Queue(Execute, Opener, Default);
+            using (h)
             {
-                await Assert.That(accepted.Code).IsEqualTo("opener");
-                await Assert.That(accepted.Source).IsEqualTo(TagSources.Suggested);
-                await Assert.That(verdicts[Opener.Id].Verdict).IsEqualTo(SuggestionVerdicts.Accepted);
-                await Assert.That(verdicts[Execute.Id].Verdict).IsEqualTo(SuggestionVerdicts.Rejected);
-                await Assert.That(queue.Rows.Select(r => r.Proposal.Id)).IsEquivalentTo([Default.Id]);
-                await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Default.Id);
-                await Assert.That(queue.HeaderText).IsEqualTo("Suggested: 1");
-                await Assert.That(track.BuildBands(new HalfTickData(20000)).Single().Label).IsEqualTo("default")
-                    .Because("accepted and rejected proposals leave the track");
-            }
+                queue.ReviewCommand.Execute(null);
 
-            await Assert.That(queue.Execute(StratBookActions.SuggestionReject)).IsTrue();
-            await Assert.That(queue.HasSelection).IsFalse().Because("the last verdict empties the queue");
-            await Assert.That(queue.Rows).IsEmpty();
-        }
+                await Assert.That(queue.Execute(StratBookActions.SuggestionAccept)).IsTrue();
+                await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Execute.Id).Because("a verdict advances");
+                await Assert.That(queue.Execute(StratBookActions.SuggestionReject)).IsTrue();
+
+                TagInstance accepted = h.Tags.TryLoad(Sha)!.Instances.Single();
+                Dictionary<string, SuggestionVerdict> verdicts = h.Tags.LoadVerdicts(Sha)!.Verdicts;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(accepted.Code).IsEqualTo("opener");
+                    await Assert.That(accepted.Source).IsEqualTo(TagSources.Suggested);
+                    await Assert.That(verdicts[Opener.Id].Verdict).IsEqualTo(SuggestionVerdicts.Accepted);
+                    await Assert.That(verdicts[Execute.Id].Verdict).IsEqualTo(SuggestionVerdicts.Rejected);
+                    await Assert.That(queue.Rows.Select(r => r.Proposal.Id)).IsEquivalentTo([Default.Id], CollectionOrdering.Matching);
+                    await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Default.Id);
+                    await Assert.That(queue.HeaderText).IsEqualTo("Suggested: 1");
+                    await Assert.That(track.BuildBands(new HalfTickData(20000)).Single().Label).IsEqualTo("default")
+                        .Because("accepted and rejected proposals leave the track");
+                }
+
+                await Assert.That(queue.Execute(StratBookActions.SuggestionReject)).IsTrue();
+                await Assert.That(queue.HasSelection).IsFalse().Because("the last verdict empties the queue");
+                await Assert.That(queue.Rows).IsEmpty();
+            }
+        });
     }
 
     [Test]
     public async Task Enter_OpensTheEditor_AndSavingAcceptsAsEdited()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            queue.ReviewCommand.Execute(null);
-            await Assert.That(queue.Execute(StratBookActions.SuggestionEdit)).IsTrue();
-            TagEditorViewModel editor = queue.Editor!;
-            using (Assert.Multiple())
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
+            using (h)
             {
-                await Assert.That(queue.IsEditing).IsTrue();
-                await Assert.That(editor.FromText).IsEqualTo("5").Because("(1320 - 1000) / 64 seconds from the round start");
-                await Assert.That(editor.SelectedCode).IsEqualTo(Execute.Code);
-                await Assert.That(editor.Labels.Select(l => l.Text)).IsEquivalentTo(["site: BombsiteA"]);
-            }
+                queue.ReviewCommand.Execute(null);
+                await Assert.That(queue.Execute(StratBookActions.SuggestionEdit)).IsTrue();
+                TagEditorViewModel editor = queue.Editor!;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(queue.IsEditing).IsTrue();
+                    await Assert.That(editor.FromText).IsEqualTo("5").Because("(1320 - 1000) / 64 seconds from the round start");
+                    await Assert.That(editor.SelectedCode).IsEqualTo(Execute.Code);
+                    await Assert.That(editor.Labels.Select(l => l.Text)).IsEquivalentTo(["site: BombsiteA"], CollectionOrdering.Matching);
+                }
 
-            editor.FromText = "4";
-            editor.ToText = "12.5";
-            editor.NewGroup = "tempo";
-            editor.NewValue = "slow";
-            editor.AddLabelCommand.Execute(null);
-            editor.SaveCommand.Execute(null);
+                editor.FromText = "4";
+                editor.ToText = "12.5";
+                editor.NewGroup = "tempo";
+                editor.NewValue = "slow";
+                editor.AddLabelCommand.Execute(null);
+                editor.SaveCommand.Execute(null);
 
-            TagInstance instance = h.Tags.TryLoad(Sha)!.Instances.Single();
-            using (Assert.Multiple())
-            {
-                await Assert.That(queue.IsEditing).IsFalse();
-                await Assert.That(instance.FromTick).IsEqualTo(FreezeEnd + 4 * 64);
-                await Assert.That(instance.ToTick).IsEqualTo(FreezeEnd + 800);
-                await Assert.That(instance.Labels.Any(l => l.Group == "tempo" && l.Value == "slow")).IsTrue();
-                await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[Execute.Id].Verdict).IsEqualTo(SuggestionVerdicts.Edited);
+                TagInstance instance = h.Tags.TryLoad(Sha)!.Instances.Single();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(queue.IsEditing).IsFalse();
+                    await Assert.That(instance.FromTick).IsEqualTo(FreezeEnd + 4 * 64);
+                    await Assert.That(instance.ToTick).IsEqualTo(FreezeEnd + 800);
+                    await Assert.That(instance.Labels.Any(l => l.Group == "tempo" && l.Value == "slow")).IsTrue();
+                    await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[Execute.Id].Verdict).IsEqualTo(SuggestionVerdicts.Edited);
+                }
             }
-        }
+        });
     }
 
     [Test]
     public async Task AnotherCode_AcceptsAsRecoded_WithTheNewCodeAndPositions()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            queue.ReviewCommand.Execute(null);
-            queue.Execute(StratBookActions.SuggestionEdit);
-            TagEditorViewModel editor = queue.Editor!;
-            editor.Codes.Add("fake");
-            editor.SelectedCode = "fake";
-            editor.AddPosition(new TagPosition { X = 10, Y = 20, Place = "BombsiteA" });
-            editor.SaveCommand.Execute(null);
-
-            TagInstance instance = h.Tags.TryLoad(Sha)!.Instances.Single();
-            using (Assert.Multiple())
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
+            using (h)
             {
-                await Assert.That(instance.Code).IsEqualTo("fake");
-                await Assert.That(instance.Positions.Single().Place).IsEqualTo("BombsiteA");
-                await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[Execute.Id].Verdict).IsEqualTo(SuggestionVerdicts.Recoded)
-                    .Because("the detector did not find what it said; tuning counts it as a miss");
+                queue.ReviewCommand.Execute(null);
+                queue.Execute(StratBookActions.SuggestionEdit);
+                TagEditorViewModel editor = queue.Editor!;
+                editor.Codes.Add("fake");
+                editor.SelectedCode = "fake";
+                editor.AddPosition(new TagPosition { X = 10, Y = 20, Place = "BombsiteA" });
+                editor.SaveCommand.Execute(null);
+
+                TagInstance instance = h.Tags.TryLoad(Sha)!.Instances.Single();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(instance.Code).IsEqualTo("fake");
+                    await Assert.That(instance.Positions.Single().Place).IsEqualTo("BombsiteA");
+                    await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[Execute.Id].Verdict).IsEqualTo(SuggestionVerdicts.Recoded)
+                        .Because("the detector did not find what it said; tuning counts it as a miss");
+                }
             }
-        }
+        });
     }
 
     [Test]
     public async Task ADraft_SurvivesWalkingAway_AndComesBackOnEdit()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute, Default);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            queue.ReviewCommand.Execute(null);
-            queue.Execute(StratBookActions.SuggestionEdit);
-            queue.Editor!.FromText = "7";
-            queue.Editor.Note = "check the timing";
-
-            await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsTrue();
-            await Assert.That(queue.IsEditing).IsFalse().Because("walking closes the editor");
-            await Assert.That(queue.Execute(StratBookActions.SuggestionPrev)).IsTrue();
-            queue.Execute(StratBookActions.SuggestionEdit);
-
-            using (Assert.Multiple())
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute, Default);
+            using (h)
             {
-                await Assert.That(queue.Editor!.FromText).IsEqualTo("7");
-                await Assert.That(queue.Editor.Note).IsEqualTo("check the timing");
-                await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts).IsEmpty().Because("a draft is not a verdict");
+                queue.ReviewCommand.Execute(null);
+                queue.Execute(StratBookActions.SuggestionEdit);
+                queue.Editor!.FromText = "7";
+                queue.Editor.Note = "check the timing";
+
+                await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsTrue();
+                await Assert.That(queue.IsEditing).IsFalse().Because("walking closes the editor");
+                await Assert.That(queue.Execute(StratBookActions.SuggestionPrev)).IsTrue();
+                queue.Execute(StratBookActions.SuggestionEdit);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(queue.Editor!.FromText).IsEqualTo("7");
+                    await Assert.That(queue.Editor.Note).IsEqualTo("check the timing");
+                    await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts).IsEmpty().Because("a draft is not a verdict");
+                }
             }
-        }
+        });
     }
 
     [Test]
     public async Task EscFromTheEditor_LeavesNoVerdict()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            queue.ReviewCommand.Execute(null);
-            queue.Execute(StratBookActions.SuggestionEdit);
-            queue.Editor!.CancelCommand.Execute(null);
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
+            using (h)
+            {
+                queue.ReviewCommand.Execute(null);
+                queue.Execute(StratBookActions.SuggestionEdit);
+                queue.Editor!.CancelCommand.Execute(null);
 
-            await Assert.That(queue.IsEditing).IsFalse();
-            await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts).IsEmpty();
-            await Assert.That(queue.Rows.Count).IsEqualTo(1);
-        }
+                await Assert.That(queue.IsEditing).IsFalse();
+                await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts).IsEmpty();
+                await Assert.That(queue.Rows.Count).IsEqualTo(1);
+            }
+        });
     }
 
     [Test]
     public async Task CtrlY_AsksFirst_ThenAcceptsWhatTheFiltersShow()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute, Opener, Default);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            queue.MinConfidence = 0.5;
-            await Assert.That(queue.Rows.Count).IsEqualTo(2).Because("the 0.4 default is filtered out");
-            queue.ReviewCommand.Execute(null);
-
-            await Assert.That(queue.Execute(StratBookActions.SuggestionAcceptAll)).IsTrue();
-            await Assert.That(queue.IsConfirmingAcceptAll).IsTrue();
-            await Assert.That(h.Tags.TryLoad(Sha)).IsNull().Because("nothing is accepted before the confirm");
-
-            await Assert.That(queue.Execute(StratBookActions.SuggestionAcceptAll)).IsTrue();
-
-            using (Assert.Multiple())
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute, Opener, Default);
+            using (h)
             {
-                await Assert.That(queue.IsConfirmingAcceptAll).IsFalse();
-                await Assert.That(string.Join(' ', h.Tags.TryLoad(Sha)!.Instances.Select(i => i.Code).Order(StringComparer.Ordinal)))
-                    .IsEqualTo("execute opener");
-                await Assert.That(queue.PendingCount).IsEqualTo(1);
-                await Assert.That(queue.Rows).IsEmpty();
+                queue.MinConfidence = 0.5;
+                await Assert.That(queue.Rows.Count).IsEqualTo(2).Because("the 0.4 default is filtered out");
+                queue.ReviewCommand.Execute(null);
+
+                await Assert.That(queue.Execute(StratBookActions.SuggestionAcceptAll)).IsTrue();
+                await Assert.That(queue.IsConfirmingAcceptAll).IsTrue();
+                await Assert.That(h.Tags.TryLoad(Sha)).IsNull().Because("nothing is accepted before the confirm");
+
+                await Assert.That(queue.Execute(StratBookActions.SuggestionAcceptAll)).IsTrue();
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(queue.IsConfirmingAcceptAll).IsFalse();
+                    await Assert.That(string.Join(' ', h.Tags.TryLoad(Sha)!.Instances.Select(i => i.Code).Order(StringComparer.Ordinal)))
+                        .IsEqualTo("execute opener");
+                    await Assert.That(queue.PendingCount).IsEqualTo(1);
+                    await Assert.That(queue.Rows).IsEmpty();
+                }
             }
-        }
+        });
     }
 
     [Test]
     public async Task TheDetectorFilter_ShowsOneDetector()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute, Opener, Default);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            queue.DetectorFilter = "opener";
-            await Assert.That(queue.Rows.Select(r => r.Proposal.Id)).IsEquivalentTo([Opener.Id]);
-            await Assert.That(queue.PendingCount).IsEqualTo(3).Because("the header counts the demo, not the filter");
-            await Assert.That(queue.DetectorFilters[0]).IsEqualTo(SuggestionQueueViewModel.AllDetectors);
-        }
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute, Opener, Default);
+            using (h)
+            {
+                queue.DetectorFilter = "opener";
+                await Assert.That(queue.Rows.Select(r => r.Proposal.Id)).IsEquivalentTo([Opener.Id], CollectionOrdering.Matching);
+                await Assert.That(queue.PendingCount).IsEqualTo(3).Because("the header counts the demo, not the filter");
+                await Assert.That(queue.DetectorFilters[0]).IsEqualTo(SuggestionQueueViewModel.AllDetectors);
+            }
+        });
     }
 
     [Test]
     public async Task ABandPress_SelectsItsFirstProposal_ThenWalksTheRun()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, ProposalTrack track, List<int> seeks) =
-            Queue(Execute, Opener, Default);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            HalfTickData data = new(20000);
-            track.BuildBands(data);
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, ProposalTrack track, List<int> seeks) =
+                Queue(Execute, Opener, Default);
+            using (h)
+            {
+                HalfTickData data = new(20000);
+                track.BuildBands(data);
 
-            queue.SelectFromTrack(track.ProposalsInRun(data, 650));
-            await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Opener.Id);
-            queue.SelectFromTrack(track.ProposalsInRun(data, 650));
-            await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Execute.Id);
-            await Assert.That(seeks).IsEmpty().Because("the band press seeks to the band's start itself");
-        }
+                queue.SelectFromTrack(track.ProposalsInRun(data, 650));
+                await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Opener.Id);
+                queue.SelectFromTrack(track.ProposalsInRun(data, 650));
+                await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Execute.Id);
+                await Assert.That(seeks).IsEmpty().Because("the band press seeks to the band's start itself");
+            }
+        });
     }
 
     [Test]
     public async Task TheBrowserHost_SaysSessionOnly()
     {
-        (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
-        using (h)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(queue.IsSessionOnly).IsTrue();
-        }
+            (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, _) = Queue(Execute);
+            using (h)
+            {
+                await Assert.That(queue.IsSessionOnly).IsTrue();
+            }
+        });
     }
 
     [Test]
     public async Task TheKeymap_ClaimsTheSixKeys_JAndKOnlyWhileASuggestionIsSelected()
     {
-        Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, false, out string? j)).IsTrue();
-            await Assert.That(j).IsEqualTo(StratBookActions.NextSituationResult).Because("J stays the result walk otherwise");
-            await Assert.That(keymap.TryResolveInScope(new Playback2DBindingScope(StratBookActions.SuggestionScope), Key.J,
-                KeyModifiers.None, out string? sj)).IsTrue();
-            await Assert.That(sj).IsEqualTo(StratBookActions.SuggestionNext);
-            await Assert.That(keymap.TryResolveInScope(new Playback2DBindingScope(StratBookActions.SuggestionScope), Key.K,
-                KeyModifiers.None, out string? sk)).IsTrue();
-            await Assert.That(sk).IsEqualTo(StratBookActions.SuggestionPrev);
+            Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
 
-            await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.None)).IsEqualTo(StratBookActions.SuggestionAccept);
-            await Assert.That(Resolve(keymap, Key.N, KeyModifiers.None)).IsEqualTo(StratBookActions.SuggestionReject);
-            await Assert.That(Resolve(keymap, Key.Enter, KeyModifiers.None)).IsEqualTo(StratBookActions.SuggestionEdit);
-            await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.Control)).IsEqualTo(StratBookActions.SuggestionAcceptAll);
-            // These six are Strat Book extension commands, checked against the merged table, not core alone.
-            await Assert.That(Playback2DKeymap.FindConflicts(CommandRegistry.Default.EffectiveBindings, Playback2DKeymap.ReservedGestures(true)))
-                .IsEmpty().Because("none of the six is a shell or browser gesture");
-            await Assert.That(keymap.GestureText(StratBookActions.SuggestionEdit)).IsEqualTo("Enter")
-                .Because("SuggestionEdit is a Strat Book extension command now; the profile resolves it, the bare core table does not");
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, false, out string? j)).IsTrue();
+                await Assert.That(j).IsEqualTo(StratBookActions.NextSituationResult).Because("J stays the result walk otherwise");
+                await Assert.That(keymap.TryResolveInScope(new Playback2DBindingScope(StratBookActions.SuggestionScope), Key.J,
+                    KeyModifiers.None, out string? sj)).IsTrue();
+                await Assert.That(sj).IsEqualTo(StratBookActions.SuggestionNext);
+                await Assert.That(keymap.TryResolveInScope(new Playback2DBindingScope(StratBookActions.SuggestionScope), Key.K,
+                    KeyModifiers.None, out string? sk)).IsTrue();
+                await Assert.That(sk).IsEqualTo(StratBookActions.SuggestionPrev);
+
+                await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.None)).IsEqualTo(StratBookActions.SuggestionAccept);
+                await Assert.That(Resolve(keymap, Key.N, KeyModifiers.None)).IsEqualTo(StratBookActions.SuggestionReject);
+                await Assert.That(Resolve(keymap, Key.Enter, KeyModifiers.None)).IsEqualTo(StratBookActions.SuggestionEdit);
+                await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.Control)).IsEqualTo(StratBookActions.SuggestionAcceptAll);
+                // These six are Strat Book extension commands, checked against the merged table, not core alone.
+                await Assert.That(Playback2DKeymap.FindConflicts(CommandRegistry.Default.EffectiveBindings, Playback2DKeymap.ReservedGestures(true)))
+                    .IsEmpty().Because("none of the six is a shell or browser gesture");
+                await Assert.That(keymap.GestureText(StratBookActions.SuggestionEdit)).IsEqualTo("Enter")
+                    .Because("SuggestionEdit is a Strat Book extension command now; the profile resolves it, the bare core table does not");
+            }
+        });
     }
 
     [Test]
     public async Task TheTab_LeavesTheKeysUnhandled_WithNoSelection_AndHidesTheQueueWhenGatedOff()
     {
-        // Off the UI thread (no RunOnUi), where nothing pumps a dispatcher post.
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) =
-            AppTests.Extensions.StratBook.ReviewPanelsHarness.Tab(post: AppTests.Extensions.StratBook.ReviewPanelsHarness.SynchronousPost);
-        review.ReviewMode!.IsOn = true;
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(review.QueuePanel!.IsShown).IsTrue();
-            await Assert.That(vm.ExecuteAction(StratBookActions.SuggestionAccept)).IsFalse();
-            await Assert.That(vm.Surface.TryHandleKey(Key.J, KeyModifiers.None)).IsFalse();
-            await Assert.That(vm.Timeline.Tracks.Any(t => t.Id == ProposalTrack.TrackId)).IsTrue();
-        }
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) =
+                AppTests.Extensions.StratBook.ReviewPanelsHarness.Tab(post: AppTests.Extensions.StratBook.ReviewPanelsHarness.SynchronousPost);
+            review.ReviewMode!.IsOn = true;
 
-        ctx.Gate!.SetEnabled(SuggestedTagsService.FeatureId, false);
-        await Assert.That(review.QueuePanel.IsShown).IsFalse();
-        await Assert.That(review.Queue!.DemoPath).IsNull();
-        vm.Dispose();
+            using (Assert.Multiple())
+            {
+                await Assert.That(review.QueuePanel!.IsShown).IsTrue();
+                await Assert.That(vm.ExecuteAction(StratBookActions.SuggestionAccept)).IsFalse();
+                await Assert.That(vm.Surface.TryHandleKey(Key.J, KeyModifiers.None)).IsFalse();
+                await Assert.That(vm.Timeline.Tracks.Any(t => t.Id == ProposalTrack.TrackId)).IsTrue();
+            }
+
+            ctx.Gate!.SetEnabled(SuggestedTagsService.FeatureId, false);
+            await Assert.That(review.QueuePanel.IsShown).IsFalse();
+            await Assert.That(review.Queue!.DemoPath).IsNull();
+            vm.Dispose();
+        });
     }
 
     private static string Resolve(Playback2DKeymapProfile keymap, Key key, KeyModifiers modifiers) =>

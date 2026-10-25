@@ -41,57 +41,69 @@ public class StratLinePatchesTests
     [Test]
     public async Task FiveBareLinesToOnePlace_FoldToAStepForAll()
     {
-        StratDocument document = FiveLines();
-        StratStep step = document.Steps[0];
-        List<PatchOp> ops = Rewrite(step);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(ops.Select(o => o.Op + " " + o.Path)).IsEquivalentTo(
-                ["replace /steps/0/to", "remove /steps/0/assignments"], TUnit.Assertions.Enums.CollectionOrdering.Any);
-            await Assert.That(step.Actor).IsEqualTo(StratVocabulary.ActorAll).Because("five lines already summarise as all");
-        }
+            StratDocument document = FiveLines();
+            StratStep step = document.Steps[0];
+            List<PatchOp> ops = Rewrite(step);
 
-        StratStep folded = StratHistory.Apply(document, ops).Steps[0];
-        using (Assert.Multiple())
-        {
-            await Assert.That(folded.Assignments).IsNull();
-            await Assert.That(folded.Actor).IsEqualTo(StratVocabulary.ActorAll);
-            await Assert.That(folded.To!.Place).IsEqualTo("BombsiteA");
-            await Assert.That(folded.Positions.Count).IsEqualTo(step.Positions.Count).Because("positions are not lines");
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(ops.Select(o => o.Op + " " + o.Path)).IsEquivalentTo(
+                    ["replace /steps/0/to", "remove /steps/0/assignments"], TUnit.Assertions.Enums.CollectionOrdering.Any);
+                await Assert.That(step.Actor).IsEqualTo(StratVocabulary.ActorAll).Because("five lines already summarise as all");
+            }
+
+            StratStep folded = StratHistory.Apply(document, ops).Steps[0];
+            using (Assert.Multiple())
+            {
+                await Assert.That(folded.Assignments).IsNull();
+                await Assert.That(folded.Actor).IsEqualTo(StratVocabulary.ActorAll);
+                await Assert.That(folded.To!.Place).IsEqualTo("BombsiteA");
+                await Assert.That(folded.Positions.Count).IsEqualTo(step.Positions.Count).Because("positions are not lines");
+            }
+        });
     }
 
     [Test]
     public async Task OneLineToAnotherPlace_StaysAsLines()
     {
-        StratStep step = FiveLines("Connector").Steps[0];
-        await Assert.That(Rewrite(step)).IsEmpty();
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StratStep step = FiveLines("Connector").Steps[0];
+            await Assert.That(Rewrite(step)).IsEmpty();
+        });
     }
 
     [Test]
     public async Task PositionsOnTheStep_DoNotChangeTheFold()
     {
-        StratDocument with = FiveLines();
-        StratDocument without = FiveLines();
-        without.Steps[0].Positions = [];
-        await Assert.That(with.Steps[0].Positions.Count).IsGreaterThan(0);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StratDocument with = FiveLines();
+            StratDocument without = FiveLines();
+            without.Steps[0].Positions = [];
+            await Assert.That(with.Steps[0].Positions.Count).IsGreaterThan(0);
 
-        string Ops(StratDocument d) => string.Join(";", Rewrite(d.Steps[0]).Select(o => o.Op + " " + o.Path + " " + o.Value?.ToJsonString()));
-        await Assert.That(Ops(with)).IsEqualTo(Ops(without));
+            string Ops(StratDocument d) => string.Join(";", Rewrite(d.Steps[0]).Select(o => o.Op + " " + o.Path + " " + o.Value?.ToJsonString()));
+            await Assert.That(Ops(with)).IsEqualTo(Ops(without));
+        });
     }
 
     [Test]
     public async Task UndoOfAFold_RestoresTheExactBytes()
     {
-        StratDocument document = FiveLines();
-        (StratStore _, StratSession session) = Opened(document);
-        string before = StratStore.Serialize(session.Document!);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StratDocument document = FiveLines();
+            (StratStore _, StratSession session) = Opened(document);
+            string before = StratStore.Serialize(session.Document!);
 
-        session.Apply(Rewrite(session.Document!.Steps[0]));
-        await Assert.That(session.Document!.Steps[0].Assignments).IsNull();
-        session.Undo();
-        await Assert.That(StratStore.Serialize(session.Document!)).IsEqualTo(before);
+            session.Apply(Rewrite(session.Document!.Steps[0]));
+            await Assert.That(session.Document!.Steps[0].Assignments).IsNull();
+            session.Undo();
+            await Assert.That(StratStore.Serialize(session.Document!)).IsEqualTo(before);
+        });
     }
 
     // ── Place warnings from the canvas's zones ───────────────────────────────────────────────────
@@ -120,63 +132,69 @@ public class StratLinePatchesTests
     [Test]
     public async Task UnknownPlaces_WarnOnTheirFields_OnceTheZonesLoad_KnownOnesAreClean()
     {
-        TaskCompletionSource<IZonePlaceResolver?> zones = new();
-        using StratBookTabViewModel vm = TabWith(zones);
-        StratStepRow everyone = vm.Editor.Steps[^2];
-        StratStepRow lines = vm.Editor.Steps[^1];
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(everyone.ToIssue).IsNull().Because("no place is checked while the zones load");
-            await Assert.That(lines.Lines[1].PlaceIssue).IsNull();
-            await Assert.That(vm.Session.Issues.Any(i => i.Message.Contains("is not a place", StringComparison.Ordinal))).IsFalse();
-        }
+            TaskCompletionSource<IZonePlaceResolver?> zones = new();
+            using StratBookTabViewModel vm = TabWith(zones);
+            StratStepRow everyone = vm.Editor.Steps[^2];
+            StratStepRow lines = vm.Editor.Steps[^1];
 
-        // StratMapFirstTests' synthetic map has two places, Hut and Ramp.
-        zones.SetResult(StratMapFirstTests.SyntheticZones());
-        everyone = vm.Editor.Steps[^2];
-        lines = vm.Editor.Steps[^1];
-        using (Assert.Multiple())
-        {
-            await Assert.That(everyone.ToIssue?.Message).Contains("'Nowhere' is not a place");
-            await Assert.That(everyone.ToIssue!.IsRefusal).IsFalse();
-            await Assert.That(lines.Lines[0].PlaceIssue).IsNull().Because("Ramp is a place");
-            await Assert.That(lines.Lines[0].WatchIssue?.Message).Contains("'Elsewhere'");
-            await Assert.That(lines.Lines[0].WatchIssue!.Message).DoesNotContain("Hut");
-            await Assert.That(lines.Lines[1].PlaceIssue?.Message).Contains("'Nowhere'");
-            await Assert.That(vm.Session.Issues.Where(i => i.Message.Contains("is not a place", StringComparison.Ordinal))
-                .All(i => i.Severity == StratIssueSeverity.Warning)).IsTrue();
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(everyone.ToIssue).IsNull().Because("no place is checked while the zones load");
+                await Assert.That(lines.Lines[1].PlaceIssue).IsNull();
+                await Assert.That(vm.Session.Issues.Any(i => i.Message.Contains("is not a place", StringComparison.Ordinal))).IsFalse();
+            }
+
+            // StratMapFirstTests' synthetic map has two places, Hut and Ramp.
+            zones.SetResult(StratMapFirstTests.SyntheticZones());
+            everyone = vm.Editor.Steps[^2];
+            lines = vm.Editor.Steps[^1];
+            using (Assert.Multiple())
+            {
+                await Assert.That(everyone.ToIssue?.Message).Contains("'Nowhere' is not a place");
+                await Assert.That(everyone.ToIssue!.IsRefusal).IsFalse();
+                await Assert.That(lines.Lines[0].PlaceIssue).IsNull().Because("Ramp is a place");
+                await Assert.That(lines.Lines[0].WatchIssue?.Message).Contains("'Elsewhere'");
+                await Assert.That(lines.Lines[0].WatchIssue!.Message).DoesNotContain("Hut");
+                await Assert.That(lines.Lines[1].PlaceIssue?.Message).Contains("'Nowhere'");
+                await Assert.That(vm.Session.Issues.Where(i => i.Message.Contains("is not a place", StringComparison.Ordinal))
+                    .All(i => i.Severity == StratIssueSeverity.Warning)).IsTrue();
+            }
+        });
     }
 
     [Test]
     public async Task AStrayStepTo_BesideLines_IsReadOnly_AndItsClearIsOneEntry()
     {
-        TaskCompletionSource<IZonePlaceResolver?> zones = new();
-        using StratBookTabViewModel vm = TabWith(zones);
-        int index = vm.Session.Document!.Steps.Count - 1;
-        vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{index}/to", null, System.Text.Json.Nodes.JsonNode.Parse("""{ "place": "BombsiteA" }""")));
-        StratStepRow row = vm.Editor.Steps[index];
-        int depth = vm.Session.UndoDepth;
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(row.IsStrayTo).IsTrue();
-            await Assert.That(row.ShowTo).IsTrue();
-            await Assert.That(row.ToIssue?.Message).Contains("not used");
-        }
+            TaskCompletionSource<IZonePlaceResolver?> zones = new();
+            using StratBookTabViewModel vm = TabWith(zones);
+            int index = vm.Session.Document!.Steps.Count - 1;
+            vm.Session.Apply(PatchOp.ReplaceOp($"/steps/{index}/to", null, System.Text.Json.Nodes.JsonNode.Parse("""{ "place": "BombsiteA" }""")));
+            StratStepRow row = vm.Editor.Steps[index];
+            int depth = vm.Session.UndoDepth;
 
-        row.ToText = "Connector";
-        await Assert.That(vm.Session.Document!.Steps[index].To!.Place).IsEqualTo("BombsiteA").Because("typing there writes nothing");
-        await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth);
+            using (Assert.Multiple())
+            {
+                await Assert.That(row.IsStrayTo).IsTrue();
+                await Assert.That(row.ShowTo).IsTrue();
+                await Assert.That(row.ToIssue?.Message).Contains("not used");
+            }
 
-        vm.Editor.Steps[index].ClearStrayToCommand.Execute(null);
-        using (Assert.Multiple())
-        {
-            await Assert.That(vm.Session.Document!.Steps[index].To).IsNull();
-            await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Count).IsEqualTo(2);
-            await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
-            await Assert.That(vm.Editor.Steps[index].ShowTo).IsFalse();
-        }
+            row.ToText = "Connector";
+            await Assert.That(vm.Session.Document!.Steps[index].To!.Place).IsEqualTo("BombsiteA").Because("typing there writes nothing");
+            await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth);
+
+            vm.Editor.Steps[index].ClearStrayToCommand.Execute(null);
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Session.Document!.Steps[index].To).IsNull();
+                await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Count).IsEqualTo(2);
+                await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
+                await Assert.That(vm.Editor.Steps[index].ShowTo).IsFalse();
+            }
+        });
     }
 }

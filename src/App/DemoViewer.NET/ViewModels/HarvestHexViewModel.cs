@@ -118,7 +118,7 @@ public sealed partial class HarvestHexViewModel : ObservableObject
     /// <summary>Re-materializes the current window's rows so cells pick up a swapped palette.</summary>
     public void RepaintHighlights() => RebuildRows();
 
-    // ── Reverse byte → node hit-testing (F5.2) ────────────────────────────────
+    // ── Reverse byte → node hit-testing ────────────────────────────────
 
     /// <summary>
     ///     Raised when the user clicks a valid byte cell. The argument is the absolute byte

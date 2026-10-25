@@ -125,6 +125,14 @@ internal static partial class AppLog
         Message = "Read {demo} ({read}): {count} read(s) of this demo this session")]
     public static partial void DemoRead(ILogger logger, string demo, string read, int count);
 
+    /// <summary>
+    ///     A read captured the server's rank update but could not read its payload back, so the demo's visit
+    ///     writes no rank rows. The read itself is good.
+    /// </summary>
+    [LoggerMessage(EventId = 39, Level = LogLevel.Warning,
+        Message = "The rank update of the demo on {map} could not be read back; the visit writes no rank rows")]
+    public static partial void RankUpdateUnread(ILogger logger, Exception error, string map);
+
     /// <summary>An extension's pass overran its time budget too often and sits out the rest of the session.</summary>
     [LoggerMessage(EventId = 26, Level = LogLevel.Warning,
         Message = "Pass {passId} of {extension} overran its {budget} budget {count} times; it is off until the app restarts")]

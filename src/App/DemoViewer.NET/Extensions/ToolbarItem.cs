@@ -15,6 +15,10 @@ namespace DemoViewer.NET.Extensions;
 ///     <see cref="Tooltip" /> are mutable so an owner can refresh them on a keymap rebind through
 ///     <see cref="IPlaybackSurface.KeymapChanged" /> and <see cref="IPlaybackSurface.GestureHint" />, the
 ///     way the gesture hint in the text used to.
+///     <para>
+///         Deliberately a mirror of <c>Sdk.Playback.ToolbarItem</c> rather than the same type: this one
+///         carries the <see cref="Command" /> the view binds, and the SDK must publish no ICommand wiring.
+///     </para>
 /// </summary>
 public sealed class ToolbarItem : ObservableObject
 {

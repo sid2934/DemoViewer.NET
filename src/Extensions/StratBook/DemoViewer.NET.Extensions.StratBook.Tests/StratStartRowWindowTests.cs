@@ -20,7 +20,7 @@ namespace DemoViewer.NET.AppTests;
 ///     field per token inside the editor's width, focusing it selects the start, and the switch puts the step times on
 ///     the trigger clock.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Integration")]
 public class StratStartRowWindowTests
 {

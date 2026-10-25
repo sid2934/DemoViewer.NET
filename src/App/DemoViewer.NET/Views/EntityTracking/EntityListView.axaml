@@ -9,7 +9,7 @@
              x:Class="DemoViewer.NET.Views.EntityTracking.EntityListView"
              x:DataType="vm:EntityListViewModel">
 
-    <!-- Virtualized columnar list (F6.1). TreeDataGrid would be ideal but is
+    <!-- Virtualized columnar list. TreeDataGrid would be ideal but is
          commercially licensed under Avalonia 11.3 (AVLIC0001) — this ListBox is
          the doc's named fallback shape and virtualizes the ~2k entity rows. -->
     <Border Background="{DynamicResource PanelBg}">

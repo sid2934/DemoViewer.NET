@@ -1,3 +1,5 @@
+using DemoViewer.NET.TestSupport;
+
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
@@ -20,28 +22,11 @@ public class ParserTabSrcPathTests
         "src/App/DemoViewer.NET/Models/PayloadNodeBuilder.cs")]
     public async Task SrcPathSite_ResolvesToExistingFile(string site, string repoRelativePath)
     {
-        string repoRoot = FindRepoRoot();
+        string repoRoot = DemoTestHelper.RequireRepoRoot();
         string[] parts = [repoRoot, .. repoRelativePath.Split('/')];
         string path = Path.Combine(parts);
 
         await Assert.That(File.Exists(path)).IsTrue()
             .Because($"{site} — SrcPath composes to \"{path}\", which must resolve to a real file");
-    }
-
-    /// <summary>Mirrors <c>MainViewModel.FindRepoRoot</c> (walks up from the test binary to the sentinel .slnx).</summary>
-    private static string FindRepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("repo root not found from " + AppContext.BaseDirectory);
     }
 }

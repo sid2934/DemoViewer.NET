@@ -7,6 +7,7 @@ using CS2OpenSchema.Protos;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -65,7 +66,7 @@ public class ThrowerCollectorTests
 
         await Assert.That(rows).IsEquivalentTo(samples
             .Where(s => s.Removed && s.ClassName is GrenadeProjectileClasses.Molotov or GrenadeProjectileClasses.Decoy)
-            .Select(RemovedProjectile.From));
+            .Select(RemovedProjectile.From), CollectionOrdering.Matching);
     }
 
     [Test]
@@ -78,7 +79,7 @@ public class ThrowerCollectorTests
             await Assert.That(contribution.PassId).IsEqualTo(SuggestedTagsService.EvaluatorId);
             await Assert.That(contribution.Providers).IsEmpty();
             await Assert.That(contribution.ProjectileClasses)
-                .IsEquivalentTo([GrenadeProjectileClasses.Molotov, GrenadeProjectileClasses.Decoy]);
+                .IsEquivalentTo([GrenadeProjectileClasses.Molotov, GrenadeProjectileClasses.Decoy], CollectionOrdering.Matching);
         }
     }
 

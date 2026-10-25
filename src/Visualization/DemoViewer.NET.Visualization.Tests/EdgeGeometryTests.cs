@@ -2,6 +2,7 @@
 
 using Avalonia;
 using DemoViewer.NET.Visualization.Internal;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -122,6 +123,6 @@ public class EdgeGeometryTests
     public async Task SampleBezier_NonFourPoint_ReturnsAsIs()
     {
         List<Point> route = [new(0, 0), new(10, 0)];
-        await Assert.That(EdgeGeometry.SampleBezierRoute(route)).IsEquivalentTo(route);
+        await Assert.That(EdgeGeometry.SampleBezierRoute(route)).IsEquivalentTo(route, CollectionOrdering.Matching);
     }
 }

@@ -28,7 +28,7 @@
         sentence plus the single action that fills it — never a wall of "—", which in a cached render would
         read as "still loading" about a page where nothing is running.
 
-        DESIGN NOTES (docs/ui/design-system.md, docs/ui/highlights-matchoverview-redesign.md):
+        DESIGN NOTES (docs/ui/design-system.md):
           • Merged HERO BAND: identity + score plate + completeness chip + progress rail in ONE
             fixed-height slot, so both headline facts are above the fold and the band never changes height.
           • Two-column BODY at >= 1000px: "the match" (rosters + scoreboard) at 1.3*, "the moments"

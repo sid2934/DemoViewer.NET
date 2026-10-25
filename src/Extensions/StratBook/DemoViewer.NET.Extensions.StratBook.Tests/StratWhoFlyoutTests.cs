@@ -7,13 +7,14 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>The Who button's flyout in the real view: its toggles are staged and written as one entry on close.</summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Integration")]
 public class StratWhoFlyoutTests
 {
@@ -37,7 +38,7 @@ public class StratWhoFlyoutTests
             flyout.ShowAt(who);
             Dispatcher.UIThread.RunJobs();
             List<ToggleButton> toggles = [.. ((Control)flyout.Content!).GetVisualDescendants().OfType<ToggleButton>()];
-            await Assert.That(toggles.Select(t => (string)t.Content!)).IsEquivalentTo(StratVocabulary.Slots);
+            await Assert.That(toggles.Select(t => (string)t.Content!)).IsEquivalentTo(StratVocabulary.Slots, CollectionOrdering.Matching);
             toggles.Single(t => (string?)t.Content == "C").IsChecked = true;
             toggles.Single(t => (string?)t.Content == "D").IsChecked = true;
             await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth).Because("nothing is written while the flyout is open");
@@ -52,7 +53,7 @@ public class StratWhoFlyoutTests
             using (Assert.Multiple())
             {
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
-                await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Select(l => l.Slot)).IsEquivalentTo(["B", "C", "D"]);
+                await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Select(l => l.Slot)).IsEquivalentTo(["B", "C", "D"], CollectionOrdering.Matching);
                 await Assert.That(who.GetVisualDescendants().OfType<TextBlock>().First().Text).IsEqualTo("B, C, D");
             }
 

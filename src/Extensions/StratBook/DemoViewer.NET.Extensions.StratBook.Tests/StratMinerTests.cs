@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -100,12 +101,12 @@ public class StratMinerTests
         MinedPattern pattern = patterns.Single();
         using (Assert.Multiple())
         {
-            await Assert.That(pattern.Members.Select(m => m.DemoPath)).IsEquivalentTo(["a.dem", "b.dem", "c.dem"]);
+            await Assert.That(pattern.Members.Select(m => m.DemoPath)).IsEquivalentTo(["a.dem", "b.dem", "c.dem"], CollectionOrdering.Matching);
             await Assert.That(pattern.Members[0].DemoPath).IsEqualTo("a.dem").Because("the medoid comes first");
             await Assert.That(pattern.Site).IsEqualTo("A");
             await Assert.That(pattern.Wins).IsEqualTo(3);
             await Assert.That(pattern.UtilityCompared).IsTrue();
-            await Assert.That(pattern.CommonThrows.Select(c => c.Rounds)).IsEquivalentTo([3, 2])
+            await Assert.That(pattern.CommonThrows.Select(c => c.Rounds)).IsEquivalentTo([3, 2], CollectionOrdering.Matching)
                 .Because("both smokes are thrown in at least half the rounds");
         }
     }
@@ -115,7 +116,7 @@ public class StratMinerTests
     {
         List<RoundSignature> rounds = [Round("full.dem", 3, _stack, []), Round("trimmed.dem", 3, _stack, [])];
 
-        await Assert.That(StratMiner.DropCopies(rounds).Select(r => r.DemoPath)).IsEquivalentTo(["full.dem"]);
+        await Assert.That(StratMiner.DropCopies(rounds).Select(r => r.DemoPath)).IsEquivalentTo(["full.dem"], CollectionOrdering.Matching);
         await Assert.That(StratMiner.Mine(rounds)).IsEmpty();
     }
 
@@ -137,7 +138,7 @@ public class StratMinerTests
         using (Assert.Multiple())
         {
             await Assert.That(backward.Key).IsEqualTo(forward.Key);
-            await Assert.That(backward.Members.Select(m => m.DemoPath)).IsEquivalentTo(forward.Members.Select(m => m.DemoPath));
+            await Assert.That(backward.Members.Select(m => m.DemoPath)).IsEquivalentTo(forward.Members.Select(m => m.DemoPath), CollectionOrdering.Matching);
             await Assert.That(fewer.Key).IsEqualTo(forward.Key).Because("the key follows the shape, not the member set");
         }
     }

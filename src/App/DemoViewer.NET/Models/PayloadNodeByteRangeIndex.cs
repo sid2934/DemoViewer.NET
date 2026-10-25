@@ -1,8 +1,8 @@
 namespace DemoViewer.NET.Models;
 
 /// <summary>
-///     One flattened [byteRange → <see cref="PayloadNode" />] entry for reverse hit-testing
-///     (F5.2). <see cref="End" /> is exclusive.
+///     One flattened [byteRange → <see cref="PayloadNode" />] entry for reverse hit-testing.
+///     <see cref="End" /> is exclusive.
 /// </summary>
 public readonly record struct ByteRangeEntry(int Start, int End, int Depth, PayloadNode Node);
 

@@ -16,6 +16,7 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -123,9 +124,15 @@ public class SceneViewTests
         });
     }
 
+    // A data source rather than [Arguments], for the reason in MapViewTests.ViewOwnLayerIds.
+    public static IEnumerable<string> SceneOwnLayerIds()
+    {
+        yield return SceneLayerIds.Radar;
+        yield return SceneLayerIds.Annotations;
+    }
+
     [Test]
-    [Arguments(SceneLayerIds.Radar)]
-    [Arguments(SceneLayerIds.Annotations)]
+    [MethodDataSource(nameof(SceneOwnLayerIds))]
     public async Task AddLayer_RefusesTheScenesOwnLayers(string id)
     {
         await HeadlessSession.RunOnUi(() =>
@@ -211,8 +218,8 @@ public class SceneViewTests
         using (Assert.Multiple())
         {
             await Assert.That(timeline.TotalFrames).IsEqualTo(100);
-            await Assert.That(timeline.Markers.Select(m => m.FrameIndex)).IsEquivalentTo([10, 40]);
-            await Assert.That(seeks).IsEquivalentTo([99, 0]);
+            await Assert.That(timeline.Markers.Select(m => m.FrameIndex)).IsEquivalentTo([10, 40], CollectionOrdering.Matching);
+            await Assert.That(seeks).IsEquivalentTo([99, 0], CollectionOrdering.Matching);
         }
 
         timeline.Rebuild(null);

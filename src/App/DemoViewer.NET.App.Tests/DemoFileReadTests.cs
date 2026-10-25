@@ -87,7 +87,7 @@ public class DemoFileReadTests
             {
                 await Assert.That(wanted).IsNull().Because("a settled local file is mapped");
                 await Assert.That(unwanted).IsNull();
-                await Assert.That(reads).HasCount(1);
+                await Assert.That(reads).Count().IsEqualTo(1);
                 await Assert.That(reads[0].Sha256).IsEqualTo(DemoContentHash.Compute(bytes));
                 await Assert.That(reads[0].Stat.Length).IsEqualTo(bytes.LongLength);
                 await Assert.That(reads[0].Fingerprint?.Size).IsEqualTo(bytes.LongLength);

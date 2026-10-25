@@ -7,6 +7,7 @@ using CS2OpenSchema.Protos;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -87,12 +88,12 @@ public class GrenadeTrajectoryCollectorTests
         using (Assert.Multiple())
         {
             await Assert.That(flights.Stride).IsEqualTo(stride);
-            await Assert.That(flights.Flights.Keys).IsEquivalentTo([(HeIndex, 7), (SmokeIndex, 9)]);
-            await Assert.That(flights.Of(HeIndex, 7)).IsEquivalentTo(he.Finish());
+            await Assert.That(flights.Flights.Keys).IsEquivalentTo([(HeIndex, 7), (SmokeIndex, 9)], CollectionOrdering.Matching);
+            await Assert.That(flights.Of(HeIndex, 7)).IsEquivalentTo(he.Finish(), CollectionOrdering.Matching);
             await Assert.That(flights.Of(HeIndex, 7)[0]).IsEqualTo(new TrajectoryPoint(100, 0, 0, 64, 0));
             await Assert.That(flights.Of(HeIndex, 7)[^1].Tick).IsEqualTo(190).Because("at rest from 190: the last moved sample ends the line");
             await Assert.That(flights.Of(HeIndex, 7).Any(p => p.X == 999)).IsFalse().Because("the spawn frame's live row is not offered again");
-            await Assert.That(flights.Of(SmokeIndex, 9)).IsEquivalentTo(smoke.Finish());
+            await Assert.That(flights.Of(SmokeIndex, 9)).IsEquivalentTo(smoke.Finish(), CollectionOrdering.Matching);
             await Assert.That(flights.Of(SmokeIndex, 9)[0].Tick).IsEqualTo(151);
             await Assert.That(flights.Of(1, 1)).IsEmpty();
             await Assert.That(flights.Facts[(HeIndex, 7)]).IsEqualTo(new FlightFacts(GrenadeProjectileClasses.HEGrenade, 100, new Vector3(0, 0, 64),
@@ -117,7 +118,7 @@ public class GrenadeTrajectoryCollectorTests
         {
             await Assert.That(contribution.Id).IsEqualTo(GrenadeTrajectoryCollector.CollectorId);
             await Assert.That(contribution.PassId).IsEqualTo(GrenadeIndexEvaluator.EvaluatorId);
-            await Assert.That(contribution.ProjectileClasses).IsEquivalentTo(GrenadeProjectileClasses.All);
+            await Assert.That(contribution.ProjectileClasses).IsEquivalentTo(GrenadeProjectileClasses.All, CollectionOrdering.Matching);
             await Assert.That(contribution.Providers).IsEmpty();
             await Assert.That(contribution.ReadsUserCommands).IsFalse();
             await Assert.That(contribution.GameEvents).IsEmpty();

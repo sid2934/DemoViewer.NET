@@ -204,7 +204,12 @@ public class BudgetTests
             Console.WriteLine($"[budget] VIOLATION {violation}");
         }
 
-        await Assert.That(violations).IsEmpty();
+        // The violation strings name the budget and the number that missed it. A bare IsEmpty throws them
+        // away and reports "Expected to be empty", which is unactionable exactly where it matters: the
+        // console lines above do not reach a CI log, so a red lane there said nothing about whether a TIME
+        // budget slipped on a loaded runner or the UNSCALED allocation budget regressed.
+        await Assert.That(violations).IsEmpty()
+            .Because("over the CI budget: " + string.Join("; ", violations));
     }
 
     /// <summary>
@@ -289,7 +294,12 @@ public class BudgetTests
             Console.WriteLine($"[budget-ink] VIOLATION {violation}");
         }
 
-        await Assert.That(violations).IsEmpty();
+        // The violation strings name the budget and the number that missed it. A bare IsEmpty throws them
+        // away and reports "Expected to be empty", which is unactionable exactly where it matters: the
+        // console lines above do not reach a CI log, so a red lane there said nothing about whether a TIME
+        // budget slipped on a loaded runner or the UNSCALED allocation budget regressed.
+        await Assert.That(violations).IsEmpty()
+            .Because("over the CI budget: " + string.Join("; ", violations));
     }
 
     // The ink a real session leaves behind, at the budget fixture's tick. Sample counts are in the
@@ -413,19 +423,6 @@ public class BudgetTests
 
     // bench-reports/ at the repo root, next to the existing convention. Falls back to the test output
     // directory when the repo is not on disk (a packaged run).
-    private static string BenchReportDirectory()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return Path.Combine(dir.FullName, "bench-reports");
-            }
-
-            dir = dir.Parent;
-        }
-
-        return Path.Combine(AppContext.BaseDirectory, "bench-reports");
-    }
+    private static string BenchReportDirectory() =>
+        Path.Combine(TestTiers.FindRepoRoot() ?? AppContext.BaseDirectory, "bench-reports");
 }

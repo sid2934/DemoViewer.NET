@@ -1,74 +1,72 @@
 #region
 
-using System.Text.RegularExpressions;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using Google.Protobuf.Reflection;
 
 #endregion
 
 namespace DemoViewer.NET.Models;
 
 /// <summary>
-///     Lightweight index of all proto message/enum/field definitions found in a directory of .proto files.
-///     Built once at startup by scanning the protobufs submodule; used for source-link generation in the
-///     parse chain panel.
+///     Index of the Valve proto message, enum, field and enum-value names, each mapped to the
+///     .proto file it is declared in. Built from the generated descriptors in CS2OpenDev.Protos,
+///     so it needs no proto sources on disk. Backs the source links in the parse-chain panel and
+///     the command palette's ".proto" lookup.
+///     <para>
+///         Descriptors carry no line numbers, so a link resolves to a file, not a declaration.
+///     </para>
 /// </summary>
 public sealed class ProtoIndex
 {
-    // Matches plain enum values: FOO_BAR = 3;  (no leading type keyword)
-    private static readonly Regex _enumVal = new(
-        @"^\s*(\w+)\s*=\s*-?\d+\s*;",
-        RegexOptions.Compiled);
+    /// <summary>Blob root for the .proto sources these descriptors were generated from.</summary>
+    public const string GitHubBase = "https://github.com/SteamDatabase/GameTracking-CS2/blob/master/Protobufs/";
 
-    // Matches proto field declarations, e.g.:
-    //   optional bytes entity_data = 10;
-    //   repeated .Foo bar = 3;
-    //   map<int32, string> entries = 5;
-    private static readonly Regex _fieldDecl = new(
-        @"(?:optional|repeated|required|map)\s+[\w.<>, ]+\s+(\w+)\s*=\s*\d+",
-        RegexOptions.Compiled);
+    // "{TypeName}.{field or enum value}" → .proto file name
+    private readonly Dictionary<string, string> _fields = new(StringComparer.Ordinal);
 
-    // ── Scanner ───────────────────────────────────────────────────────────────
+    // "{TypeName}" → .proto file name
+    private readonly Dictionary<string, string> _types = new(StringComparer.Ordinal);
 
-    // Matches:  message Foo {   or   enum Foo {
-    private static readonly Regex _typeOpen = new(
-        @"^\s*(message|enum)\s+(\w+)\s*\{?",
-        RegexOptions.Compiled);
-
-    // "{MessageName}.{field}"  → SourceLocation
-    private readonly Dictionary<string, SourceLocation> _fields = new(StringComparer.Ordinal);
-
-    // "{MessageName}"           → SourceLocation
-    private readonly Dictionary<string, SourceLocation> _messages = new(StringComparer.Ordinal);
-
-    /// <summary>Proto dir.</summary>
-    public string ProtoDir { get; private init; } = "";
+    /// <summary>The .proto file names the index covers, ordered.</summary>
+    public IReadOnlyList<string> ProtoFiles { get; private init; } = [];
 
     // ── Factory ───────────────────────────────────────────────────────────────
 
-    /// <summary>Build.</summary>
-    public static ProtoIndex Build(string protoDir)
+    /// <summary>Build the index from the descriptors compiled into CS2OpenDev.Protos.</summary>
+    public static ProtoIndex Build()
     {
+        List<FileDescriptor> files = ProtoFileDescriptors();
         ProtoIndex idx = new()
         {
-            ProtoDir = protoDir
+            ProtoFiles = files.Select(f => f.Name).ToList()
         };
-        if (!Directory.Exists(protoDir))
-        {
-            return idx;
-        }
 
-        foreach (string file in Directory.GetFiles(protoDir, "*.proto", SearchOption.TopDirectoryOnly))
+        foreach (FileDescriptor file in files)
         {
-            idx.ScanFile(file);
+            idx.AddFile(file);
         }
 
         return idx;
     }
 
+    /// <summary>Blob URL for one .proto file name. File-level: descriptors carry no line.</summary>
+    public static string SourceUrl(string protoFile) => GitHubBase + protoFile;
+
+    // ── Lookup ────────────────────────────────────────────────────────────────
+
+    /// <summary>Blob URL for the file declaring <paramref name="field" /> on <paramref name="type" />.</summary>
+    public string? FieldUrl(string? type, string field) =>
+        TryGetField(type, field, out string? file) ? SourceUrl(file) : null;
+
+    /// <summary>Blob URL for the file declaring <paramref name="type" />, or null when unknown.</summary>
+    public string? TypeUrl(string? type) =>
+        TryGetType(type, out string? file) ? SourceUrl(file) : null;
+
     /// <summary>
-    ///     Case-insensitive substring search over indexed message/enum names. Backs the
-    ///     command palette's ".proto" lookup. Exact-prefix matches rank
-    ///     ahead of mid-string matches, then alphabetical. <see cref="ProtoResult.LocalPath" />
-    ///     resolves to the on-disk .proto under <see cref="ProtoDir" /> for VS Code links.
+    ///     Case-insensitive substring search over indexed message and enum names. Backs the
+    ///     command palette's ".proto" lookup. Exact-prefix matches rank ahead of mid-string
+    ///     matches, then alphabetical.
     /// </summary>
     public IEnumerable<ProtoResult> Search(string query)
     {
@@ -78,7 +76,7 @@ public sealed class ProtoIndex
         }
 
         List<ProtoResult> hits = new();
-        foreach (KeyValuePair<string, SourceLocation> kv in _messages)
+        foreach (KeyValuePair<string, string> kv in _types)
         {
             int idx = kv.Key.IndexOf(query, StringComparison.OrdinalIgnoreCase);
             if (idx < 0)
@@ -88,9 +86,8 @@ public sealed class ProtoIndex
 
             hits.Add(new ProtoResult(
                 kv.Key,
-                kv.Value.RelativeFile,
-                Path.Combine(ProtoDir, kv.Value.RelativeFile),
-                kv.Value.Line,
+                kv.Value,
+                SourceUrl(kv.Value),
                 idx == 0 ? 0 : 1));
         }
 
@@ -102,106 +99,100 @@ public sealed class ProtoIndex
         }
     }
 
-    /// <summary>Try get field.</summary>
-    public bool TryGetField(string message, string field, out SourceLocation loc) =>
-        _fields.TryGetValue($"{message}.{field}", out loc);
-
-    // ── Lookup ────────────────────────────────────────────────────────────────
-
-    /// <summary>Try get message.</summary>
-    public bool TryGetMessage(string name, out SourceLocation loc) =>
-        _messages.TryGetValue(name, out loc);
-
-    private static int CountChar(string s, char c)
+    /// <summary>The .proto file declaring <paramref name="field" /> on <paramref name="type" />.</summary>
+    public bool TryGetField(string? type, string field, [NotNullWhen(true)] out string? protoFile)
     {
-        int n = 0;
-        foreach (char ch in s)
+        if (type is null)
         {
-            if (ch == c)
-            {
-                n++;
-            }
+            protoFile = null;
+            return false;
         }
 
-        return n;
+        return _fields.TryGetValue($"{type}.{field}", out protoFile);
     }
 
-    private void ScanFile(string absPath)
+    /// <summary>The .proto file declaring the message or enum <paramref name="type" />.</summary>
+    public bool TryGetType(string? type, [NotNullWhen(true)] out string? protoFile)
     {
-        string relPath = Path.GetFileName(absPath);
-        string[] lines;
+        if (type is null)
+        {
+            protoFile = null;
+            return false;
+        }
+
+        return _types.TryGetValue(type, out protoFile);
+    }
+
+    // ── Descriptor walk ───────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Every .proto in CS2OpenDev.Protos compiles to a generated holder class exporting a static
+    ///     <see cref="FileDescriptor" /> property; message classes export a MessageDescriptor from the
+    ///     same property name, so the property type is what separates them. Enumerating the assembly
+    ///     rather than naming the holders keeps a file added upstream from being silently missed.
+    ///     Ordered by file name so a name declared in two files resolves the same way every run.
+    /// </summary>
+    private static List<FileDescriptor> ProtoFileDescriptors()
+    {
+        List<FileDescriptor> files = [];
+
+        Type[] types;
         try
         {
-            lines = File.ReadAllLines(absPath);
+            types = typeof(CDemoPacket).Assembly.GetExportedTypes();
         }
         catch
         {
-            return;
+            // A failed type load degrades the links. It must not escape into the shell's constructor.
+            return files;
         }
 
-        string? currentType = null;
-        int braceDepth = 0;
-
-        for (int i = 0; i < lines.Length; i++)
+        foreach (Type t in types)
         {
-            int lineNum = i + 1;
-
-            // Strip inline comments
-            string line = lines[i];
-            int commentIdx = line.IndexOf("//", StringComparison.Ordinal);
-            if (commentIdx >= 0)
+            PropertyInfo? prop = t.GetProperty("Descriptor", BindingFlags.Public | BindingFlags.Static);
+            if (prop?.PropertyType != typeof(FileDescriptor))
             {
-                line = line[..commentIdx];
+                continue;
             }
 
-            // Count brace changes on this line BEFORE matching, so we know the pre-line depth
-            int opens = CountChar(line, '{');
-            int closes = CountChar(line, '}');
-
-            // Check for message/enum declaration at current top-level scope (braceDepth == 0)
-            Match mType = _typeOpen.Match(line);
-            if (mType.Success)
+            try
             {
-                string typeName = mType.Groups[2].Value;
-
-                // Only index top-level types (braceDepth == 0 before this line's open brace)
-                if (braceDepth == 0)
+                if (prop.GetValue(null) is FileDescriptor fd)
                 {
-                    currentType = typeName;
-                    _messages[typeName] = new SourceLocation(relPath, lineNum);
+                    files.Add(fd);
                 }
             }
-
-            braceDepth += opens - closes;
-            if (braceDepth < 0)
+            catch
             {
-                braceDepth = 0;
+                // One holder's static initializer throwing must not drop the rest.
             }
+        }
 
-            // Reset when we exit the top-level type block
-            if (braceDepth == 0 && currentType != null && closes > 0)
+        files.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+        return files;
+    }
+
+    /// <summary>
+    ///     Top-level messages and enums only. Nested types share short names across files (key_t and
+    ///     friends) and would collide on the one key.
+    /// </summary>
+    private void AddFile(FileDescriptor file)
+    {
+        foreach (MessageDescriptor msg in file.MessageTypes)
+        {
+            _types.TryAdd(msg.Name, file.Name);
+            foreach (FieldDescriptor f in msg.Fields.InDeclarationOrder())
             {
-                currentType = null;
+                _fields.TryAdd($"{msg.Name}.{f.Name}", file.Name);
             }
+        }
 
-            // Index field declarations inside the top-level type (braceDepth == 1)
-            if (currentType != null && braceDepth == 1)
+        foreach (EnumDescriptor en in file.EnumTypes)
+        {
+            _types.TryAdd(en.Name, file.Name);
+            foreach (EnumValueDescriptor v in en.Values)
             {
-                Match mField = _fieldDecl.Match(line);
-                if (mField.Success)
-                {
-                    string fieldName = mField.Groups[1].Value;
-                    _fields[$"{currentType}.{fieldName}"] = new SourceLocation(relPath, lineNum);
-                    continue;
-                }
-
-                // Enum values (e.g. DEM_Packet = 4;)
-                Match mEv = _enumVal.Match(line);
-                if (mEv.Success)
-                {
-                    string valName = mEv.Groups[1].Value;
-                    _fields[$"{currentType}.{valName}"] = new SourceLocation(relPath, lineNum);
-                }
+                _fields.TryAdd($"{en.Name}.{v.Name}", file.Name);
             }
         }
     }
@@ -213,7 +204,6 @@ public sealed class ProtoIndex
 /// </summary>
 public readonly record struct ProtoResult(
     string MessageName,
-    string RelativeFilePath,
-    string LocalPath,
-    int Line,
+    string ProtoFile,
+    string Url,
     int Rank);

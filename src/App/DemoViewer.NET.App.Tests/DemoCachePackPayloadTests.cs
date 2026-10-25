@@ -15,6 +15,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -71,15 +72,15 @@ public class DemoCachePackPayloadTests
             {
                 await Assert.That(payload).IsNotNull();
                 await Assert.That(payload!.Name).IsEqualTo("one");
-                await Assert.That(payload.Values).IsEquivalentTo([1, 2, 3]);
-                await Assert.That(loaded.PackStamps).IsEquivalentTo(record.PackStamps);
-                await Assert.That(entry.PackStamps).IsEquivalentTo(record.PackStamps);
+                await Assert.That(payload.Values).IsEquivalentTo([1, 2, 3], CollectionOrdering.Matching);
+                await Assert.That(loaded.PackStamps).IsEquivalentTo(record.PackStamps, CollectionOrdering.Matching);
+                await Assert.That(entry.PackStamps).IsEquivalentTo(record.PackStamps, CollectionOrdering.Matching);
                 await Assert.That(entry.IsPackCurrent(FakeFacet, 2, "fp-1")).IsTrue();
                 await Assert.That(entry.IsPackCurrent(FakeFacet, 1, "fp-1")).IsFalse().Because("another schema is stale");
                 await Assert.That(entry.NeedsPack(FakeFacet, 2, "fp-2")).IsTrue();
                 await Assert.That(entry.NeedsPack("other", 1, null)).IsFalse().Because("a failed facet waits for the user");
                 await Assert.That(entry.NeedsPack("never", 1, "x")).IsTrue();
-                await Assert.That(loaded.Packs.Keys).IsEquivalentTo([FakePack]);
+                await Assert.That(loaded.Packs.Keys).IsEquivalentTo([FakePack], CollectionOrdering.Matching);
                 await Assert.That(loaded.UnknownMembers).IsNull();
                 await Assert.That(indexJson).Contains("\"PackStamps\":[{\"Id\":\"fake-facet\"");
                 await Assert.That(indexJson).DoesNotContain("\"Packs\"").Because("the index carries stamps, never payloads");
@@ -180,9 +181,9 @@ public class DemoCachePackPayloadTests
                 // Folded: the payload and every stamp, from both the sidecar and the index row. The old row never
                 // mirrored the grenade write time, so that one tick count differs until the next save re-projects it.
                 await Assert.That(entry.PackStamps.Select(s => s with { ComputedAtTicks = 0 }))
-                    .IsEquivalentTo(record.PackStamps.Select(s => s with { ComputedAtTicks = 0 }));
+                    .IsEquivalentTo(record.PackStamps.Select(s => s with { ComputedAtTicks = 0 }), CollectionOrdering.Matching);
                 await Assert.That(record.PackStamps.Select(s => s.Id)).IsEquivalentTo(
-                    [RoundFactsEvaluator.EvaluatorId, RoundIndexEvaluator.EvaluatorId, SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId]);
+                    [RoundFactsEvaluator.EvaluatorId, RoundIndexEvaluator.EvaluatorId, SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId], CollectionOrdering.Matching);
                 await Assert.That(record.RoundFacts!.Rounds.Count).IsEqualTo(2).Because("the rows are the record's own member");
                 await Assert.That(record.Packs[StratBookPack.PackId].GetProperty("GrenadeInputCoverage").GetDouble()).IsEqualTo(0.5);
                 await Assert.That(record.Packs[StratBookPack.PackId].TryGetProperty("RoundFacts", out _)).IsFalse()
@@ -241,8 +242,8 @@ public class DemoCachePackPayloadTests
                 await Assert.That(sidecar.IndexOf("\"RoundFacts\":", StringComparison.Ordinal))
                     .IsLessThan(sidecar.IndexOf("\"Packs\":", StringComparison.Ordinal)).Because("the rows sit on the record, outside the payload");
 
-                await Assert.That(reopened.TryGetIndex(Demo)!.PackStamps).IsEquivalentTo(record.PackStamps);
-                await Assert.That(reopened.TryLoadRecord(Demo)!.PackStamps).IsEquivalentTo(record.PackStamps);
+                await Assert.That(reopened.TryGetIndex(Demo)!.PackStamps).IsEquivalentTo(record.PackStamps, CollectionOrdering.Matching);
+                await Assert.That(reopened.TryLoadRecord(Demo)!.PackStamps).IsEquivalentTo(record.PackStamps, CollectionOrdering.Matching);
                 await Assert.That(reopened.RoundFactsOf(Demo)!.Rounds.Count).IsEqualTo(2);
             }
         }
@@ -311,13 +312,13 @@ public class DemoCachePackPayloadTests
         using (Assert.Multiple())
         {
             await Assert.That(record.Packs).IsEmpty().Because("no rows and no coverage: no payload");
-            await Assert.That(record.PackStamps.Select(s => s.Id)).IsEquivalentTo([GrenadeIndexEvaluator.EvaluatorId])
+            await Assert.That(record.PackStamps.Select(s => s.Id)).IsEquivalentTo([GrenadeIndexEvaluator.EvaluatorId], CollectionOrdering.Matching)
                 .Because("only the failed grenade walk left a mark");
             await Assert.That(record.Stamp(GrenadeIndexEvaluator.EvaluatorId)!.State).IsEqualTo(DemoAnalysisState.Failed);
             await Assert.That(record.NeedsPack(GrenadeIndexEvaluator.EvaluatorId, GrenadeStore.Schema, GrenadeWalker.Version)).IsFalse()
                 .Because("a failure stays excluded across the fold");
             await Assert.That(record.NeedsRoundFacts("rf-A")).IsTrue();
-            await Assert.That(entry.PackStamps).IsEquivalentTo(record.PackStamps);
+            await Assert.That(entry.PackStamps).IsEquivalentTo(record.PackStamps, CollectionOrdering.Matching);
         }
     }
 

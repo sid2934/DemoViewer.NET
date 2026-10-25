@@ -14,8 +14,9 @@ namespace DemoViewer.NET.Extensions;
 ///     was built against. An extension's manifest names the ranges it accepts for the first two and the
 ///     third; <see cref="PackCompatibility.Check" /> compares them.
 ///     <para>
-///         <b>Contract version rule.</b> <see cref="ContractVersion" /> is bumped by hand with the change
-///         that needs it. The contract is the surface a pack's own assembly references or implements, not
+///         <b>Contract version rule.</b> <see cref="ContractVersion" /> is the extension SDK assembly's own
+///         version, so it moves when <c>src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json</c> does and never
+///         by editing a literal here. The contract is the surface a pack's own assembly references or implements, not
 ///         every type under <c>DemoViewer.NET.Extensions</c>: host-side types that no pack touches
 ///         (<c>Loading</c>, <c>CompatibilityReport</c>) change freely. Major: a breaking change to a type a
 ///         pack does reference or implement, including <c>IModuleContext</c>, <c>IExtensionContributions</c> or

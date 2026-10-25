@@ -17,6 +17,7 @@ using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.Shell;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -123,7 +124,7 @@ public class HostTabContributionTests
                         .Because("the hub tab comes from the declaration, not from the shell");
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain("fake.alpha");
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain("fake.beta");
-                    await Assert.That(host.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_bothSections);
+                    await Assert.That(host.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_bothSections, CollectionOrdering.Matching);
                     await Assert.That(vm.Tabs.Single(t => t.TabId == HostId).ActiveContent).IsTypeOf<HubTabView>()
                         .Because("the host draws the hub; the extension hands over no view of its own");
                     await Assert.That(texts).Contains("FAKE RAIL").Because("the band binds the declaration's label");
@@ -166,7 +167,7 @@ public class HostTabContributionTests
                 using (Assert.Multiple())
                 {
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostId);
-                    await Assert.That(vm.HostViewModel(HostId)!.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_bothSections)
+                    await Assert.That(vm.HostViewModel(HostId)!.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_bothSections, CollectionOrdering.Matching)
                         .Because("the same descriptors come back; nothing re-ran CreateTabs");
                 }
             }
@@ -256,8 +257,8 @@ public class HostTabContributionTests
                 {
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostId);
                     await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(OtherHostId);
-                    await Assert.That(vm.HostViewModel(HostId)!.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_bothSections);
-                    await Assert.That(vm.HostViewModel(OtherHostId)!.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_otherSections);
+                    await Assert.That(vm.HostViewModel(HostId)!.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_bothSections, CollectionOrdering.Matching);
+                    await Assert.That(vm.HostViewModel(OtherHostId)!.Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_otherSections, CollectionOrdering.Matching);
                     await Assert.That(texts).Contains("OTHER RAIL");
                     await Assert.That(texts).Contains("One section view");
                     await Assert.That(texts).DoesNotContain("FAKE RAIL").Because("only the selected hub is realized");

@@ -3,6 +3,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
 
@@ -15,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Debug run leaves its rows behind the files. Revisions stay strictly increasing, a working copy stamped
 ///     from a stale row is moved onto the log's head or set aside with a note, never dropped.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratRevisionTests))]
 public class StratRevisionTests
 {
     private static readonly int[] ThreeRevisions = [1, 2, 3];
@@ -92,7 +93,7 @@ public class StratRevisionTests
             {
                 await Assert.That(result.Revision).IsEqualTo(4);
                 await Assert.That(session.Document.Revision).IsEqualTo(4);
-                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(FourRevisions);
+                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(FourRevisions, CollectionOrdering.Matching);
                 await Assert.That(Revisions(restarted, document.Id).Zip(Revisions(restarted, document.Id).Skip(1)).All(p => p.First < p.Second))
                     .IsTrue();
                 await Assert.That(restarted.Index.Single().Revision).IsEqualTo(4);
@@ -122,7 +123,7 @@ public class StratRevisionTests
             using (Assert.Multiple())
             {
                 await Assert.That(result.Revision).IsEqualTo(4);
-                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(FourRevisions);
+                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(FourRevisions, CollectionOrdering.Matching);
             }
         }
         finally
@@ -185,7 +186,7 @@ public class StratRevisionTests
                 await Assert.That(session.StatusText).Contains("conflict with revision 3");
                 await Assert.That(kept.Length).IsEqualTo(1);
                 await Assert.That(JsonNode.Parse(File.ReadAllText(kept[0]))!["name"]!.GetValue<string>()).IsEqualTo("edited before the crash");
-                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(ThreeRevisions);
+                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(ThreeRevisions, CollectionOrdering.Matching);
             }
         }
         finally
@@ -217,12 +218,12 @@ public class StratRevisionTests
                 await Assert.That(session.Document.Name).IsEqualTo("renamed at revision 1");
                 await Assert.That(session.Document.Steps[0].AtSeconds).IsEqualTo(88);
                 await Assert.That(session.Document.Steps[1].AtSeconds).IsEqualTo(80);
-                await Assert.That(session.PendingOps.Select(o => o.Path)).IsEquivalentTo(NameOnly);
+                await Assert.That(session.PendingOps.Select(o => o.Path)).IsEquivalentTo(NameOnly, CollectionOrdering.Matching);
                 await Assert.That(session.StatusText).Contains("recovered edits from revision 1 were moved onto revision 3");
             }
 
             await Assert.That(session.Commit()!.Revision).IsEqualTo(4);
-            await Assert.That(restarted.History(document.Id)[^1].Ops.Select(o => o.Path)).IsEquivalentTo(NameOnly);
+            await Assert.That(restarted.History(document.Id)[^1].Ops.Select(o => o.Path)).IsEquivalentTo(NameOnly, CollectionOrdering.Matching);
         }
         finally
         {
@@ -268,7 +269,7 @@ public class StratRevisionTests
                 await Assert.That(kept.Length).IsEqualTo(1);
                 await Assert.That(session.StatusText).Contains(Path.GetFileName(kept[0]));
                 await Assert.That(StepZero(kept[0])).IsEqualTo(70);
-                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(ThreeRevisions);
+                await Assert.That(Revisions(restarted, document.Id)).IsEquivalentTo(ThreeRevisions, CollectionOrdering.Matching);
                 await Assert.That(restarted.Index.Single().Revision).IsEqualTo(3);
             }
         }
@@ -291,7 +292,7 @@ public class StratRevisionTests
             new StratStore(root, utcNow: () => Past).TryLoad(document.Id);
 
             string[] kept = SetAsideFiles(root, document);
-            await Assert.That(kept.Select(StepZero).Order()).IsEquivalentTo(BothCopies);
+            await Assert.That(kept.Select(StepZero).Order()).IsEquivalentTo(BothCopies, CollectionOrdering.Matching);
         }
         finally
         {
@@ -367,7 +368,7 @@ public class StratRevisionTests
             {
                 await Assert.That(refused.Saved).IsFalse();
                 await Assert.That(refused.Reason).IsEqualTo(StratStore.UnresolvedReason);
-                await Assert.That(Revisions(store, document.Id)).IsEquivalentTo(ThreeRevisions);
+                await Assert.That(Revisions(store, document.Id)).IsEquivalentTo(ThreeRevisions, CollectionOrdering.Matching);
                 await Assert.That(StepZero(StratFile(root, document))).IsEqualTo(70).Because("the working copy is still on disk");
                 await Assert.That(StratStore.IsPending(store.Materialize(document.Id, 3)!)).IsFalse();
                 await Assert.That(store.Materialize(document.Id, 3)!.Steps[0].AtSeconds).IsEqualTo(88).Because("the head survives in the log");

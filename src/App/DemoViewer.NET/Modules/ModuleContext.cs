@@ -167,7 +167,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public void RequestPlay() => _controller.Play();
     public void RequestPause() => _controller.Pause();
 
-    // ── Timeline / transport seams (Playback2D v2 A1) ──
+    // ── Timeline / transport seams (Playback2D v2) ──
     public int TotalFrames => _controller.TotalFrames;
 
     // Frame clock, read off the frame list the controller already holds rather than ParsedDemo.TickCount:
@@ -282,8 +282,8 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public void SetFaults(ExtensionFaults? faults) => _faults = faults;
 
     /// <summary>
-    ///     Host-side relay for <see cref="IModuleContext.NotifySpectateTarget" /> (csvg-integration
-    ///     the spectate seam): module surfaces report the user's follow pick; the live-sync engine
+    ///     Host-side relay for <see cref="IModuleContext.NotifySpectateTarget" /> (the spectate seam):
+    ///     module surfaces report the user's follow pick; the live-sync engine
     ///     subscribes here (the module-owned tab VMs are lazily built, so this context, which
     ///     always exists, is the reachable seam).
     /// </summary>

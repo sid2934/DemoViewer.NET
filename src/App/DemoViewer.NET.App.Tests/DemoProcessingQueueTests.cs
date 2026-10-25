@@ -3,13 +3,14 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The global demo-processing queue (demo-processing-queue.md). A fake parser stands in for the
+///     The global demo-processing queue. A fake parser stands in for the
 ///     heavy demo parse, no demos, no bytes, so the tests exercise priority ordering, coalescing,
 ///     the size cap + refeed, max-concurrency, pause/disable, removal, and the awaitable foreground
 ///     path deterministically. Correctness of the concurrency primitive is the whole point here.
@@ -92,7 +93,12 @@ public class DemoProcessingQueueTests
                 releaseOnParsed.Wait(2000); // hold that window open while the foreground races in
             }));
 
-        await Task.Run(() => inOnParsed.Wait(5000));
+        if (!await Task.Run(() => inOnParsed.Wait(5000)))
+        {
+            // Without the worker parked inside OnParsed there is no window to race into, and the
+            // foreground open below would complete for the ordinary reason.
+            throw new TimeoutException("timed out waiting for the background worker to enter OnParsed");
+        }
 
         // Start the foreground open for the SAME path mid-window, then release OnParsed. The open must
         // complete (WaitAsync throws TimeoutException on the orphaned-waiter hang the fix prevents).
@@ -123,7 +129,7 @@ public class DemoProcessingQueueTests
 
             await WaitForAsync(() => parser.Processed.Count == 4, "all four drained");
             await Assert.That(parser.Processed)
-                .IsEquivalentTo(["/d/urgent.dem", "/d/c.dem", "/d/b.dem", "/d/a.dem"]);
+                .IsEquivalentTo(["/d/urgent.dem", "/d/c.dem", "/d/b.dem", "/d/a.dem"], CollectionOrdering.Matching);
             await Assert.That(parser.MaxConcurrent).IsEqualTo(1).Because("default max concurrency is 1");
         }
     }
@@ -144,7 +150,7 @@ public class DemoProcessingQueueTests
 
             // Two owners, one entry.
             await Assert.That(q.Snapshot().Count).IsEqualTo(1).Because("same path coalesces to one item");
-            await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["library", "highlights"]);
+            await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["library", "highlights"], CollectionOrdering.Matching);
 
             q.Resume();
             await WaitForAsync(() => libRan == 1 && hlRan == 1, "both owners' handlers ran");
@@ -382,7 +388,7 @@ public class DemoProcessingQueueTests
             // The library cancels ITS submission. The item survives for highlights.
             libHandle.Cancel();
             await Assert.That(q.Snapshot().Count).IsEqualTo(1).Because("a co-owner keeps the item alive");
-            await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["highlights"]);
+            await Assert.That(q.Snapshot()[0].Owners).IsEquivalentTo(["highlights"], CollectionOrdering.Matching);
 
             q.Resume();
             await WaitForAsync(() => hlRan == 1, "highlights handler ran");
@@ -474,7 +480,7 @@ public class DemoProcessingQueueTests
             NoCompact);
 
         WeakReference demo = await CoalesceOntoRunningParseAsync(queue, block);
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+        await queue.IdleAsync("worker exit");
 
         await Assert.That(byteCalls).IsEqualTo(0); // the open coalesced; it did not parse on its own
         await Assert.That(queue.Snapshot().Single().State).IsEqualTo(DemoQueueItemState.Completed);
@@ -499,7 +505,7 @@ public class DemoProcessingQueueTests
         queue.SubmitJob(Job("a", _ => Task.Run(block.Wait)));
         queue.SubmitJob(Job("b", _ => Task.CompletedTask));
         block.Set();
-        await WaitForAsync(() => Volatile.Read(ref compactions) == 1 && queue.ActiveWorkerCount == 0, "drain");
+        await queue.IdleAsync("drain", () => Volatile.Read(ref compactions) == 1);
         await Assert.That(queue.Snapshot().All(x => x.State == DemoQueueItemState.Completed)).IsTrue();
 
         await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(1);
@@ -534,8 +540,7 @@ public class DemoProcessingQueueTests
         queue.SubmitBackground(Req("b.dem", "o", DemoJobPriority.Background, 2));
         queue.SubmitBackground(Req("c.dem", "o", DemoJobPriority.Background, 1));
         block.Set();
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && queue.Snapshot().All(s => s.State == DemoQueueItemState.Completed),
-            "drain");
+        await queue.IdleAsync("drain", () => queue.Snapshot().All(s => s.State == DemoQueueItemState.Completed));
 
         // No throttle between parses, and the drain adds nothing after the last one.
         await Assert.That(string.Join(",", order)).IsEqualTo("a.dem,compact,b.dem,compact,c.dem,compact");
@@ -564,7 +569,7 @@ public class DemoProcessingQueueTests
             return Task.CompletedTask;
         }));
         await clips.Completion;
-        await WaitForAsync(() => Volatile.Read(ref compactions) == 2 && queue.ActiveWorkerCount == 0, "the clip job's compaction");
+        await queue.IdleAsync("the clip job's compaction", () => Volatile.Read(ref compactions) == 2);
         await Assert.That(clock.PendingTimers).IsEqualTo(0);
     }
 
@@ -598,8 +603,7 @@ public class DemoProcessingQueueTests
         queue.BackgroundEnabled = false;
         queue.SubmitBackground(Req("b.dem", "o", DemoJobPriority.UserRequested, 1));
         block.Set();
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && queue.Snapshot().All(s => s.State == DemoQueueItemState.Completed),
-            "drain");
+        await queue.IdleAsync("drain", () => queue.Snapshot().All(s => s.State == DemoQueueItemState.Completed));
 
         await Assert.That(string.Join(",", order)).IsEqualTo("a.dem,compact,b.dem,compact");
     }
@@ -653,7 +657,7 @@ public class DemoProcessingQueueTests
 
         block.Set();
         await c.Completion;
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit c");
+        await queue.IdleAsync("worker exit c");
         await Assert.That(Volatile.Read(ref compactions)).IsEqualTo(2); // T+35: outside the window, runs now
     }
 
@@ -689,7 +693,7 @@ public class DemoProcessingQueueTests
         queue.SubmitBackground(Req("mixed.dem", "grenades", DemoJobPriority.Background, 2));
         queue.SubmitBackground(Req("full.dem", "grenades", DemoJobPriority.Background, 1));
         block.Set();
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && plans.Count == 4, "drain");
+        await queue.IdleAsync("drain", () => plans.Count == 4);
 
         using (Assert.Multiple())
         {
@@ -751,7 +755,7 @@ public class DemoProcessingQueueTests
         coordinator.DemoChanged("a.dem");
         coordinator.DemoChanged("b.dem");
         queue.Resume();
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && plans.Count == 2, "drain");
+        await queue.IdleAsync("drain", () => plans.Count == 2);
 
         using (Assert.Multiple())
         {
@@ -782,8 +786,7 @@ public class DemoProcessingQueueTests
         using DemoScheduler coordinator = new([library, grenades], queue, () => []);
 
         coordinator.DemoChanged("a.dem");
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && plans.Count == 1 && !coordinator.HasOutstanding("grenades"),
-            "drain");
+        await queue.IdleAsync("drain", () => plans.Count == 1 && !coordinator.HasOutstanding("grenades"));
 
         using (Assert.Multiple())
         {
@@ -836,14 +839,14 @@ public class DemoProcessingQueueTests
     {
         IDemoQueueHandle h = queue.SubmitJob(Job(key, _ => Task.CompletedTask));
         await h.Completion;
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit " + key);
+        await queue.IdleAsync("worker exit " + key);
     }
 
     private static async Task RunOneAsync(DemoProcessingQueue queue, string path)
     {
         IDemoQueueHandle h = queue.SubmitBackground(Req(path, "o", DemoJobPriority.Background, 1));
         await h.Completion;
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit " + path);
+        await queue.IdleAsync("worker exit " + path);
     }
 
     [Test]

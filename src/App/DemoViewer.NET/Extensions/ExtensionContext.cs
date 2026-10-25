@@ -120,6 +120,7 @@ internal sealed class ExtensionContext : IExtensionContext
         Passes = new ExtensionPasses(extension.Id, () => services.GetService<DemoScheduler>(), Post);
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
         Storage = new StorageView(extension.Id);
+        Stores = new ExtensionStores(extension.Id, AppPaths.ConfigRoot, AppPaths.DemoCacheDir, PackContributions.AcceptedStores(extension, _guard));
         Settings = new ExtensionSettingsStore(extension.Id, AppPaths.ConfigRoot, Post);
         Notifications = services.GetService<NotificationCenter>()?.For(_guard, CreateLogger("Notifications"))
                         ?? new NotificationCenter(Post).For(_guard, CreateLogger("Notifications"));
@@ -162,6 +163,8 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionShell Shell { get; }
 
     public IExtensionStorage Storage { get; }
+
+    public IExtensionStores Stores { get; }
 
     public IExtensionSettings Settings { get; }
 

@@ -123,20 +123,20 @@ public class Playback2DKeyRoutingTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.Push(1, 2);
             (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
-            Playback2DViewport viewport = Playback2DTimelineHarness.Viewport(view);
+            Scene2DHost surface = Playback2DTimelineHarness.SceneHost(view);
 
             vm.NotifyFollowSlotChanged(1);
             Playback2DTimelineHarness.Pump();
-            await Assert.That(viewport.FollowSlot).IsEqualTo(1);
-            await Assert.That(viewport.Mode).IsEqualTo(CameraMode.FollowPlayer);
+            await Assert.That(surface.FollowSlot).IsEqualTo(1);
+            await Assert.That(surface.Mode).IsEqualTo(CameraMode.FollowPlayer);
 
             view.Focus();
             window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
             Playback2DTimelineHarness.Pump();
 
             await Assert.That(vm.FollowedSlot).IsEqualTo(-1);
-            await Assert.That(viewport.FollowSlot).IsEqualTo(-1);
-            await Assert.That(viewport.Mode).IsEqualTo(CameraMode.Fit);
+            await Assert.That(surface.FollowSlot).IsEqualTo(-1);
+            await Assert.That(surface.Mode).IsEqualTo(CameraMode.Fit);
         });
     }
 

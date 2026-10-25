@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -190,8 +191,6 @@ public class ExportJobServiceTests
         service.Start(Request());
         await WaitUntil(() => !service.Status.IsIdle && !service.Status.IsRunning);
 
-        // WaitUntil is bounded and returns either way, so a timeout is stated here rather than read off
-        // whichever assertion below happens to notice it first.
         await Assert.That(service.Status.IsIdle).IsFalse()
             .Because("a status still idle after the wait means the job never published anything");
 
@@ -279,12 +278,35 @@ public class ExportJobServiceTests
         }
     }
 
-    private static async Task WaitUntil(Func<bool> condition)
+    /// <summary>
+    ///     Waits for a condition and throws when it never holds, rather than returning quietly and
+    ///     leaving whichever assertion follows to report a timeout as a wrong value.
+    ///     <para>
+    ///         A poll rather than an awaited <see cref="ExportJobService.StatusChanged" />, which is the
+    ///         conversion the other waits in this suite got. Measured here: the event fires ZERO times
+    ///         for a whole job. <c>SetStatus</c> raises inline only while
+    ///         <c>Dispatcher.UIThread.CheckAccess()</c> holds, and in a direct-execution suite the
+    ///         transitions run on pool threads, so it posts to a dispatcher nothing pumps. Awaiting the
+    ///         event here would hang to the backstop every time.
+    ///     </para>
+    /// </summary>
+    /// <param name="condition">The state to wait for; its source text names the timeout.</param>
+    /// <param name="expression">Supplied by the compiler.</param>
+    private static async Task WaitUntil(Func<bool> condition,
+        [CallerArgumentExpression(nameof(condition))] string? expression = null)
     {
-        for (int i = 0; i < 200 && !condition(); i++)
+        // 30 s, matching the backstop on the converted waits: a loaded machine does not finish in 5.
+        for (int i = 0; i < 1200; i++)
         {
+            if (condition())
+            {
+                return;
+            }
+
             await Task.Delay(25);
         }
+
+        throw new TimeoutException($"waited 30s for `{expression}` and it never held.");
     }
 
     /// <summary>Stands in for the whole render pipeline: it records, blocks or fails on demand.</summary>

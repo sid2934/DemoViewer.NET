@@ -9,6 +9,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using TimeoutException = System.TimeoutException;
 
@@ -155,7 +156,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Queue-path tier-2 (demo-processing-queue.md): RescanAsync submits tier-2 to the shared
+    ///     Queue-path tier-2: RescanAsync submits tier-2 to the shared
     ///     queue (returning before it drains), and the END-OF-BACKLOG Save persists the cache so a second
     ///     launch loads from cache WITHOUT re-parsing. Uses a fake queue parser so no real demo is needed.
     ///     <para>
@@ -964,11 +965,11 @@ public class DemoLibraryServiceTests
         await Assert.That(events.Count).IsEqualTo(1);
     }
 
-    // ── P1.1 chunk C: settings-backed folder path ─────────────────────────────────────────────────
+    // ── Settings-backed folder path ─────────────────────────────────────────────────
 
     /// <summary>
     ///     When constructed WITH a settings service, the configured folder list is the one in
-    ///     <c>AppSettings.Library.Folders</c>, not library.json, so the two P1.1 consumers stay in sync.
+    ///     <c>AppSettings.Library.Folders</c>, not library.json, so the two consumers stay in sync.
     /// </summary>
     [Test]
     public async Task SettingsBacked_ReadsFoldersFromAppSettings()
@@ -1141,12 +1142,12 @@ public class DemoLibraryServiceTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(seenByReader).IsEquivalentTo(previous)
+                await Assert.That(seenByReader).IsEquivalentTo(previous, CollectionOrdering.Matching)
                     .Because("the save replaces library.json; it never rewrites the open file in place");
                 await Assert.That(saved?.Folders).IsNotNull();
                 await Assert.That(saved!.Folders).Contains(folder);
                 await Assert.That(Directory.GetFiles(cfgDir).Order())
-                    .IsEquivalentTo(new[] { libJson, stray }.Order())
+                    .IsEquivalentTo(new[] { libJson, stray }.Order(), CollectionOrdering.Matching)
                     .Because("a save leaves no temporary file of its own");
             }
         }

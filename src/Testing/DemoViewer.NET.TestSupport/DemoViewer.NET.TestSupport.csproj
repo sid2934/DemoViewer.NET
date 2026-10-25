@@ -1,11 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
-    </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="TUnit"/>
@@ -14,6 +8,13 @@
     <ItemGroup>
         <!-- For the shared ParsedDemo fixture cache (DemoTestHelper.GetOrParse). -->
         <PackageReference Include="CS2DemoKit.Parser"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Embedded, not copied: under DEMO_CORPUS the demos/ directory belongs to another
+             checkout, so a manifest on disk there would drift from the code that reads it.
+             CorpusManifest.ResourceName pins this logical name. -->
+        <EmbeddedResource Include="corpus.manifest.json" LogicalName="DemoViewer.NET.TestSupport.corpus.manifest.json"/>
     </ItemGroup>
 
 </Project>

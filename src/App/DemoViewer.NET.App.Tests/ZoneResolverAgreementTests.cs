@@ -156,27 +156,21 @@ public class ZoneResolverAgreementTests
     // by the header's map name so the per-map cap applies before anything is parsed.
     private static string[] ResolveDemos()
     {
-        string? env = Environment.GetEnvironmentVariable("DEMO_PATH");
-        if (string.IsNullOrWhiteSpace(env))
+        string[] resolved = DemoTestHelper.DemoFolderFromEnvironment(out string? problem);
+        if (problem is not null)
         {
-            throw new SkipTestException("DEMO_PATH is not set; it names a .dem or a folder of them");
+            throw new SkipTestException(problem);
         }
 
-        if (File.Exists(env))
+        if (resolved.Length == 0)
         {
-            return [env];
+            throw new SkipTestException(
+                $"{DemoTestHelper.DemoPathEnvVar} is not set; it names a .dem or a folder of them");
         }
 
-        if (!Directory.Exists(env))
-        {
-            throw new SkipTestException($"DEMO_PATH does not exist: {env}");
-        }
-
-        string[] all = [.. new DirectoryInfo(env).EnumerateFiles("*.dem").OrderBy(f => f.Length).Select(f => f.FullName)];
-        if (all.Length == 0)
-        {
-            throw new SkipTestException($"DEMO_PATH folder holds no .dem: {env}");
-        }
+        // This test walks EVERY demo, so it must not fall back to the corpus: a corpus run would
+        // parse 7.5 GB. The resolver's list is re-ordered here, smallest first.
+        string[] all = [.. resolved.OrderBy(p => new FileInfo(p).Length)];
 
         int perMap = int.TryParse(Environment.GetEnvironmentVariable(PerMapEnvVar), NumberStyles.Integer,
             CultureInfo.InvariantCulture, out int cap) && cap > 0

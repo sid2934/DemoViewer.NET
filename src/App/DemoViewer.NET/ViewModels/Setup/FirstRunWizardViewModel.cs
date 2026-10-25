@@ -171,8 +171,11 @@ public sealed partial class FirstRunWizardViewModel : ViewModelBase
     private static string PackCopyFor(FeatureDescriptor pack) =>
         _packCopy.TryGetValue(pack.Id, out string? copy) ? copy : pack.Description;
 
+    // Through PlatformFeatureDefaults, not the map directly: the wizard lists FeatureScope.Pack rows and
+    // every platform rule today names a Tab id, so this cannot differ yet. It would be a second answer to
+    // the same question the day one does.
     private static bool DefaultEnabled(FeatureDescriptor pack, UserCategory category) =>
-        pack.Defaults.TryGetValue(category, out bool enabled) && enabled;
+        PlatformFeatureDefaults.DefaultFor(pack.Id, pack.Defaults, category);
 
     /// <summary>The auto-detected CS2 downloaded-demos folder, or null when none was found.</summary>
     public string? DetectedDemosFolder => _cs2Lookup.DemosDirectory;
@@ -509,7 +512,7 @@ public sealed partial class PackOptionViewModel : ObservableObject
         _reseeding = true;
         try
         {
-            Enabled = _defaults.TryGetValue(category, out bool byDefault) && byDefault;
+            Enabled = PlatformFeatureDefaults.DefaultFor(FeatureId, _defaults, category);
         }
         finally
         {

@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -84,7 +85,7 @@ public class ExtensionJobsTests
         {
             await Assert.That(result.Status).IsEqualTo(JobStatus.Completed);
             await Assert.That(handle.Status).IsEqualTo(JobStatus.Completed);
-            await Assert.That(told).IsEquivalentTo([JobStatus.Completed, JobStatus.Completed])
+            await Assert.That(told).IsEquivalentTo([JobStatus.Completed, JobStatus.Completed], CollectionOrdering.Matching)
                 .Because("a handler added after the end still hears it, on the post");
         }
     }
@@ -158,7 +159,7 @@ public class ExtensionJobsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(ran).IsEquivalentTo(["core", "two"]).Because("each owner's keyed job is its own");
+            await Assert.That(ran).IsEquivalentTo(["core", "two"], CollectionOrdering.Matching).Because("each owner's keyed job is its own");
             await Assert.That(one.Status).IsEqualTo(JobStatus.Cancelled);
             await Assert.That(two.Status).IsEqualTo(JobStatus.Completed);
         }
@@ -186,7 +187,7 @@ public class ExtensionJobsTests
             await Assert.That(result.Status).IsEqualTo(JobStatus.Completed);
             await Assert.That(seen).IsNotNull();
             await Assert.That(rig.FileParses).IsEqualTo(1);
-            await Assert.That(library.Ran).IsEquivalentTo(["library"]);
+            await Assert.That(library.Ran).IsEquivalentTo(["library"], CollectionOrdering.Matching);
         }
     }
 

@@ -22,8 +22,8 @@ layer contract, floors, places and the world-to-screen transform, over SkiaSharp
     <Version>1.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.1.*" />
-    <PackageReference Include="Avalonia" Version="12.1.2" />
+    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.2.*" />
+    <PackageReference Include="Avalonia" Version="12.1.4" />
   </ItemGroup>
 </Project>
 ```
@@ -77,6 +77,13 @@ The app creates the entry type with its public parameterless constructor. `Regis
 extension is on or off, so register factories and do no work there. Feature ids are persisted with the
 user's choices: never rename one. The master switch's id must start with `pack.`.
 
+`Commands`, `CommandScopes`, `JobKinds` and `Stores` are read the same way, without DI. `Stores` lists the
+folders and files you keep outside the folders the host gives you (see `Stores` under "The host"): each path's
+first segment must be your id, your id and `.json`, or start with your id and `-`, and "Delete extension
+data" removes them with the rest. The extensions the app ships are exempt from that naming rule and may name
+other paths; the folders the host keeps, and the demo cache's own records under the cache root, refuse every
+extension alike.
+
 ## What an extension can add
 
 | Call | Adds |
@@ -93,7 +100,7 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `Playback` | Lanes, panes, panels, toolbar items, mode toggles, map layers, map tools and key or action handlers in 2D Playback. |
 | `Library` | A Library filter, a per-demo badge, or both. |
 | `DemoAction` | A button on Match Overview for the open demo. |
-| `Store` / `DataRemoval` / `DataDeleted` | What "Delete extension data" removes beyond your own folders, a removal of your own, and a callback after the delete. |
+| `DataRemoval` / `DataDeleted` | A "Delete extension data" of your own, and a callback after the host's delete. |
 | `ReindexEstimate` | The count behind "N demos will be re-indexed" when the extension is switched back on. |
 
 Each contribution shows only while the extension's master switch is on, and while its own feature id is on
@@ -181,6 +188,12 @@ For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extens
   never see where the folder is. Write with `WriteAtomicAsync` and read with `ReadAsync`: the path must stay
   inside the folder, and a crash mid-write leaves the previous file instead of a torn one. The browser build
   has no folders.
+- `Stores`: the stores your entry type declares in `IExtension.Stores`, which is where data lives that a user
+  is meant to find, or that an older build left where the user has it. `Open(storeId)` hands a store that
+  declares one folder back as an `IExtensionFolder`: list, read, write whole, append, move and delete under
+  it by relative path, or take its `Path` for a process or the file manager. `OpenFile(storeId)` hands a
+  store that declares one file back as an `IExtensionFile`. The host resolves both from the descriptor, so
+  the same rule that bounds "Delete extension data" bounds what you can open. Null on the browser build.
 - `Notifications`: short messages to the user, drawn as a small stack above the status strip. See below.
 - `Keymap`: the app's one keymap, read only. `Bindings` is every default binding with its scope, and
   `ShellReserved` and `BrowserReserved` the gestures the shell and the browser take first; check a key your

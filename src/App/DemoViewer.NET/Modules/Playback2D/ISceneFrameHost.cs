@@ -116,4 +116,11 @@ public interface ISceneFrameHost
         add { }
         remove { }
     }
+
+    /// <summary>A contributed layer asked for a repaint off the playhead.</summary>
+    event Action? ContributedRenderRequested
+    {
+        add { }
+        remove { }
+    }
 }

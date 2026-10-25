@@ -10,13 +10,14 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>The step table's keys and tab order in the real view, and the inline marker it draws.</summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Integration")]
 public class StratStepKeysTests
 {
@@ -68,7 +69,7 @@ public class StratStepKeysTests
             Button add = row.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "+ player");
             add.Command!.Execute(add.CommandParameter);
             Dispatcher.UIThread.RunJobs();
-            await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Select(l => l.Slot)).IsEquivalentTo(["B", "C", "A"]);
+            await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Select(l => l.Slot)).IsEquivalentTo(["B", "C", "A"], CollectionOrdering.Matching);
             window.Close();
         });
 
@@ -101,7 +102,7 @@ public class StratStepKeysTests
             using (Assert.Multiple())
             {
                 await Assert.That(vm.Session.Document!.Steps.Count).IsEqualTo(steps).Because("Enter went to the suggestion list");
-                await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["BombsiteA"]);
+                await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["BombsiteA"], CollectionOrdering.Matching);
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
             }
 
@@ -148,7 +149,7 @@ public class StratStepKeysTests
             window.KeyPressQwerty(PhysicalKey.D, RawInputModifiers.Control);
             Dispatcher.UIThread.RunJobs();
             StratDocument document = vm.Session.Document!;
-            await Assert.That(document.Steps.Select(s => s.Actor)).IsEquivalentTo(["A", "B", "B"]);
+            await Assert.That(document.Steps.Select(s => s.Actor)).IsEquivalentTo(["A", "B", "B"], CollectionOrdering.Matching);
             await Assert.That(FocusedRow(window)?.Id).IsEqualTo(document.Steps[2].Id);
 
             // Inside a field, Delete edits the text.
@@ -173,7 +174,7 @@ public class StratStepKeysTests
             Dispatcher.UIThread.RunJobs();
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Session.Document!.Steps.Select(s => s.Actor)).IsEquivalentTo(["B", "B"]);
+                await Assert.That(vm.Session.Document!.Steps.Select(s => s.Actor)).IsEquivalentTo(["B", "B"], CollectionOrdering.Matching);
                 await Assert.That(window.FocusManager?.GetFocusedElement()).IsSameReferenceAs(RowContainer(view, 0));
             }
 
@@ -204,7 +205,17 @@ public class StratStepKeysTests
                 walked.Add(window.FocusManager!.GetFocusedElement()!);
             }
 
-            await Assert.That(walked).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            // Identity, not structure: TUnit 1.x deep-compares reference elements, and two TextBoxes then differ by
+            // their focus state.
+            using (Assert.Multiple())
+            {
+                await Assert.That(walked.Count).IsEqualTo(expected.Count);
+                for (int i = 0; i < expected.Count; i++)
+                {
+                    await Assert.That(walked[i]).IsSameReferenceAs(expected[i]).Because($"Tab stop {i}");
+                }
+            }
+
             window.Close();
         });
 

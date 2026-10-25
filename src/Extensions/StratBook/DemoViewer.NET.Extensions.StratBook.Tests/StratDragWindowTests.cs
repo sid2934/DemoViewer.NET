@@ -21,7 +21,7 @@ using DemoViewer.NET.Extensions.StratBook.Controls;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>The Strat Book tab in a window: a token dragged with the pointer changes the field its step row shows.</summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Render")]
 public class StratDragWindowTests
 {

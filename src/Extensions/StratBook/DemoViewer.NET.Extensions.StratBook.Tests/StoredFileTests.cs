@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -33,12 +34,40 @@ public class StoredFileTests
             byte[]? afterWrite = file.Read();
             using (Assert.Multiple())
             {
-                await Assert.That(first).IsEquivalentTo(legacy);
-                await Assert.That(copied).IsEquivalentTo(legacy).Because("the copy lands in the extension's own folder");
+                await Assert.That(first).IsEquivalentTo(legacy, CollectionOrdering.Matching);
+                await Assert.That(copied).IsEquivalentTo(legacy, CollectionOrdering.Matching).Because("the copy lands in the extension's own folder");
                 await Assert.That(Encoding.UTF8.GetString(afterWrite!)).IsEqualTo("{}")
                     .Because("once copied, the extension's file is the store, not the old one");
                 await Assert.That(legacyReads).IsEqualTo(1);
                 await Assert.That(file.Name).IsEqualTo("strat-mining.json");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task AFileInADeclaredStore_ReadsAndWritesThroughTheStoresFolder()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-stored-file-{Guid.NewGuid():N}");
+        try
+        {
+            StoredFile file = StoredFile.In(new ExtensionFile(Path.Combine(root, "teams.json")))!;
+
+            byte[]? before = file.Read();
+            file.Write(Encoding.UTF8.GetBytes("{}"));
+            using (Assert.Multiple())
+            {
+                await Assert.That(before).IsNull();
+                await Assert.That(await File.ReadAllTextAsync(Path.Combine(root, "teams.json"))).IsEqualTo("{}");
+                await Assert.That(Encoding.UTF8.GetString(file.Read()!)).IsEqualTo("{}");
+                await Assert.That(file.Name).IsEqualTo("teams.json");
+                await Assert.That(StoredFile.In(null)).IsNull().Because("no store (the browser) is a session-only file");
             }
         }
         finally

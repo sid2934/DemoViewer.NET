@@ -159,13 +159,8 @@ public class RoundIndexTableParityTests
 
     private static string BenchmarkDemo(int which)
     {
-        string? root = DemoTestHelper.FindRepoRoot();
-        string folder = root is not null && Directory.Exists(Path.Combine(root, "demos", "benchmarks"))
-            ? Path.Combine(root, "demos", "benchmarks")
-            : Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar) is { } env && Directory.Exists(env)
-                ? env
-                : throw new SkipTestException("no benchmark demos");
-        string[] demos = [.. Directory.EnumerateFiles(folder, "*.dem").Order(StringComparer.Ordinal)];
-        return which < demos.Length ? demos[which] : throw new SkipTestException($"fewer than {which + 1} benchmark demos");
+        return DemoTestHelper.TrySetDemo("benchmarks", which, out string? problem)
+               ?? DemoTestHelper.DemoPathFolderDemo(which)
+               ?? throw new SkipTestException($"no benchmark demos: {problem}");
     }
 }

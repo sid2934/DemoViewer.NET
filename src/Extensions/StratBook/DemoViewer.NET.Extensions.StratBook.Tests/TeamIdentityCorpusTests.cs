@@ -4,6 +4,7 @@ using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -132,15 +133,15 @@ public class TeamIdentityCorpusTests
             {
                 Roster persisted = teams.Find(team)!.Rosters.Single(r => r.Id == roster);
                 await Assert.That(persisted.HasCoreLineup).IsTrue();
-                await Assert.That(sides[1].Key).IsEquivalentTo(sides[0].Key).Because("the five is established at the second sighting");
-                await Assert.That(persisted.CoreLineup!).IsEquivalentTo(sides[0].Key);
+                await Assert.That(sides[1].Key).IsEquivalentTo(sides[0].Key, CollectionOrdering.Matching).Because("the five is established at the second sighting");
+                await Assert.That(persisted.CoreLineup!).IsEquivalentTo(sides[0].Key, CollectionOrdering.Matching);
                 await Assert.That(sides.Skip(1).All(s => s.Overlap == 5)).IsTrue();
                 await Assert.That(sides.Any(s => s.StandIn)).IsFalse();
                 await Assert.That(sides.Skip(2).All(s => s.Tier == 1)).IsTrue().Because("from the third side the fixed five is the anchor");
             }
 
             List<string> names = [.. teams.Teams.Select(t => t.Name).Order(StringComparer.OrdinalIgnoreCase)];
-            await Assert.That(names).IsEquivalentTo(["FURIA", "NaVi", "Team Vitality"]);
+            await Assert.That(names).IsEquivalentTo(["FURIA", "NaVi", "Team Vitality"], CollectionOrdering.Matching);
             await Assert.That(teams.Teams.All(t => t.NameSource == TeamNameSource.ClanTag)).IsTrue();
         }
     }

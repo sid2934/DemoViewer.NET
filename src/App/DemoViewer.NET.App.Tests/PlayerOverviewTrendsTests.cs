@@ -164,7 +164,7 @@ public class PlayerOverviewTrendsTests
         {
             await Assert.That(trends.IsVisible).IsTrue();
             await Assert.That(trends.HasForm).IsFalse();
-            await Assert.That(trends.Trends.Select(t => t.HasForm)).IsEquivalentTo([false, false, false]);
+            await Assert.That(trends.Trends.Select(t => t.HasForm)).IsEquivalentTo([false, false, false], CollectionOrdering.Matching);
             await Assert.That(Item(trends, "HLTV").ChangeText).IsEqualTo("");
         }
     }

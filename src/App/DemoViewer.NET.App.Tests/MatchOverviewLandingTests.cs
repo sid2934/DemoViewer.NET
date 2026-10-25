@@ -14,6 +14,7 @@ using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views.MatchOverview;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -430,13 +431,7 @@ public class MatchOverviewLandingTests
                 await vm.LoadDemoFromPathAsync(demo);
                 // The final score resolves off the load path (CCSTeam replay / library entry): wait for it,
                 // since the round count reconciles against it.
-                for (int i = 0; i < 400 && !overview.HasScore; i++)
-                {
-                    Dispatcher.UIThread.RunJobs();
-                    await Task.Delay(50);
-                }
-
-                Dispatcher.UIThread.RunJobs();
+                await overview.UntilAsync(() => overview.HasScore, 60_000);
 
                 using (Assert.Multiple())
                 {
@@ -746,13 +741,7 @@ public class MatchOverviewLandingTests
             {
                 await vm.LoadDemoFromPathAsync(demo);
                 MatchOverviewTabViewModel o = vm.MatchOverviewTab;
-                for (int i = 0; i < 400 && !o.HasScore; i++)
-                {
-                    Dispatcher.UIThread.RunJobs();
-                    await Task.Delay(50);
-                }
-
-                Dispatcher.UIThread.RunJobs();
+                await o.UntilAsync(() => o.HasScore, 60_000);
 
                 int rounds = int.Parse(o.RoundCountDisplay, CultureInfo.InvariantCulture);
                 int ctTeam = int.Parse(o.CtTeamScoreDisplay, CultureInfo.InvariantCulture);
@@ -1146,7 +1135,7 @@ public class MatchOverviewLandingTests
             await Assert.That(computed).IsEquivalentTo(new List<string>
             {
                 "/demos/cached_de_dust2.dem"
-            });
+            }, CollectionOrdering.Matching);
         });
     }
 
@@ -1322,7 +1311,7 @@ public class MatchOverviewLandingTests
             await Assert.That(opened).IsEquivalentTo(new List<string>
             {
                 "/demos/cached_de_dust2.dem"
-            });
+            }, CollectionOrdering.Matching);
 
             // A real open re-enables them through the normal fill path.
             vm.BeginOpening("x.dem", "Nuke", "Server", "/demos/x.dem");

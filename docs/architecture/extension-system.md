@@ -4,6 +4,22 @@ How the app finds, checks, trusts, updates and turns off an extension such as th
 authoring API is in [`src/Sdk/DemoViewer.NET.Extensions.Sdk/README.md`](../../src/Sdk/DemoViewer.NET.Extensions.Sdk/README.md);
 this page is the host side.
 
+The Strat Book is the reference extension. It ships with the app, but it is built on the surfaces a
+third-party extension gets: the SDK, its UI kit, the scene package and the module abstractions. It is the
+evidence that those surfaces are enough for a real extension. Where it still binds the app or the
+unpublished Playback2D assembly directly (video and clip export, pack export, the review queue, and the
+zones overlay folder through `FirstPartyHost`), `PackPlayback2DBindingTests` pins every such type with its
+reason, and each entry is a contract the SDK has yet to publish rather than one the Strat Book keeps. The
+target state is both of that test's allow-lists empty and the app `ProjectReference` gone from the pack's
+project.
+
+Two of the naming rules a third party is held to are keyed off an id under the reserved
+`net.demoviewer.` prefix, and a shipped extension is exempt from both. `PackContributions.StoreRefusal`
+requires a third party's store paths to start with its own id; a shipped extension may name other paths,
+still bounded by the folders the host keeps for itself and, under the cache root, by not reaching the demo
+cache's own records. `ExtensionScope.OwnsId` requires a third party's chip, hub, demo-action and toolbar
+ids to start with its id and a dot, and lets a shipped extension keep its own names.
+
 ## 1. Manifest and compatibility
 
 Everything here lives in the app under `DemoViewer.NET.Extensions` (`ExtensionHost.cs`) and
@@ -59,7 +75,8 @@ when written the same.
 
 **The host.** `ExtensionHost` exposes three values and `Current` as one `ExtensionHostInfo`:
 
-- `ContractVersion`, 1.0.0 today, a constant bumped by hand with the change that needs it. The contract is
+- `ContractVersion`, the extension SDK assembly's own release version, read off that assembly at startup
+  rather than written here, so it moves with `src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json`. The contract is
   the surface a pack's own assembly references or implements, not every type under
   `DemoViewer.NET.Extensions`: host-side types that no pack touches (`Loading`, `CompatibilityReport`)
   change freely. **Major** on a breaking change to a type a pack does reference or implement, including
@@ -401,8 +418,7 @@ verifies it. The public key in this repo today has key id
 `dfe4ae3ebb28794fb79a03562ad36eaf252ebe1753292574e752bad4bc1c4cc0`, generated 2026-10-03.
 
 **The signing tool**, `tools/extension-signing` (out of the `.slnx`, a CI and command-line utility rather than an
-app component, following the `NavPathSpike` convention of a comment saying so plus relaxed analyzer
-settings):
+app component, with a comment saying so and relaxed analyzer settings):
 
 ```
 extension-signing keygen --out <private.pem>              generates an ECDSA P-256 key pair; the
@@ -640,9 +656,10 @@ while ignoring `.staging`, and the Settings cases in `SettingsViewModelTests`.
 **`scripts/pack-extension.sh <id> [--key <private.pem>] [--dry-run] [--out <dir>]`.** Bash, runs the same
 way locally and in CI. In order:
 
-1. Reads the host values this build offers (`ContractVersion`'s literal from `ExtensionHost.cs`, the
-   `CS2DemoKit.Analysis` pin from `Directory.Packages.props`) from source rather than keeping its own
-   copy, and fails if either grep does not find exactly one match.
+1. Reads the host values this build offers rather than keeping its own copy: the contract version from
+   `nbgv get-version -p src/Sdk/DemoViewer.NET.Extensions.Sdk`, which is the same number
+   `ExtensionHost.ContractVersion` reads off that assembly at run time, and the `CS2DemoKit.Analysis` pin by
+   grepping `Directory.Packages.props`, which fails unless the grep finds exactly one match.
 2. Reads the manifest's own `version` and `assembly`; if `GITHUB_REF` is `refs/tags/extensions/<id>/v*`,
    the tag's version must equal the manifest's (pack-velopack.sh's own tag/version guard, same shape);
    otherwise the check is skipped, not failed, since a dispatch run or a local invocation names no tag.

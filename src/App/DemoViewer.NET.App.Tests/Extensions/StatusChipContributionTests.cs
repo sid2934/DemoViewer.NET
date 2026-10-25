@@ -12,6 +12,7 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -201,7 +202,7 @@ public class StatusChipContributionTests
                 // Each mount that builds a slot the strip refuses logs again, so one line means no slot was built.
                 using (Assert.Multiple())
                 {
-                    await Assert.That(logged).IsEquivalentTo(["Status chip 'test.chip' is already on the strip; the export chip is left out."]);
+                    await Assert.That(logged).IsEquivalentTo(["Status chip 'test.chip' is already on the strip; the export chip is left out."], CollectionOrdering.Matching);
                     await Assert.That(vm.Chips.Count).IsEqualTo(before);
                     await Assert.That(vm.Chips).Contains(chip.Chip).Because("the contributed chip keeps its id");
                 }

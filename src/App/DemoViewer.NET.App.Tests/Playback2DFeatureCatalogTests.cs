@@ -4,6 +4,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -42,7 +43,7 @@ public class Playback2DFeatureCatalogTests
     {
         FeatureDescriptor[] children = FeatureCatalog.Children("tab.playback2d").ToArray();
 
-        await Assert.That(children.Select(c => c.Id).ToArray()).IsEquivalentTo(Ids)
+        await Assert.That(children.Select(c => c.Id).ToArray()).IsEquivalentTo(Ids, CollectionOrdering.Matching)
             .Because("both the set and its order are pinned");
 
         foreach (FeatureDescriptor child in children)

@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
         <!-- The parallel digest producer fans out ~dozens of allocating decode workers. Workstation
              GC's stop-the-world Gen0 serializes them (every thread stalls on any thread's collection); Server
              GC's per-core heaps + background collection let them run concurrently. -->
@@ -31,6 +30,9 @@
         <Compile Include="../../src/App/DemoViewer.NET/Modules/Library/LibraryFinalStateReplay.cs" Link="Library/LibraryFinalStateReplay.cs"/>
         <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/DecodeSites.cs" Link="DecodeSites.cs"/>
         <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/ServerRankCapture.cs" Link="ServerRankCapture.cs"/>
+        <!-- Shared with the single-walk probe. TestSupport itself references TUnit, so the one
+             Compile Include is the whole dependency; the file uses nothing beyond the BCL. -->
+        <Compile Include="../../src/Testing/DemoViewer.NET.TestSupport/MemorySampler.cs" Link="MemorySampler.cs"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
     </ItemGroup>

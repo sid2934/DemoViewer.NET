@@ -5,6 +5,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -117,9 +118,9 @@ public sealed class DemoLibraryPruneTests : IDisposable
             using (Assert.Multiple())
             {
                 await Assert.That(before.Count).IsEqualTo(5);
-                await Assert.That(changes).IsEquivalentTo([System.Collections.Specialized.NotifyCollectionChangedAction.Reset]);
+                await Assert.That(changes).IsEquivalentTo([System.Collections.Specialized.NotifyCollectionChangedAction.Reset], CollectionOrdering.Matching);
                 await Assert.That(svc.Entries.Select(e => e.FilePath))
-                    .IsEquivalentTo(before.Where(p => p != files[1] && p != files[2] && p != files[4]));
+                    .IsEquivalentTo(before.Where(p => p != files[1] && p != files[2] && p != files[4]), CollectionOrdering.Matching);
             }
         }
         finally
@@ -176,7 +177,7 @@ public sealed class DemoLibraryPruneTests : IDisposable
             using (Assert.Multiple())
             {
                 await Assert.That(placements).IsEqualTo(2);
-                await Assert.That(svc.Entries.Select(e => Path.GetFileName(e.FilePath)).Order()).IsEquivalentTo(["d1.dem", "d4.dem"]);
+                await Assert.That(svc.Entries.Select(e => Path.GetFileName(e.FilePath)).Order()).IsEquivalentTo(["d1.dem", "d4.dem"], CollectionOrdering.Matching);
             }
         }
         finally
@@ -332,7 +333,7 @@ public sealed class DemoLibraryPruneTests : IDisposable
             await svc.RescanAsync();
             svc.Save();
 
-            await Assert.That(CachedPaths(dataPath)).HasCount(2)
+            await Assert.That(CachedPaths(dataPath)).Count().IsEqualTo(2)
                 .Because("every root was offline — pruning would wipe the entire cache");
 
             svc.Dispose();

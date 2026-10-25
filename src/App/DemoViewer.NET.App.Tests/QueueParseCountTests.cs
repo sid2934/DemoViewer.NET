@@ -7,6 +7,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -70,7 +71,7 @@ public class QueueParseCountTests
         using (Assert.Multiple())
         {
             await Assert.That(queue.ParseCount("/smb/match.dem")).IsEqualTo(2);
-            await Assert.That(queue.ParseCounts().Keys).IsEquivalentTo(["sha-m"]);
+            await Assert.That(queue.ParseCounts().Keys).IsEquivalentTo(["sha-m"], CollectionOrdering.Matching);
         }
     }
 

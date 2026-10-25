@@ -1,8 +1,10 @@
 #region
 
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -135,7 +137,7 @@ public class DossierEditingTests
         try
         {
             Guid team = Guid.NewGuid();
-            DossierNotesStore store = new(Path.Combine(root, DossierNotesStore.FileName));
+            DossierNotesStore store = new(StoredFile.At(Path.Combine(root, DossierNotesStore.FileName)));
             int changes = 0;
             store.Changed += () => changes++;
             store.SetStarred(team, "map|de_nuke", true);
@@ -149,13 +151,13 @@ public class DossierEditingTests
             await Assert.That(changes).IsEqualTo(5).Because("a repeat star and an edit equal to the generated text change nothing");
             await Assert.That(File.Exists(Path.Combine(root, DossierNotesStore.FileName))).IsTrue();
 
-            DossierTeamNotes reloaded = new DossierNotesStore(Path.Combine(root, DossierNotesStore.FileName)).For(team);
+            DossierTeamNotes reloaded = new DossierNotesStore(StoredFile.At(Path.Combine(root, DossierNotesStore.FileName))).For(team);
             using (Assert.Multiple())
             {
-                await Assert.That(reloaded.Starred).IsEquivalentTo(["map|de_nuke"]);
+                await Assert.That(reloaded.Starred).IsEquivalentTo(["map|de_nuke"], CollectionOrdering.Matching);
                 await Assert.That(reloaded.Edits["map|de_mirage"]).IsEqualTo("mirage is their comfort pick");
                 await Assert.That(reloaded.Edits.ContainsKey("map|de_inferno")).IsFalse();
-                await Assert.That(reloaded.Hidden).IsEquivalentTo(["heatmap|x"]);
+                await Assert.That(reloaded.Hidden).IsEquivalentTo(["heatmap|x"], CollectionOrdering.Matching);
                 await Assert.That(reloaded.Notes.Single().Text).IsEqualTo("watch the B apps smoke");
                 await Assert.That(DossierNotesStore.NoteKey(reloaded.Notes.Single().Id)).IsEqualTo(note);
                 await Assert.That(reloaded.Summary).IsEqualTo("Aggressive CT.");
@@ -164,7 +166,7 @@ public class DossierEditingTests
             // A file at a newer schema is refused and never overwritten.
             string path = Path.Combine(root, DossierNotesStore.FileName);
             await File.WriteAllTextAsync(path, "{\"schemaVersion\": 99, \"teams\": []}");
-            DossierNotesStore refused = new(Path.Combine(root, DossierNotesStore.FileName));
+            DossierNotesStore refused = new(StoredFile.At(Path.Combine(root, DossierNotesStore.FileName)));
             refused.SetSummary(team, "overwrite?");
             using (Assert.Multiple())
             {
@@ -241,8 +243,8 @@ public class DossierEditingTests
             await Assert.That(md).Contains("- de_nuke: their best map");
             await Assert.That(md).Contains("Slow defaults.");
             await Assert.That(md).DoesNotContain("full buy");
-            await Assert.That(doc.Findings.Single(f => f.Key.StartsWith("heatmap", StringComparison.Ordinal)).ImagePng).IsEquivalentTo(_png);
-            await Assert.That(editor.Findings.Select(f => f.Key)).IsEquivalentTo(["map|de_nuke"]);
+            await Assert.That(doc.Findings.Single(f => f.Key.StartsWith("heatmap", StringComparison.Ordinal)).ImagePng).IsEquivalentTo(_png, CollectionOrdering.Matching);
+            await Assert.That(editor.Findings.Select(f => f.Key)).IsEquivalentTo(["map|de_nuke"], CollectionOrdering.Matching);
         }
 
         // Reset puts the generated line back; "Show settled" lists the dismissed line with Restore.

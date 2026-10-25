@@ -10,6 +10,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -121,7 +122,7 @@ public class PackOffCompositionTests
         {
             DemoScheduler coordinator = provider.GetRequiredService<DemoScheduler>();
 
-            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts", "facts", "matchrank"])
+            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts", "facts", "matchrank"], CollectionOrdering.Matching)
                 .Because("the pack is off: its three evaluators are never in the fan-out");
 
             StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();

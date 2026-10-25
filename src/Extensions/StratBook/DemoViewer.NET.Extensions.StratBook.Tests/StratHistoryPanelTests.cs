@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -50,7 +51,7 @@ public class StratHistoryPanelTests
         using (Assert.Multiple())
         {
             await Assert.That(fixture.Panel.HasStrat).IsTrue();
-            await Assert.That(fixture.Panel.Entries.Select(e => e.Revision)).IsEquivalentTo([2, 1]);
+            await Assert.That(fixture.Panel.Entries.Select(e => e.Revision)).IsEquivalentTo([2, 1], CollectionOrdering.Matching);
             await Assert.That(fixture.Panel.Entries[0].Revision).IsEqualTo(2).Because("newest first");
             await Assert.That(fixture.Panel.Entries[0].Summary).IsEqualTo("C's throw moved from 1:22 to 1:16");
             await Assert.That(fixture.Panel.Entries[0].ShowChangeList).IsFalse().Because("one op needs no itemized list beside its summary");
@@ -76,7 +77,7 @@ public class StratHistoryPanelTests
         using (Assert.Multiple())
         {
             await Assert.That(latest.ShowChangeList).IsTrue();
-            await Assert.That(latest.Changes).IsEquivalentTo(["renamed to A exec, con peek", "tag added: default-break"]);
+            await Assert.That(latest.Changes).IsEquivalentTo(["renamed to A exec, con peek", "tag added: default-break"], CollectionOrdering.Matching);
             await Assert.That(latest.Summary).IsEqualTo(string.Join("; ", latest.Changes)).Because("no explicit summary was given");
         }
     }

@@ -7,6 +7,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -44,17 +45,9 @@ public class RoundIndexRosterRealDemoTests
         {
             await Assert.That(held.Count).IsGreaterThan(0).Because("every benchmark demo has disconnects");
             await Assert.That(read).IsNotNull();
-            await Assert.That(read!.OrderBy(kv => kv.Key)).IsEquivalentTo(held.OrderBy(kv => kv.Key));
+            await Assert.That(read!.OrderBy(kv => kv.Key)).IsEquivalentTo(held.OrderBy(kv => kv.Key), CollectionOrdering.Matching);
         }
     }
 
-    private static string BenchmarkDemo(int which)
-    {
-        string? root = DemoTestHelper.FindRepoRoot();
-        string folder = root is null ? "" : Path.Combine(root, "demos", "benchmarks");
-        List<string> demos = Directory.Exists(folder)
-            ? [.. Directory.EnumerateFiles(folder, "*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
-            : [];
-        return which < demos.Count ? demos[which] : throw new SkipTestException($"fewer than {which + 1} demos under demos/benchmarks");
-    }
+    private static string BenchmarkDemo(int which) => DemoTestHelper.RequireSetDemo("benchmarks", which);
 }

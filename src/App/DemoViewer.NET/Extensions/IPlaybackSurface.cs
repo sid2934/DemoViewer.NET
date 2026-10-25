@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 using DemoViewer.NET.Modules.Playback2D;
@@ -27,7 +28,7 @@ public interface IPlaybackSurface
 {
     /// <summary>
     ///     The mounted viewport's map levels, for a contribution that keys a world Z to a floor. Empty when
-    ///     no surface with levels is mounted (the legacy viewport, a headless test).
+    ///     no surface with levels is mounted (a headless test).
     /// </summary>
     IReadOnlyList<MapLevel> MapLevels { get; }
 
@@ -74,7 +75,7 @@ public interface IPlaybackSurface
     /// <param name="track">The track.</param>
     /// <param name="row">Which band row the track's bands draw in.</param>
     /// <param name="behaviour">What the lane does, or null for a display-only lane.</param>
-    ILaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);
+    IHostLaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, IHostLaneBehaviour? behaviour = null);
 
     /// <summary>
     ///     A mode of the tab the contribution owns: the toolbar shows its toggle while it is available, and
@@ -106,6 +107,9 @@ public interface IPlaybackSurface
     /// <param name="layer">Builds the layer.</param>
     /// <returns>Removes the layer.</returns>
     IDisposable AddLayer(string layerId, Func<ISceneLayer> layer);
+
+    /// <summary>Repaints the map once, for a contributed layer whose own data changed off the playhead.</summary>
+    void RequestRender();
 
     /// <summary>
     ///     A pointer tool offered every primary press not diverted to pan, after the pointer pre-handlers and

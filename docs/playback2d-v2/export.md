@@ -4,7 +4,7 @@ Turns a stretch of a demo into a video file: the same scene the 2D tab draws, re
 timestep through the same layer stack, encoded to WebM, MP4 or GIF.
 
 It is available in the app (2D Playback → Export) and headlessly through
-[`dv2d export`](../dv2d.md). Both go through the same `SceneExportSession`, so a request the dialog
+[`dv2d export`](dv2d.md). Both go through the same `SceneExportSession`, so a request the dialog
 accepts is a request the CLI accepts, and neither can produce a file the other would refuse.
 
 **That is a statement about the validator, not about the picture.** The two front ends agree on what a
@@ -119,8 +119,8 @@ Levers if an export is slower than you want, in order:
 ## ffmpeg
 
 DemoViewer **ships no ffmpeg** and links no ffmpeg code: it starts ffmpeg as a separate program and
-pipes raw frames to it. See [`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md) §e for why that
-distinction matters.
+pipes raw frames to it. See the ffmpeg section of
+[`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md) for why that distinction matters.
 
 The ladder, in order:
 
@@ -192,9 +192,9 @@ status-strip chip (the same shape the highlight-reel job uses) whose flyout carr
 | Radar, trails, area effects, markers, bomb, floor labels (`playback2d.*`) | on | on | The scene |
 | Score + clock (`hud.clock`) | on | off (`--hud`) | Opt-in by name: an export never burns in a scoreboard by accident |
 | Kill feed (`hud.killfeed`) | on | off (`--hud`) | See the parity note below |
-| Player cards (`hud.roster`) | on | off (`--hud`) | D3b's cards down both edges |
-| Annotations (`playback2d.annotations`) | on | off (`--annotations`) | B2's ink. On the CLI this is the demo's own `.dvann.json` sidecar; with no sidecar the layer is not named at all |
-| Vision cones (`playback2d.vision`) | **off** | **off**, and naming it does nothing here | The frame's biggest per-frame cost. In the app the layer reads a live `IVisionSolver` over the map's visibility engine. **`dv2d export` builds no engine**, and its frames come off `SceneFrameBuilder`, which fills no pre-solved geometry either, so `--layers …,playback2d.vision` on an export registers a layer with nothing to draw. `dv2d render`/`golden`/`bench` *do* draw it, because a scene fixture carries the solved cones (D6 round 3). Closing the export half means constructing a `VisibilityEngine` for the demo's map in `ExportCommand`; nobody has needed it. |
+| Player cards (`hud.roster`) | on | off (`--hud`) | The roster cards down both edges |
+| Annotations (`playback2d.annotations`) | on | off (`--annotations`) | The annotation ink. On the CLI this is the demo's own `.dvann.json` sidecar; with no sidecar the layer is not named at all |
+| Vision cones (`playback2d.vision`) | **off** | **off**, and naming it does nothing here | The frame's biggest per-frame cost. In the app the layer reads a live `IVisionSolver` over the map's visibility engine. **`dv2d export` builds no engine**, and its frames come off `SceneFrameBuilder`, which fills no pre-solved geometry either, so `--layers …,playback2d.vision` on an export registers a layer with nothing to draw. `dv2d render`/`golden`/`bench` *do* draw it, because a scene fixture carries the solved cones. Closing the export half means constructing a `VisibilityEngine` for the demo's map in `ExportCommand`; nobody has needed it. |
 
 **Palette.** The app exports in the theme you are looking at. `dv2d` defaults to dark and takes
 `--palette dark|light`.

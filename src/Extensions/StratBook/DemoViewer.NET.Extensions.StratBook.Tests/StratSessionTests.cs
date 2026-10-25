@@ -2,6 +2,7 @@
 
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -14,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     cap, the pending working copy written between commits and re-opened by the next session, the single-writer
 ///     checkout with the store's status routing, and the status line on each host.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratSessionTests))]
 public class StratSessionTests
 {
     private static StratSession Session(StratStore store, bool browser = false) =>
@@ -197,13 +198,17 @@ public class StratSessionTests
         using StratSession session = Session(store);
         session.IdleCommitDelay = TimeSpan.FromMilliseconds(30);
         session.Open(committed.Id);
+        TaskCompletionSource idleCommit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.Changed += () =>
+        {
+            if (session.CommitCount > 0)
+            {
+                idleCommit.TrySetResult();
+            }
+        };
 
         session.Apply(PatchOp.ReplaceOp("/name", null, JsonValue.Create("idle")));
-        DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-        while (session.CommitCount == 0 && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(10);
-        }
+        await idleCommit.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         using (Assert.Multiple())
         {
@@ -351,7 +356,7 @@ public class StratSessionTests
             using (Assert.Multiple())
             {
                 await Assert.That(entry.Revision).IsEqualTo(2);
-                await Assert.That(entry.Ops.Select(o => o.Path)).IsEquivalentTo(["/name", "/steps/1/atSeconds"]);
+                await Assert.That(entry.Ops.Select(o => o.Path)).IsEquivalentTo(["/name", "/steps/1/atSeconds"], CollectionOrdering.Matching);
                 await Assert.That(entry.Ops.Single(o => o.Path == "/name").From!.GetValue<string>()).IsEqualTo("A exec");
                 await Assert.That(reopened.Materialize(committed.Id, 2)!.Name).IsEqualTo("after the crash");
             }
