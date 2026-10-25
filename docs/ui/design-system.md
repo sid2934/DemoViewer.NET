@@ -14,47 +14,48 @@ This doc
 
 When you touch one of those files, replace the dangling citation with a link to this doc.
 
-**Theming model (L0b structure + L1 real Light palette, 2026-07-16).** The palette is **theme-variant
+**Theming model (structure + real Light palette, 2026-07-16).** The palette is **theme-variant
 aware**. `Styles/DarkPalette.axaml` holds the 98 colour tokens inside `ResourceDictionary.ThemeDictionaries`
-keyed by `ThemeVariant`: a `Dark` dictionary (the canonical dev-tool values) and, **as of L1, a real
+keyed by `ThemeVariant`: a `Dark` dictionary (the canonical dev-tool values) and **a real
 designed `Light` dictionary** (54 tokens re-authored for light; 44 held identical to Dark on purpose, see
-[Light palette design (L1)](#light-palette-design-l1)). Every one of the 98 palette keys is referenced from
+[Light palette design](#light-palette-design)). Every one of the 98 palette keys is referenced from
 markup via **`{DynamicResource TokenName}`** (migrated from `{StaticResource}`), so a change to a window's /
 the app's `RequestedThemeVariant` **re-resolves each token live**. `{StaticResource}` resolves once at load
 and never reacts. Non-palette resources (the `BarRowTemplate`/`KvRowTemplate`/`StatsRowTemplate` DataTemplates,
 converters) deliberately stay `{StaticResource}`. **Update (2026-07-16): the live theme selector
 shipped.** The central theme system (a Settings theme picker + `ThemeRegistry`, built-in Dark / Light /
 High Contrast / E-Girl, plus user JSON drop-ins) is on main; the token-authoring reference is
-[`theme-token-catalog.md`](./theme-token-catalog.md). The L0b/L1 phase notes below are the historical
+[`theme-token-catalog.md`](./theme-token-catalog.md). The phase notes below are the historical
 build order.
 - **Dark-pixel-identical gate (PASSED).** All 9 headless capture variants (`primitives`, `chrome`,
   `tables`, `swatches`, `navstrip-real`, `library-populated`, `settings`, `workbench`, `framelist`)
   render **byte-identical (`cmp -s`)** at `--theme Dark` before → after the migration. The restructure +
   `DynamicResource` conversion changed **nothing** about how Dark looks. 51 App.Tests render at the app's
   `Default` variant and stay green (the palette resolves through `ThemeDictionaries` at `Default`).
-- **Light is a no-op for the palette, NOT for Fluent's base controls (important for L0c/L1).** Because the
+- **Light is a no-op for the palette, NOT for Fluent's base controls.** Because the
   Light dict equals Dark this phase, palette-painted surfaces are identical across variants. But the
   **`FluentTheme` is independently variant-aware**: its own un-classed base controls (a raw `Button`,
   `TabItem` foreground, `ComboBox`/`TextBox`/`CheckBox`/`ScrollBar` chrome) flip to Fluent's **light**
   rendering when the variant is Light, so `--theme Light` is **not** a full visual no-op (8/9 variants
   differ from Dark; only `framelist`, which has no un-classed Fluent controls, is identical). Observed:
   in this headless env `ThemeVariant.Default` resolves to **Light**, so the app's un-classed Fluent chrome
-  already follows the variant today (a pre-existing condition, unchanged by L0b). **Consequence for L0c:**
-  the plan's "Light stub = pure visual no-op" holds for the palette but not for Fluent chrome. Selecting
-  Light today yields a half-light look until L1 authors the real light palette (and decides whether
-  un-classed Fluent controls should be dark-pinned or embraced as light).
+  already follows the variant today (a pre-existing condition, unchanged by the restructure).
+  **Consequence for wiring the variant up:** the plan's "Light stub = pure visual no-op" holds for the
+  palette but not for Fluent chrome. Selecting
+  Light today yields a half-light look until the real light palette lands, which also decides whether
+  un-classed Fluent controls should be dark-pinned or embraced as light.
 - **What the gate proves.** The load-bearing completeness proof is the **grep** (zero `{StaticResource
   paletteKey}` remain; all 570 palette refs are Dynamic; the 3 non-palette DataTemplate keys stay Static).
   The **Dark `cmp -s`** proves no value regression. `Light == Dark` was **not** used as proof of the
-  dynamic path (L0a already proved that with a garish stub); the FluentTheme divergence above is why an
+  dynamic path (an earlier garish stub already proved that); the FluentTheme divergence above is why an
   identical-stub `Light` still differs from `Dark`.
 
 _Superseded finding: "the app is dark-only in practice … theme-awareness is aspirational, not
-live." As of L0b the token layer is live-capable; **L0c** wires `AppSettings.Theme` →
-`Application.RequestedThemeVariant`, and **L1 (below) ships the real Light palette**._
+live." The token layer is live-capable, the theme wiring from `AppSettings.Theme` →
+`Application.RequestedThemeVariant` landed, and **the real Light palette shipped** (below)._
 
-<a id="light-palette-design-l1"></a>
-### Light palette design (L1, 2026-07-16)
+<a id="light-palette-design"></a>
+### Light palette design (2026-07-16)
 The `ThemeDictionaries[Light]` block is a **genuinely-designed** comfortable light variant, **NOT** a naive
 inversion. Only the `[Light]` dict was edited (`[Dark]` is untouched and renders **byte-identical**, 9/9
 `cmp -s`). **54 tokens re-authored, 44 held identical to Dark.** Design rules:
@@ -94,31 +95,32 @@ inversion. Only the `[Light]` dict was edited (`[Dark]` is untouched and renders
    `DeltaRowBg` (unused in live markup) is an amber tint that reads as a warm wash on both.
    > Verified in-render: `library-populated` at Light shows the white-on-thumbnail overlays + CT/T score
    > badges **fully legible** over the dark radar images, the theme-independent call is correct.
-   > **Flagged (unsure):** the hex swatches over now-**dark** hex-cell text aren't in the L1 capture set
-   > (`BinaryPane` isn't a variant); verify that pairing in-app at L2/L3.
-2. **L1-DEFERRED: the 29 `Pb2d*` 2D-HUD tokens.** *Not* theme-independent (a `Pb2d*`-lit tab could go
+   > **Flagged (unsure):** the hex swatches over now-**dark** hex-cell text aren't in the capture set
+   > (`BinaryPane` isn't a variant); verify that pairing in-app later.
+2. **DEFERRED: the 29 `Pb2d*` 2D-HUD tokens.** *Not* theme-independent (a `Pb2d*`-lit tab could go
    light) but deliberately kept dark: the 2D Playback tab wraps a still-dark **Skia** viewport
    (code-held, in the pre-v2 renderer). Lightening only the `Pb2d*` markup chrome now would make the tab a
-   light HUD around a dark map canvas (an incoherent half-tab). Kept a **coherent dark island** and re-themed
-   **together with the Skia viewport in L2**.
-3. **Code-held, not palette (out of L1 by definition).** The message-type accent classifiers
+   light HUD around a dark map canvas (an incoherent half-tab). Kept a **coherent dark island**, to be
+   re-themed **together with the Skia viewport**.
+3. **Code-held, not palette (out of the palette pass by definition).** The message-type accent classifiers
    (`HarvestCardViewModel.HeaderBg`/`SelectedHeaderBg`/`AccentBrush`), the RuleWorkbench syntax highlighting
    (`WorkbenchYamlHighlighting`), the 2D Skia colors, and the **depth ramp + 0xC0-alpha depth brushes**
-   (`MainViewModel.DepthBrushes` / `DepthHighlightConverter`, code-owned, **not** palette keys) stay dark in
-   L1. That is L2. **Known L1 rough edge:** the InspectorCard message-card **header** uses the code-held-dark
-   `HeaderBg`, so under Light its title (`TextCardHeader`, now dark) is **dark-on-dark / low-contrast** until
-   L2 makes `HeaderBg` theme-aware. `TextCardHeader` **must** stay dark (it also paints the light
-   `PlayerDetailsView` hero-tile values), so this is unfixable in the palette. It *is* the L2 "VM accent
-   classifiers (HarvestCard)" task. The `tables` Dark-vs-Light comparison render shows this exactly.
+   (`MainViewModel.DepthBrushes` / `DepthHighlightConverter`, code-owned, **not** palette keys) stayed dark
+   through it; re-theming them is separate work. **Known rough edge:** the InspectorCard message-card
+   **header** uses the code-held-dark `HeaderBg`, so under Light its title (`TextCardHeader`, now dark)
+   is **dark-on-dark / low-contrast** until
+   `HeaderBg` becomes theme-aware. `TextCardHeader` **must** stay dark (it also paints the light
+   `PlayerDetailsView` hero-tile values), so this is unfixable in the palette. It is covered by the
+   HarvestCard VM accent-classifier work. The `tables` Dark-vs-Light comparison render shows this exactly.
 
 **Rendered for sign-off:** all 9 variants at `--theme Light` (read + iterated) + 6 labeled Dark-vs-Light
 comparison PNGs (`primitives`, `chrome`, `tables`, `settings`, `library-populated`, `workbench`) under
 `%TEMP%/demoviewer-uitests/`-style paths. **Gate:** full `slnx -c Release` clean (analyzers-as-errors; WASM
 head compiles); render App.Tests **94/94** green at Default→Light (all keys resolve, no magenta). NOTE: those
 render assertions are floor-based (`nonBg > N`) so they pass under either variant but no longer validate the
-canonical Dark look. L3 should pin the render harness to `ThemeVariant.Dark`.
+canonical Dark look. The render harness should be pinned to `ThemeVariant.Dark`.
 
-**Capture-infra note (L1):** `UiCapture/CaptureHost` now sets `Application.Current.RequestedThemeVariant`
+**Capture-infra note:** `UiCapture/CaptureHost` now sets `Application.Current.RequestedThemeVariant`
 (not just the window) before building a variant, so code-built mock variants whose helpers resolve via
 `Application.Current.ActualThemeVariant` (`Tok()`/`WrapInShell` in `Variants.cs`) honor `--theme` too.
 Without it, `--theme Dark` on those 4 mocks (`primitives`/`chrome`/`tables`/`swatches`) pulled the
@@ -135,7 +137,7 @@ fallback.
 Loaded by `App.axaml` **after** `FluentTheme` (so these are additive layers, never template replacements):
 | File | Holds | Selector kinds |
 |---|---|---|
-| `Styles/DarkPalette.axaml` | Color tokens, keyed by `ThemeVariant` in `ResourceDictionary.ThemeDictionaries` (`Dark` canonical + a real designed `Light`, L1, see [Light palette design](#light-palette-design-l1)), merged into `App.Resources`. | `SolidColorBrush` keys (+ one `LinearGradientBrush`, `LibraryCardScrim`) in each variant dict |
+| `Styles/DarkPalette.axaml` | Color tokens, keyed by `ThemeVariant` in `ResourceDictionary.ThemeDictionaries` (`Dark` canonical + a real designed `Light`, see [Light palette design](#light-palette-design)), merged into `App.Resources`. | `SolidColorBrush` keys (+ one `LinearGradientBrush`, `LibraryCardScrim`) in each variant dict |
 | `Styles/Primitives.axaml` | Interactive-control classes: Button/ToggleButton/TabItem/TextBox/ComboBox. | `.primary` `.ghost` `.chip` `.nav-btn` `.bp-btn` `.icon-btn` `.ctx-action` `.shell-tab` `.mono` `.field` |
 | `Styles/Cards.axaml` | Reusable card/flyout **surfaces**. | `Border.card` `Border.card-flyout` |
 | `Styles/Tables.axaml` | List/tabular primitives. | `ListBox.data-list` `ListBox.card-grid` `TextBlock.col-label` |
@@ -157,8 +159,8 @@ currently stay green precisely because nothing leaks onto un-classed controls.
 Single source of truth for color. **Never inline hex in a view**: bind `{DynamicResource TokenName}`
 (Dynamic, not Static, so the token tracks the `ThemeVariant`; see the Theming model above). The Dark
 palette is a cool blue-purple dark ramp (shell near-black `#080816` → text near-white `#C0C0F0`); the
-`Light` variant (L1) is a real designed light palette: cool-neutral surfaces + a value-flipped text ramp,
-44 tokens held identical to Dark (see [Light palette design](#light-palette-design-l1)).
+`Light` variant is a real designed light palette: cool-neutral surfaces + a value-flipped text ramp,
+44 tokens held identical to Dark (see [Light palette design](#light-palette-design)).
 
 ### Naming policy
 (Supersedes the "UI v2 review §6" note in `DarkPalette.axaml`.)
@@ -294,8 +296,9 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 > (`BuildPalette` + `ActualThemeVariantChanged`; the remaining hex are fallbacks) and a follow-up deleted
 > `PlayerAttributes.TeamColor`. The correction block below covers the theme-reactivity half.
 
-> **Correction (CSVG Phase-3, 2026-07-18): the `Pb2d*` palette is now fully THEME-REACTIVE: L2 has
-> shipped; the "kept dark in every theme" / `{StaticResource}` phrasing above is stale.** The `[Light]`
+> **Correction (CSVG Phase-3, 2026-07-18): the `Pb2d*` palette is now fully THEME-REACTIVE: the
+> deferred 2D re-theme has shipped; the "kept dark in every theme" / `{StaticResource}` phrasing above
+> is stale.** The `[Light]`
 > `ThemeDictionaries` block re-authors the 2D tokens (`Pb2dOverlayBg #CC15181C→#E6EDEFF3`, `Pb2dTextBright
 > #C0C8D0→#363D47`, `Pb2dPositive #86C786→#2A7530`, `Pb2dCanvasBg #15181C→#E7E9ED`, …) and the Skia
 > surface re-resolves them on `ActualThemeVariantChanged` (`Scene2DHost` via `ScenePaletteFactory.Build`). So the 2D
@@ -3100,7 +3103,7 @@ history.
   at runtime (a property/`FindResource` path, NOT static-init), deferred as out-of-scope +
   init-order-risky. Same for viewport-bg/grid/label shared values.~~
   **Done, and had been for weeks when this was re-audited (v0.6.0):** the renderer half landed with
-  the theme-system T1a work (`BuildPalette` resolves `Pb2dTeamT`/`Pb2dTeamCt` et al. via `ThemeColors.Get`,
+  the theme-system work (`BuildPalette` resolves `Pb2dTeamT`/`Pb2dTeamCt` et al. via `ThemeColors.Get`,
   refreshed on `ActualThemeVariantChanged`; `TeamTBrush`/`TeamCtBrush` are now instance reads of the
   resolved bundle, no static-init anywhere), and the VM half followed (`PlayerAttributes.TeamColor`
   deleted: the roster chip is class-driven onto `{DynamicResource Pb2dTeamT/Ct}`). The init-order risk
