@@ -162,7 +162,7 @@ Worth stating precisely, because "the browser uses the CPU provider" is nearly r
 
 - **On screen**, `Scene2DHost` draws through Avalonia's `ISkiaSharpApiLeaseFeature`, using *Avalonia's*
   `SKCanvas`, into whichever canvas render mode the browser gave Avalonia. The `WriteableBitmap`
-  fallback is the second path, and it deliberately does **not** use `CpuSurfaceProvider` (registry §3.7).
+  fallback is the second path, and it deliberately does **not** use `CpuSurfaceProvider`.
 - **Offscreen** (goldens, benchmarks, export): `CpuSurfaceProvider` is the only path that exists on this
   head, which is what the factory's browser short-circuit guarantees. An early spike proved a raster
   `SKSurface` works under the WASM runtime; the browser run proved the app path around it.

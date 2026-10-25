@@ -133,7 +133,7 @@ Ellipse, Text) from Shape Tools. They are the only goldens anywhere that cover b
 
 Note on tolerance. Entries default to `GoldenTolerance.DefaultPerceptual`: CPU rasterisation of
 anti-aliased edges can differ by a least-significant bit between SIMD paths, and headless Skia text
-metrics differ across operating systems (design risk 1: text differences are reviewed, not
+metrics differ across operating systems (text differences are reviewed, not
 auto-failed). An entry can opt into `"tolerance": "byte-exact"` in the manifest once an embedded
 typeface makes that safe.
 
