@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <!-- Its own namespace, so a type of the app it still uses needs a using and shows up as one. The
-             assembly name is what the heads reference and the ViewLocator searches. -->
+        <!-- The assembly name is what the heads reference and the ViewLocator searches. -->
         <RootNamespace>DemoViewer.NET.Extensions.StratBook</RootNamespace>
         <AssemblyName>DemoViewer.NET.Extensions.StratBook</AssemblyName>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
@@ -41,6 +40,9 @@
              only run in a project that references the package itself. -->
         <PackageReference Include="Avalonia"/>
         <PackageReference Include="CommunityToolkit.Mvvm"/>
+        <!-- The SDK carries CS2DemoKit.Parser and not Analysis, so the pack's evaluators, rulesets, clip
+             models and diagnostics need this one named here. -->
+        <PackageReference Include="CS2DemoKit.Analysis"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
         <PackageReference Include="Microsoft.Extensions.Logging"/>
         <PackageReference Include="Microsoft.Extensions.Options"/>
@@ -55,15 +57,12 @@
 
     <ItemGroup>
         <!-- The SDK and its UI kit, with the scene package through the SDK, are the packages a third party
-             takes; the projects stand in for them, as for the sample. Everything Playback2D the extension
-             draws with comes from those, and so are the review queue and its pack export. What is left of
-             the app reference is the playback host the strat canvas mounts and the zones overlay folder; it
-             grants the extension no internals, and PackPlayback2DBindingTests pins what it may still bind,
-             which in the unpublished Playback2D assembly is now nothing. The app never references the
-             extension; the heads reference both and hand the pack list to FeaturePacks. -->
+             takes; the projects stand in for them, as for the sample. Nothing of the app or of
+             Playback2D.Pipeline belongs here. PackPlayback2DBindingTests cannot stand in for that rule: it
+             reads type references, and a const emits none, so this file is the only guard. The app never
+             references the extension; the heads reference both and hand the pack list to FeaturePacks. -->
         <ProjectReference Include="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
         <ProjectReference Include="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
-        <ProjectReference Include="..\..\..\App\DemoViewer.NET\DemoViewer.NET.csproj"/>
     </ItemGroup>
 
     <!-- Same rule as the app csproj: the Avalonia XAML rewrite re-embeds the .pdb path after Roslyn, which
