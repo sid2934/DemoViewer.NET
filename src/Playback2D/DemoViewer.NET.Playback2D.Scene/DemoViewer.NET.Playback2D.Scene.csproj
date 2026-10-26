@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      The scene contract of the 2D map: the frame, the layer interface and compositor, floors and panes,
-      places, the viewport transform, cameras and the palette, plus the annotation, timeline, tool and HUD
-      contracts, the query and overlay layers an extension draws with, the zone loaders and the demo
-      content key. SkiaSharp and the BCL only, enforced by ArchitectureTests, which also pins its public types
+      The scene contract of the 2D map: the frame, the frames an export caller supplies, the layer
+      interface, floors and panes, places, the viewport transform, cameras and the palette, plus the
+      annotation, timeline, tool and HUD contracts, the query and overlay layers an extension draws with,
+      the zone loaders and the demo content key. The stack that draws a layer is the host's, and internal. SkiaSharp and the BCL only, enforced by ArchitectureTests, which also pins its public types
       to an allow-list.
       Every type sits under DemoViewer.NET.Playback2D; the app's own layers, the drawing tools, export
       and the rendering backends stay under DemoViewer.NET.Playback2D.Pipeline, which is not published.
@@ -16,7 +16,7 @@
         <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
         <IsPackable>true</IsPackable>
         <PackageId>DemoViewer.NET.Playback2D.Scene</PackageId>
-        <Description>The 2D map scene of DemoViewer.NET: the frame, the layer contract and compositor, floors and panes, place lookup, the viewport transform and the palette. SkiaSharp only.</Description>
+        <Description>The 2D map scene of DemoViewer.NET: the frame, the layer contract, floors and panes, place lookup, the viewport transform and the palette. SkiaSharp only.</Description>
         <PackageTags>demoviewer;cs2;counter-strike;demo;extension;sdk;skiasharp;map</PackageTags>
         <!-- Every public member is documented: this package is read by people who cannot see the app. -->
         <NoWarn>$(NoWarn.Replace('CS1591', ''))</NoWarn>
