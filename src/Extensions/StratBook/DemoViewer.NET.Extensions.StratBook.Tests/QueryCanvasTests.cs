@@ -344,8 +344,7 @@ public class QueryCanvasTests
             Indexed(Cache, Sidecars, Demo, document);
             Index.Load();
 
-            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache.Library(), _ => null,
-                dispose => dispose());
+            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache.Library(), _ => null);
             Tool = Vm.Tool;
 
             MapSpaceFactory levels = new();

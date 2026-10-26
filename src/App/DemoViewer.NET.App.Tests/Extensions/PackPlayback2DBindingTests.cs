@@ -59,8 +59,6 @@ public class PackPlayback2DBindingTests
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Rendering.CpuSurfaceProvider", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Rendering.IRenderSurfaceProvider", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Rendering.RenderSurfaceProviderFactory", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Assets.LoadedMapAsset", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Assets.MapAssetPipeline", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.SceneExportSession", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.EncoderProbeCache", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.EncoderSelection", Export),

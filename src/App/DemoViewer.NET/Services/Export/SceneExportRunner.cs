@@ -5,7 +5,6 @@ using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Hud;
 using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
@@ -142,7 +141,7 @@ public sealed class SceneExportRunner : IExportRunner
             Palette = setup.Palette,
             DisplayMode = setup.DisplayMode,
             AuthoritativeFloors = setup.MapAssets?.Floors,
-            RadarBinder = setup.MapAssets is null ? null : new MapRadarBinder(setup.MapAssets)
+            RadarBinder = setup.MapAssets?.CreateRadarBinder()
         };
 
         await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
@@ -161,7 +160,7 @@ public sealed class SceneExportRunner : IExportRunner
             setup.TickRate)
         {
             MapName = setup.MapName,
-            Radars = setup.MapAssets is null ? null : MapAssetPipeline.DescribeRadars(setup.MapAssets)
+            Radars = setup.MapAssets?.DescribeRadars()
         };
 
         return source;

@@ -16,7 +16,6 @@ using DemoViewer.NET.Playback2D.Pipeline.Input;
 using DemoViewer.NET.Playback2D.Pipeline.Layers;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Tools;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using SkiaSharp;
 
 #endregion
@@ -48,7 +47,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     private readonly Dictionary<string, Func<ISceneLayer>> _layers = new(StringComparer.Ordinal);
     private MapToolAdapter? _primary;
     private string? _mapName;
-    private LoadedMapAsset? _lease;
+    private MapBundleLease? _lease;
     private bool _attached;
 
     private readonly SceneRenderGate _gate = new();
@@ -58,7 +57,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     private readonly Lock _submissionLock = new();
     private readonly HostToolServices _toolServices;
 
-    private LoadedMapAsset? _boundAsset;
+    private MapBundleLease? _boundAsset;
     private string _boundMap = "";
     private SceneCompositor _compositor;
     private WriteableBitmap? _fallbackBitmap;
@@ -554,14 +553,10 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
             return;
         }
 
-        LoadedMapAsset? previous = _lease;
-        string previousMap = _boundMap;
+        MapBundleLease? previous = _lease;
         _lease = map.Length == 0 ? null : MapBundleLeases.Acquire(map);
         BindMap(map, _lease);
-        if (previous is not null)
-        {
-            MapBundleLeases.Release(previousMap, previous);
-        }
+        previous?.Dispose();
 
         MapBound?.Invoke();
     }
@@ -571,7 +566,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
         if (_lease is { } lease)
         {
             _lease = null;
-            MapBundleLeases.Release(_boundMap, lease);
+            lease.Dispose();
         }
 
         _boundAsset = null;
@@ -604,7 +599,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     /// </summary>
     /// <param name="map">The map name.</param>
     /// <param name="asset">The map's baked bundle, or null when this host has none.</param>
-    private void BindMap(string map, LoadedMapAsset? asset)
+    private void BindMap(string map, MapBundleLease? asset)
     {
         if (ReferenceEquals(asset, _boundAsset) && string.Equals(_boundMap, map, StringComparison.Ordinal)
             && _frame.Map.MapName == map)
@@ -624,8 +619,8 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
         }
 
         _levels.SetAuthoritativeFloors(asset?.Floors);
-        _levels.RadarBinder = asset is null ? null : new MapRadarBinder(asset);
-        _radarLayer.RadarBoundsOverride = asset is null ? null : MapAssetPipeline.RadarBounds(asset);
+        _levels.RadarBinder = asset?.CreateRadarBinder();
+        _radarLayer.RadarBoundsOverride = asset?.RadarBounds;
         _frame = FrameFor(map, asset);
         InvalidateVisual();
     }
@@ -633,7 +628,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     // The one frame this host ever draws: the map, its radar layers and its playable extent, and no
     // players. Without a bundle there is nothing to derive a level from, so no pane is arranged and the
     // view says so beside the canvas.
-    private static Scene2DFrame FrameFor(string map, LoadedMapAsset? asset)
+    private static Scene2DFrame FrameFor(string map, MapBundleLease? asset)
     {
         if (asset is null)
         {
@@ -646,7 +641,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
             };
         }
 
-        WorldBounds bounds = MapAssetPipeline.RadarBounds(asset);
+        WorldBounds bounds = asset.RadarBounds;
         return new Scene2DFrame
         {
             Map = new SceneMapInfo
@@ -654,7 +649,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
                 MapName = map,
                 NetworkedBounds = bounds,
                 ObservedBounds = bounds,
-                Radars = MapAssetPipeline.DescribeRadars(asset)
+                Radars = asset.DescribeRadars()
             }
         };
     }

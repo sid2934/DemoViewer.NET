@@ -55,7 +55,7 @@ internal sealed class ToleranceSliderHarness : IDisposable
         Index.Load();
 
         Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, zones), Cache.Library(), _ => null,
-            dispose => dispose(), post: action => action(), countDelay: TimeSpan.Zero);
+            post: action => action(), countDelay: TimeSpan.Zero);
         Vm.Map = "de_nuke";
     }
 

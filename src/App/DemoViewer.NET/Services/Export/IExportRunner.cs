@@ -7,7 +7,6 @@ using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Hud;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Vision;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 
 #endregion
@@ -77,5 +76,5 @@ public sealed record ExportSceneSetup(
     LevelDisplayMode DisplayMode,
     IVisionSolver? Vision,
     Func<TrackerFrameSource, IHudDataSource>? Hud,
-    LoadedMapAsset? MapAssets,
+    IMapAsset? MapAssets,
     AnnotationSession? Annotations = null);

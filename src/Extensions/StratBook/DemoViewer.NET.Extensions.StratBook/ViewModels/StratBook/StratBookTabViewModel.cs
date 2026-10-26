@@ -59,7 +59,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     private readonly CalloutResolverSource _calloutResolvers;
     private readonly GrenadeIndex? _grenades;
     private readonly LineupOriginSource? _lineupOrigins;
-    private readonly Func<string, IMapAsset?, UtilityBookTabViewModel>? _lineupMap;
+    private readonly Func<string, UtilityBookTabViewModel>? _lineupMap;
 
     // What the open lineup picker writes to; it closes when either goes away.
     private (Guid Strat, Guid Step)? _pickerTarget;
@@ -157,12 +157,12 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     ///     canvases nothing to fall back on.
     /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
-        CalloutResolverSource? calloutResolvers = null, Func<string?, IMapAsset?>? canvasMapLoader = null,
+        CalloutResolverSource? calloutResolvers = null, Func<string?, IMapAssetLease?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
         Func<string, LibraryDemo?>? indexBySha = null, Func<string, bool>? selectTab = null,
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
-        StratBookLayout? layout = null, Func<string, IMapAsset?, UtilityBookTabViewModel>? lineupMap = null,
+        StratBookLayout? layout = null, Func<string, UtilityBookTabViewModel>? lineupMap = null,
         Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null, Func<bool>? canvasRouting = null,
         StratCanvasServices? canvasServices = null)
     {
@@ -179,7 +179,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         _lineupOrigins = grenades is null ? null : new LineupOriginSource(grenades, _post);
         _lineupMap = lineupMap ?? (grenades is null
             ? null
-            : (map, asset) => new UtilityBookTabViewModel(grenades, loadMapAsset: _ => asset, lockedMap: map, ownsMapAsset: false,
+            : map => new UtilityBookTabViewModel(grenades, lockedMap: map,
                 background: work => Task.Run(work), post: _post));
         // A new step carries a thrower at the origin the canvas shows, on the canvas's floors.
         Editor = new StratEditorViewModel(Session, _lineupOrigins is null ? null : new StratLineupCatalog(_lineupOrigins),
@@ -522,7 +522,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         using (JobScope.UserAction())
         {
             // The canvas holds this map's bundle already: the picker draws it rather than decoding another.
-            picker = new LineupPickerViewModel(_lineupMap(document.Map, Canvas.MapAsset), step?.Utility?.Kind ?? StratEditorViewModel.None, current,
+            picker = new LineupPickerViewModel(_lineupMap(document.Map), step?.Utility?.Kind ?? StratEditorViewModel.None, current,
                 step?.Utility?.Technique, pick =>
                 {
                     if (ReferenceEquals(LineupPicker, picker))

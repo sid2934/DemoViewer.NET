@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 ///     <see cref="MapAssets.RenderPng" />, the path a Result Card thumbnail takes, so no demo opens and
 ///     the wash is the one the Situations canvas shows.
 ///     <para>
-///         One instance serves one build: map bundles are loaded once per map and held until
+///         One instance serves one build: one hold per map is taken and given back at
 ///         <see cref="Dispose" />. Not thread-safe; the Dossier drives it from one worker.
 ///     </para>
 /// </summary>
@@ -26,13 +26,13 @@ public sealed class SetupHeatmapRenderer : IDisposable
     /// <summary>The heatmap size: square, because a radar is.</summary>
     public static readonly SKSizeI Size = new(320, 320);
 
-    private readonly Dictionary<string, IMapAsset?> _assets = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<string, IMapAsset?> _loadMapAsset;
+    private readonly Dictionary<string, IMapAssetLease?> _assets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<string, IMapAssetLease?> _loadMapAsset;
     private bool _disposed;
 
-    /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader in the app, a stub in a test.</param>
-    public SetupHeatmapRenderer(Func<string, IMapAsset?>? loadMapAsset = null) =>
-        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
+    /// <param name="loadMapAsset">Takes a hold on a map's baked bundle; the app's lease registry, a stub in a test.</param>
+    public SetupHeatmapRenderer(Func<string, IMapAssetLease?>? loadMapAsset = null) =>
+        _loadMapAsset = loadMapAsset ?? MapAssets.Acquire;
 
     /// <inheritdoc />
     public void Dispose()
@@ -43,9 +43,9 @@ public sealed class SetupHeatmapRenderer : IDisposable
         }
 
         _disposed = true;
-        foreach (IMapAsset? asset in _assets.Values)
+        foreach (IMapAssetLease? lease in _assets.Values)
         {
-            asset?.Dispose();
+            lease?.Dispose();
         }
 
         _assets.Clear();
@@ -113,9 +113,9 @@ public sealed class SetupHeatmapRenderer : IDisposable
         };
     }
 
-    private IMapAsset? AssetFor(string map)
+    private IMapAssetLease? AssetFor(string map)
     {
-        if (!_assets.TryGetValue(map, out IMapAsset? asset))
+        if (!_assets.TryGetValue(map, out IMapAssetLease? asset))
         {
             asset = _loadMapAsset(map);
             _assets[map] = asset;

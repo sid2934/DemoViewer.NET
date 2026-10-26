@@ -8,9 +8,10 @@ namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>
 ///     A map's baked art, loaded for drawing: its floors, its radar images and the world rectangle they cover,
-///     and its places. Disposing releases the decoded radar images, so dispose only once nothing draws them.
+///     and its places. Not disposable: one decode is shared by every view of the map, so its lifetime belongs
+///     to whoever handed it out and a reader must not end it.
 /// </summary>
-public interface IMapAsset : IDisposable
+public interface IMapAsset
 {
     /// <summary>The map's floor bands, lowest first.</summary>
     IReadOnlyList<FloorSlice> Floors { get; }

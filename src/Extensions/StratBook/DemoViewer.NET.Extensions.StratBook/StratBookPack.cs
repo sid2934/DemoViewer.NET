@@ -575,7 +575,7 @@ public sealed class StratBookPack : IExtension
                 playback: () => sp.GetService<ISituationPlayback>(),
                 spawns: new StratSpawnSource(map => StratSpawnSource.LoadShipped(map, Paths(sp).ZonesDirectory)),
                 layout: sp.GetRequiredService<StratBookLayout>(),
-                lineupMap: (map, asset) => UtilityBookFor(sp, map, asset),
+                lineupMap: map => UtilityBookFor(sp, map),
                 canvasServices: canvasServices);
         });
 
@@ -674,7 +674,7 @@ public sealed class StratBookPack : IExtension
             sp.GetRequiredService<StratBookPackInstances>().Record(index);
             return index;
         });
-        services.AddSingleton(sp => UtilityBookFor(sp, null, null));
+        services.AddSingleton(sp => UtilityBookFor(sp, null));
 
         // The Opponent Dossier's veto history: manual entry only, beside teams.json. No file (the
         // browser) keeps entries in memory for the session.
@@ -1014,9 +1014,9 @@ public sealed class StratBookPack : IExtension
     }
 
     // The Utility Book tab, and the Strat Book's lineup picker (locked to the strat's map): the same index,
-    // clip directory and queue section, so the picker shows what the tab shows. The picker draws the strat
-    // canvas's bundle instead of decoding its own; the canvas keeps it.
-    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap, IMapAsset? sharedAsset)
+    // clip directory and queue section, so the picker shows what the tab shows. The picker takes its own
+    // hold on the map bundle, which is the canvas's decode.
+    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap)
     {
         IExtensionLibrary library = Library(sp);
         return new UtilityBookTabViewModel(
@@ -1027,9 +1027,7 @@ public sealed class StratBookPack : IExtension
             background: work => _ = Job(sp, lockedMap is null ? "Utility Book" : "Lineup picker", work,
                 new JobOptions(Key: lockedMap is null ? "section:utility" : "section:lineup-picker", Preemptible: true)),
             post: Host(sp).Post,
-            lockedMap: lockedMap,
-            loadMapAsset: lockedMap is null ? null : _ => sharedAsset,
-            ownsMapAsset: lockedMap is null);
+            lockedMap: lockedMap);
     }
 
 }

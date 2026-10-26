@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 ///         needs <c>Bitmap.DecodeToWidth</c>'s downscale-on-decode and has no <c>SKImage</c> analogue.
 ///     </para>
 /// </summary>
-public sealed class LoadedMapAsset : IMapAsset
+public sealed class LoadedMapAsset : IMapAsset, IDisposable
 {
     private readonly Lock _zoneLock = new();
     private bool _disposed;
@@ -47,7 +47,7 @@ public sealed class LoadedMapAsset : IMapAsset
     ///     </para>
     /// </summary>
     public IReadOnlyList<FloorSlice> Floors =>
-        _floors ??= BuildFloors(Bundle);
+        _floors ??= MapAssetPipeline.BuildFloors(Bundle);
 
     /// <summary>Absolute path to the baked collision blob, or null when the bundle has no mesh.</summary>
     public string? CollisionTrisPath =>
@@ -156,22 +156,6 @@ public sealed class LoadedMapAsset : IMapAsset
 
     /// <inheritdoc />
     ILevelRadarBinder IMapAsset.CreateRadarBinder() => new MapRadarBinder(this);
-
-    private static FloorSlice[] BuildFloors(MapAssetBundle bundle)
-    {
-        if (bundle.Floors is not { Count: > 0 } floors)
-        {
-            return [];
-        }
-
-        FloorSlice[] slices = new FloorSlice[floors.Count];
-        for (int i = 0; i < floors.Count; i++)
-        {
-            slices[i] = new FloorSlice(floors[i].MinZ, floors[i].MaxZ);
-        }
-
-        return slices;
-    }
 }
 
 /// <summary>
@@ -209,6 +193,23 @@ public static class MapAssetPipeline
         }
 
         return TryLoadFromDirectory(Path.Combine(assetsRoot, mapName));
+    }
+
+    /// <summary>
+    ///     The bundle's extent and floor bands straight from the manifest, with no image decode: the same
+    ///     numbers a loaded bundle answers with, for a caller that draws nothing. Null when there is no
+    ///     readable bundle.
+    /// </summary>
+    /// <param name="mapName">e.g. <c>de_nuke</c>.</param>
+    public static (WorldBounds Bounds, IReadOnlyList<FloorSlice> Floors)? TryDescribe(string? mapName)
+    {
+        string? dir = MapAssetBundleReader.FindBundleDirectory(mapName);
+        if (dir is null || MapAssetBundleReader.TryRead(dir) is not { } bundle)
+        {
+            return null;
+        }
+
+        return (BoundsOf(bundle), BuildFloors(bundle));
     }
 
     /// <summary>
@@ -347,8 +348,30 @@ public static class MapAssetPipeline
     public static WorldBounds RadarBounds(LoadedMapAsset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        // Fully qualified: the fixture serializer declares its own WorldBoundsDto in this assembly.
-        CS2DemoKit.Analysis.Visibility.WorldBoundsDto b = asset.Bundle.Bounds;
+        return BoundsOf(asset.Bundle);
+    }
+
+    // Shared by the loaded bundle and by TryDescribe, so a description cannot drift from a decode.
+    internal static FloorSlice[] BuildFloors(MapAssetBundle bundle)
+    {
+        if (bundle.Floors is not { Count: > 0 } floors)
+        {
+            return [];
+        }
+
+        FloorSlice[] slices = new FloorSlice[floors.Count];
+        for (int i = 0; i < floors.Count; i++)
+        {
+            slices[i] = new FloorSlice(floors[i].MinZ, floors[i].MaxZ);
+        }
+
+        return slices;
+    }
+
+    // Fully qualified: the fixture serializer declares its own WorldBoundsDto in this assembly.
+    private static WorldBounds BoundsOf(MapAssetBundle bundle)
+    {
+        CS2DemoKit.Analysis.Visibility.WorldBoundsDto b = bundle.Bounds;
         return new WorldBounds(b.MinX, b.MinY, b.MaxX, b.MaxY);
     }
 }

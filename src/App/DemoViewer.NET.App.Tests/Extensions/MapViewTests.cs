@@ -28,6 +28,9 @@ public class MapViewTests
 {
     private const string Map = "de_mirage";
 
+    // A map no other test in this assembly takes a hold on, so the registry's decode count is readable.
+    private const string Shared = "de_train";
+
     [Test]
     public async Task AMapByName_BindsTheBundle_AndArrangesItsFloors()
     {
@@ -149,16 +152,74 @@ public class MapViewTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
+            // Deltas, not absolutes: the registry is process-wide and a tab elsewhere in the suite may
+            // hold this map too.
+            int before = MapBundleLeases.HoldersOf(Map);
             MapView first = new() { MapName = Map };
             MapView second = new() { MapName = Map };
             Window window = new() { Width = 800, Height = 600, Content = new StackPanel { Children = { first, second } } };
             window.Show();
             Playback2DTimelineHarness.Pump();
 
-            await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(2);
+            await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(before + 2);
             window.Content = null;
             Playback2DTimelineHarness.Pump();
-            await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(0);
+            await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(before);
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     What the registry is for: a 2D Playback tab, a <see cref="MapView" /> an extension embeds, and an
+    ///     extension's own hold taken off the UI thread are three holders of ONE decode, reading one bundle.
+    ///     On de_train, which no other test in this assembly holds, so the decode count means something.
+    /// </summary>
+    [Test]
+    public async Task ATabAndTwoExtensionHolders_ShareOneDecode()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(0)
+                .Because("the decode count only means something while nobody else holds the map");
+            int decodes = MapBundleLeases.Decodes;
+
+            Playback2DFakeContext ctx = new()
+            {
+                MapName = Shared,
+                Gate = new FakeModuleFeatureGate()
+            };
+            ctx.AddPlayer(0, "Alpha", 2);
+            Playback2DTabViewModel tab = new();
+            tab.OnActivated(ctx);
+
+            MapView view = new() { MapName = Shared };
+            Window window = new() { Width = 800, Height = 600, Content = view };
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+
+            // The third holder off the UI thread, the way a thumbnail batch on a worker takes one.
+            IMapAssetLease? offThread = null;
+            Thread worker = new(() => offThread = MapAssets.Acquire(Shared));
+            worker.Start();
+            worker.Join();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(offThread).IsNotNull();
+                await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(3);
+                await Assert.That(MapBundleLeases.Decodes - decodes).IsEqualTo(1)
+                    .Because("three holders of one map decode it once");
+                await Assert.That(tab.MapAsset).IsSameReferenceAs(((MapBundleLease)offThread!).Bundle)
+                    .Because("the tab and the extension read the same decode");
+            }
+
+            offThread!.Dispose();
+            window.Content = null;
+            Playback2DTimelineHarness.Pump();
+            tab.Dispose();
+
+            await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(0)
+                .Because("the last hold given back drops the entry");
             window.Close();
         });
     }

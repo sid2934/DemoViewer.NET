@@ -21,8 +21,8 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 ///         radar background follows (<c>MapRadarConverter</c>).
 ///     </para>
 ///     <para>
-///         One instance serves a batch of cards on the Utility Book tab: map bundles are loaded once
-///         per map and held until <see cref="Dispose" />. Not thread-safe; the tab VM drives it from
+///         One instance serves a batch of cards on the Utility Book tab: one hold per map is taken
+///         and given back at <see cref="Dispose" />. Not thread-safe; the tab VM drives it from
 ///         one worker.
 ///     </para>
 /// </summary>
@@ -31,13 +31,13 @@ public sealed class GrenadeLineupThumbnailRenderer : IDisposable
     /// <summary>The card's radar size: small and square, enough to read the spot at a glance.</summary>
     public static readonly SKSizeI Size = new(160, 160);
 
-    private readonly Dictionary<string, IMapAsset?> _assets = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<string, IMapAsset?> _loadMapAsset;
+    private readonly Dictionary<string, IMapAssetLease?> _assets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<string, IMapAssetLease?> _loadMapAsset;
     private bool _disposed;
 
-    /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader in the app, a stub in a test.</param>
-    public GrenadeLineupThumbnailRenderer(Func<string, IMapAsset?>? loadMapAsset = null) =>
-        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
+    /// <param name="loadMapAsset">Takes a hold on a map's baked bundle; the app's lease registry, a stub in a test.</param>
+    public GrenadeLineupThumbnailRenderer(Func<string, IMapAssetLease?>? loadMapAsset = null) =>
+        _loadMapAsset = loadMapAsset ?? MapAssets.Acquire;
 
     /// <inheritdoc />
     public void Dispose()
@@ -48,9 +48,9 @@ public sealed class GrenadeLineupThumbnailRenderer : IDisposable
         }
 
         _disposed = true;
-        foreach (IMapAsset? asset in _assets.Values)
+        foreach (IMapAssetLease? lease in _assets.Values)
         {
-            asset?.Dispose();
+            lease?.Dispose();
         }
 
         _assets.Clear();
@@ -90,9 +90,9 @@ public sealed class GrenadeLineupThumbnailRenderer : IDisposable
             ViewportTransform.Fit(Size.Width, Size.Height, bounds.MinX, bounds.MinY, bounds.MaxX, bounds.MaxY), Size);
     }
 
-    private IMapAsset? AssetFor(string map)
+    private IMapAssetLease? AssetFor(string map)
     {
-        if (!_assets.TryGetValue(map, out IMapAsset? asset))
+        if (!_assets.TryGetValue(map, out IMapAssetLease? asset))
         {
             asset = _loadMapAsset(map);
             _assets[map] = asset;

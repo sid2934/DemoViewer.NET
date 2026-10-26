@@ -6,6 +6,7 @@ using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Rendering;
+using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
@@ -28,18 +29,38 @@ public class MapAssetsTests
     [Test]
     public async Task AShippedMap_LoadsItsFloorsRadarsAndPlaces_AndAnUnknownOneIsNull()
     {
-        using IMapAsset? map = MapAssets.TryLoad(Map);
+        using IMapAssetLease? map = MapAssets.Acquire(Map);
         await Assert.That(map).IsNotNull().Because("the baked de_mirage bundle ships with the app");
 
         using (Assert.Multiple())
         {
-            await Assert.That(map!.Floors.Count).IsGreaterThanOrEqualTo(1);
+            await Assert.That(map!.MapName).IsEqualTo(Map);
+            await Assert.That(map.Floors.Count).IsGreaterThanOrEqualTo(1);
             await Assert.That(map.DescribeRadars().Count).IsGreaterThanOrEqualTo(1);
             await Assert.That(map.DescribeRadars().All(r => r.Image is not null)).IsTrue();
             await Assert.That(map.RadarBounds.MaxX).IsGreaterThan(map.RadarBounds.MinX);
             await Assert.That(map.Zones).IsNotNull();
-            await Assert.That(MapAssets.TryLoad("de_nosuchmap")).IsNull();
-            await Assert.That(MapAssets.TryLoad(" ")).IsNull();
+            await Assert.That(MapAssets.Acquire("de_nosuchmap")).IsNull();
+            await Assert.That(MapAssets.Acquire(" ")).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task ADescription_IsTheBundlesOwnNumbers_AndDecodesNothing()
+    {
+        int decodes = MapBundleLeases.Decodes;
+        MapDescription? described = MapAssets.Describe(Map);
+        await Assert.That(described).IsNotNull();
+        await Assert.That(MapBundleLeases.Decodes).IsEqualTo(decodes)
+            .Because("a description reads the manifest, not the radar images");
+
+        using IMapAssetLease? map = MapAssets.Acquire(Map);
+        using (Assert.Multiple())
+        {
+            await Assert.That(described!.RadarBounds).IsEqualTo(map!.RadarBounds);
+            await Assert.That(described.Floors.SequenceEqual(map.Floors)).IsTrue();
+            await Assert.That(MapAssets.Describe("de_nosuchmap")).IsNull();
+            await Assert.That(MapAssets.Describe(" ")).IsNull();
         }
     }
 

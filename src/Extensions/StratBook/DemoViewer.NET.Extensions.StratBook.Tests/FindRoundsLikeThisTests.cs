@@ -349,8 +349,7 @@ public class FindRoundsLikeThisTests
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Index = new SituationIndex(Cache.Library(), Sidecars, Sources);
             Index.Load();
-            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache.Library(), _ => null,
-                dispose => dispose());
+            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache.Library(), _ => null);
         }
 
         public DemoCacheStore Cache { get; }

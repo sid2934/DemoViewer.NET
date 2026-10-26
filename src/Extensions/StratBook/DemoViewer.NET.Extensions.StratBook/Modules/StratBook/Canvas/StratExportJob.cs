@@ -83,7 +83,7 @@ public sealed class StratExportJob : IExportRunner
     private static readonly ConditionalWeakTable<AnnotationSession, StratExportCapture> _captures = new();
 
     private readonly ExportEncoding _encoding;
-    private readonly Func<string?, IMapAsset?> _mapLoader;
+    private readonly Func<string?, IMapAssetLease?> _mapLoader;
     private readonly Func<IRenderSurfaceProvider> _surfaces;
 
     /// <summary>Creates the job.</summary>
@@ -97,7 +97,7 @@ public sealed class StratExportJob : IExportRunner
     ///     lets a test take the managed GIF floor on a machine that has ffmpeg on PATH.
     /// </param>
     public StratExportJob(
-        Func<string?, IMapAsset?> mapLoader,
+        Func<string?, IMapAssetLease?> mapLoader,
         Func<IRenderSurfaceProvider>? surfaces = null,
         Func<string?>? managedFfmpegDirectory = null,
         Action<string>? log = null,
@@ -217,7 +217,7 @@ public sealed class StratExportJob : IExportRunner
 
         (FfmpegLocation ffmpeg, EncoderSelection? encoder) = _encoding.Resolve(request, ct);
 
-        using IMapAsset? asset = SafeLoad(capture.MapName);
+        using IMapAssetLease? asset = SafeLoad(capture.MapName);
 
         // The dialog's range is in strat ticks: DemoStartFrame and DemoEndFrame carry them, and the dialog sized
         // the request with StratFrameSource.OutputFrameCount, the source's own arithmetic.
@@ -248,7 +248,7 @@ public sealed class StratExportJob : IExportRunner
         await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
     }
 
-    private IMapAsset? SafeLoad(string map)
+    private IMapAssetLease? SafeLoad(string map)
     {
         try
         {

@@ -193,7 +193,7 @@ public class CalloutAliasesTests
         using SituationIndex index = new(cache.Library(), sidecars, sources);
 
         using QueryCanvasViewModel vm = new(index, new QueryPlaceResolver(index, sources.Zones), cache.Library(), _ => null,
-            dispose => dispose(), calloutResolverFor: _ => resolver);
+            calloutResolverFor: _ => resolver);
         vm.Map = "de_nuke";
 
         // Bypassing the pointer tool: what a resolved drop leaves behind is a placed token, which is

@@ -8,7 +8,6 @@ using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Services.Export;
 
@@ -1167,25 +1166,25 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
 /// <summary>
 ///     The production <see cref="ILineupClipRenderer" />: renders each clip of one demo, on the parse the demo's
 ///     visit holds, through <c>SceneExportRunner</c>, the 2D export's own runner and
-///     <c>SceneExportSession</c>, as a GIF (the managed encoder when no ffmpeg is installed). Its own map bundle,
-///     compositor and surface, as every export.
+///     <c>SceneExportSession</c>, as a GIF (the managed encoder when no ffmpeg is installed). Its own hold on the
+///     map bundle, compositor and surface, as every export.
 /// </summary>
 public sealed class LineupClipRenderer : ILineupClipRenderer
 {
-    private readonly Func<string, LoadedMapAsset?> _loadMap;
+    private readonly Func<string, IMapAssetLease?> _loadMap;
     private readonly Action<string>? _log;
     private readonly Func<Scene2DExportRequest, ExportSceneSetup, CancellationToken, Task> _render;
 
     /// <summary>Where a GIF is written until it is finished; the directory listing never sees it.</summary>
     public const string PartialDirectoryName = ".rendering";
 
-    /// <param name="loadMap">Finds a map's baked bundle; the pipeline's loader when null.</param>
+    /// <param name="loadMap">Takes a hold on a map's baked bundle; the app's lease registry when null.</param>
     /// <param name="log">Line sink for the encoder choice, ffmpeg's stderr and a failed clip.</param>
     /// <param name="render">Renders one clip request; the 2D export's runner when null.</param>
-    public LineupClipRenderer(Func<string, LoadedMapAsset?>? loadMap = null, Action<string>? log = null,
+    public LineupClipRenderer(Func<string, IMapAssetLease?>? loadMap = null, Action<string>? log = null,
         Func<Scene2DExportRequest, ExportSceneSetup, CancellationToken, Task>? render = null)
     {
-        _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
+        _loadMap = loadMap ?? MapAssets.Acquire;
         _log = log;
         _render = render ?? ((request, setup, ct) => new SceneExportRunner(_ => setup, RenderSurfaceProviderFactory.CreateCpu,
             static () => FirstPartySceneExport.ManagedFfmpegDirectory, _log, EncoderProbeCache.Shared).RunAsync(request, NoProgress.Instance, ct));
@@ -1211,7 +1210,7 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
             throw new InvalidOperationException("Lineup clips render on the parse of the demo's visit.");
         }
 
-        using LoadedMapAsset? asset = SafeLoad(jobs[0].Map);
+        using IMapAssetLease? asset = SafeLoad(jobs[0].Map);
 
         ExportSceneSetup setup = new(demo.Frames, demo.TickRate, jobs[0].Map, ScenePalette.Dark,
             LevelDisplayMode.Stacked, null, null, asset);
@@ -1260,7 +1259,7 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
         }
     }
 
-    private LoadedMapAsset? SafeLoad(string map)
+    private IMapAssetLease? SafeLoad(string map)
     {
         try
         {

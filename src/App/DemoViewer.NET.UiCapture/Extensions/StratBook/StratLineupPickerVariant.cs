@@ -26,7 +26,7 @@ public static partial class Variants
     {
         GrenadeIndex index = PickerIndex();
         StratBookTabViewModel vm = new(new StratStore(null), null, a => Dispatcher.UIThread.Post(a), false, grenades: index,
-            lineupMap: (map, asset) => new UtilityBookTabViewModel(index, loadMapAsset: _ => asset, lockedMap: map, ownsMapAsset: false));
+            lineupMap: map => new UtilityBookTabViewModel(index, lockedMap: map));
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
         vm.SelectedMap = PickerMap;

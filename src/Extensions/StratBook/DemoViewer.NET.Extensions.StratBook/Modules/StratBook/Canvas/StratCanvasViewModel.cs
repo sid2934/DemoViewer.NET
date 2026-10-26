@@ -60,7 +60,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneSourc
     private readonly AnnotationSession _ink;
     private readonly AnnotationTrack _inkTrack;
     private readonly Func<Guid, StratDocument?>? _lookup;
-    private readonly Func<string?, IMapAsset?> _mapLoader;
+    private readonly Func<string?, IMapAssetLease?> _mapLoader;
     private readonly LineupOriginSource? _lineupOrigins;
     private readonly Func<string, Task<IZonePlaceResolver?>> _placesFor;
     private readonly Func<string, Task<StratSpawns?>>? _spawnsFor;
@@ -124,7 +124,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneSourc
     ///     members (and a null bundle) mean the same as before: routing off, the baked-in place resolver, no
     ///     keymap.
     /// </param>
-    public StratCanvasViewModel(StratSession session, Func<string?, IMapAsset?>? mapLoader = null,
+    public StratCanvasViewModel(StratSession session, Func<string?, IMapAssetLease?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
         IExtensionKeymap? keymap = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null,
         Func<string, Task<IZonePlaceResolver?>>? placesFor = null, Action<Action>? post = null, Func<bool>? routing = null,
@@ -145,7 +145,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneSourc
         }
 
         IsReadOnly = readOnly;
-        _mapLoader = mapLoader ?? MapAssets.TryLoad;
+        _mapLoader = mapLoader ?? MapAssets.Acquire;
         _lookup = lookup;
         Keymap = keymap ?? lookups?.Keymap;
 
@@ -375,8 +375,11 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneSourc
     /// <inheritdoc />
     Scene2DFrame ISceneSource.Frame => CurrentFrame;
 
+    /// <summary>This canvas's hold on the map's bundle, or null when the host ships no art for it.</summary>
+    public IMapAssetLease? MapAsset { get; private set; }
+
     /// <inheritdoc />
-    public IMapAsset? MapAsset { get; private set; }
+    IMapAsset? ISceneSource.MapAsset => MapAsset;
 
     /// <summary>The editing guides the view's guide layer draws for the current frame.</summary>
     /// <remarks>Replaced whole on each publish, never changed in place: the render thread reads it.</remarks>
@@ -775,8 +778,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneSourc
         }
     }
 
-    /// <summary>The loader the canvas reads its map bundle with; the export loads its own copy through it.</summary>
-    internal Func<string?, IMapAsset?> MapLoader => _mapLoader;
+    /// <summary>The loader the canvas holds its map bundle through; the export takes its own hold with it.</summary>
+    internal Func<string?, IMapAssetLease?> MapLoader => _mapLoader;
 
     /// <summary>
     ///     The open strat on the selected path as it stands now, for an export, or null
@@ -2507,7 +2510,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneSourc
         return new WorldBounds(minX - margin, minY - margin, maxX + margin, maxY + margin);
     }
 
-    private IMapAsset? SafeLoad(string map)
+    private IMapAssetLease? SafeLoad(string map)
     {
         try
         {
@@ -2519,15 +2522,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneSourc
         }
     }
 
-    // The previous bundle's radar images are native memory; disposed a dispatcher hop later because the
-    // render thread may still be replaying a picture that draws one, the 2D tab's rule.
-    private void ReplaceMapAsset(IMapAsset? next)
+    // The hold, not the decode: the registry keeps the bundle alive while any other view still holds it.
+    private void ReplaceMapAsset(IMapAssetLease? next)
     {
-        IMapAsset? previous = MapAsset;
+        IMapAssetLease? previous = MapAsset;
         MapAsset = next;
-        if (previous is not null && !ReferenceEquals(previous, next))
+        if (!ReferenceEquals(previous, next))
         {
-            Dispatcher.UIThread.Post(previous.Dispose, DispatcherPriority.Background);
+            previous?.Dispose();
         }
     }
 

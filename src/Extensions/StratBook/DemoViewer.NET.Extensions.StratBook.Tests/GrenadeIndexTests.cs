@@ -673,28 +673,26 @@ public class GrenadeIndexTests
     }
 
     [Test]
-    public async Task TheMapArt_LoadsOncePerMap_AndTheReplacedBundleIsRetired()
+    public async Task TheMapArt_LoadsOncePerMap_AndTheReplacedHoldIsGivenBack()
     {
         using GrenadeIndex index = Loaded(Library());
         List<string> loads = [];
-        List<Action> retired = [];
         using UtilityBookTabViewModel vm = new(index, isBrowser: false, loadMapAsset: map =>
         {
             loads.Add(map);
             return StubAsset(map);
-        }, retire: retired.Add);
+        });
 
         vm.SelectedMap = Mirage;
-        IMapAsset mirage = vm.MapAsset!;
+        TestMapAssetLease mirage = (TestMapAssetLease)vm.MapAsset!;
         int mirageLoads = loads.Count;
-        int retiredBefore = retired.Count;
         vm.Refresh();
         vm.Refresh();
         using (Assert.Multiple())
         {
             await Assert.That(loads.Count).IsEqualTo(mirageLoads).Because("an index change on the same map keeps its bundle");
             await Assert.That(vm.MapAsset).IsSameReferenceAs(mirage);
-            await Assert.That(retired.Count).IsEqualTo(retiredBefore);
+            await Assert.That(mirage.Releases).IsEqualTo(0);
         }
 
         vm.SelectedMap = "de_inferno";
@@ -702,17 +700,17 @@ public class GrenadeIndexTests
         {
             await Assert.That(loads[^1]).IsEqualTo("de_inferno");
             await Assert.That(vm.MapAsset).IsNotSameReferenceAs(mirage);
-            await Assert.That(retired.Count).IsEqualTo(retiredBefore + 1).Because("the Mirage bundle is disposed once the host rebinds");
+            await Assert.That(mirage.Releases).IsEqualTo(1).Because("the Mirage hold is given back once the host rebinds");
         }
     }
 
-    private static LoadedMapAsset StubAsset(string map) => new()
+    private static TestMapAssetLease StubAsset(string map) => new(new LoadedMapAsset
     {
         Bundle = new MapAssetBundle(1, map, "1", "1", new RadarTransform(0, 0, 1, 0, 1, 1024),
             new WorldBoundsDto(-1000, -1000, 1000, 1000), [], [], []),
         RadarImages = new Dictionary<string, SkiaSharp.SKImage>(StringComparer.Ordinal),
         BakedDir = "."
-    };
+    }, map);
 
     [Test]
     public async Task TheCard_CopiesTheSetposSetangLine()

@@ -259,9 +259,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The current map's radar layers, described once per map asset (see ReplaceMapAsset).
     private IReadOnlyList<MapRadarImage> _radars = [];
 
-    // The baked map-asset bundle for the current map (nav floors + radar + transform), loaded VRF-free from
-    // the dev cs2-assets/baked cache when available. Null when no bundle exists → the
-    // viewport falls back to its grid + Z-histogram floors. Reloaded when IModuleContext.MapName changes.
+    // This tab's hold on the current map's bundle, from the one registry every view holds through. Null
+    // when the map has no bundle, which leaves the viewport on its grid + Z-histogram floors.
+    private MapBundleLease? _mapLease;
 
     // The map's REAL networked world-space X/Y bounds (the radar bounding box), read ONCE from the game-rules
     // entity: CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (Vector3). Lets Map mode frame
@@ -413,10 +413,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public IReadOnlyList<FloorSlice>? AuthoritativeFloors => MapAsset?.Floors;
 
     /// <summary>The loaded map-asset bundle (radar bitmaps + transform + layers) for the current map, or null.</summary>
-    public LoadedMapAsset? MapAsset { get; private set; }
+    public LoadedMapAsset? MapAsset => _mapLease?.Bundle;
 
     /// <inheritdoc />
-    IMapAsset? ISceneFrameHost.MapAsset => MapAsset;
+    IMapAsset? ISceneFrameHost.MapAsset => _mapLease;
 
     /// <summary>
     ///     Test seam: the map name the viewport last (re)loaded assets for, set unconditionally by
@@ -650,6 +650,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Surface.CloseSidePane();
         Surface.SidePaneOpened -= CloseExport;
         Surface.PanelsChanged -= RaisePanelState;
+
+        // Last: the hold on the map's bundle, which outlives this tab only while another view has one.
+        ReplaceMapAsset(null);
+        LoadedMapNameForTest = null;
     }
 
     public void OnActivated(IModuleContext context)
@@ -2304,7 +2308,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
-        ReplaceMapAsset(MapAssetPipeline.TryLoad(name));
+        ReplaceMapAsset(string.IsNullOrEmpty(name) ? null : MapBundleLeases.Acquire(name));
         LoadedMapNameForTest = name;
 
         // Map changed → the old collision engine no longer applies. Drop it and (re)load if Vision is on.
@@ -2314,39 +2318,26 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     Swaps in a new map asset and DISPOSES the one it replaces. The radar images are Skia-backed, so
-    ///     their pixel buffers are unmanaged (~4 MB each): simply dropping the reference leaks them until a
-    ///     finalizer happens to run, which is why a map swap used to grow native memory every time.
-    ///     <para>
-    ///         The old asset is disposed at Background priority rather than inline: the render thread may
-    ///         still be replaying a cached SKPicture that references one of these images for the frame in
-    ///         flight. The render gate plus this one dispatcher hop is what covers that window.
-    ///     </para>
+    ///     Swaps in a new hold on the map's bundle and gives the previous one back. The registry owns the
+    ///     decode, so a bundle another view still holds survives this; the radar images are Skia-backed
+    ///     unmanaged buffers (~4 MB each) and are released once the last hold ends, a dispatcher hop later
+    ///     because the render thread may still be replaying a cached SKPicture that draws one.
     /// </summary>
-    private void ReplaceMapAsset(LoadedMapAsset? next)
+    private void ReplaceMapAsset(MapBundleLease? next)
     {
-        LoadedMapAsset? previous = MapAsset;
-        if (next is not null)
-        {
-            // Before anything can read Zones: the overlay lives under the config root, which only the
-            // App knows, and the asset reads it lazily from here.
-            next.ZoneOverlayDirectory = AppPaths.ZonesDirectory;
-        }
-
-        MapAsset = next;
+        MapBundleLease? previous = _mapLease;
+        _mapLease = next;
         _publishedZoneLoad = null;
 
         // Described ONCE per map, not per push: the frame publishes the same list instance every frame
         // so SceneFrameBuilder's "map facts unchanged" short-circuit holds and the steady state stays
         // allocation-free.
-        _radars = next is null ? [] : MapAssetPipeline.DescribeRadars(next);
+        _radars = next is null ? [] : next.DescribeRadars();
 
-        if (previous is null || ReferenceEquals(previous, next))
+        if (!ReferenceEquals(previous, next))
         {
-            return;
+            previous?.Dispose();
         }
-
-        Dispatcher.UIThread.Post(previous.Dispose, DispatcherPriority.Background);
     }
 
     // Resolves the current map's line-of-sight BVH off the UI thread, the first time it's needed. No-op

@@ -25,7 +25,7 @@ public interface ISceneSource
     /// <summary>The frame to show.</summary>
     Scene2DFrame Frame { get; }
 
-    /// <summary>The map's bundle, from <see cref="MapAssets.TryLoad" />, for its floors and radar art. Null draws the grid.</summary>
+    /// <summary>The map's bundle, from <see cref="MapAssets.Acquire" />, for its floors and radar art. Null draws the grid.</summary>
     IMapAsset? MapAsset { get; }
 
     /// <summary>The ink drawn over the scene and edited by the drawing tools. Null mounts no ink and no drawing tools.</summary>

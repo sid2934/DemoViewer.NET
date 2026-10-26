@@ -19,8 +19,9 @@ using SkiaSharp;
 namespace DemoViewer.NET.Modules.Playback2D;
 
 /// <summary>
-///     The app behind <see cref="MapAssets" />: bundles from the asset pipeline, icons from the game icon set,
-///     and pictures through the headless renderer on the CPU, the path <c>dv2d render</c> and the goldens take.
+///     The app behind <see cref="MapAssets" />: bundles from the one lease registry every view and tab holds
+///     through, so a map decodes once; icons from the game icon set; and pictures through the headless
+///     renderer on the CPU, the path <c>dv2d render</c> and the goldens take.
 /// </summary>
 internal sealed class HostedMapAssets : IMapAssetsBackend
 {
@@ -35,7 +36,11 @@ internal sealed class HostedMapAssets : IMapAssetsBackend
     internal static void Install() => MapAssets.Backend ??= new HostedMapAssets();
 
     /// <inheritdoc />
-    public IMapAsset? TryLoad(string mapName) => MapAssetPipeline.TryLoad(mapName);
+    public IMapAssetLease? Acquire(string mapName) => MapBundleLeases.Acquire(mapName);
+
+    /// <inheritdoc />
+    public MapDescription? Describe(string mapName) =>
+        MapAssetPipeline.TryDescribe(mapName) is not { } facts ? null : new MapDescription(facts.Bounds, facts.Floors);
 
     /// <inheritdoc />
     public IIconSource CreateIcons() => new SkiaIconSource();

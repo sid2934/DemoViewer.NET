@@ -56,8 +56,7 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
     private readonly SituationLiveCount _counter;
     private readonly IExtensionLibrary _library;
     private readonly ISituationIndex _index;
-    private readonly Func<string, IMapAsset?> _loadMapAsset;
-    private readonly Action<Action> _retire;
+    private readonly Func<string, IMapAssetLease?> _loadMapAsset;
 
     // Built on a map change, not per drop: a resolver read is a zones-file load behind the seam, and
     // every rail slot's Status asks for a display name on every refresh.
@@ -89,9 +88,9 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
     [ObservableProperty]
     private string? _map;
 
-    /// <summary>The map's bundle, or null when this host has none for it (the canvas then has no pane).</summary>
+    /// <summary>The hold on the map's bundle, or null when this host has none for it (the canvas then has no pane).</summary>
     [ObservableProperty]
-    private IMapAsset? _mapAsset;
+    private IMapAssetLease? _mapAsset;
 
     /// <summary>The last search's hit count, or null before a search or after the query changed.</summary>
     [ObservableProperty]
@@ -108,11 +107,7 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
     /// <param name="index">The index the count runs against, and the place centroids the snap reads.</param>
     /// <param name="resolver">Turns a drop into a place.</param>
     /// <param name="library">The index rows, for the map list.</param>
-    /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader in the app, a stub in a test.</param>
-    /// <param name="retire">
-    ///     Runs a replaced bundle's dispose after the host has rebound: a Background-priority dispatcher
-    ///     post in the app, inline in a test.
-    /// </param>
+    /// <param name="loadMapAsset">Takes a hold on a map's baked bundle; the app's lease registry, a stub in a test.</param>
     /// <param name="filters">The filter rail; one over the cache alone, with no team or source fields, when null.</param>
     /// <param name="post">Marshals the live count's answer onto the UI thread; a dispatcher post in the app, inline in a test.</param>
     /// <param name="countDelay">The live count's debounce; <see cref="SituationLiveCount.DefaultDelay" /> when null, zero in a test.</param>
@@ -124,8 +119,7 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
         ISituationIndex index,
         IQueryPlaceResolver resolver,
         IExtensionLibrary library,
-        Func<string, IMapAsset?>? loadMapAsset = null,
-        Action<Action>? retire = null,
+        Func<string, IMapAssetLease?>? loadMapAsset = null,
         SearchFiltersViewModel? filters = null,
         Action<Action>? post = null,
         TimeSpan? countDelay = null,
@@ -136,8 +130,7 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
         ArgumentNullException.ThrowIfNull(library);
         _index = index;
         _library = library;
-        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
-        _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
+        _loadMapAsset = loadMapAsset ?? MapAssets.Acquire;
         _calloutResolverFor = calloutResolverFor;
         _counter = new SituationLiveCount(index, post ?? (action => Dispatcher.UIThread.Post(action)), countDelay);
         _counter.Counted += OnCounted;
@@ -330,10 +323,10 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
         Tool.Dropped -= OnDropped;
         _library.Changed -= OnLibraryChanged;
         _index.Changed -= OnIndexChanged;
-        if (MapAsset is { } asset)
+        if (MapAsset is { } lease)
         {
             MapAsset = null;
-            _retire(asset.Dispose);
+            lease.Dispose();
         }
     }
 
@@ -607,15 +600,11 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
         Overlay.Clear();
         _placeCallouts = value is null ? null : _calloutResolverFor?.Invoke(value);
 
-        // The old bundle is retired one dispatcher hop later, not here: the host rebinds on MapChanged
-        // below, and the render thread may still be replaying a picture that references the old radar
-        // images. The playback tab's ReplaceMapAsset takes the same hop for the same reason.
-        IMapAsset? previous = MapAsset;
+        // The hold, not the decode: the registry keeps the bundle alive while another view still holds
+        // it, and defers the release past the frame the render thread may still be replaying.
+        IMapAssetLease? previous = MapAsset;
         MapAsset = value is null ? null : _loadMapAsset(value);
-        if (previous is not null)
-        {
-            _retire(previous.Dispose);
-        }
+        previous?.Dispose();
 
         ResultCount = null;
         ResultLine = "";

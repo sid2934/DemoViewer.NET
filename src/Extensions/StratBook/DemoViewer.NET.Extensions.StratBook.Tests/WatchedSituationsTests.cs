@@ -299,8 +299,7 @@ public class WatchedSituationsTests
         using Harness h = new();
         // The real clock here: a demo indexed before the watch is seen, one indexed after it is new.
         using WatchedSituationsService service = new(null, h.Index, h.Cache.Library());
-        using QueryCanvasViewModel canvas = new(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null,
-            dispose => dispose());
+        using QueryCanvasViewModel canvas = new(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null);
         using WatchedSituationsViewModel list = new(service, canvas);
         List<SituationHit> searched = [];
         canvas.Searched += searched.AddRange;
