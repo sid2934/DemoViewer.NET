@@ -11,8 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     <see cref="ModuleContext.GetService{T}" />: the typed lookup that replaced the
-///     <c>StratCaptureHost</c> / <c>StratExportHost</c> properties. An explicit
+///     <see cref="ModuleContext.GetService{T}" />: the typed lookup that replaced the per-host properties
+///     the shell used to carry, such as <c>StratCaptureHost</c>. An explicit
 ///     <see cref="ModuleContext.RegisterService{T}" /> call wins over the DI container wired through
 ///     <see cref="ModuleContext.SetServices" />, which answers only for an extension's own types while it is
 ///     on; both are re-read on every call (not cached), and a type nobody wired resolves to null.

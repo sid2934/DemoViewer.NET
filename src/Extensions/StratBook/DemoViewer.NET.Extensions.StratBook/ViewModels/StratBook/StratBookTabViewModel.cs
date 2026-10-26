@@ -258,7 +258,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     ///     The sizes the strat export offers: the 640 square first, then the 2D tab's presets. Square
     ///     because a radar is, so the map fills the frame and the text arithmetic at 640 px holds.
     /// </summary>
-    public static IReadOnlyList<SceneExportSize> ExportSizes(IExtensionSceneExport export)
+    private static IReadOnlyList<SceneExportSize> ExportSizes(IExtensionSceneExport export)
     {
         ArgumentNullException.ThrowIfNull(export);
         return
