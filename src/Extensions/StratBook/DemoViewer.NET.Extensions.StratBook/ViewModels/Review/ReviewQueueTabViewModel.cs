@@ -115,7 +115,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
 
     /// <summary>The pack's format: one of <see cref="PackFormats" />.</summary>
     [ObservableProperty]
-    private string _selectedPackFormat = ExportFormats.Mp4;
+    private string _selectedPackFormat = SceneExportFormats.Mp4;
 
     /// <summary>The inline guard on Clear: armed by the button, never a modal.</summary>
     [ObservableProperty]
