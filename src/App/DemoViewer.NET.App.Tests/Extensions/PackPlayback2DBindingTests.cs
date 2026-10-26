@@ -14,22 +14,21 @@ namespace DemoViewer.NET.AppTests.Extensions;
 ///     metadata, not its source: the scene package and Pipeline declare the same namespaces, so only the
 ///     assembly reference tells the two apart.
 ///     <para>
-///         A const is invisible here, because it emits no type reference: the format ids the pack still
-///         names are inlined at every call site, so an empty list is not the same as an empty
-///         <c>ProjectReference</c>.
+///         Both lists being empty does not say the pack compiles without those references. A const is
+///         invisible here, because its value is inlined at the call site and no type reference is emitted,
+///         so a const-only class never shows up however heavily it is read. The <c>ProjectReference</c>
+///         being gone from the pack's csproj is what proves that, and this reads what is left.
 ///     </para>
 /// </summary>
 public class PackPlayback2DBindingTests
 {
-    private const string UserFolders = "the app's zones overlay folder, read only (FirstPartyHostSurfaceTests pins it)";
-
     private static readonly string[] UnpublishedAssemblies = ["DemoViewer.NET.Playback2D.Pipeline"];
 
-    /// <summary>Every app type the pack may bind, with the reason. Anything else of the app goes through the SDK.</summary>
-    private static readonly (string Type, string Reason)[] AllowedApp =
-    [
-        ("DemoViewer.NET.Extensions.FirstPartyHost", UserFolders),
-    ];
+    /// <summary>
+    ///     Every app type the pack may bind, with the reason: none. Everything it reaches in the host goes
+    ///     through the SDK, and the pack no longer references the app assembly at all.
+    /// </summary>
+    private static readonly (string Type, string Reason)[] AllowedApp = [];
 
     /// <summary>
     ///     What the pack may bind in the unpublished Playback2D assembly: nothing. Video and clip export,

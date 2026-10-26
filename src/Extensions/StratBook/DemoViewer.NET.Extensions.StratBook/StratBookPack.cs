@@ -740,9 +740,6 @@ public sealed class StratBookPack : IExtension
     // The pack's host context: the SDK's way into the shell, the gate, the queue and the UI thread.
     private static IExtensionContext Host(IServiceProvider sp) => sp.GetExtensionContext<StratBookPack>();
 
-    // The app's zones overlay folder, the one thing the pack reads of the app that is not a store of its own.
-    private static FirstPartyHost Paths(IServiceProvider sp) => sp.GetRequiredService<FirstPartyHost>();
-
     // The pack's declared stores: where the user's own work already lives, from before extensions had
     // folders of their own, each handed out by the host as a folder or a file. Null (the browser) keeps a
     // store in memory.
