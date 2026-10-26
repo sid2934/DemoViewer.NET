@@ -26,7 +26,6 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     private readonly Lock _zoneLock = new();
     private bool _disposed;
     private IReadOnlyList<FloorSlice>? _floors;
-    private string? _zoneOverlayDirectory;
     private ZoneLoadResult? _zones;
 
     /// <summary>The parsed bundle manifest.</summary>
@@ -55,26 +54,11 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
 
     /// <summary>
     ///     The user's <c>zones/</c> directory the overlay is read from, or null for the baked set alone.
-    ///     The App sets it from <c>AppPaths.ZonesDirectory</c> right after loading; Pipeline cannot know
-    ///     the config root. Changing it forgets any zones already loaded.
+    ///     Set at decode time by whoever knows the config root; Pipeline cannot. Init-only: the zones read
+    ///     is lazy, so a later write would let one acquirer cache a baked-only resolver and its version
+    ///     while another reads the overlay set.
     /// </summary>
-    public string? ZoneOverlayDirectory
-    {
-        get => _zoneOverlayDirectory;
-        set
-        {
-            if (string.Equals(_zoneOverlayDirectory, value, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _zoneOverlayDirectory = value;
-            lock (_zoneLock)
-            {
-                _zones = null;
-            }
-        }
-    }
+    public string? ZoneOverlayDirectory { get; init; }
 
     /// <summary>
     ///     The place resolver over this map's <c>zones.json</c> plus the user overlay, or null when the
@@ -92,7 +76,7 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
         {
             lock (_zoneLock)
             {
-                return _zones ??= ZoneAssetPipeline.Load(BakedDir, _zoneOverlayDirectory);
+                return _zones ??= ZoneAssetPipeline.Load(BakedDir, ZoneOverlayDirectory);
             }
         }
     }
@@ -116,7 +100,7 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     /// </summary>
     public ZoneLoadResult ReloadZones()
     {
-        ZoneLoadResult fresh = ZoneAssetPipeline.Load(BakedDir, _zoneOverlayDirectory);
+        ZoneLoadResult fresh = ZoneAssetPipeline.Load(BakedDir, ZoneOverlayDirectory);
         lock (_zoneLock)
         {
             _zones = fresh;
@@ -250,7 +234,11 @@ public static class MapAssetPipeline
 
     /// <summary>Loads a bundle from an explicit directory. Null-graceful.</summary>
     /// <param name="dir">The bundle directory.</param>
-    public static LoadedMapAsset? TryLoadFromDirectory(string dir)
+    /// <param name="zoneOverlayDirectory">
+    ///     The user's <c>zones/</c> directory, or null for the baked set alone. Passed at decode time
+    ///     because <see cref="LoadedMapAsset.Zones" /> is read lazily and possibly off-thread.
+    /// </param>
+    public static LoadedMapAsset? TryLoadFromDirectory(string dir, string? zoneOverlayDirectory = null)
     {
         if (MapAssetBundleReader.TryRead(dir) is not { } bundle)
         {
@@ -286,7 +274,8 @@ public static class MapAssetPipeline
         {
             Bundle = bundle,
             RadarImages = images,
-            BakedDir = dir
+            BakedDir = dir,
+            ZoneOverlayDirectory = zoneOverlayDirectory
         };
     }
 

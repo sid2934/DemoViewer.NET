@@ -88,6 +88,7 @@ public class ZoneOverlayLoadTests
             await Assert.That(row.Location).IsEqualTo(Path.GetFileName(overlay));
 
             vm.OnDeactivated();
+            vm.Dispose();
         });
     }
 
@@ -136,9 +137,12 @@ public class ZoneOverlayLoadTests
             await Assert.That(vm.LoadedMapNameForTest).IsEqualTo(Map);
 
             vm.OnDeactivated();
+            vm.Dispose();
         });
     }
 
+    // Each test disposes the tab it activates. The bundle registry is process-wide and keyed on the map
+    // alone, so a hold left out would pin this test's config root for the next one's acquire.
     private static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) ActivatedTab()
     {
         Playback2DFakeContext ctx = new()

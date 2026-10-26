@@ -1,6 +1,7 @@
 #region
 
 using Avalonia.Threading;
+using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Levels;
@@ -69,9 +70,6 @@ internal static class MapBundleLeases
             return null;
         }
 
-        // The overlay lives under the config root, which only the App knows, and the bundle reads zones
-        // lazily. The same value every time in the app, so this is write-once in practice.
-        bundle.ZoneOverlayDirectory = AppPaths.ZonesDirectory;
         return new MapBundleLease(entry, bundle);
     }
 
@@ -113,7 +111,10 @@ internal static class MapBundleLeases
 
     private static LoadedMapAsset? Decode(string map)
     {
-        if (MapAssetPipeline.TryLoad(map) is not { } bundle)
+        // The overlay lives under the config root, which only the App knows, and the bundle reads zones
+        // lazily and off the UI thread, so the directory has to be in place before the Lazy publishes.
+        string? dir = MapAssetBundleReader.FindBundleDirectory(map);
+        if (dir is null || MapAssetPipeline.TryLoadFromDirectory(dir, AppPaths.ZonesDirectory) is not { } bundle)
         {
             return null;
         }
