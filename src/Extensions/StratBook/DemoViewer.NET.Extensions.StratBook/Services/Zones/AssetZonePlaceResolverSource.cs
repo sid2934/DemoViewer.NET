@@ -133,7 +133,10 @@ public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IEx
                 return adapter; // released under us: the caller still gets the graph it asked for
             }
 
-            if (!ReferenceEquals(current.Lease, entry.Lease))
+            // Compare and swap on the load this fold started from, not on the lease: two threads
+            // refreshing the same map after one save both hold the same lease, and the later writer
+            // would otherwise overwrite a newer graph with an older one.
+            if (!ReferenceEquals(current.Zones, entry.Zones))
             {
                 return current.Resolver;
             }
