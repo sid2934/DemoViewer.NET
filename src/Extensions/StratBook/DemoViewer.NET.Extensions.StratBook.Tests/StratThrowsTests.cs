@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.Sdk.Export;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D;
@@ -92,8 +93,8 @@ public class StratThrowsTests
 
             StratExportCapture capture = canvas.CaptureForExport()!;
             StratSceneProjection projection = capture.Projection;
-            ExportRangeOption range = StratExportJob.Ranges(projection)[0];
-            StratFrameSource source = new(StratExportJob.BuildSpec(capture, null, range.StartFrame, range.EndFrame, 30, 1.0));
+            SceneExportRange range = StratExportJob.Ranges(projection)[0];
+            StratFrameSource source = new(StratExportJob.BuildSpec(capture, null, range.Start, range.End, 30, 1.0));
             List<Scene2DFrame> frames = [];
             int smokes = 0, trails = 0;
             for (int i = 0; i < source.FrameCount; i++)
@@ -107,7 +108,7 @@ public class StratThrowsTests
             {
                 await Assert.That(projection.LastTick).IsLessThan(SmokeEnds).Because("the last step is before the smoke clears");
                 await Assert.That(projection.ContentEndTick).IsEqualTo(SmokeEnds - 1);
-                await Assert.That(range.EndFrame).IsGreaterThanOrEqualTo(SmokeEnds - 1);
+                await Assert.That(range.End).IsGreaterThanOrEqualTo(SmokeEnds - 1);
                 await Assert.That(smokes).IsGreaterThanOrEqualTo(18 * 30 - 1).Because("the whole smoke is in the file");
                 await Assert.That(trails).IsGreaterThan(0);
                 await Assert.That(canvas.Transport.EndTick).IsEqualTo(SmokeEnds - 1);

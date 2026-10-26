@@ -67,8 +67,11 @@ public sealed class StratBookPack : IExtension
     /// <summary>The pack id. A persisted key (<c>DemoCacheRecord.Packs</c>, <c>SessionPayload.Packs</c>).</summary>
     public const string PackId = "net.demoviewer.pack.stratbook";
 
-    /// <summary>The Strat Export chip's id on the status strip.</summary>
-    public const string ExportChipId = "stratbook.export";
+    /// <summary>
+    ///     The Strat Export chip's id on the status strip. The host files an extension's export chip under the
+    ///     extension, so this is the name it gets rather than one the pack chooses.
+    /// </summary>
+    public const string ExportChipId = "ext." + PackId + ".export";
 
     /// <inheritdoc />
     public string Id => PackId;
@@ -600,26 +603,10 @@ public sealed class StratBookPack : IExtension
                 });
         });
 
-        // Strat Export. No export on the browser: no ffmpeg, no files.
-        services.AddTransient<IStratExport>(sp =>
-        {
-            if (!Host(sp).Features.IsEnabled(PackFeatureId) || OperatingSystem.IsBrowser())
-            {
-                return null!;
-            }
-
-            IFirstPartyShellState shell = sp.GetRequiredService<IFirstPartyShellState>();
-            Func<bool> liveSyncBusy = () => shell.IsLiveSyncSessionActive;
-            Func<bool> reelRunning = () => shell.IsReelJobRunning;
-            FirstPartyExports? exports = sp.GetService<FirstPartyExports>();
-            return new StratExportHost(
-                exports is null ? null : (runner, log) => exports.NewJob(runner, liveSyncBusy, reelRunning, log),
-                liveSyncBusy,
-                reelRunning,
-                exports,
-                status => sp.GetRequiredService<IFirstPartyExportChips>().Mount(ExportChipId, PackFeatureId, status),
-                path => Host(sp).Shell.RevealInFileManager(path));
-        });
+        // Strat Export, through the host's own scene export. Null where the host exports nothing (the browser
+        // head) or the pack is off, and the tab's Export button stays hidden.
+        services.AddTransient(sp =>
+            Host(sp).Features.IsEnabled(PackFeatureId) ? Host(sp).SceneExport! : null!);
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
         // Like This, so the set the keys walk is the set the tab shows.

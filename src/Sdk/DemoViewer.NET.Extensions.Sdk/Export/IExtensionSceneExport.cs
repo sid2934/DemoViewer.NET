@@ -41,16 +41,30 @@ public sealed record SceneExportChoices(
     bool IncludeVision);
 
 /// <summary>
-///     Builds the frames of an export that has no demo behind it, on the render's own thread once the host
-///     holds the map's art.
+///     What one run asks a held-frames export for. The range is in the caller's own units, the ones its
+///     <see cref="SceneExportRange" />s and <see cref="SceneExportClip.FromTick" /> are expressed in: the
+///     host re-stamps the rendered range from the built source's frame count, so the two cannot disagree.
+/// </summary>
+/// <param name="Map">
+///     The map's art, or null where the host ships none. The host's hold for the duration of the run: read
+///     it, never dispose it.
+/// </param>
+/// <param name="Start">First unit of the range the user chose, inclusive.</param>
+/// <param name="End">Last unit, inclusive.</param>
+/// <param name="Fps">The output frame rate chosen for the run.</param>
+/// <param name="Speed">The playback-rate multiplier chosen for the run; 1 is realtime.</param>
+public sealed record SceneFramesRequest(IMapAsset? Map, int Start, int End, int Fps, double Speed);
+
+/// <summary>
+///     Builds the frames of an export that has no demo behind it.
 ///     <para>
 ///         A factory rather than a finished <see cref="ISceneFrames" />, so the frames are built after the
-///         host's heavy-job gate has let the run through, as the demo path's own source is. The art is the
-///         host's hold for the duration of the run: read it, never dispose it.
+///         host's heavy-job gate has let the run through, as the demo path's own source is, and with the
+///         range and rate the user chose rather than the ones the pane opened on.
 ///     </para>
 /// </summary>
-/// <param name="map">The map's art, or null where the host ships none for the scene's map.</param>
-public delegate ISceneFrames SceneFramesFactory(IMapAsset? map);
+/// <param name="request">The run's range, rate, speed and map art.</param>
+public delegate ISceneFrames SceneFramesFactory(SceneFramesRequest request);
 
 /// <summary>How many output frames a range renders to at a rate and a speed.</summary>
 /// <param name="start">First unit of the range, inclusive.</param>

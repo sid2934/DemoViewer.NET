@@ -124,7 +124,7 @@ public class StratBookPackTests
         "DemoViewer.NET.Extensions.StratBook.ViewModels.Teams.TeamsTabViewModel",
         "DemoViewer.NET.Extensions.StratBook.Services.Strats.StratStore",
         "DemoViewer.NET.Extensions.StratBook.Modules.IStratCapture | Transient",
-        "DemoViewer.NET.Extensions.StratBook.Modules.StratBook.IStratExport | Transient",
+        "DemoViewer.NET.Extensions.Sdk.Export.IExtensionSceneExport | Transient",
         "DemoViewer.NET.Extensions.StratBook.Services.Strats.CalloutResolverSource",
         "DemoViewer.NET.Extensions.StratBook.Services.Strats.StratEvidenceService",
         "DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining.StratMiningService",

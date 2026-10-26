@@ -17,7 +17,6 @@ public class PackPlayback2DBindingTests
 {
     private const string Export = "video and clip export stays first-party";
     private const string ReviewQueue = "the review queue stays first-party";
-    private const string ShellState = "Live Sync and reel state, which an export must not start beside";
     private const string UserFolders = "the app's zones overlay folder, read only (FirstPartyHostSurfaceTests pins it)";
 
     private static readonly string[] UnpublishedAssemblies = ["DemoViewer.NET.Playback2D.Pipeline"];
@@ -27,33 +26,12 @@ public class PackPlayback2DBindingTests
     [
         ("DemoViewer.NET.Extensions.FirstPartyExports", Export),
         ("DemoViewer.NET.Extensions.FirstPartyHost", UserFolders),
-        ("DemoViewer.NET.Extensions.FirstPartySceneExport", Export),
-        ("DemoViewer.NET.Extensions.IFirstPartyExportChips", Export),
-        ("DemoViewer.NET.Extensions.IFirstPartyShellState", ShellState),
-        ("DemoViewer.NET.Extensions.SceneExportDefaults", Export),
-        ("DemoViewer.NET.Services.Export.ExportJobService", Export),
-        ("DemoViewer.NET.Services.Export.ExportSceneSetup", Export),
-        ("DemoViewer.NET.Services.Export.IExportJobService", Export),
-        ("DemoViewer.NET.Services.Export.IExportRunner", Export),
-        ("DemoViewer.NET.Services.Export.SceneExportRunner", Export),
         ("DemoViewer.NET.Services.Review.ReviewQueue", ReviewQueue),
-        ("DemoViewer.NET.ViewModels.Playback2D.ExportDialogScene", Export),
-        ("DemoViewer.NET.ViewModels.Playback2D.ExportRangeOption", Export),
-        ("DemoViewer.NET.ViewModels.Playback2D.ExportSizeOption", Export),
-        ("DemoViewer.NET.ViewModels.Playback2D.Playback2DExportDialogViewModel", Export),
-        ("DemoViewer.NET.ViewModels.Playback2D.Playback2DExportStatusViewModel", Export),
     ];
 
     /// <summary>Every type the pack may bind in the unpublished Playback2D assembly, with the reason.</summary>
     private static readonly (string Assembly, string Type, string Reason)[] Allowed =
     [
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.ExportRequest", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Rendering.IRenderSurfaceProvider", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Rendering.RenderSurfaceProviderFactory", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.EncoderProbeCache", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.FfmpegLocation", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.IEncoderProbe", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Frames.TrackerFrameSource", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackClip", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackPlan", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackPlanner", Export),
@@ -63,7 +41,6 @@ public class PackPlayback2DBindingTests
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackSettings", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackSkip", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackTitleCard", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Scene2DExportRequest", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Review.ReviewEntry", ReviewQueue),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Review.ReviewEntryKind", ReviewQueue),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Review.ReviewHighlightRef", ReviewQueue),

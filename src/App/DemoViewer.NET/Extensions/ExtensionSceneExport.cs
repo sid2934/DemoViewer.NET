@@ -43,20 +43,20 @@ internal static class SceneExportScenes
     /// <summary>The setup one run renders.</summary>
     /// <param name="scene">The captured scene.</param>
     /// <param name="palette">The resolved colours; <see cref="SceneExportScene.Palette" /> wins when it is set.</param>
-    /// <param name="art">The map's art, or null for the grid.</param>
+    /// <param name="frames">The run's range, rate and map art, which a held-frames scene builds over.</param>
     /// <param name="owned">
     ///     Released by the runner when the run ends, however it ends. The pane path hands its lease over; a
     ///     headless caller holds its own for the whole call and passes null.
     /// </param>
-    internal static ExportSceneSetup ToSetup(SceneExportScene scene, ScenePalette palette, IMapAsset? art,
-        IDisposable? owned)
+    internal static ExportSceneSetup ToSetup(SceneExportScene scene, ScenePalette palette,
+        SceneFramesRequest frames, IDisposable? owned)
     {
         IHudDataSource? hud = scene.Hud;
         Func<TrackerFrameSource, IHudDataSource>? demoHud = hud is null ? null : _ => hud;
         return new ExportSceneSetup(scene.Frames, scene.TickRate, scene.MapName, scene.Palette ?? palette,
-            scene.DisplayMode, null, demoHud, art, scene.Ink)
+            scene.DisplayMode, null, demoHud, frames.Map, scene.Ink)
         {
-            Source = scene.Source is { } source ? () => source(art) : null,
+            Source = scene.Source is { } source ? () => source(frames) : null,
             SourceHud = hud,
             Owned = owned
         };
@@ -237,7 +237,8 @@ internal sealed class ExtensionSceneExport : IExtensionSceneExport, IDisposable
         using IMapAssetLease? art = SceneExportScenes.Acquire(clip.Scene.MapName);
         try
         {
-            ExportSceneSetup setup = SceneExportScenes.ToSetup(clip.Scene, ScenePalette.Dark, art, null);
+            ExportSceneSetup setup = SceneExportScenes.ToSetup(clip.Scene, ScenePalette.Dark,
+                new SceneFramesRequest(art, clip.FromTick, clip.ToTick, clip.Fps, 1.0), null);
             int? held = null;
             if (setup.Source is { } source)
             {
@@ -323,7 +324,11 @@ internal sealed class ExtensionSceneExport : IExtensionSceneExport, IDisposable
         IMapAssetLease? art = SceneExportScenes.Acquire(scene.MapName);
         try
         {
-            return SceneExportScenes.ToSetup(scene, request.Palette ?? ScenePalette.Dark, art, art);
+            // The range the user chose, in the caller's own units: the pane sized it with the caller's own
+            // OutputFrameCount, so DemoStartFrame and DemoEndFrame carry those units, not demo frames.
+            return SceneExportScenes.ToSetup(scene, request.Palette ?? ScenePalette.Dark,
+                new SceneFramesRequest(art, request.DemoStartFrame, request.DemoEndFrame, request.Core.Fps,
+                    request.Core.Speed), art);
         }
         catch
         {

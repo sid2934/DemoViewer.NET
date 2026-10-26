@@ -1,6 +1,7 @@
 #region
 
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Extensions.Sdk.Export;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
@@ -938,8 +939,8 @@ public class StratStepMotionTests
             }
 
             StratExportCapture capture = canvas.CaptureForExport()!;
-            ExportRangeOption range = StratExportJob.Ranges(capture.Projection)[0];
-            StratFrameSource source = new(StratExportJob.BuildSpec(capture, null, range.StartFrame, range.EndFrame, 64, 1.0));
+            SceneExportRange range = StratExportJob.Ranges(capture.Projection)[0];
+            StratFrameSource source = new(StratExportJob.BuildSpec(capture, null, range.Start, range.End, 64, 1.0));
             int frame = Enumerable.Range(0, source.FrameCount).First(i => source.TickAt(i) == arrive);
             PlayerMarker a = source.FrameAt(frame).Markers.Single(m => m.Slot == TokenSlots.OrderOf("A"));
             await Assert.That(a.WorldX).IsEqualTo(1200f).Within(0.01f);

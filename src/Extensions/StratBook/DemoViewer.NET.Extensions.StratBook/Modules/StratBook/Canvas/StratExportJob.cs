@@ -1,18 +1,15 @@
 #region
 
 using System.Globalization;
-using System.Runtime.CompilerServices;
+using DemoViewer.NET.Extensions.Sdk.Export;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Hud;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
-using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
-using DemoViewer.NET.Services.Export;
-using DemoViewer.NET.ViewModels.Playback2D;
 
 #endregion
 
@@ -38,18 +35,13 @@ public sealed record StratExportCapture(
     WorldBounds FallbackBounds);
 
 /// <summary>
-///     Strat Export: the strat's half of a <c>SceneExportRunner</c> run. A strat has no demo, so it
-///     supplies its own <see cref="StratFrameSource" /> and its own HUD through
-///     <see cref="ExportSceneSetup.Source" />; everything downstream of that is the 2D export's.
+///     Strat Export: the strat's half of the host's scene export. A strat has no demo, so it supplies its own
+///     <see cref="StratFrameSource" /> and its own HUD through <see cref="SceneExportScene" />, and the ranges
+///     the pane offers; everything downstream of the frames is the host's.
 ///     <para>
-///         <b>The capture rides the request.</b> The dialog only knows how to freeze an ink session at Start, so
-///         the capture is keyed by that session and read back by reference on the pool thread; two Starts cannot
-///         trade strats, for the reason <c>Scene2DExportRequest.Ink</c> gives.
-///     </para>
-///     <para>
-///         <b>Private art.</b> The setup takes its own hold on the map bundle and hands it to the runner as
-///         <see cref="ExportSceneSetup.Owned" />: the canvas drops its own when the user opens a strat on
-///         another map, which can happen mid-render.
+///         <b>The art is the host's.</b> It holds the map's bundle for the whole run and hands it to the frame
+///         source, so the canvas dropping its own hold mid-render, which happens when the user opens a strat
+///         on another map, cannot take the art out from under the render.
 ///     </para>
 /// </summary>
 public static class StratExportJob
@@ -66,10 +58,8 @@ public static class StratExportJob
     /// <summary>How long the default range runs past the last step: 2 s on the strat clock.</summary>
     public const int TailTicks = 2 * StepSchedule.TicksPerSecond;
 
-    /// <summary>The refusal when the request carries no capture this job made.</summary>
+    /// <summary>The refusal when there is no strat to capture.</summary>
     public const string NoStratRefusal = "There is no open strat to export.";
-
-    private static readonly ConditionalWeakTable<AnnotationSession, StratExportCapture> _captures = new();
 
     /// <summary>
     ///     The layers a strat export draws: the seven scene layers, then the ink and the round clock when asked
@@ -104,39 +94,27 @@ public static class StratExportJob
     }
 
     /// <summary>
-    ///     The ranges the dialog offers, in strat ticks, the default first: the first step to the last plus
+    ///     The ranges the pane offers, in strat ticks, the default first: the first step to the last plus
     ///     <see cref="TailTicks" />, then the round from its start when the first step is later than that.
     /// </summary>
     /// <param name="projection">The path being exported.</param>
-    public static IReadOnlyList<ExportRangeOption> Ranges(StratSceneProjection projection)
+    public static IReadOnlyList<SceneExportRange> Ranges(StratSceneProjection projection)
     {
         ArgumentNullException.ThrowIfNull(projection);
 
         int first = projection.Ticks.Count > 0 ? projection.Ticks[0] : 0;
         int end = projection.ContentEndTick + TailTicks;
-        List<ExportRangeOption> ranges =
+        List<SceneExportRange> ranges =
         [
             new(Describe("First step to last + 2 s", first, end, projection), first, end)
         ];
 
         if (first > 0)
         {
-            ranges.Add(new ExportRangeOption(Describe(projection.CountsUp ? "From the start" : "From the round's start", 0, end, projection), 0, end));
+            ranges.Add(new SceneExportRange(Describe(projection.CountsUp ? "From the start" : "From the round's start", 0, end, projection), 0, end));
         }
 
         return ranges;
-    }
-
-    /// <summary>
-    ///     Freezes a capture onto its ink session, the object the dialog puts on the request. Returns that session,
-    ///     which is what the dialog's ink capture hands back.
-    /// </summary>
-    /// <param name="capture">The strat as it stands at Start.</param>
-    public static AnnotationSession Register(StratExportCapture capture)
-    {
-        ArgumentNullException.ThrowIfNull(capture);
-        _captures.AddOrUpdate(capture.Ink, capture);
-        return capture.Ink;
     }
 
     /// <summary>The spec a capture exports as over one range, at one rate and speed.</summary>
@@ -165,58 +143,26 @@ public static class StratExportJob
     }
 
     /// <summary>
-    ///     The scene one strat export renders: the capture riding the request's ink session, its own hold on
-    ///     the strat's map art, and the strat frame source over the requested tick range. Null when the
-    ///     request carries no capture this type registered, which the runner reports as
-    ///     <see cref="NoStratRefusal" />.
+    ///     The scene one strat export renders: the capture, and the strat frame source built over it on the
+    ///     render's own thread with whatever map art the host holds. A strat has no demo, so the frames are
+    ///     the only thing supplied; the layers, the camera, the encoder and the timing stay the host's.
+    ///     <para>
+    ///         <b>The range arrives with the run.</b> It is in strat ticks, and the pane sized it with
+    ///         <see cref="StratFrameSource.OutputFrameCount" />, the source's own arithmetic, so what the user
+    ///         chose reaches the source rather than what the pane opened on.
+    ///     </para>
     /// </summary>
-    /// <param name="request">The run being set up. Its range is in strat ticks, not demo frames.</param>
-    /// <param name="mapLoader">Takes a hold on the strat's map bundle by name; null draws the grid.</param>
-    public static ExportSceneSetup? Setup(Scene2DExportRequest request, Func<string?, IMapAssetLease?> mapLoader)
+    /// <param name="capture">The strat as it stood at Start.</param>
+    public static SceneExportScene Scene(StratExportCapture capture)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(mapLoader);
-
-        if (request.Ink is not { } ink || !_captures.TryGetValue(ink, out StratExportCapture? capture))
+        ArgumentNullException.ThrowIfNull(capture);
+        return new SceneExportScene
         {
-            return null;
-        }
-
-        IMapAssetLease? asset = SafeLoad(mapLoader, capture.MapName);
-        try
-        {
-            // The dialog's range is in strat ticks: DemoStartFrame and DemoEndFrame carry them, and the dialog
-            // sized the request with StratFrameSource.OutputFrameCount, the source's own arithmetic.
-            StratSceneSpec spec = BuildSpec(capture, asset, request.DemoStartFrame, request.DemoEndFrame,
-                request.Core.Fps, request.Core.Speed);
-
-            // No frames and no tick rate: Source stands in for both. No vision solver either, since the
-            // layer is named with the other six and draws nothing without one.
-            return new ExportSceneSetup([], 0, capture.MapName, request.Palette ?? ScenePalette.Dark,
-                LevelDisplayMode.Stacked, null, null, asset, spec.Ink)
-            {
-                Source = () => new StratFrameSource(spec),
-                SourceHud = new StratHudDataSource(spec.RoundSeconds, spec.CountsUp),
-                Owned = asset
-            };
-        }
-        catch
-        {
-            asset?.Dispose();
-            throw;
-        }
-    }
-
-    private static IMapAssetLease? SafeLoad(Func<string?, IMapAssetLease?> mapLoader, string map)
-    {
-        try
-        {
-            return mapLoader(map);
-        }
-        catch (Exception)
-        {
-            return null; // the grid, as on the canvas: a strat without a bundle still exports
-        }
+            MapName = capture.MapName,
+            Ink = capture.Ink,
+            Hud = new StratHudDataSource(capture.Projection.RoundSeconds, capture.Projection.CountsUp),
+            Source = run => new StratFrameSource(BuildSpec(capture, run.Map, run.Start, run.End, run.Fps, run.Speed))
+        };
     }
 
     // "First step to last + 2 s  (1:50 to 1:08)": the clock the coach wrote the steps on, +0:08 from a trigger.

@@ -2087,6 +2087,26 @@ static DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.operator ==(DemoVie
 static DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize? right) -> bool
 virtual DemoViewer.NET.Extensions.Sdk.Export.SceneExportFrameCount.Invoke(int start, int end, int fps, double speed) -> int
-virtual DemoViewer.NET.Extensions.Sdk.Export.SceneFramesFactory.Invoke(DemoViewer.NET.Playback2D.Levels.IMapAsset? map) -> DemoViewer.NET.Playback2D.ISceneFrames!
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.DemoPath.get -> string!
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.DemoPath.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest!
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Deconstruct(out DemoViewer.NET.Playback2D.Levels.IMapAsset? Map, out int Start, out int End, out int Fps, out double Speed) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.End.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.End.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Equals(DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Fps.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Fps.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Map.get -> DemoViewer.NET.Playback2D.Levels.IMapAsset?
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Map.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.SceneFramesRequest(DemoViewer.NET.Playback2D.Levels.IMapAsset? Map, int Start, int End, int Fps, double Speed) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Speed.get -> double
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Speed.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Start.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Start.init -> void
+override DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest? left, DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest? left, DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest? right) -> bool
+virtual DemoViewer.NET.Extensions.Sdk.Export.SceneFramesFactory.Invoke(DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest! request) -> DemoViewer.NET.Playback2D.ISceneFrames!
