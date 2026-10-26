@@ -222,28 +222,6 @@ DemoViewer.NET.Playback2D.Levels.LevelDisplayMode
 DemoViewer.NET.Playback2D.Levels.LevelDisplayMode.SideBySide = 2 -> DemoViewer.NET.Playback2D.Levels.LevelDisplayMode
 DemoViewer.NET.Playback2D.Levels.LevelDisplayMode.Single = 1 -> DemoViewer.NET.Playback2D.Levels.LevelDisplayMode
 DemoViewer.NET.Playback2D.Levels.LevelDisplayMode.Stacked = 0 -> DemoViewer.NET.Playback2D.Levels.LevelDisplayMode
-DemoViewer.NET.Playback2D.Levels.LevelHysteresis
-DemoViewer.NET.Playback2D.Levels.LevelHysteresis.Current.get -> DemoViewer.NET.Playback2D.Levels.MapLevelId
-DemoViewer.NET.Playback2D.Levels.LevelHysteresis.ForceTo(DemoViewer.NET.Playback2D.Levels.MapLevelId id) -> void
-DemoViewer.NET.Playback2D.Levels.LevelHysteresis.LevelHysteresis(DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions? options = null) -> void
-DemoViewer.NET.Playback2D.Levels.LevelHysteresis.Options.get -> DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions!
-DemoViewer.NET.Playback2D.Levels.LevelHysteresis.Pending.get -> DemoViewer.NET.Playback2D.Levels.MapLevelId
-DemoViewer.NET.Playback2D.Levels.LevelHysteresis.PendingSeconds.get -> double
-DemoViewer.NET.Playback2D.Levels.LevelHysteresis.Reset() -> void
-DemoViewer.NET.Playback2D.Levels.LevelHysteresis.Update(in DemoViewer.NET.Playback2D.SceneTime time, double worldZ, DemoViewer.NET.Playback2D.Levels.MapSpace! space) -> DemoViewer.NET.Playback2D.Levels.MapLevelId
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.<Clone>$() -> DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions!
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.BandFractionOfSpan.get -> double
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.BandFractionOfSpan.init -> void
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.Deconstruct(out double MinBand, out double MaxBand, out double BandFractionOfSpan, out double DwellSeconds) -> void
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.DwellSeconds.get -> double
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.DwellSeconds.init -> void
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.Equals(DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions? other) -> bool
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.LevelHysteresisOptions(double MinBand = 32, double MaxBand = 128, double BandFractionOfSpan = 0.25, double DwellSeconds = 0.35) -> void
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.MaxBand.get -> double
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.MaxBand.init -> void
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.MinBand.get -> double
-DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.MinBand.init -> void
 DemoViewer.NET.Playback2D.Levels.LevelLayouts
 DemoViewer.NET.Playback2D.Levels.LevelPane
 DemoViewer.NET.Playback2D.Levels.LevelPane.Camera -> DemoViewer.NET.Playback2D.SliceCamera
@@ -361,13 +339,6 @@ DemoViewer.NET.Playback2D.Levels.RadarBindingQuality
 DemoViewer.NET.Playback2D.Levels.RadarBindingQuality.Degraded = 2 -> DemoViewer.NET.Playback2D.Levels.RadarBindingQuality
 DemoViewer.NET.Playback2D.Levels.RadarBindingQuality.Exact = 1 -> DemoViewer.NET.Playback2D.Levels.RadarBindingQuality
 DemoViewer.NET.Playback2D.Levels.RadarBindingQuality.None = 0 -> DemoViewer.NET.Playback2D.Levels.RadarBindingQuality
-DemoViewer.NET.Playback2D.Levels.SingleLayout
-DemoViewer.NET.Playback2D.Levels.SingleLayout.ActiveLevelId.get -> DemoViewer.NET.Playback2D.Levels.MapLevelId
-DemoViewer.NET.Playback2D.Levels.SingleLayout.ActiveLevelId.set -> void
-DemoViewer.NET.Playback2D.Levels.SingleLayout.Arrange(DemoViewer.NET.Playback2D.Levels.MapSpace! space, DemoViewer.NET.Playback2D.Levels.LevelDisplayMode mode, SkiaSharp.SKSize host) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Levels.LevelPane!>!
-DemoViewer.NET.Playback2D.Levels.SingleLayout.ArrangedLevelIndex.get -> int
-DemoViewer.NET.Playback2D.Levels.SingleLayout.Revision.get -> int
-DemoViewer.NET.Playback2D.Levels.SingleLayout.SingleLayout() -> void
 DemoViewer.NET.Playback2D.Levels.StackedLayout
 DemoViewer.NET.Playback2D.Levels.StackedLayout.Arrange(DemoViewer.NET.Playback2D.Levels.MapSpace! space, DemoViewer.NET.Playback2D.Levels.LevelDisplayMode mode, SkiaSharp.SKSize host) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Levels.LevelPane!>!
 DemoViewer.NET.Playback2D.Levels.StackedLayout.StackedLayout() -> void
@@ -910,9 +881,6 @@ override DemoViewer.NET.Playback2D.ConePoint.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.GrenadeTrailPoint.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.KillFeedRow.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Levels.FloorSlice.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.ToString() -> string!
 override DemoViewer.NET.Playback2D.Levels.LevelPaneSnapshot.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Levels.LevelSetChange.Equals(object? obj) -> bool
 override DemoViewer.NET.Playback2D.Levels.LevelSetChange.GetHashCode() -> int
@@ -953,10 +921,6 @@ static DemoViewer.NET.Playback2D.KillFeedRow.operator ==(DemoViewer.NET.Playback
 static DemoViewer.NET.Playback2D.Layers.SceneLayerIds.OptIn.get -> System.Collections.Generic.IReadOnlySet<string!>!
 static DemoViewer.NET.Playback2D.Levels.FloorSlice.operator !=(DemoViewer.NET.Playback2D.Levels.FloorSlice left, DemoViewer.NET.Playback2D.Levels.FloorSlice right) -> bool
 static DemoViewer.NET.Playback2D.Levels.FloorSlice.operator ==(DemoViewer.NET.Playback2D.Levels.FloorSlice left, DemoViewer.NET.Playback2D.Levels.FloorSlice right) -> bool
-static DemoViewer.NET.Playback2D.Levels.LevelHysteresis.SpatialBand(DemoViewer.NET.Playback2D.Levels.MapLevel! a, DemoViewer.NET.Playback2D.Levels.MapLevel! b, DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions! options) -> double
-static DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.Default.get -> DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions!
-static DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.operator !=(DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions? left, DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions? right) -> bool
-static DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions.operator ==(DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions? left, DemoViewer.NET.Playback2D.Levels.LevelHysteresisOptions? right) -> bool
 static DemoViewer.NET.Playback2D.Levels.LevelLayouts.For(DemoViewer.NET.Playback2D.Levels.LevelDisplayMode mode) -> DemoViewer.NET.Playback2D.Levels.ILevelLayoutPolicy!
 static DemoViewer.NET.Playback2D.Levels.LevelLayouts.Parse(string? value) -> DemoViewer.NET.Playback2D.Levels.LevelDisplayMode
 static DemoViewer.NET.Playback2D.Levels.LevelPaneSnapshot.operator !=(DemoViewer.NET.Playback2D.Levels.LevelPaneSnapshot left, DemoViewer.NET.Playback2D.Levels.LevelPaneSnapshot right) -> bool

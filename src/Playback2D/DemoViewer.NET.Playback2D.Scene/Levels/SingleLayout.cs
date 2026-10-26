@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Playback2D.Levels;
 ///         view's "highest floor on top" reading order rather than silently showing a basement.
 ///     </para>
 /// </summary>
-public sealed class SingleLayout : ILevelLayoutPolicy
+internal sealed class SingleLayout : ILevelLayoutPolicy
 {
     private readonly List<LevelPane> _arranged = [];
     private MapLevelId _activeLevelId = MapLevelId.None;
