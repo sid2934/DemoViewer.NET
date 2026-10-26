@@ -163,7 +163,10 @@ tracks use. It can draw marks as well as bands: `BuildMarkers` puts a glyph on t
 the `TimelineMarkerKind` it asks for is what the host themes the glyph by. The host files every band and mark
 under the lane's id, so there is no point setting `TrackId` yourself.
 
-For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`).
+For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`), which takes
+an `IMapTool` through its own `AddTool`. For frames of your own, `SceneView` draws them the way the tab
+draws a demo: set `Source` to an `ISceneSource` that publishes a frame on every change, add layers by id,
+and add `IPointerTool`s that `SetActiveTool` selects by their `ToolKind`.
 
 ## Exporting a scene
 
