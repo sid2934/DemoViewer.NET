@@ -19,6 +19,8 @@ using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
+using SdkReview = DemoViewer.NET.Extensions.Sdk.Review;
+using PublishedQueue = DemoViewer.NET.Extensions.ExtensionReviewQueue;
 
 #endregion
 
@@ -155,8 +157,8 @@ public class ReviewQueueTests
     public async Task ATagRef_BecomesAClip_ThroughTheCacheIndex_OrNothingForAnUnknownHash()
     {
         TagInstanceRef instance = new("abc", Guid.NewGuid(), "exec-a", 2000, 2640, 7);
-        ReviewEntry? clip = TagClips.FromTag(instance, sha => sha == "abc" ? "/d/a.dem" : null, 64);
-        ReviewEntry? missing = TagClips.FromTag(instance with { Sha256 = "zzz" }, sha => sha == "abc" ? "/d/a.dem" : null);
+        SdkReview.ReviewClip? clip = TagClips.FromTag(instance, sha => sha == "abc" ? "/d/a.dem" : null, 64);
+        SdkReview.ReviewClip? missing = TagClips.FromTag(instance with { Sha256 = "zzz" }, sha => sha == "abc" ? "/d/a.dem" : null);
 
         using (Assert.Multiple())
         {
@@ -346,7 +348,7 @@ public class ReviewQueueTests
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         ReviewQueue queue = new(null);
         ResultCardsViewModel cards = new(cache.Library(), sidecars, sources, () => null, new SituationThumbnailCache(),
-            () => new SituationThumbnailRenderer(_ => null), action => action(), _ => null, review: queue);
+            () => new SituationThumbnailRenderer(_ => null), action => action(), _ => null, review: new PublishedQueue(queue));
         cache.Upsert(ParsedRecord("/d/a.dem"));
         Guid opponent = Guid.NewGuid();
         cards.SearchTeam = () => opponent;

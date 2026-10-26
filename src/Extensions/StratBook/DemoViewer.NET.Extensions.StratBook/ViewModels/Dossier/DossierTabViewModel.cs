@@ -15,8 +15,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Overlay;
-using DemoViewer.NET.Playback2D.Pipeline.Review;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
@@ -66,7 +65,7 @@ public sealed partial class DossierTabViewModel : ExtensionViewModel, IWorkspace
     private readonly SetupHeatmapService? _heatmaps;
     private readonly Action<Action> _post;
     private readonly Func<SetupHeatmapRenderer> _renderer;
-    private readonly ReviewQueue? _review;
+    private readonly IExtensionReviewQueue? _review;
     private readonly Func<string, bool>? _selectTab;
     private readonly TeamIdentityService _teams;
     private readonly VetoHistoryStore _vetoes;
@@ -137,7 +136,7 @@ public sealed partial class DossierTabViewModel : ExtensionViewModel, IWorkspace
     /// <param name="export">Writes an export (text, stem, extension) and opens it; the temp-file writer when null.</param>
     public DossierTabViewModel(TeamIdentityService teams, IExtensionLibrary library, VetoHistoryStore vetoes, bool? isBrowser = null,
         SetupHeatmapService? heatmaps = null,
-        ReviewQueue? review = null,
+        IExtensionReviewQueue? review = null,
         Func<string, bool>? selectTab = null,
         Func<SetupHeatmapRenderer>? renderer = null,
         Action<Action>? post = null,
@@ -677,13 +676,13 @@ public sealed partial class DossierTabViewModel : ExtensionViewModel, IWorkspace
     /// <param name="heatmap">The heatmap.</param>
     /// <param name="round">One of its rounds.</param>
     /// <param name="teamId">The dossier's team.</param>
-    public static ReviewEntry ReviewClipFor(SetupHeatmap heatmap, SetupHeatmapRound round, Guid? teamId = null)
+    public static ReviewClip ReviewClipFor(SetupHeatmap heatmap, SetupHeatmapRound round, Guid? teamId = null)
     {
         ArgumentNullException.ThrowIfNull(heatmap);
         ArgumentNullException.ThrowIfNull(round);
-        return ReviewEntry.Clip(round.DemoPath, round.FreezeEndTick, round.ClipEndTick,
+        return ReviewClip.Clip(round.DemoPath, round.FreezeEndTick, round.ClipEndTick,
             $"{heatmap.Map} · {SetupHeatmapViewModel.BuyLabelFor(heatmap.Buy)} · round {round.RoundNumber}",
-            ReviewSources.Dossier, round.TickRate, round.Sha256) with { TeamId = teamId };
+            ReviewSources.Dossier, round.TickRate, round.Sha256, teamId);
     }
 
     /// <summary>The section line for a finished build.</summary>

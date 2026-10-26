@@ -386,7 +386,7 @@ public sealed class StratBookPack : IExtension
                 teams: sp.GetRequiredService<TeamIdentityService>(),
                 provenance: sp.GetRequiredService<IDemoProvenanceSource>(),
                 watched: sp.GetRequiredService<WatchedSituationsService>(),
-                review: sp.GetRequiredService<ReviewQueue>(),
+                review: Host(sp).Review,
                 // The canvas shows the "us" team's callouts (Callout Aliases) over
                 // the stored canonical place names; no team marked falls back to the me book, same as the
                 // Strat Book's own default.
@@ -451,7 +451,7 @@ public sealed class StratBookPack : IExtension
             IExtensionLibrary library = Library(sp);
             return new TagMatrixTabViewModel(
                 sp.GetRequiredService<TagStore>(),
-                sp.GetRequiredService<ReviewQueue>(),
+                Host(sp).Review,
                 library.FindBySha256,
                 sp.GetRequiredService<TeamIdentityService>(),
                 tabId => Host(sp).Shell.SelectTab(tabId),
@@ -568,7 +568,7 @@ public sealed class StratBookPack : IExtension
                 calloutResolvers: sp.GetRequiredService<CalloutResolverSource>(),
                 tags: sp.GetRequiredService<TagStore>(),
                 evidence: sp.GetRequiredService<StratEvidenceService>(),
-                review: sp.GetRequiredService<ReviewQueue>(),
+                review: Host(sp).Review,
                 indexBySha: library.FindBySha256,
                 selectTab: tabId => Host(sp).Shell.SelectTab(tabId),
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
@@ -684,7 +684,7 @@ public sealed class StratBookPack : IExtension
                     RoundFactsOf(sp),
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
-                review: sp.GetRequiredService<ReviewQueue>(),
+                review: Host(sp).Review,
                 selectTab: tabId => Host(sp).Shell.SelectTab(tabId),
                 openings: new OpeningTendenciesService(
                     sp.GetRequiredService<TeamIdentityService>(),

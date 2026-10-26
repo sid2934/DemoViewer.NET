@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Playback2D.Overlay;
@@ -236,7 +237,7 @@ public class SetupHeatmapTests
         ReviewQueue queue = new(null);
         List<string> shown = [];
         using DossierTabViewModel vm = new(h.Teams, h.Cache.Library(), new VetoHistoryStore(null), false,
-            h.Service, queue, id =>
+            h.Service, new ExtensionReviewQueue(queue), id =>
             {
                 shown.Add(id);
                 return true;

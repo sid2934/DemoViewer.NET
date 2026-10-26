@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.DemoCache;
@@ -353,7 +354,7 @@ public class TagMatrixTests
             Teams = new TeamIdentityService(null, Cache.Library(), _facts, run: _inline);
             Store = new TagStore(null);
             Queue = new ReviewQueue(null);
-            Matrix = new TagMatrixTabViewModel(Store, Queue, Cache.Library().FindBySha256, Teams,
+            Matrix = new TagMatrixTabViewModel(Store, new ExtensionReviewQueue(Queue), Cache.Library().FindBySha256, Teams,
                 tab =>
                 {
                     SelectedTabs.Add(tab);

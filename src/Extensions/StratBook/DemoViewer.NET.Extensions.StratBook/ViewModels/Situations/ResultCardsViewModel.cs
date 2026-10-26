@@ -10,8 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Overlay;
 using DemoViewer.NET.Playback2D.Query;
-using DemoViewer.NET.Playback2D.Pipeline.Review;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
@@ -74,7 +73,7 @@ public sealed partial class ResultCardsViewModel : ExtensionViewModel
     private readonly Func<ISituationPlayback?> _playback;
     private readonly Action<Action> _post;
     private readonly Func<SituationThumbnailRenderer> _renderer;
-    private readonly ReviewQueue? _review;
+    private readonly IExtensionReviewQueue? _review;
     private Guid? _searchTeam;
     private readonly RoundIndexPlaceSources _sources;
     private readonly RoundIndexStore _store;
@@ -125,7 +124,7 @@ public sealed partial class ResultCardsViewModel : ExtensionViewModel
         Action<Action>? post = null,
         Func<byte[], Bitmap?>? decode = null,
         OverlayDocument? overlay = null,
-        ReviewQueue? review = null,
+        IExtensionReviewQueue? review = null,
         Func<string, Func<Action, Task>>? run = null,
         IRoundFacts? roundFacts = null)
     {
@@ -408,14 +407,14 @@ public sealed partial class ResultCardsViewModel : ExtensionViewModel
     /// </summary>
     /// <param name="card">The card.</param>
     /// <param name="teamId">The search's single opponent, or null.</param>
-    public static ReviewEntry ReviewClipFor(ResultCardViewModel card, Guid? teamId = null)
+    public static ReviewClip ReviewClipFor(ResultCardViewModel card, Guid? teamId = null)
     {
         ArgumentNullException.ThrowIfNull(card);
         SituationHit hit = card.Hit;
         int rate = card.TickRate > 0 ? card.TickRate : 64;
         int to = Math.Max(hit.FirstMatchTick, hit.LastMatchTick) + ReviewTailSeconds * rate;
-        return ReviewEntry.Clip(hit.DemoPath, card.SeekTick, to, $"{card.MatchLabel} · {card.RoundLabel}",
-            ReviewSources.Situation, rate, hit.DemoSha256) with { TeamId = teamId };
+        return ReviewClip.Clip(hit.DemoPath, card.SeekTick, to, $"{card.MatchLabel} · {card.RoundLabel}",
+            ReviewSources.Situation, rate, hit.DemoSha256, teamId);
     }
 
     /// <summary>

@@ -7,8 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
-using DemoViewer.NET.Playback2D.Pipeline.Review;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
@@ -64,7 +63,7 @@ public sealed partial class TagMatrixTabViewModel : ExtensionViewModel, IWorkspa
     private readonly Func<string, LibraryDemo?> _indexBySha;
     private readonly Action<Action> _post;
     private readonly Func<Action, Task> _run;
-    private readonly ReviewQueue? _review;
+    private readonly IExtensionReviewQueue? _review;
     private readonly Func<string, bool>? _selectTab;
     private readonly TagStore _store;
     private readonly TeamIdentityService? _teams;
@@ -114,7 +113,7 @@ public sealed partial class TagMatrixTabViewModel : ExtensionViewModel, IWorkspa
     /// <param name="run">Runs a rebuild: a processing-queue item in the app, the pool when null.</param>
     public TagMatrixTabViewModel(
         TagStore store,
-        ReviewQueue? review = null,
+        IExtensionReviewQueue? review = null,
         Func<string, LibraryDemo?>? indexBySha = null,
         TeamIdentityService? teams = null,
         Func<string, bool>? selectTab = null,
@@ -324,7 +323,7 @@ public sealed partial class TagMatrixTabViewModel : ExtensionViewModel, IWorkspa
             return 0;
         }
 
-        List<ReviewEntry> clips = [];
+        List<ReviewClip> clips = [];
         int missing = 0;
         foreach (TagInstanceRef instance in cell.Refs)
         {

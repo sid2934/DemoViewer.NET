@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using System.Text.RegularExpressions;
@@ -185,7 +186,7 @@ public class DetectedStratsTests
             using Library library = Library.Create();
             using StratMiningService mining = library.Service();
             ReviewQueue review = new(null);
-            using StratBookTabViewModel vm = new(library.Strats, null, null, false, review: review, tags: library.Tags, mining: mining);
+            using StratBookTabViewModel vm = new(library.Strats, null, null, false, review: new ExtensionReviewQueue(review), tags: library.Tags, mining: mining);
             DetectedRowViewModel row = SelectAExecute(vm);
 
             int writes = 0;

@@ -5,8 +5,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
-using DemoViewer.NET.Playback2D.Pipeline.Review;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
@@ -44,7 +43,7 @@ public sealed partial class StratRecordPanelViewModel : ExtensionViewModel, IDis
     private readonly TimeSpan _debounce;
     private readonly StratEvidenceService _evidence;
     private readonly Func<string, LibraryDemo?> _indexBySha;
-    private readonly ReviewQueue? _review;
+    private readonly IExtensionReviewQueue? _review;
     private readonly Func<string, bool>? _selectTab;
     private readonly TagStore _tags;
 
@@ -81,7 +80,7 @@ public sealed partial class StratRecordPanelViewModel : ExtensionViewModel, IDis
     public StratRecordPanelViewModel(
         StratEvidenceService evidence,
         TagStore tags,
-        ReviewQueue? review = null,
+        IExtensionReviewQueue? review = null,
         Func<string, LibraryDemo?>? indexBySha = null,
         Func<string, bool>? selectTab = null,
         Action<Action>? post = null,
@@ -283,7 +282,7 @@ public sealed partial class StratRecordPanelViewModel : ExtensionViewModel, IDis
     ///     Sends the runs behind one number to the Review Queue under one title card, then shows the Review
     ///     tab. A run whose demo is not in the library is not queued as a dead link; the status line counts
     ///     it instead. Tick rate is left at 0 (the surface does not know it, the same "did not know it" case
-    ///     <c>ReviewEntry</c> already carries for other callers), so a queued clip's length is unknown
+    ///     <c>ReviewClip</c> already carries for other callers), so a queued clip's length is unknown
     ///     until the reviewer opens it.
     /// </summary>
     /// <param name="scope">What the number is, for the section title ("total · All runs", "provenance · scrim").</param>
@@ -303,7 +302,7 @@ public sealed partial class StratRecordPanelViewModel : ExtensionViewModel, IDis
             return 0;
         }
 
-        List<ReviewEntry> clips = [];
+        List<ReviewClip> clips = [];
         int missing = 0;
         foreach (StratRun run in runs)
         {

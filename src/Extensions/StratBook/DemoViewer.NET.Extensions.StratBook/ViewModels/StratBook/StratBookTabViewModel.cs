@@ -15,7 +15,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Levels;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
@@ -167,7 +167,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, IMapAssetLease?>? canvasMapLoader = null,
-        TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
+        TagStore? tags = null, StratEvidenceService? evidence = null, IExtensionReviewQueue? review = null,
         Func<string, LibraryDemo?>? indexBySha = null, Func<string, bool>? selectTab = null,
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
