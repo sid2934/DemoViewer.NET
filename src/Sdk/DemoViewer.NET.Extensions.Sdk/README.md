@@ -165,6 +165,35 @@ under the lane's id, so there is no point setting `TrackId` yourself.
 
 For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`).
 
+## Exporting a scene
+
+`IExtensionContext.SceneExport` is the host's 2D export. It is null where the host exports nothing, which is
+the browser build: hide your export surface while it is.
+
+There are two ways in. `OpenPane` opens the host's export pane over your scene and gives you back an
+`ISceneExportPane`: put its `ViewModel` in a `ContentControl` in your own view, subscribe `Started` if you
+want to close the pane when the user starts, and dispose the handle to close it. An export that has started
+keeps running, and its progress stays on a status chip the host files under your extension. `RenderAsync`
+renders one `SceneExportClip` with no pane and no chip, for a caller already inside its own job.
+
+Either way you describe the scene with a `SceneExportScene`, and its frames come from one of two places. Set
+`Frames` and `TickRate` and the host replays a parsed demo through its own private tracker. Set `Source` and
+the host asks your `SceneFramesFactory` for an `ISceneFrames` instead, once the render's own thread has the
+map's art and the range, rate and speed the user chose. That second path is for a scene that never had a demo
+behind it. `MapName` is what the host looks the map's art up by, and it holds that art for the whole run, so
+dropping your own hold mid-render cannot take it out from under the render.
+
+The pane's request carries what only you know: the `Ranges` offered in your own units, the
+`SceneExportChoices` it opens on, the `OutputFrameCount` that sizes a range, the `Layers` built from its ink
+and clock toggles, and a `Capture` the host calls on the UI thread at Start. Return null from `Capture` and
+the run is refused with your `NothingToExport` copy, so a scene the user closed while the pane was open can
+never be rendered from a stale capture. Leave `LayerIds` or `Layers` unset and you get the default scene with
+no opt-in layer: no ink, no HUD and no telestration is ever burned in without being named.
+
+A render that does not produce a file answers with a `SceneExportOutcome` rather than throwing, and
+`Message` is the only part of it to put in front of a user. `SupportedFps(formatId)` lists the rates a format
+takes, which are shorter for GIF than for video, and `SizePresets` the sizes the host's own export offers.
+
 ## The host
 
 `services.GetExtensionContext(Id)` resolves only for your own extension's code, so call it from inside your
@@ -207,6 +236,7 @@ extension and pass your own id; any other caller is refused. It returns the exte
   `GestureText` read the user's keymap with their rebinds applied, for a surface of your own that resolves
   keys itself, and `Changed` fires on the UI thread after a rebind. `KeyGestureText.Format` writes a gesture
   the way the rest of the app does.
+- `SceneExport`: the host's 2D scene export, or null where it exports nothing. See "Exporting a scene".
 - `Identity`: the user's own accounts from Settings, Identity, read only. `Accounts` lists every SteamID64 the
   user marked as theirs and `ActiveAccount` the one their own stats are about; `IsMine` checks one id, and
   `Changed` fires on the UI thread after the user edits the list. Read `Accounts` to find the user's side of a
