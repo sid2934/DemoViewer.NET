@@ -79,6 +79,7 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Hud.HudStyle",
         "DemoViewer.NET.Playback2D.Hud.IHudDataSource",
         "DemoViewer.NET.Playback2D.Hud.IIconSource",
+        "DemoViewer.NET.Playback2D.ISceneFrames",
         "DemoViewer.NET.Playback2D.ISmoothedPositionSource",
         "DemoViewer.NET.Playback2D.Input.IPointerTool",
         "DemoViewer.NET.Playback2D.Input.ITokenEditor",

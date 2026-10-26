@@ -138,7 +138,7 @@ public sealed class SceneExportRunner : IExportRunner
         IHudDataSource? hud;
         if (setup.Source is { } frames)
         {
-            source = frames();
+            source = new SceneFramesSource(frames());
             hud = setup.SourceHud;
         }
         else

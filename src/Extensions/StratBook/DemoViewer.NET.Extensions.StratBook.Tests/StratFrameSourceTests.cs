@@ -361,8 +361,10 @@ public class StratFrameSourceTests
             ExportFormats.Gif, new HashSet<string>(layers, StringComparer.Ordinal),
             new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>()));
 
+        // The session drives Pipeline's own source contract; a strat supplies the published ISceneFrames,
+        // which the adapter is for.
         await new SceneExportSession(compositor).RunAsync(
-            request, source, sink, surfaces, null, CancellationToken.None);
+            request, new SceneFramesSource(source), sink, surfaces, null, CancellationToken.None);
 
         return sink.FrameHashes;
     }

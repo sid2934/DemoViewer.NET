@@ -89,7 +89,7 @@ public sealed record ExportSceneSetup(
     ///         the heavy-job gate has let the run through, as the demo path's tracker is.
     ///     </para>
     /// </summary>
-    public Func<ISceneFrameSource>? Source { get; init; }
+    public Func<ISceneFrames>? Source { get; init; }
 
     /// <summary>
     ///     The HUD for a <see cref="Source" /> export, which has no tracker for <see cref="Hud" />'s

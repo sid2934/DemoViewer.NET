@@ -2,7 +2,6 @@
 
 using System.Globalization;
 using DemoViewer.NET.Playback2D;
-using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 
 #endregion
@@ -26,7 +25,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 ///         previous frame while the next is built.
 ///     </para>
 /// </summary>
-public sealed class StratFrameSource : ISceneFrameSource
+public sealed class StratFrameSource : ISceneFrames
 {
     /// <summary>How long a smoke stays up: the nominal CS2 duration.</summary>
     public const double SmokeSeconds = 18;

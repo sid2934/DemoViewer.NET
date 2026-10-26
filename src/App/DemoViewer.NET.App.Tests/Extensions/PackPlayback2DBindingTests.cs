@@ -52,7 +52,6 @@ public class PackPlayback2DBindingTests
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.CameraScript+FollowPlayer", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.ExportProgress", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.ExportRequest", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.ISceneFrameSource", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Rendering.IRenderSurfaceProvider", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Rendering.RenderSurfaceProviderFactory", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.SceneExportSession", Export),

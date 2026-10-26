@@ -27,6 +27,21 @@ public interface ISceneFrameSource
 }
 
 /// <summary>
+///     A caller's own <see cref="ISceneFrames" /> as a source the session can drive. The published
+///     contract is deliberately the smaller one: a caller supplies frames and nothing else, so the
+///     preparation probe, the request and the session stay unpublished.
+/// </summary>
+/// <param name="frames">The frames to render. Not owned.</param>
+internal sealed class SceneFramesSource(ISceneFrames frames) : ISceneFrameSource
+{
+    public int FrameCount => frames.FrameCount;
+
+    public SceneTime TimeAt(int frameIndex) => frames.TimeAt(frameIndex);
+
+    public Scene2DFrame FrameAt(int frameIndex) => frames.FrameAt(frameIndex);
+}
+
+/// <summary>
 ///     An <see cref="ISceneFrameSource" /> with a one-time, expensive warm-up: a demo-backed source
 ///     replaying a tracker from frame zero to reach the export's first frame.
 ///     <para>

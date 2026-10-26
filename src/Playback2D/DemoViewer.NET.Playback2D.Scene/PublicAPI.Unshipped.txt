@@ -1366,6 +1366,10 @@ DemoViewer.NET.Playback2D.Hud.IHudDataSource.At(int tick) -> DemoViewer.NET.Play
 DemoViewer.NET.Playback2D.Hud.IIconSource
 DemoViewer.NET.Playback2D.Hud.IIconSource.IsBlankByDesign(string! key) -> bool
 DemoViewer.NET.Playback2D.Hud.IIconSource.Lookup(string! key, float pixelHeight) -> SkiaSharp.SKImage?
+DemoViewer.NET.Playback2D.ISceneFrames
+DemoViewer.NET.Playback2D.ISceneFrames.FrameAt(int frameIndex) -> DemoViewer.NET.Playback2D.Scene2DFrame!
+DemoViewer.NET.Playback2D.ISceneFrames.FrameCount.get -> int
+DemoViewer.NET.Playback2D.ISceneFrames.TimeAt(int frameIndex) -> DemoViewer.NET.Playback2D.SceneTime
 DemoViewer.NET.Playback2D.ISmoothedPositionSource
 DemoViewer.NET.Playback2D.ISmoothedPositionSource.TryGetSmoothed(int slot, out float x, out float y) -> bool
 DemoViewer.NET.Playback2D.Input.IPointerTool
