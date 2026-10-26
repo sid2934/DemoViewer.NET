@@ -125,3 +125,13 @@ support the app's own suites use: a shared headless session (`HeadlessSession.Ru
 `IModuleContext` fake. Import its `DemoViewer.NET.Extensions.Testing.props` from a TUnit test project that
 references Avalonia.Headless and Avalonia.Skia, and name your app builder with
 `[assembly: AvaloniaTestApplication(typeof(TestAppBuilder))]`.
+
+## Compatibility
+
+This kit ships at the SDK's version and binds the same way: the assembly version is `Major.0.0.0`, so a
+view built against any 2.x kit loads on every 2.x host. The SDK package's own README carries the full list
+of what 2.0 changed. The breaks in this kit are `SceneView.ActiveTool`, `SceneView.SetActiveTool` and
+`SceneView.AddTool`, which work in tool ids rather than `ToolKind`; `SceneView.AddLayer` and
+`MapView.AddLayer`, which return an `ILayerHandle` and refuse a duplicate id; `MapAssets.RenderPng`, which
+takes layer factories in place of an overlay document; and `MapAssets.TryLoad`, which is now
+`MapAssets.Acquire` and returns a lease you dispose.

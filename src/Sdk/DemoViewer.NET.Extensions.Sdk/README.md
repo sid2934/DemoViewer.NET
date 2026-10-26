@@ -625,6 +625,30 @@ every 2.x host. The SDK starts at 1.1 because 1.0.0 is what the app reported for
 extension contract; `^1.1` keeps those builds from loading SDK extensions. 1.2 adds `IExtensionContext.Identity`:
 an extension that reads it states `^1.2`, since a 1.1 host has no such member. 1.2 also adds
 `IExtensionLibrary.Players` and `IExtensionShell.OpenPlayerOverview` with default bodies, so a host or a test
-double written before them answers no accounts and opens nothing. 2.0 changes `IPlaybackSurface.AddLayer`,
-which now takes a display name and a starting state for the layer's own visibility row; a pack that adds a
-scene layer states `^2.0`.
+double written before them answers no accounts and opens nothing.
+
+2.0 is a wide break. A pack built against 1.x needs its `using` directives changed and a recompile, not
+just a new pin, and it states `^2.0`. The Playback2D namespaces were flattened to one per assembly, so
+`DemoViewer.NET.Playback2D.Core.*` is now `DemoViewer.NET.Playback2D.*`, and every signature naming a
+scene type moved with it. The scene contract also publishes less: 150 types became 130. Beyond the
+namespace, these shapes changed:
+
+- The SDK no longer declares its own timeline types. `ITimelineTrack`, `ITimelineData`, `TimelineBand`,
+  `TimelineMark` and `TimelineEvent` come from `DemoViewer.NET.Playback2D.Scene`, so one contract serves
+  a timeline lane and a scene.
+- `IExtensionContext.Storage` is `IExtensionContext.Stores`, and `IExtensionStorage` with its
+  `StoreRoot`-keyed `ReadAsync`/`WriteAtomicAsync` is `IExtensionFolder`. One storage model, not two.
+- `GetExtensionContext` is keyed on your pack type: `services.GetExtensionContext<MyPack>()`. The string
+  overload is gone, because two extensions could pass each other's id.
+- `IPlaybackSurface.AddLayer` takes a display name and a starting state for the layer's own visibility
+  row.
+- `SceneView.AddTool` returns an `IToolHandle`, and `IPointerTool` carries an `Id`. `SetActiveTool` and
+  `ActiveTool` are that id rather than a `ToolKind`, which is now the first-party category a tool
+  declares. Name a local id and the host files it under your extension.
+- `SceneView.AddLayer` and `MapView.AddLayer` return an `ILayerHandle` reporting the id the host filed
+  your layer under, and a second layer under an id a view already holds is refused instead of replacing
+  the first.
+- `MapAssets.RenderPng` takes layer factories of your own in place of an overlay document.
+- `MapAssets.TryLoad` is `MapAssets.Acquire`, and it hands back an `IMapAssetLease` you dispose. One
+  decode is shared by every holder, so the images it carries are the host's: draw them, do not dispose
+  them.
