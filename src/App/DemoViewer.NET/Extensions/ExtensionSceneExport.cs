@@ -135,19 +135,19 @@ internal sealed class ExtensionSceneExport : IExtensionSceneExport, IDisposable
 
     private readonly string _chipId;
     private readonly IFirstPartyExportChips? _chips;
-    private readonly FirstPartyExports _exports;
+    private readonly FirstPartyExports? _exports;
     private readonly string _featureId;
-    private readonly ExtensionGuard _guard;
+    private readonly ExtensionGuard? _guard;
     private readonly Action<string>? _reveal;
-    private readonly SceneExportRunner _runner;
     private readonly IFirstPartyShellState? _shell;
 
     private ExportJobService? _job;
     private string? _nothingToExport;
     private Action<string>? _paneLog;
+    private SceneExportRunner? _runner;
     private Playback2DExportStatusViewModel? _status;
 
-    /// <summary>Creates the extension's export.</summary>
+    /// <summary>Creates one extension's export.</summary>
     /// <param name="extensionId">The extension, which the chip is filed under.</param>
     /// <param name="featureId">The extension's master switch, which the chip shows under.</param>
     /// <param name="exports">The app's export plumbing: the heavy-job gate and the saved folder.</param>
@@ -170,18 +170,19 @@ internal sealed class ExtensionSceneExport : IExtensionSceneExport, IDisposable
         _chips = chips;
         _guard = guard;
         _reveal = reveal;
-
-        // Every seam named, the 2D tab's rule: an omitted optional is invisible at the call site. The
-        // no-setup refusal is unreachable because Setup throws its own, which carries the pane's copy.
-        _runner = new SceneExportRunner(
-            Setup,
-            surfaces: RenderSurfaceProviderFactory.CreateCpu,
-            managedFfmpegDirectory: static () => FirstPartySceneExport.ManagedFfmpegDirectory,
-            log: Log,
-            encoderProbe: EncoderProbeCache.Shared,
-            locateFfmpeg: null,
-            noSetupRefusal: null);
     }
+
+    private ExtensionSceneExport()
+    {
+        _chipId = "";
+        _featureId = "";
+    }
+
+    /// <summary>
+    ///     An export that can render a clip and nothing else: no job, no pane, no chip. For a caller that is
+    ///     already inside its own job and drives the render itself.
+    /// </summary>
+    internal static IExtensionSceneExport Headless() => new ExtensionSceneExport();
 
     /// <summary>
     ///     Cancels a running export and drops the chip's subscription. The host holds one of these for as long
@@ -207,7 +208,12 @@ internal sealed class ExtensionSceneExport : IExtensionSceneExport, IDisposable
         _nothingToExport = request.NothingToExport;
         _paneLog = request.Log;
 
-        ExportJobService job = Job();
+        if (_exports is null || _guard is null)
+        {
+            throw new InvalidOperationException("This export renders clips only; it has no pane.");
+        }
+
+        ExportJobService job = Job(_exports);
         Func<SceneExportScene?> capture = _guard.Wrap<SceneExportScene?>("export capture", request.Capture, null);
         Playback2DExportDialogViewModel dialog = FirstPartySceneExport.NewDialog(
             _exports,
@@ -268,14 +274,25 @@ internal sealed class ExtensionSceneExport : IExtensionSceneExport, IDisposable
         }
     }
 
-    private ExportJobService Job()
+    private ExportJobService Job(FirstPartyExports exports)
     {
         if (_job is { } existing)
         {
             return existing;
         }
 
-        _job = _exports.NewJob(_runner, _shell is null ? null : () => _shell.IsLiveSyncSessionActive,
+        // Every seam named, the 2D tab's rule: an omitted optional is invisible at the call site. The
+        // no-setup refusal is unreachable because Setup throws its own, which carries the pane's copy.
+        _runner ??= new SceneExportRunner(
+            Setup,
+            surfaces: RenderSurfaceProviderFactory.CreateCpu,
+            managedFfmpegDirectory: static () => FirstPartySceneExport.ManagedFfmpegDirectory,
+            log: Log,
+            encoderProbe: EncoderProbeCache.Shared,
+            locateFfmpeg: null,
+            noSetupRefusal: null);
+
+        _job = exports.NewJob(_runner, _shell is null ? null : () => _shell.IsLiveSyncSessionActive,
             _shell is null ? null : () => _shell.IsReelJobRunning, Log);
         _status = new Playback2DExportStatusViewModel(_job, _reveal);
         _chips?.Mount(_chipId, _featureId, _status);

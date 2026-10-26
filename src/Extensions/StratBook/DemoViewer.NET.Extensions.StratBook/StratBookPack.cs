@@ -739,7 +739,7 @@ public sealed class StratBookPack : IExtension
                 () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
                 StoresOf(sp).Open(StratBookStores.LineupClips)?.Path,
                 () => settings.RenderLineupClips,
-                new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
+                new LineupClipRenderer(Host(sp).SceneExport, line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
                 complete: () => index.IsReady,
                 maxBytes: () => settings.LineupClipsMaxMegabytes * 1024L * 1024L,

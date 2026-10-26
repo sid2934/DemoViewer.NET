@@ -4,11 +4,8 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Extensions.Sdk.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
-using DemoViewer.NET.Playback2D.Levels;
-using DemoViewer.NET.Playback2D.Pipeline.Frames;
-using SkiaSharp;
 
 #endregion
 
@@ -308,37 +305,29 @@ public static class LineupClipPlanner
     }
 
     /// <summary>
-    ///     The export request for a job over its demo's parsed frames: a GIF at <see cref="Fps" />, square,
-    ///     the scene's default layers, the camera on the thrower. The tick range is resolved to demo frames
-    ///     and clamped to the demo; null when the range lies outside it.
+    ///     The clip a job renders as: a GIF at <see cref="Fps" />, square, the scene's default layers and the
+    ///     camera on the thrower. The tick range rides the clip; the host resolves it against the scene's own
+    ///     frames and clamps it, and refuses a range that lies wholly outside them.
     /// </summary>
     /// <param name="job">The planned clip.</param>
-    /// <param name="frames">The demo's frames.</param>
-    /// <param name="tickRate">The parsed demo's tick rate.</param>
-    public static Scene2DExportRequest? BuildRequest(LineupClipJob job, IReadOnlyList<DemoFrame> frames,
-        int tickRate)
+    /// <param name="scene">The demo's parse, which every clip of that demo shares.</param>
+    public static SceneExportClip BuildClip(LineupClipJob job, SceneExportScene scene)
     {
         ArgumentNullException.ThrowIfNull(job);
-        ArgumentNullException.ThrowIfNull(frames);
-        if (frames.Count == 0 || job.ToTick < frames[0].ServerTick || job.FromTick > frames[^1].ServerTick)
+        ArgumentNullException.ThrowIfNull(scene);
+        return new SceneExportClip
         {
-            return null;
-        }
-
-        int start = Math.Max(0, TrackerFrameSource.FrameIndexForTick(frames, Math.Max(job.FromTick, frames[0].ServerTick)));
-        int end = TrackerFrameSource.FrameIndexForTick(frames, Math.Min(job.ToTick, frames[^1].ServerTick));
-        if (end < start)
-        {
-            return null;
-        }
-
-        int count = TrackerFrameSource.OutputFrameCount(frames, start, end, Fps, 1.0, tickRate);
-        CameraScript camera = job.ThrowerSteamId is { } steamId
-            ? new CameraScript.FollowPlayer(steamId)
-            : new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>());
-        ExportRequest core = new(0, Math.Max(0, count - 1), Fps, new SKSizeI(Side, Side), 1.0, ExportFormats.Gif,
-            new HashSet<string>(StringComparer.Ordinal), camera);
-        return new Scene2DExportRequest(core, job.GifPath, job.DemoPath, start, end, Palette: ScenePalette.Dark);
+            Scene = scene,
+            OutputPath = job.GifPath,
+            DemoPath = job.DemoPath,
+            FormatId = ExportFormats.Gif,
+            Fps = Fps,
+            Width = Side,
+            Height = Side,
+            FromTick = job.FromTick,
+            ToTick = job.ToTick,
+            FollowSteamId = job.ThrowerSteamId
+        };
     }
 
     /// <summary>The cluster's title as the card prints it.</summary>
