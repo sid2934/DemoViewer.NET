@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Playback2D.Compositing;
 ///         cannot diverge.
 ///     </para>
 /// </summary>
-public sealed class SceneCompositor : IDisposable
+internal sealed class SceneCompositor : IDisposable
 {
     // Generous world-space cull for Static recordings: CS2 maps live well inside ±32768 world units.
     private static readonly SKRect WorldCullRect = new(-32768, -32768, 32768, 32768);

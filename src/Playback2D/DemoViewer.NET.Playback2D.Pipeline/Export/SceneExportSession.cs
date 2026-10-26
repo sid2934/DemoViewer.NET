@@ -57,7 +57,7 @@ public sealed class SceneExportSession
 
     /// <summary>Creates a session over a layer stack.</summary>
     /// <param name="compositor">The layers to draw. Owned by the caller; never disposed here.</param>
-    public SceneExportSession(SceneCompositor compositor)
+    internal SceneExportSession(SceneCompositor compositor)
     {
         ArgumentNullException.ThrowIfNull(compositor);
         _compositor = compositor;

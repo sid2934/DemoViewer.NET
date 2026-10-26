@@ -66,7 +66,6 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Compositing.ISceneLayer",
         "DemoViewer.NET.Playback2D.Compositing.LayerCacheHint",
         "DemoViewer.NET.Playback2D.Compositing.LayerSlot",
-        "DemoViewer.NET.Playback2D.Compositing.SceneCompositor",
         "DemoViewer.NET.Playback2D.Compositing.SceneRenderContext",
         "DemoViewer.NET.Playback2D.ConePoint",
         "DemoViewer.NET.Playback2D.DemoContentHash",

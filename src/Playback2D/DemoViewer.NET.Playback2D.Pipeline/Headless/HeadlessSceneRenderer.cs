@@ -45,7 +45,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// <param name="surfaces">Where surfaces come from. Not owned.</param>
     /// <param name="layout">Pane layout policy.</param>
     /// <param name="palette">Resolved colours.</param>
-    public HeadlessSceneRenderer(SceneCompositor compositor, IRenderSurfaceProvider surfaces,
+    internal HeadlessSceneRenderer(SceneCompositor compositor, IRenderSurfaceProvider surfaces,
         ILevelLayoutPolicy layout, ScenePalette palette)
     {
         ArgumentNullException.ThrowIfNull(compositor);
@@ -64,7 +64,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// </summary>
     /// <param name="surfaces">Where surfaces come from. Not owned.</param>
     /// <param name="compositor">The layer stack. Not owned.</param>
-    public HeadlessSceneRenderer(IRenderSurfaceProvider surfaces, SceneCompositor compositor)
+    internal HeadlessSceneRenderer(IRenderSurfaceProvider surfaces, SceneCompositor compositor)
         : this(compositor, surfaces, new StackedLayout(), ScenePalette.Dark)
     {
     }
@@ -73,7 +73,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     public MapSpaceFactory Levels { get; } = new();
 
     /// <summary>The layer stack being drawn. Not owned.</summary>
-    public SceneCompositor Compositor { get; }
+    internal SceneCompositor Compositor { get; }
 
     /// <summary>The backend the underlying provider hands out.</summary>
     public RenderBackend Backend => _surfaces.Backend;

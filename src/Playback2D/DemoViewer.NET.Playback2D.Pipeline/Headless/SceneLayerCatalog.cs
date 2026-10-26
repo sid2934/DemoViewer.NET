@@ -116,7 +116,7 @@ public static class SceneLayerCatalog
     ///     outlines and boxes still draw. Used by the golden gates, which judge text under its own ink.
     /// </summary>
     /// <param name="compositor">The stack to switch; the change is not undone.</param>
-    public static void SilenceText(SceneCompositor compositor)
+    internal static void SilenceText(SceneCompositor compositor)
     {
         ArgumentNullException.ThrowIfNull(compositor);
         if (compositor.Find(SceneLayerIds.Markers) is MarkerLayer markers)
@@ -190,7 +190,7 @@ public static class SceneLayerCatalog
     ///     over the live document and never comes through here.
     /// </param>
     /// <exception cref="ArgumentException">An id is not in <see cref="SceneStackIds" />.</exception>
-    public static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
+    internal static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
         IReadOnlyList<string>? exclude = null, IVisionSolver? vision = null, IHudDataSource? hud = null,
         AnnotationSession? annotations = null, MarkerSmoother? smoother = null,
         IIconSource? icons = null, PlaceResolver? zones = null, QueryCanvasDocument? query = null,

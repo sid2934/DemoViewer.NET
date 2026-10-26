@@ -105,19 +105,6 @@ DemoViewer.NET.Playback2D.Compositing.LayerSlot.Hud = 3 -> DemoViewer.NET.Playba
 DemoViewer.NET.Playback2D.Compositing.LayerSlot.Overlay = 2 -> DemoViewer.NET.Playback2D.Compositing.LayerSlot
 DemoViewer.NET.Playback2D.Compositing.LayerSlot.Underlay = 0 -> DemoViewer.NET.Playback2D.Compositing.LayerSlot
 DemoViewer.NET.Playback2D.Compositing.LayerSlot.World = 1 -> DemoViewer.NET.Playback2D.Compositing.LayerSlot
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Add(DemoViewer.NET.Playback2D.Compositing.ISceneLayer! layer) -> void
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.AddOwned(System.IDisposable! resource) -> void
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Advance(in DemoViewer.NET.Playback2D.SceneTime time, DemoViewer.NET.Playback2D.Scene2DFrame! frame) -> bool
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Dispose() -> void
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Find(string! layerId) -> DemoViewer.NET.Playback2D.Compositing.ISceneLayer?
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.InvalidateCaches() -> void
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.InvalidatePaneCaches(DemoViewer.NET.Playback2D.Levels.MapLevelId levelId) -> void
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Layers.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>!
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Remove(string! layerId) -> bool
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Render(SkiaSharp.SKCanvas! canvas, in DemoViewer.NET.Playback2D.Compositing.SceneRenderContext ctx) -> void
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.SceneCompositor() -> void
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.SetEnabled(string! layerId, bool enabled) -> void
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.BelongsHere(double worldZ) -> bool
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Deconstruct(out DemoViewer.NET.Playback2D.Scene2DFrame! Frame, out DemoViewer.NET.Playback2D.SceneTime Time, out DemoViewer.NET.Playback2D.ViewportTransform Transform, out SkiaSharp.SKRect PaneBounds, out int LevelIndex, out double LevelMinZ, out double LevelMaxZ, out DemoViewer.NET.Playback2D.RenderPurpose Purpose, out DemoViewer.NET.Playback2D.ScenePalette Palette, out float RenderScaling) -> void

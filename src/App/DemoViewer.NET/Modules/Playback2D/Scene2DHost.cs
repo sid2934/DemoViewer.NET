@@ -173,7 +173,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     internal ZoneOutlineLayer? ZoneLayerForTest => _zoneLayer;
 
     /// <summary>The layer stack other scene layers register themselves on.</summary>
-    public SceneCompositor Compositor => _compositor;
+    internal SceneCompositor Compositor => _compositor;
 
     /// <summary>
     ///     Registers a pointer tool on this host only: the strat canvas's token tool, never the

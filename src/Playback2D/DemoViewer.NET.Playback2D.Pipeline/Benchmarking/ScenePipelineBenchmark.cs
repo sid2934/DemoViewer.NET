@@ -39,7 +39,7 @@ public sealed class ScenePipelineBenchmark
     /// <param name="surfaces">Surface backend. Not owned.</param>
     /// <param name="layout">Pane layout policy.</param>
     /// <param name="palette">Resolved colours.</param>
-    public ScenePipelineBenchmark(SceneCompositor compositor, IRenderSurfaceProvider surfaces,
+    internal ScenePipelineBenchmark(SceneCompositor compositor, IRenderSurfaceProvider surfaces,
         ILevelLayoutPolicy layout, ScenePalette palette)
     {
         ArgumentNullException.ThrowIfNull(compositor);

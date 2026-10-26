@@ -46,6 +46,12 @@
         <!-- PackExportTests (App.Tests) white-box-tests PackSegmentSink and PackTitleCardRenderer,
              internal to Pipeline; see the note on PackExporter.cs. -->
         <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
+        <!-- The layer catalog and the export session take a SceneCompositor, which is internal to the
+             scene, so both went internal with it. The app builds the export's stack and its session, and
+             the hosted map assets build a headless renderer; the pack's test project builds a stack
+             directly for the strat goldens and silences text through the catalog. -->
+        <InternalsVisibleTo Include="DemoViewer.NET"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.Extensions.StratBook.Tests"/>
     </ItemGroup>
 
 </Project>
