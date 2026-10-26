@@ -30,7 +30,8 @@ public static partial class Variants
     // E's lurk selected and E dragged to Long Doors: released or not.
     private static HubTabView StratDrag(bool release)
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
         HubTabView view = StratEditor(true, true, true, vm =>
         {
@@ -65,7 +66,8 @@ public static partial class Variants
     // spots and opponents sit on step 1.
     private static HubTabView StratDragPlaced()
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
         HubTabView view = StratEditor(true, true, true, vm =>
         {

@@ -43,7 +43,8 @@ public class UtilityCardClipTests
             await HeadlessSession.RunOnUi(async () =>
             {
                 DemoCacheStore cache = new(root);
-                using GrenadeIndex index = new(cache.Library(), new AssetZonePlaceResolverSource());
+                using AssetZonePlaceResolverSource zones = new();
+                using GrenadeIndex index = new(cache.Library(), zones);
                 index.Load();
                 using UtilityBookTabViewModel vm = new(index, isBrowser: false, clipDirectory: clips);
                 vm.SelectedMap = "de_mirage";
@@ -139,7 +140,8 @@ public class UtilityCardClipTests
             }
 
             DemoCacheStore cache = new(root);
-            using GrenadeIndex index = new(cache.Library(), new AssetZonePlaceResolverSource());
+            using AssetZonePlaceResolverSource zones = new();
+            using GrenadeIndex index = new(cache.Library(), zones);
             index.Load();
             IReadOnlyList<GrenadeCluster> Clusters() => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))];
             IReadOnlyList<LineupClipJob> every = LineupClipPlanner.PlanEvery(Clusters(), clips);

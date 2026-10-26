@@ -46,7 +46,8 @@ public class SuggestedTagsIndexPlacementRealDemoTests
             .. index.Places.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => new PlaceSummary(p.Key, p.Value.Count,
                 [.. p.Value.Buckets.Select(b => new PlaceZBucket(b.ZBucket, b.Count, b.SumX / b.Count, b.SumY / b.Count))]))
         ];
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet(parsed.MapName);
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet(parsed.MapName);
 
         DetonationPlaceResolver walkPath = new(zones, null, walk.Cloud);
         DetonationPlaceResolver centroidsOnly = new(zones, places, null);

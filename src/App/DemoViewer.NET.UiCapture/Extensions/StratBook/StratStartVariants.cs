@@ -22,7 +22,8 @@ public static partial class Variants
     // in spawn at tick 0 and the move's routes run from there.
     private static HubTabView StratStartRow(bool panesCollapsed)
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
         HubTabView view = StratEditor(panesCollapsed, panesCollapsed, true, vm =>
         {
@@ -30,7 +31,7 @@ public static partial class Variants
             vm.Editor.Name = "Execute B";
             vm.Editor.TriggerText = "on the call";
             StratDocument document = vm.Session.Document!;
-            if (StratSpawnSource.LoadShipped("de_dust2", null)?.StartFor(document) is { } start)
+            if (StratSpawnSource.LoadShipped("de_dust2")?.StartFor(document) is { } start)
             {
                 vm.Session.Apply(StratStartBlock.Write(document, start));
             }
@@ -65,7 +66,8 @@ public static partial class Variants
     // playhead five seconds in.
     private static HubTabView StratTriggerClock()
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_mirage");
         StratBookTabViewModel? strats = null;
         HubTabView view = StratEditor(true, true, true, vm =>
         {
@@ -73,7 +75,7 @@ public static partial class Variants
             vm.Editor.Name = "B apps hit after contact";
             vm.Editor.TriggerText = "contact at B apps";
             StratDocument document = vm.Session.Document!;
-            if (StratSpawnSource.LoadShipped("de_mirage", null)?.StartFor(document) is { } start)
+            if (StratSpawnSource.LoadShipped("de_mirage")?.StartFor(document) is { } start)
             {
                 vm.Session.Apply(StratStartBlock.Write(document, start));
             }

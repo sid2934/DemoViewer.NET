@@ -1,8 +1,7 @@
 #region
 
-using CS2DemoKit.Analysis.Visibility;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D.Zones;
-using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
@@ -13,34 +12,35 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 ///     Builds a <see cref="CalloutResolver" /> for one owner on one map: the store's alias table over the map's
 ///     zones, so every caller agrees on the same vocabulary and the same team words.
 ///     <para>
-///         This is the one seam that turns a bundle directory and an overlay directory into a
-///         <see cref="CalloutResolver" />; the Strat Book, the Query Canvas and a future TagQuery place filter
-///         all build theirs through it rather than each probing <see cref="ZoneAssetPipeline" /> on its own.
+///         This is the one seam that turns a map name into a <see cref="CalloutResolver" />; the Strat Book,
+///         the Query Canvas and a future TagQuery place filter all build theirs through it rather than each
+///         probing a map's art on its own.
+///     </para>
+///     <para>
+///         The hold is per call, not per instance: these are built on the UI thread as a tab opens, and a
+///         long-lived hold here would pin a bundle for every map anyone ever typed a callout against. The
+///         refresh is what keeps an alias table over the user's latest saved overlay.
 ///     </para>
 /// </summary>
 public sealed class CalloutResolverSource
 {
-    private readonly Func<string, string?> _bundleDirFor;
-    private readonly Func<string?> _overlayDir;
+    private readonly Func<string, IMapAssetLease?> _acquire;
     private readonly StratStore _store;
 
-    /// <param name="store">The alias tables. Bundles beside the executable and no user overlay.</param>
+    /// <param name="store">The alias tables. The app's own map art, through the one bundle registry.</param>
     public CalloutResolverSource(StratStore store)
-        : this(store, MapAssetBundleReader.FindBundleDirectory, () => null)
+        : this(store, MapAssets.Acquire)
     {
     }
 
     /// <param name="store">The alias tables.</param>
-    /// <param name="bundleDirFor">The map's bundle directory, or null when it has none.</param>
-    /// <param name="overlayDir">The user's <c>zones/</c> directory; null for none.</param>
-    public CalloutResolverSource(StratStore store, Func<string, string?> bundleDirFor, Func<string?> overlayDir)
+    /// <param name="acquire">Takes a hold on a map's art, or answers null when the app ships none for it.</param>
+    public CalloutResolverSource(StratStore store, Func<string, IMapAssetLease?> acquire)
     {
         ArgumentNullException.ThrowIfNull(store);
-        ArgumentNullException.ThrowIfNull(bundleDirFor);
-        ArgumentNullException.ThrowIfNull(overlayDir);
+        ArgumentNullException.ThrowIfNull(acquire);
         _store = store;
-        _bundleDirFor = bundleDirFor;
-        _overlayDir = overlayDir;
+        _acquire = acquire;
     }
 
     /// <summary>The resolver for an owner's aliases over a map's zones, else the embedded canonical list.</summary>
@@ -51,11 +51,11 @@ public sealed class CalloutResolverSource
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentException.ThrowIfNullOrEmpty(map);
 
-        // The pipeline never throws: a missing bundle, no overlay directory or a malformed overlay each
-        // fall back to the baked set or, with no bundle at all, to null, which CalloutResolver.For reads as
-        // "use the embedded list".
-        PlaceResolver? zones = ZoneAssetPipeline.TryLoad(_bundleDirFor(map), _overlayDir());
-        return CalloutResolver.For(map, zones?.Zones, _store.LoadCallouts(owner, map));
+        // Nothing here throws: a missing bundle, no overlay directory or a malformed overlay each fall
+        // back to the baked set or, with no art at all, to null, which CalloutResolver.For reads as "use
+        // the embedded list".
+        using IMapAssetLease? lease = _acquire(map);
+        return CalloutResolver.For(map, lease?.RefreshZones()?.Zones, _store.LoadCallouts(owner, map));
     }
 
     /// <summary>
@@ -66,8 +66,8 @@ public sealed class CalloutResolverSource
     public CalloutResolver Canonical(string map)
     {
         ArgumentException.ThrowIfNullOrEmpty(map);
-        PlaceResolver? zones = ZoneAssetPipeline.TryLoad(_bundleDirFor(map), _overlayDir());
-        return CalloutResolver.For(map, zones?.Zones, null);
+        using IMapAssetLease? lease = _acquire(map);
+        return CalloutResolver.For(map, lease?.RefreshZones()?.Zones, null);
     }
 
     /// <summary>

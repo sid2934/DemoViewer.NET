@@ -46,7 +46,8 @@ public class GrenadesV2Probe
         await HeadlessSession.RunOnUi(() =>
         {
             DemoCacheStore cache = new(root);
-            using GrenadeIndex index = new(cache.Library(), new AssetZonePlaceResolverSource()) { Grouping = grouping };
+            using AssetZonePlaceResolverSource zones = new();
+            using GrenadeIndex index = new(cache.Library(), zones) { Grouping = grouping };
             long before = GC.GetTotalMemory(true);
             index.Load();
             long retained = GC.GetTotalMemory(true) - before;

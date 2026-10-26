@@ -230,8 +230,7 @@ public sealed class StratBookPack : IExtension
         // without a zones file, and every map on the browser host, answers "no zones" and the empirical
         // graph applies. Zone Baking itself (Services/Zones) is core; this adapter over it is the pack's,
         // since only the Round Index and the Strat Book read place graphs.
-        services.AddSingleton<IZonePlaceResolverSource>(sp =>
-            new AssetZonePlaceResolverSource(MapAssetBundleReader.FindBundleDirectory, () => Paths(sp).ZonesDirectory));
+        services.AddSingleton<IZonePlaceResolverSource>(_ => new AssetZonePlaceResolverSource());
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
@@ -515,8 +514,7 @@ public sealed class StratBookPack : IExtension
         // Callout Aliases: one resolver builder over the store's tables and the map's
         // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
         // a nav place.
-        services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>(), MapAssetBundleReader.FindBundleDirectory,
-            () => Paths(sp).ZonesDirectory));
+        services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>()));
         // Strat Record Panel: the evidence rule over the Tag Store and Demo
         // Provenance Labels, one instance so the panel's live rebuild and any other future reader of a
         // strat's record agree on what "run / won / aborted" means.
@@ -577,7 +575,7 @@ public sealed class StratBookPack : IExtension
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 mining: sp.GetRequiredService<StratMiningService>(),
                 playback: () => sp.GetService<ISituationPlayback>(),
-                spawns: new StratSpawnSource(map => StratSpawnSource.LoadShipped(map, Paths(sp).ZonesDirectory)),
+                spawns: new StratSpawnSource(),
                 layout: sp.GetRequiredService<StratBookLayout>(),
                 lineupMap: map => UtilityBookFor(sp, map),
                 canvasServices: canvasServices,

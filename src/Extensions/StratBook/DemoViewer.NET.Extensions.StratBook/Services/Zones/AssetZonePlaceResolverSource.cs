@@ -1,10 +1,9 @@
 #region
 
 using System.Numerics;
-using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D.Zones;
-using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
@@ -13,42 +12,45 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 namespace DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 /// <summary>
-///     The app's zone resolver source: the map's baked <c>zones.json</c> plus the user overlay under
-///     <c>&lt;config&gt;/zones/</c>, through <see cref="ZoneAssetPipeline" />, one load per map.
+///     The app's zone resolver source: a map's places off one held <see cref="IMapAssetLease" /> per map,
+///     which is its baked <c>zones.json</c> plus the user overlay under <c>&lt;config&gt;/zones/</c>.
 ///     <para>
-///         A map with no bundle directory or no zones file answers null, and that answer is cached too,
-///         so the Query Canvas and the Tolerance Slider take their empirical path without a probe per
-///         call. The browser host lands there for every map: no asset directory, no config root.
+///         A map with no art or no zones file answers null, and that answer is cached too, so the Query
+///         Canvas and the Tolerance Slider take their empirical path without a probe per call. The browser
+///         host lands there for every map: no asset directory, no config root.
 ///     </para>
 ///     <para>
-///         The cache is keyed on the overlay file's stamp as well as the map. An author who saves an
-///         edited overlay gets the new names and graph on the next query without a restart, the same
-///         way the Playback tab's "Reload zones" picks it up; the baked file is a shipped asset and is
-///         not watched.
+///         Holding the lease is what makes a saved overlay visible without a restart:
+///         <see cref="IMapAssetLease.RefreshZones" /> hands back the same resolver until the file's stamp
+///         moves, and only then is the adjacency graph folded again. The baked file is a shipped asset and
+///         is not watched.
+///     </para>
+///     <para>
+///         <b>Dispose gives every hold back.</b> The bundle registry is process-wide, so a source left
+///         undisposed pins one bundle per map it was asked about for the life of the process.
 ///     </para>
 /// </summary>
-public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IExtensionResident
+public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IExtensionResident, IDisposable
 {
-    private readonly Func<string, string?> _bundleDirFor;
+    private readonly Func<string, IMapAssetLease?> _acquire;
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Entry> _maps = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<string?> _overlayDir;
 
-    /// <summary>Bundles beside the executable and no user overlay.</summary>
+    /// <summary>The app's own map art, through the one bundle registry.</summary>
     public AssetZonePlaceResolverSource()
-        : this(MapAssetBundleReader.FindBundleDirectory, () => null)
+        : this(MapAssets.Acquire)
     {
     }
 
-    /// <param name="bundleDirFor">The map's bundle directory, or null when it has none.</param>
-    /// <param name="overlayDir">The user's <c>zones/</c> directory, read per call so a config move is seen; null for none.</param>
-    public AssetZonePlaceResolverSource(Func<string, string?> bundleDirFor, Func<string?> overlayDir)
+    /// <param name="acquire">Takes a hold on a map's art, or answers null when the app ships none for it.</param>
+    public AssetZonePlaceResolverSource(Func<string, IMapAssetLease?> acquire)
     {
-        ArgumentNullException.ThrowIfNull(bundleDirFor);
-        ArgumentNullException.ThrowIfNull(overlayDir);
-        _bundleDirFor = bundleDirFor;
-        _overlayDir = overlayDir;
+        ArgumentNullException.ThrowIfNull(acquire);
+        _acquire = acquire;
     }
+
+    /// <inheritdoc />
+    public void Dispose() => Release();
 
     /// <inheritdoc />
     public IZonePlaceResolver? TryGet(string map)
@@ -58,27 +60,36 @@ public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IEx
             return null;
         }
 
-        string? overlayDir = _overlayDir();
-        OverlayStamp stamp = OverlayStamp.Of(ZoneAssetPipeline.OverlayPathFor(overlayDir, map));
-        if (Cached(map, overlayDir, stamp) is { } hit)
+        if (Cached(map) is { } hit)
         {
-            return hit.Resolver;
+            return hit.Lease is null ? null : Refresh(map, hit);
         }
 
-        // Built outside the lock, so one map's graph never holds up another's lookup; a racing build loses to the published one.
-        // The pipeline never throws: a missing, unreadable or malformed zones file is null, and a
-        // broken overlay is the baked set plus diagnostics the Playback tab already reports.
-        PlaceResolver? loaded = ZoneAssetPipeline.TryLoad(_bundleDirFor(map), overlayDir);
-        ZonePlaceResolverAdapter? resolver = loaded is null ? null : new ZonePlaceResolverAdapter(loaded);
+        // Nothing here throws: a map with no art answers null, and a missing or malformed zones file or
+        // overlay is null or the baked set plus diagnostics the Playback tab already reports.
+        IMapAssetLease? lease = _acquire(map);
+        if (lease?.RefreshZones() is not { } loaded)
+        {
+            lease?.Dispose();
+            lock (_lock)
+            {
+                _maps.TryAdd(map, new Entry(null, null, null));
+                return null;
+            }
+        }
+
+        // Folded outside the lock, so one map's graph never holds up another's lookup.
+        ZonePlaceResolverAdapter adapter = new(loaded);
         lock (_lock)
         {
-            if (Cached(map, overlayDir, stamp) is { } raced)
+            if (_maps.TryGetValue(map, out Entry? raced))
             {
+                lease.Dispose(); // a racing acquire loses to the published one, and its hold goes back
                 return raced.Resolver;
             }
 
-            _maps[map] = new Entry(overlayDir, stamp, resolver);
-            return resolver;
+            _maps[map] = new Entry(lease, loaded, adapter);
+            return adapter;
         }
     }
 
@@ -89,52 +100,59 @@ public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IEx
     }
 
     /// <inheritdoc />
-    /// <remarks>Every loaded graph goes; only the Strat Book reads them, so a pack off has no reader.</remarks>
+    /// <remarks>Every graph and every hold goes; only the Strat Book reads them, so a pack off has no reader.</remarks>
     public void Release()
     {
+        Entry[] dropped;
         lock (_lock)
         {
+            dropped = [.. _maps.Values];
             _maps.Clear();
         }
+
+        foreach (Entry entry in dropped)
+        {
+            entry.Lease?.Dispose();
+        }
     }
 
-    private Entry? Cached(string map, string? overlayDir, OverlayStamp stamp)
+    // A map already held. One file stat; a resolver that comes back by reference means the graph folded
+    // out of it is still the right one.
+    private ZonePlaceResolverAdapter? Refresh(string map, Entry entry)
+    {
+        if (entry.Lease!.RefreshZones() is not { } fresh || ReferenceEquals(fresh, entry.Zones))
+        {
+            return entry.Resolver;
+        }
+
+        ZonePlaceResolverAdapter adapter = new(fresh);
+        lock (_lock)
+        {
+            if (!_maps.TryGetValue(map, out Entry? current))
+            {
+                return adapter; // released under us: the caller still gets the graph it asked for
+            }
+
+            if (!ReferenceEquals(current.Lease, entry.Lease))
+            {
+                return current.Resolver;
+            }
+
+            _maps[map] = current with { Zones = fresh, Resolver = adapter };
+            return adapter;
+        }
+    }
+
+    private Entry? Cached(string map)
     {
         lock (_lock)
         {
-            return _maps.TryGetValue(map, out Entry? cached) && cached.Stamp == stamp
-                                                             && string.Equals(cached.OverlayDir, overlayDir, StringComparison.Ordinal)
-                ? cached
-                : null;
+            return _maps.GetValueOrDefault(map);
         }
     }
 
-    private sealed record Entry(string? OverlayDir, OverlayStamp Stamp, ZonePlaceResolverAdapter? Resolver);
-
-    // Existence, length and write time: enough to see a save, cheap enough to check on every call. No
-    // path: the map key is case-insensitive, and the directory is compared on the entry.
-    private readonly record struct OverlayStamp(bool Exists, long Length, DateTime WrittenUtc)
-    {
-        public static OverlayStamp Of(string? path)
-        {
-            if (path is null)
-            {
-                return default;
-            }
-
-            try
-            {
-                FileInfo file = new(path);
-                return file.Exists
-                    ? new OverlayStamp(true, file.Length, file.LastWriteTimeUtc)
-                    : default;
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
-            {
-                return default;
-            }
-        }
-    }
+    // Lease and Zones are null together, and that pair is the cached "this map has no places" answer.
+    private sealed record Entry(IMapAssetLease? Lease, PlaceResolver? Zones, ZonePlaceResolverAdapter? Resolver);
 }
 
 /// <summary>

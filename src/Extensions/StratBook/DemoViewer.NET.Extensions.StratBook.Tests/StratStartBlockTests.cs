@@ -51,9 +51,12 @@ public class StratStartBlockTests
     internal static StratDocument Legacy() =>
         JsonSerializer.Deserialize(LegacyText(), StratJsonContext.Default.StratDocument)!;
 
-    private static IZonePlaceResolver Dust2() =>
-        new AssetZonePlaceResolverSource(MapAssetBundleReader.FindBundleDirectory, () => null).TryGet("de_dust2")
-        ?? throw new SkipTestException("de_dust2's zones are not in assets/");
+    private static IZonePlaceResolver Dust2()
+    {
+        using AssetZonePlaceResolverSource source = new();
+        return source.TryGet("de_dust2")
+               ?? throw new SkipTestException("de_dust2's zones are not in assets/");
+    }
 
     private static StratSceneProjection Project(StratDocument document, IZonePlaceResolver? map) =>
         map is null

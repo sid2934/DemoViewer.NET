@@ -27,7 +27,7 @@ namespace DemoViewer.NET.AppTests;
 [NotInParallel]
 public class CalloutAliasesTests
 {
-    private static CalloutResolverSource NoZones(StratStore store) => new(store, _ => null, () => null);
+    private static CalloutResolverSource NoZones(StratStore store) => new(store, _ => null);
 
     [Test]
     public async Task FilterFor_ResolvesATeamsWord_IntoAPositionPredicate_ThatTagQueryMatchesOn()

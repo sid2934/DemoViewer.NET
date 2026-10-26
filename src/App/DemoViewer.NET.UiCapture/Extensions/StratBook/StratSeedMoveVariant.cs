@@ -22,7 +22,8 @@ public static partial class Variants
     // with a line per player and the spawn positions still on it, then a lurk on the same tick holding copies of them.
     private static HubTabView StratEditorSeedMove(double atSeconds)
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
         HubTabView view = StratEditor(true, true, true, vm =>
         {
@@ -46,7 +47,8 @@ public static partial class Variants
     // step's unmarked copy of spawn.
     private static HubTabView StratEditorOwnersLurk(double atSeconds, bool dragged)
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
         HubTabView view = StratEditor(true, true, true, vm =>
         {

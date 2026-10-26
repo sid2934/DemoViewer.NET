@@ -33,9 +33,11 @@ public class StratRoutingTests
     private static readonly Lazy<ZonePlaceResolverAdapter?> Dust2 = new(() => Load("de_dust2"));
     private static readonly Lazy<ZonePlaceResolverAdapter?> Nuke = new(() => Load("de_nuke"));
 
-    internal static ZonePlaceResolverAdapter? Load(string map) => new AssetZonePlaceResolverSource(MapAssetBundleDir, () => null).TryGet(map) as ZonePlaceResolverAdapter;
-
-    private static string? MapAssetBundleDir(string map) => MapAssetBundleReader.FindBundleDirectory(map);
+    internal static ZonePlaceResolverAdapter? Load(string map)
+    {
+        using AssetZonePlaceResolverSource source = new();
+        return source.TryGet(map) as ZonePlaceResolverAdapter;
+    }
 
     private static ZonePlaceResolverAdapter Map(Lazy<ZonePlaceResolverAdapter?> map) =>
         map.Value ?? throw new SkipTestException("no committed zones for this map in this checkout");
