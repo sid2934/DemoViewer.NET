@@ -66,6 +66,7 @@ public class ZoneOverlayLoadTests
         await HeadlessSession.RunOnUi(async () =>
         {
             ZoneOverlayDiagnostics.Reset();
+            await RequireNobodyHoldsTheMap();
             using RuleWorkbenchTabViewModel workbench = new();
 
             (Playback2DTabViewModel vm, _) = ActivatedTab();
@@ -101,6 +102,7 @@ public class ZoneOverlayLoadTests
         await HeadlessSession.RunOnUi(async () =>
         {
             ZoneOverlayDiagnostics.Reset();
+            await RequireNobodyHoldsTheMap();
             (Playback2DTabViewModel vm, _) = ActivatedTab();
             LoadedMapAsset? asset = vm.MapAsset;
             await Assert.That(asset).IsNotNull();
@@ -189,8 +191,13 @@ public class ZoneOverlayLoadTests
         }
     }
 
-    // Each test disposes the tab it activates. The bundle registry is process-wide and keyed on the map
-    // alone, so a hold left out would pin this test's config root for the next one's acquire.
+    // Both tab tests assert this first, and each disposes the tab it activates. The bundle registry is
+    // process-wide and keyed on the map alone, and a map's overlay root is fixed when it is first decoded,
+    // so a hold left out would serve the next test a bundle pointed at the previous one's config root.
+    private static async Task RequireNobodyHoldsTheMap() =>
+        await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(0)
+            .Because($"another test is still holding {Map}, so its overlay root is the one in force");
+
     private static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) ActivatedTab()
     {
         Playback2DFakeContext ctx = new()

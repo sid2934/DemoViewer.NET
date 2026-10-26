@@ -53,8 +53,9 @@ if (args[0] is "list")
 string? outArg = OptValue("--out");
 Size? sizeArg = ParseSize(OptValue("--size"));
 // --theme accepts ANY registry id: dark / light / system, the built-in customs (high-contrast, egirl), or a
-// drop-in id (a *.json in <config>/themes/, re-scanned each run — set DEMOVIEWER_CONFIG_DIR to author against
-// a scratch folder). Blank → the app default.
+// drop-in id (a *.json in <config>/themes/, re-scanned each run). A run with no DEMOVIEWER_CONFIG_DIR gets a
+// scratch root and so sees no drop-ins; point the variable at the folder you are authoring in. Blank theme
+// is the app default.
 ThemeVariant? themeArg = CaptureHost.ResolveTheme(OptValue("--theme"));
 
 try
