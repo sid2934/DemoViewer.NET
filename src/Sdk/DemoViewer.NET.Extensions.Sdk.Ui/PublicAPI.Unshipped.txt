@@ -419,6 +419,7 @@ static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.Acquire(string? mapNa
 static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.Describe(string? mapName) -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapDescription?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.IMapAssetLease
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.IMapAssetLease.MapName.get -> string!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.IMapAssetLease.RefreshZones() -> DemoViewer.NET.Playback2D.Zones.PlaceResolver?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapDescription
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapDescription.Floors.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Levels.FloorSlice>!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapDescription.MapDescription(DemoViewer.NET.Playback2D.WorldBounds radarBounds, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Levels.FloorSlice>! floors) -> void

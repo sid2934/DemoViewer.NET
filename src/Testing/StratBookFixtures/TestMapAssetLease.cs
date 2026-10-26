@@ -34,6 +34,9 @@ public sealed class TestMapAssetLease(LoadedMapAsset bundle, string mapName) : I
     public PlaceResolver? Zones => bundle.Zones;
 
     /// <inheritdoc />
+    public PlaceResolver? RefreshZones() => bundle.RefreshZones();
+
+    /// <inheritdoc />
     public IReadOnlyList<MapRadarImage> DescribeRadars() => ((IMapAsset)bundle).DescribeRadars();
 
     /// <inheritdoc />

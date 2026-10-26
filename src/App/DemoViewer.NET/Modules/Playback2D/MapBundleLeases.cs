@@ -160,6 +160,9 @@ internal sealed class MapBundleLease(MapBundleEntry entry, LoadedMapAsset bundle
     public PlaceResolver? Zones => Bundle.Zones;
 
     /// <inheritdoc />
+    public PlaceResolver? RefreshZones() => Bundle.RefreshZones();
+
+    /// <inheritdoc />
     public IReadOnlyList<MapRadarImage> DescribeRadars() => ((IMapAsset)Bundle).DescribeRadars();
 
     /// <inheritdoc />

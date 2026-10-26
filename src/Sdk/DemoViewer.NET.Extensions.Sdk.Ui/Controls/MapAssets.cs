@@ -4,6 +4,7 @@ using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Hud;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Overlay;
+using DemoViewer.NET.Playback2D.Zones;
 using SkiaSharp;
 
 #endregion
@@ -74,6 +75,17 @@ public interface IMapAssetLease : IMapAsset, IDisposable
 {
     /// <summary>The map the hold is on, as it was acquired.</summary>
     string MapName { get; }
+
+    /// <summary>
+    ///     The map's places, re-read when the user has saved their zone overlay for this map since the last
+    ///     read, and the <b>same instance</b> as <see cref="IMapAsset.Zones" /> when they have not.
+    ///     <para>
+    ///         Call this once per unit of work, never per point: the hold is shared, so a re-read swaps the
+    ///         resolver under every other holder of the map. A resolver holds no pictures, so one read off a
+    ///         lease stays usable after the lease is disposed.
+    ///     </para>
+    /// </summary>
+    PlaceResolver? RefreshZones();
 }
 
 /// <summary>What a map's bundle says about itself with nothing decoded.</summary>

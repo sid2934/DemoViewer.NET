@@ -27,6 +27,7 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     private bool _disposed;
     private IReadOnlyList<FloorSlice>? _floors;
     private Lazy<IReadOnlyDictionary<string, SKImage>> _radarImages;
+    private OverlayStamp _zoneStamp;
     private ZoneLoadResult? _zones;
 
     /// <summary>Creates an undecoded bundle; the radar art is decoded on the first read.</summary>
@@ -96,7 +97,7 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
         {
             lock (_zoneLock)
             {
-                return _zones ??= ZoneAssetPipeline.Load(BakedDir, ZoneOverlayDirectory);
+                return _zones ??= LoadZones();
             }
         }
     }
@@ -114,19 +115,40 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     }
 
     /// <summary>
-    ///     Re-reads <c>zones.json</c> and the overlay: the "Reload zones" command, so an author sees an
-    ///     edited overlay without a map reload. The previous resolver stays valid for anyone still
-    ///     holding it; a fresh one is built and returned.
+    ///     Re-reads <c>zones.json</c> and the overlay unconditionally: the "Reload zones" command, so an
+    ///     author sees an edited overlay without a map reload. The previous resolver stays valid for anyone
+    ///     still holding it; a fresh one is built and returned.
     /// </summary>
     public ZoneLoadResult ReloadZones()
     {
-        ZoneLoadResult fresh = ZoneAssetPipeline.Load(BakedDir, ZoneOverlayDirectory);
         lock (_zoneLock)
         {
-            _zones = fresh;
+            return _zones = LoadZones();
         }
+    }
 
-        return fresh;
+    /// <summary>
+    ///     The map's places, re-read only when the overlay file's stamp has moved since the last read.
+    ///     Unchanged means the <b>same instance</b>, which is what lets a caller cache the graph it folded
+    ///     out of a resolver and compare by reference instead of by zones version.
+    ///     <para>
+    ///         Public although <see cref="ZoneLoad" /> is internal: a test lease outside this assembly's
+    ///         friends implements the published lease member by delegating here.
+    ///     </para>
+    /// </summary>
+    public PlaceResolver? RefreshZones()
+    {
+        lock (_zoneLock)
+        {
+            OverlayStamp stamp = OverlayStamp.Of(OverlayPath());
+            if (_zones is { } current && stamp == _zoneStamp)
+            {
+                return current.Resolver;
+            }
+
+            _zones = LoadZones(stamp);
+            return _zones.Resolver;
+        }
     }
 
     /// <summary>
@@ -167,6 +189,40 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     ILevelRadarBinder IMapAsset.CreateRadarBinder() => new MapRadarBinder(this);
 
     private IReadOnlyDictionary<string, SKImage> DecodeOwnRadars() => MapAssetPipeline.DecodeRadars(BakedDir, Bundle);
+
+    // Caller holds _zoneLock. The stamp is taken BEFORE the read, so a save that lands during it is
+    // seen by the next refresh instead of being folded into this result's stamp.
+    private ZoneLoadResult LoadZones(OverlayStamp? stamp = null)
+    {
+        _zoneStamp = stamp ?? OverlayStamp.Of(OverlayPath());
+        return ZoneAssetPipeline.Load(BakedDir, ZoneOverlayDirectory);
+    }
+
+    // The manifest's map name, not the zones file's: this has to resolve without reading anything.
+    private string? OverlayPath() => ZoneAssetPipeline.OverlayPathFor(ZoneOverlayDirectory, Bundle.MapName);
+
+    // Existence, length and write time: enough to see a save, and one stat per refresh rather than per
+    // read, because Zones is read per frame and RefreshZones is called once per unit of work.
+    private readonly record struct OverlayStamp(bool Exists, long Length, DateTime WrittenUtc)
+    {
+        public static OverlayStamp Of(string? path)
+        {
+            if (path is null)
+            {
+                return default;
+            }
+
+            try
+            {
+                FileInfo file = new(path);
+                return file.Exists ? new OverlayStamp(true, file.Length, file.LastWriteTimeUtc) : default;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                return default;
+            }
+        }
+    }
 }
 
 /// <summary>
