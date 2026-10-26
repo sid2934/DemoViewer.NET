@@ -7,6 +7,7 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.Sdk.Export;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
@@ -15,6 +16,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Players;
+using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
@@ -103,6 +105,9 @@ internal sealed class ExtensionContext : IExtensionContext
 {
     private readonly Lazy<IExtensionDemoData> _data;
     private readonly Lazy<IExtensionLibrary> _library;
+    private readonly Lazy<IExtensionReviewPackExport?> _packExport;
+    private readonly Lazy<IExtensionReviewQueue> _review;
+    private readonly Lazy<ReviewQueue> _reviewQueue;
     private readonly Lazy<IExtensionSceneExport?> _sceneExport;
     private readonly ExtensionGuard _guard;
     private readonly HostKeymap _keymap;
@@ -140,6 +145,17 @@ internal sealed class ExtensionContext : IExtensionContext
                         _ => load(), DemoJobPriority.UserRequested, "extension-data-load:" + extension.Id)
                     : null)
             : UnavailableDemoData.Instance);
+        // Lazy all the way to the resolve: constructing the ReviewQueue is what schedules the queue's
+        // startup read, so an eager resolve here queued one on every launch whether or not anything looked.
+        _reviewQueue = new Lazy<ReviewQueue>(() => services.GetService<ReviewQueue>() ?? new ReviewQueue(null));
+        _review = new Lazy<IExtensionReviewQueue>(() =>
+            new ExtensionReviewQueue(_reviewQueue.Value, _guard, Dispatcher.UIThread.CheckAccess));
+        _packExport = new Lazy<IExtensionReviewPackExport?>(() =>
+            services.GetService<FirstPartyExports>()?.PackExport is { } run
+                ? new ExtensionReviewPackExport(run, _reviewQueue.Value,
+                    services.GetService<FirstPartyExports>()?.ExportOutputDirectory,
+                    onUiThread: Dispatcher.UIThread.CheckAccess)
+                : null);
         // Lazy, and one per extension: the chip is filed under the extension and the job is single-flight
         // across every pane the extension opens.
         _sceneExport = new Lazy<IExtensionSceneExport?>(() =>
@@ -185,7 +201,11 @@ internal sealed class ExtensionContext : IExtensionContext
 
     public IExtensionIdentity Identity { get; }
 
+    public IExtensionReviewQueue Review => _review.Value;
+
     public IExtensionSceneExport? SceneExport => _sceneExport.Value;
+
+    public IExtensionReviewPackExport? PackExport => _packExport.Value;
 
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 

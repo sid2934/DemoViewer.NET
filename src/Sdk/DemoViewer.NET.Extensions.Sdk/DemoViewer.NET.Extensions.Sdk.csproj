@@ -30,6 +30,8 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="DemoViewer.NET"/>
+        <!-- The projected ReviewClip and ReviewPackPlan are set host-side; their tests live there. -->
+        <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
     </ItemGroup>
 
     <ItemGroup>

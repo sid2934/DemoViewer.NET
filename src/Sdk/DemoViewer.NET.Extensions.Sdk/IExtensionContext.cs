@@ -1,5 +1,6 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.Sdk.Export;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -55,10 +56,22 @@ public interface IExtensionContext
     IExtensionIdentity Identity { get; }
 
     /// <summary>
+    ///     The host's review queue: the clips every surface sends to one ordered list. UI thread only, and
+    ///     the first read waits for the host to finish reading the stored queue.
+    /// </summary>
+    IExtensionReviewQueue Review { get; }
+
+    /// <summary>
     ///     The host's 2D scene export, or null where the host exports nothing (the browser build has no
     ///     encoder and no files). Hide an export surface while it is null.
     /// </summary>
     IExtensionSceneExport? SceneExport => null;
+
+    /// <summary>
+    ///     The host's review pack export, or null where the host writes no files (the browser build). Hide a
+    ///     pack surface while it is null.
+    /// </summary>
+    IExtensionReviewPackExport? PackExport => null;
 
     /// <summary>A logger whose lines land in the app's diagnostics log, tagged with the extension.</summary>
     ILogger CreateLogger(string category);

@@ -345,8 +345,10 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContext.Features.get -> DemoViewer.NET.E
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Host.get -> DemoViewer.NET.Extensions.Sdk.HostInfo!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Jobs.get -> DemoViewer.NET.Extensions.Sdk.IExtensionJobs!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Library.get -> DemoViewer.NET.Extensions.Sdk.IExtensionLibrary!
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.PackExport.get -> DemoViewer.NET.Extensions.Sdk.Export.IExtensionReviewPackExport?
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Passes.get -> DemoViewer.NET.Extensions.Sdk.IExtensionPasses!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Post(System.Action! action) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Review.get -> DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Settings.get -> DemoViewer.NET.Extensions.Sdk.IExtensionSettings!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Shell.get -> DemoViewer.NET.Extensions.Sdk.IExtensionShell!
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions
