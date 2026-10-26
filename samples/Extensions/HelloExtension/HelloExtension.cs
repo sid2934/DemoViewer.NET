@@ -342,7 +342,12 @@ internal sealed class HelloModule(Func<HelloTabViewModel> viewModel) : IWorkspac
             ViewFactory = () =>
             {
                 MapView map = new() { MapName = "de_mirage" };
-                map.AddLayer("hello.origin", () => new HelloLayer("hello.origin"));
+
+                // 'origin' is the local id this extension chose; the handle reports the id the host filed
+                // the layer under, ext.dev.example.hello.origin. Nothing takes a layer id back, so the
+                // handle is the only way to know it, and the layer's own Id is not read at all.
+                ILayerHandle origin = map.AddLayer("origin", () => new HelloLayer("origin"));
+                ToolTip.SetTip(map, "Layer " + origin.LayerId);
                 return map;
             }
         };
@@ -359,7 +364,12 @@ internal sealed class HelloModule(Func<HelloTabViewModel> viewModel) : IWorkspac
             {
                 HelloScene scene = new();
                 SceneView view = new() { Source = scene };
-                view.AddLayer("hello.rings", () => new HelloLayer("hello.rings"));
+
+                // A local id of its own: this extension's playback contribution files a layer as 'rings'
+                // on the tab's map, and two layers of one extension reading alike is a trap for its own
+                // author, not for the host.
+                ILayerHandle rings = view.AddLayer("scene.rings", () => new HelloLayer("scene.rings"));
+                ToolTip.SetTip(view, "Layer " + rings.LayerId);
 
                 // The handle reports the id the host filed the tool under, which is the id selection speaks.
                 // The tool's own Id is the local one, so selecting by it would find nothing.
