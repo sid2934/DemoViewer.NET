@@ -60,7 +60,7 @@ public sealed class HelloExtension : IExtension
 
     public void Register(IServiceCollection services)
     {
-        services.AddSingleton(sp => new HelloTabViewModel(sp.GetExtensionContext(ExtensionId)));
+        services.AddSingleton(sp => new HelloTabViewModel(sp.GetExtensionContext<HelloExtension>()));
         services.AddSingleton<HelloChip>();
     }
 

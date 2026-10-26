@@ -1412,7 +1412,7 @@ static DemoViewer.NET.Extensions.Sdk.ExtensionFeature.operator !=(DemoViewer.NET
 static DemoViewer.NET.Extensions.Sdk.ExtensionFeature.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionFeature? left, DemoViewer.NET.Extensions.Sdk.ExtensionFeature? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? left, DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? left, DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? right) -> bool
-static DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions.GetExtensionContext(this System.IServiceProvider! services, string! extensionId) -> DemoViewer.NET.Extensions.Sdk.IExtensionContext!
+static DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions.GetExtensionContext<TPack>(this System.IServiceProvider! services) -> DemoViewer.NET.Extensions.Sdk.IExtensionContext!
 static DemoViewer.NET.Extensions.Sdk.FactKey.operator !=(DemoViewer.NET.Extensions.Sdk.FactKey? left, DemoViewer.NET.Extensions.Sdk.FactKey? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.FactKey.operator ==(DemoViewer.NET.Extensions.Sdk.FactKey? left, DemoViewer.NET.Extensions.Sdk.FactKey? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.FactLabel.operator !=(DemoViewer.NET.Extensions.Sdk.FactLabel? left, DemoViewer.NET.Extensions.Sdk.FactLabel? right) -> bool

@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Extensions.StratBook.Modules;
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Visibility;
@@ -747,13 +746,7 @@ public sealed class StratBookPack : IExtension
         load => Job(sp, title, load, new JobOptions(BuiltInJobKinds.Load, JobPriority.UserRequested));
 
     // The pack's host context: the SDK's way into the shell, the gate, the queue and the UI thread.
-    //
-    // Must not be inlined. GetExtensionContext reads the CALLING assembly to decide whether the asker owns
-    // the id, so the frame below it has to be one of ours. A factory small enough for the JIT to inline, both
-    // this call and the lambda around it, leaves the DI container as the caller and the resolve is refused.
-    // That is a tier-1 decision, so it fails only once the method is hot: in a full suite, not on its own.
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static IExtensionContext Host(IServiceProvider sp) => sp.GetExtensionContext(PackId);
+    private static IExtensionContext Host(IServiceProvider sp) => sp.GetExtensionContext<StratBookPack>();
 
     // The app's zones overlay folder, the one thing the pack reads of the app that is not a store of its own.
     private static FirstPartyHost Paths(IServiceProvider sp) => sp.GetRequiredService<FirstPartyHost>();

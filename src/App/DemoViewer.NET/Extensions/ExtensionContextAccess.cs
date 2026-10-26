@@ -1,6 +1,5 @@
 #region
 
-using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
 #endregion
@@ -8,45 +7,35 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DemoViewer.NET.Extensions;
 
 /// <summary>
-///     Hands an extension's context only to that extension's own code: an assembly that owns another
-///     extension, or none at all, is refused, so a wrong id never reaches another extension's stores. The
-///     host comes through <see cref="ForHost" /> instead, which takes no caller.
+///     Where an extension's <see cref="IExtensionContext" /> is registered, and the host's own way to it.
+///     The SDK's <c>GetExtensionContext&lt;TPack&gt;</c> keys on the pack's type, which an extension can only
+///     name for itself; the host holds ids rather than types, so it comes through <see cref="ForHost" />.
 /// </summary>
 /// <remarks>
-///     Not a security boundary: a pack already holds the provider, and <c>ExtensionContextKey</c> has
-///     structural equality, so code that reflects it out of the SDK resolves the keyed service itself. The
-///     check catches a wrong id, not a hostile caller.
+///     Not a security boundary: a pack already holds the provider, and both keys are reachable by
+///     reflection. Type identity makes a wrong id an accident that cannot be written, not a caller the host
+///     turns away.
 /// </remarks>
-internal sealed class ExtensionContextAccess : IExtensionContextAccess
+internal static class ExtensionContextAccess
 {
-    private readonly ExtensionScope[] _scopes;
-    private readonly IServiceProvider _services;
-
-    // Scopes are named by id: a display name would run the extension's Features getter.
-    public ExtensionContextAccess(IServiceProvider services, IEnumerable<IExtension> packs)
+    /// <summary>
+    ///     Registers <paramref name="pack" />'s context under both keys the host hands out: its id, and the
+    ///     pack's own type. One instance answers for both, so every route sees the same stores and the same
+    ///     single-flight export.
+    /// </summary>
+    public static void Register(IServiceCollection services, IExtension pack)
     {
-        _services = services ?? throw new ArgumentNullException(nameof(services));
-        _scopes = [.. packs.Select(p => ExtensionScope.For(p, p.Id))];
-    }
-
-    public IExtensionContext Resolve(string extensionId, Assembly caller)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(extensionId);
-        ArgumentNullException.ThrowIfNull(caller);
-        if (!_scopes.Any(s => s.Id == extensionId && s.Owns(caller)))
-        {
-            throw new InvalidOperationException(_scopes.FirstOrDefault(s => s.Owns(caller)) is { } other
-                ? $"'{other.Id}' asked for the context of '{extensionId}'. An extension can only resolve its own context."
-                : $"'{caller.GetName().Name}' owns no extension and asked for the context of '{extensionId}'. "
-                  + "An extension's context resolves only for that extension's own code.");
-        }
-
-        return _services.GetRequiredKeyedService<IExtensionContext>(KeyFor(extensionId));
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(pack);
+        object key = KeyFor(pack.Id);
+        services.AddKeyedSingleton<IExtensionContext>(key, (sp, _) => new ExtensionContext(pack, sp));
+        services.AddKeyedSingleton<IExtensionContext>(pack.GetType(),
+            (sp, _) => sp.GetRequiredKeyedService<IExtensionContext>(key));
     }
 
     /// <summary>
-    ///     The context of <paramref name="extensionId" />, for the host itself. No caller check: the host is
-    ///     the composition root, not an assembly, and only the app's internals reach this.
+    ///     The context of <paramref name="extensionId" />, for the host itself. The host is the composition
+    ///     root rather than an extension, so it names an id where an extension names its type.
     /// </summary>
     public static IExtensionContext ForHost(IServiceProvider services, string extensionId)
     {
@@ -55,6 +44,6 @@ internal sealed class ExtensionContextAccess : IExtensionContextAccess
         return services.GetRequiredKeyedService<IExtensionContext>(KeyFor(extensionId));
     }
 
-    /// <summary>The service key <paramref name="extensionId" />'s context is registered under.</summary>
+    /// <summary>The service key <paramref name="extensionId" />'s context is registered under for the host.</summary>
     public static object KeyFor(string extensionId) => new ExtensionContextKey(extensionId);
 }

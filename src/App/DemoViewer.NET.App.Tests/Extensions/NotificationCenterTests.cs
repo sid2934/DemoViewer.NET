@@ -268,7 +268,7 @@ public class NotificationCenterTests
                 await using ServiceProvider provider = services.BuildServiceProvider();
                 NotificationCenter center = provider.GetRequiredService<NotificationCenter>();
 
-                provider.GetExtensionContext(pack.Id).Notifications.Post(Note("composed"));
+                provider.GetExtensionContext<StubExtension>().Notifications.Post(Note("composed"));
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
                 await Assert.That(center.Cards.Select(c => c.Id)).IsEquivalentTo(["composed"], CollectionOrdering.Matching);

@@ -66,7 +66,7 @@ public sealed class MyExtension : IExtension
     ];
 
     public void Register(IServiceCollection services) =>
-        services.AddSingleton(sp => new MyTabViewModel(sp.GetExtensionContext(Id)));
+        services.AddSingleton(sp => new MyTabViewModel(sp.GetExtensionContext<MyExtension>()));
 
     public void Contribute(IExtensionContributions contributions, IServiceProvider services) =>
         contributions.Tabs(new MyModule(services.GetRequiredService<MyTabViewModel>));
@@ -198,8 +198,10 @@ them through that class rather than writing the string.
 
 ## The host
 
-`services.GetExtensionContext(Id)` resolves only for your own extension's code, so call it from inside your
-extension and pass your own id; any other caller is refused. It returns the extension's `IExtensionContext`:
+`services.GetExtensionContext<MyExtension>()` names your own entry type, the one the host constructed. Each
+context is keyed on that type, so another extension's is not something you can ask for without referencing
+its assembly, and a copied sample keys on its own type rather than the one it was copied from. A type this
+host has not loaded throws. It returns your extension's `IExtensionContext`:
 
 - `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files, and opening a player in the
   Player Overview tab (`OpenPlayerOverview`, false when the tab is off or the host has none). `CurrentDemo` is the open

@@ -1,5 +1,3 @@
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.Sdk.Export;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +7,7 @@ namespace DemoViewer.NET.Extensions.Sdk;
 
 /// <summary>
 ///     The host as one extension sees it. Resolve it with
-///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" />; every member is safe to call from
+///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext{TPack}" />; every member is safe to call from
 ///     a factory registered in <see cref="IExtension.Register" />.
 /// </summary>
 public interface IExtensionContext
@@ -149,40 +147,28 @@ public interface IExtensionShell
 public static class ExtensionServiceProviderExtensions
 {
     /// <summary>
-    ///     The context the host registered for <paramref name="extensionId" />. Only that extension's own code
-    ///     may resolve it: asking for another extension's context throws.
+    ///     The context the host registered for <typeparamref name="TPack" />. Name your own
+    ///     <see cref="IExtension" /> type: the context is keyed on the type, so reaching another extension's
+    ///     would mean referencing that extension's assembly at compile time.
     /// </summary>
     /// <param name="services">The host's services.</param>
-    /// <param name="extensionId">Your extension's id.</param>
-    /// <exception cref="InvalidOperationException">
-    ///     No extension has that id, or the calling code belongs to a different extension or to none.
-    /// </exception>
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public static IExtensionContext GetExtensionContext(this IServiceProvider services, string extensionId)
+    /// <typeparam name="TPack">Your extension's entry type, the one the host constructed.</typeparam>
+    /// <exception cref="InvalidOperationException">The host has no extension of that type loaded.</exception>
+    public static IExtensionContext GetExtensionContext<TPack>(this IServiceProvider services)
+        where TPack : IExtension
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentException.ThrowIfNullOrEmpty(extensionId);
-        Assembly caller = Assembly.GetCallingAssembly();
-        return services.GetService<IExtensionContextAccess>() is { } access
-            ? access.Resolve(extensionId, caller)
-            : services.GetRequiredKeyedService<IExtensionContext>(new ExtensionContextKey(extensionId));
+        return services.GetKeyedService<IExtensionContext>(typeof(TPack))
+               ?? throw new InvalidOperationException(
+                   $"This host has no extension of type '{typeof(TPack).FullName}' loaded, so it has no "
+                   + "context. Name your own entry type here, from a factory the host resolves.");
     }
 }
 
 /// <summary>
-///     The key the host registers each context under. A lookup by the plain id string finds nothing, so
-///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" /> and its owner check are how an
-///     extension gets in. Code that reflects this type out of the SDK resolves the keyed service itself.
+///     The key the host registers each context under for its own lookups, beside the pack type that
+///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext{TPack}" /> keys on. Both keys answer
+///     with one context per extension.
 /// </summary>
 /// <param name="ExtensionId">The extension's id.</param>
 internal sealed record ExtensionContextKey(string ExtensionId);
-
-/// <summary>
-///     The host's check on <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" />: resolves the
-///     context only for code that belongs to that extension.
-/// </summary>
-internal interface IExtensionContextAccess
-{
-    /// <summary>The context of <paramref name="extensionId" />, asked for by code in <paramref name="caller" />.</summary>
-    IExtensionContext Resolve(string extensionId, Assembly caller);
-}

@@ -396,8 +396,8 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
         }
     }
 
-    // IsVisible, not IsPublic: the SDK assembly also carries internal host seams such as
-    // IExtensionContextAccess, which hands out every loaded pack's context.
+    // IsVisible, not IsPublic: the SDK assembly also carries internal host seams, and a public type
+    // nested in one of those is IsPublic but reachable only inside the assembly.
     private static bool IsPublishedContract(Type type) =>
         type.IsVisible && Array.Exists(_publishedContract, a => ReferenceEquals(a, type.Assembly));
 
