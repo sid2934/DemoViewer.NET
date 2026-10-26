@@ -122,15 +122,6 @@ DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Time.get -> DemoViewer.
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Time.init -> void
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Transform.get -> DemoViewer.NET.Playback2D.ViewportTransform
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Transform.init -> void
-DemoViewer.NET.Playback2D.ConePoint
-DemoViewer.NET.Playback2D.ConePoint.ConePoint() -> void
-DemoViewer.NET.Playback2D.ConePoint.ConePoint(float X, float Y) -> void
-DemoViewer.NET.Playback2D.ConePoint.Deconstruct(out float X, out float Y) -> void
-DemoViewer.NET.Playback2D.ConePoint.Equals(DemoViewer.NET.Playback2D.ConePoint other) -> bool
-DemoViewer.NET.Playback2D.ConePoint.X.get -> float
-DemoViewer.NET.Playback2D.ConePoint.X.init -> void
-DemoViewer.NET.Playback2D.ConePoint.Y.get -> float
-DemoViewer.NET.Playback2D.ConePoint.Y.init -> void
 DemoViewer.NET.Playback2D.GrenadeKind
 DemoViewer.NET.Playback2D.GrenadeKind.Decoy = 4 -> DemoViewer.NET.Playback2D.GrenadeKind
 DemoViewer.NET.Playback2D.GrenadeKind.Flash = 1 -> DemoViewer.NET.Playback2D.GrenadeKind
@@ -419,8 +410,6 @@ DemoViewer.NET.Playback2D.Scene2DFrame.Time.get -> DemoViewer.NET.Playback2D.Sce
 DemoViewer.NET.Playback2D.Scene2DFrame.Time.init -> void
 DemoViewer.NET.Playback2D.Scene2DFrame.Trails.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.GrenadeTrail!>!
 DemoViewer.NET.Playback2D.Scene2DFrame.Trails.init -> void
-DemoViewer.NET.Playback2D.Scene2DFrame.Vision.get -> DemoViewer.NET.Playback2D.SceneVision!
-DemoViewer.NET.Playback2D.Scene2DFrame.Vision.init -> void
 DemoViewer.NET.Playback2D.SceneGameInfo
 DemoViewer.NET.Playback2D.SceneGameInfo.BombState.get -> string!
 DemoViewer.NET.Playback2D.SceneGameInfo.BombState.init -> void
@@ -580,14 +569,6 @@ DemoViewer.NET.Playback2D.SceneTime.SceneTime() -> void
 DemoViewer.NET.Playback2D.SceneTime.SceneTime(int Tick, int FrameIndex, double DemoSeconds, double DeltaSeconds, bool IsDiscontinuity) -> void
 DemoViewer.NET.Playback2D.SceneTime.Tick.get -> int
 DemoViewer.NET.Playback2D.SceneTime.Tick.init -> void
-DemoViewer.NET.Playback2D.SceneVision
-DemoViewer.NET.Playback2D.SceneVision.Cones.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.VisionCone!>!
-DemoViewer.NET.Playback2D.SceneVision.Cones.init -> void
-DemoViewer.NET.Playback2D.SceneVision.IsAvailable.get -> bool
-DemoViewer.NET.Playback2D.SceneVision.IsAvailable.init -> void
-DemoViewer.NET.Playback2D.SceneVision.SceneVision() -> void
-DemoViewer.NET.Playback2D.SceneVision.Sightlines.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Sightline>!
-DemoViewer.NET.Playback2D.SceneVision.Sightlines.init -> void
 DemoViewer.NET.Playback2D.ShapedText
 DemoViewer.NET.Playback2D.ShapedText.Advance.get -> float
 DemoViewer.NET.Playback2D.ShapedText.Advance.init -> void
@@ -607,27 +588,6 @@ DemoViewer.NET.Playback2D.ShapedText.OriginForTopLeft(float x, float y) -> (floa
 DemoViewer.NET.Playback2D.ShapedText.ShapedText() -> void
 DemoViewer.NET.Playback2D.ShapedText.ShapedText(SkiaSharp.SKTextBlob! Blob, SkiaSharp.SKRect Bounds, float Advance, float Ascent, float Descent) -> void
 DemoViewer.NET.Playback2D.ShapedText.Width.get -> float
-DemoViewer.NET.Playback2D.Sightline
-DemoViewer.NET.Playback2D.Sightline.Deconstruct(out int ViewerSlot, out int ViewerTeam, out float X0, out float Y0, out float Z0, out float X1, out float Y1, out float Z1) -> void
-DemoViewer.NET.Playback2D.Sightline.Equals(DemoViewer.NET.Playback2D.Sightline other) -> bool
-DemoViewer.NET.Playback2D.Sightline.Sightline() -> void
-DemoViewer.NET.Playback2D.Sightline.Sightline(int ViewerSlot, int ViewerTeam, float X0, float Y0, float Z0, float X1, float Y1, float Z1) -> void
-DemoViewer.NET.Playback2D.Sightline.ViewerSlot.get -> int
-DemoViewer.NET.Playback2D.Sightline.ViewerSlot.init -> void
-DemoViewer.NET.Playback2D.Sightline.ViewerTeam.get -> int
-DemoViewer.NET.Playback2D.Sightline.ViewerTeam.init -> void
-DemoViewer.NET.Playback2D.Sightline.X0.get -> float
-DemoViewer.NET.Playback2D.Sightline.X0.init -> void
-DemoViewer.NET.Playback2D.Sightline.X1.get -> float
-DemoViewer.NET.Playback2D.Sightline.X1.init -> void
-DemoViewer.NET.Playback2D.Sightline.Y0.get -> float
-DemoViewer.NET.Playback2D.Sightline.Y0.init -> void
-DemoViewer.NET.Playback2D.Sightline.Y1.get -> float
-DemoViewer.NET.Playback2D.Sightline.Y1.init -> void
-DemoViewer.NET.Playback2D.Sightline.Z0.get -> float
-DemoViewer.NET.Playback2D.Sightline.Z0.init -> void
-DemoViewer.NET.Playback2D.Sightline.Z1.get -> float
-DemoViewer.NET.Playback2D.Sightline.Z1.init -> void
 DemoViewer.NET.Playback2D.SliceCamera
 DemoViewer.NET.Playback2D.SliceCamera.Current.get -> DemoViewer.NET.Playback2D.ViewportTransform
 DemoViewer.NET.Playback2D.SliceCamera.Current.set -> void
@@ -702,20 +662,6 @@ DemoViewer.NET.Playback2D.ViewportTransform.WithViewport(double viewWidth, doubl
 DemoViewer.NET.Playback2D.ViewportTransform.WorldToScreen(double worldX, double worldY) -> (double X, double Y)
 DemoViewer.NET.Playback2D.ViewportTransform.Zoom.get -> double
 DemoViewer.NET.Playback2D.ViewportTransform.ZoomAbout(double anchorScreenX, double anchorScreenY, double factor, double minZoom = 0.05, double maxZoom = 40) -> DemoViewer.NET.Playback2D.ViewportTransform
-DemoViewer.NET.Playback2D.VisionCone
-DemoViewer.NET.Playback2D.VisionCone.ApexX.get -> float
-DemoViewer.NET.Playback2D.VisionCone.ApexX.init -> void
-DemoViewer.NET.Playback2D.VisionCone.ApexY.get -> float
-DemoViewer.NET.Playback2D.VisionCone.ApexY.init -> void
-DemoViewer.NET.Playback2D.VisionCone.ApexZ.get -> float
-DemoViewer.NET.Playback2D.VisionCone.ApexZ.init -> void
-DemoViewer.NET.Playback2D.VisionCone.Fan.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.ConePoint>!
-DemoViewer.NET.Playback2D.VisionCone.Fan.init -> void
-DemoViewer.NET.Playback2D.VisionCone.Slot.get -> int
-DemoViewer.NET.Playback2D.VisionCone.Slot.init -> void
-DemoViewer.NET.Playback2D.VisionCone.Team.get -> int
-DemoViewer.NET.Playback2D.VisionCone.Team.init -> void
-DemoViewer.NET.Playback2D.VisionCone.VisionCone() -> void
 DemoViewer.NET.Playback2D.WorldBounds
 DemoViewer.NET.Playback2D.WorldBounds.Deconstruct(out double MinX, out double MinY, out double MaxX, out double MaxY) -> void
 DemoViewer.NET.Playback2D.WorldBounds.Equals(DemoViewer.NET.Playback2D.WorldBounds other) -> bool
@@ -877,7 +823,6 @@ DemoViewer.NET.Playback2D.Zones.ZoneVolumeKind.Place = 0 -> DemoViewer.NET.Playb
 override DemoViewer.NET.Playback2D.AreaEffect.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.BombMarker.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.ConePoint.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.GrenadeTrailPoint.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.KillFeedRow.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Levels.FloorSlice.GetHashCode() -> int
@@ -893,7 +838,6 @@ override DemoViewer.NET.Playback2D.ScenePalette.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.SceneStrokeWidths.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.SceneTime.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.ShapedText.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Sightline.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.WorldBounds.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Zones.PlaceHit.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Zones.PlaceOutline.Equals(object? obj) -> bool
@@ -912,8 +856,6 @@ static DemoViewer.NET.Playback2D.BombMarker.operator !=(DemoViewer.NET.Playback2
 static DemoViewer.NET.Playback2D.BombMarker.operator ==(DemoViewer.NET.Playback2D.BombMarker left, DemoViewer.NET.Playback2D.BombMarker right) -> bool
 static DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.operator !=(DemoViewer.NET.Playback2D.Compositing.SceneRenderContext left, DemoViewer.NET.Playback2D.Compositing.SceneRenderContext right) -> bool
 static DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.operator ==(DemoViewer.NET.Playback2D.Compositing.SceneRenderContext left, DemoViewer.NET.Playback2D.Compositing.SceneRenderContext right) -> bool
-static DemoViewer.NET.Playback2D.ConePoint.operator !=(DemoViewer.NET.Playback2D.ConePoint left, DemoViewer.NET.Playback2D.ConePoint right) -> bool
-static DemoViewer.NET.Playback2D.ConePoint.operator ==(DemoViewer.NET.Playback2D.ConePoint left, DemoViewer.NET.Playback2D.ConePoint right) -> bool
 static DemoViewer.NET.Playback2D.GrenadeTrailPoint.operator !=(DemoViewer.NET.Playback2D.GrenadeTrailPoint left, DemoViewer.NET.Playback2D.GrenadeTrailPoint right) -> bool
 static DemoViewer.NET.Playback2D.GrenadeTrailPoint.operator ==(DemoViewer.NET.Playback2D.GrenadeTrailPoint left, DemoViewer.NET.Playback2D.GrenadeTrailPoint right) -> bool
 static DemoViewer.NET.Playback2D.KillFeedRow.operator !=(DemoViewer.NET.Playback2D.KillFeedRow left, DemoViewer.NET.Playback2D.KillFeedRow right) -> bool
@@ -947,8 +889,6 @@ static DemoViewer.NET.Playback2D.SceneTime.operator !=(DemoViewer.NET.Playback2D
 static DemoViewer.NET.Playback2D.SceneTime.operator ==(DemoViewer.NET.Playback2D.SceneTime left, DemoViewer.NET.Playback2D.SceneTime right) -> bool
 static DemoViewer.NET.Playback2D.ShapedText.operator !=(DemoViewer.NET.Playback2D.ShapedText left, DemoViewer.NET.Playback2D.ShapedText right) -> bool
 static DemoViewer.NET.Playback2D.ShapedText.operator ==(DemoViewer.NET.Playback2D.ShapedText left, DemoViewer.NET.Playback2D.ShapedText right) -> bool
-static DemoViewer.NET.Playback2D.Sightline.operator !=(DemoViewer.NET.Playback2D.Sightline left, DemoViewer.NET.Playback2D.Sightline right) -> bool
-static DemoViewer.NET.Playback2D.Sightline.operator ==(DemoViewer.NET.Playback2D.Sightline left, DemoViewer.NET.Playback2D.Sightline right) -> bool
 static DemoViewer.NET.Playback2D.ViewportTransform.Fit(double viewWidth, double viewHeight, double worldMinX, double worldMinY, double worldMaxX, double worldMaxY, double margin = 0.08) -> DemoViewer.NET.Playback2D.ViewportTransform
 static DemoViewer.NET.Playback2D.WorldBounds.operator !=(DemoViewer.NET.Playback2D.WorldBounds left, DemoViewer.NET.Playback2D.WorldBounds right) -> bool
 static DemoViewer.NET.Playback2D.WorldBounds.operator ==(DemoViewer.NET.Playback2D.WorldBounds left, DemoViewer.NET.Playback2D.WorldBounds right) -> bool
@@ -971,7 +911,6 @@ static readonly DemoViewer.NET.Playback2D.SceneMapInfo.Unknown -> DemoViewer.NET
 static readonly DemoViewer.NET.Playback2D.ScenePalette.Dark -> DemoViewer.NET.Playback2D.ScenePalette
 static readonly DemoViewer.NET.Playback2D.ScenePalette.Light -> DemoViewer.NET.Playback2D.ScenePalette
 static readonly DemoViewer.NET.Playback2D.SceneStrokeWidths.Default -> DemoViewer.NET.Playback2D.SceneStrokeWidths
-static readonly DemoViewer.NET.Playback2D.SceneVision.Off -> DemoViewer.NET.Playback2D.SceneVision!
 static readonly DemoViewer.NET.Playback2D.WorldBounds.Default -> DemoViewer.NET.Playback2D.WorldBounds
 static readonly DemoViewer.NET.Playback2D.Zones.PlaceHit.None -> DemoViewer.NET.Playback2D.Zones.PlaceHit
 ~override DemoViewer.NET.Playback2D.AreaEffect.Equals(object obj) -> bool
@@ -980,8 +919,6 @@ static readonly DemoViewer.NET.Playback2D.Zones.PlaceHit.None -> DemoViewer.NET.
 ~override DemoViewer.NET.Playback2D.BombMarker.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.ToString() -> string
-~override DemoViewer.NET.Playback2D.ConePoint.Equals(object obj) -> bool
-~override DemoViewer.NET.Playback2D.ConePoint.ToString() -> string
 ~override DemoViewer.NET.Playback2D.GrenadeTrailPoint.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.GrenadeTrailPoint.ToString() -> string
 ~override DemoViewer.NET.Playback2D.KillFeedRow.Equals(object obj) -> bool
@@ -1003,8 +940,6 @@ static readonly DemoViewer.NET.Playback2D.Zones.PlaceHit.None -> DemoViewer.NET.
 ~override DemoViewer.NET.Playback2D.SceneTime.ToString() -> string
 ~override DemoViewer.NET.Playback2D.ShapedText.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.ShapedText.ToString() -> string
-~override DemoViewer.NET.Playback2D.Sightline.Equals(object obj) -> bool
-~override DemoViewer.NET.Playback2D.Sightline.ToString() -> string
 ~override DemoViewer.NET.Playback2D.WorldBounds.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.WorldBounds.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Zones.PlaceHit.Equals(object obj) -> bool

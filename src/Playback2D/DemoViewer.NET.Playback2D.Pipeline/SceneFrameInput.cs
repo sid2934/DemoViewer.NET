@@ -57,7 +57,7 @@ public readonly ref struct SceneFrameInput
     public IReadOnlyList<MapRadarImage>? Radars { get; init; }
 
     /// <summary>Solved line-of-sight geometry; null is read as <see cref="SceneVision.Off" />.</summary>
-    public SceneVision? Vision { get; init; }
+    internal SceneVision? Vision { get; init; }
 
     // Stored biased by one so an unset input means "nobody" (-1) rather than "slot 0". A ref struct
     // cannot carry a field initializer, so without the bias a caller that simply omits FollowSlot would

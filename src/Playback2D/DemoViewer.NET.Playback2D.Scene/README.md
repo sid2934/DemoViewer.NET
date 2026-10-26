@@ -21,7 +21,7 @@ contract, the zone loaders, the sidecar identity records and the content key ali
 
 | Namespace | Types |
 |---|---|
-| `Playback2D` | `Scene2DFrame` and what it carries (`PlayerMarker`, `GrenadeTrail`, `AreaEffect`, `BombMarker`, `KillFeedRow`, `SceneGameInfo`, `SceneMapInfo`, `SceneVision`), `SceneTime`, `ISceneFrames` (frames an export caller supplies), `ViewportTransform`, `SliceCamera`, `ScenePalette`, `WorldBounds`, `TextBlobCache` |
+| `Playback2D` | `Scene2DFrame` and what it carries (`PlayerMarker`, `GrenadeTrail`, `AreaEffect`, `BombMarker`, `KillFeedRow`, `SceneGameInfo`, `SceneMapInfo`), `SceneTime`, `ISceneFrames` (frames an export caller supplies), `ViewportTransform`, `SliceCamera`, `ScenePalette`, `WorldBounds`, `TextBlobCache` |
 | `Playback2D.Compositing` | `ISceneLayer`, `LayerSlot`, `LayerCacheHint`, `SceneRenderContext`. The stack a layer is drawn by, the submission it is drawn from and the gate that serialises them are the host's, and internal |
 | `Playback2D.Layers` | `SceneLayerIds`, the ids of the app's own layers |
 | `Playback2D.Levels` | `MapSpace`, `MapLevel`, `MapLevelId`, `PaneSet`, `LevelPane`, `ILevelLayoutPolicy`, `StackedLayout`, `IMapAsset` (a loaded map's floors, radar images and places). Which level a single pane shows, and the dwell that decides it, are the host's |

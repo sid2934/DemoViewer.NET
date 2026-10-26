@@ -3,13 +3,13 @@ namespace DemoViewer.NET.Playback2D;
 /// <summary>One clipped ray end on a view cone's fan, in world space.</summary>
 /// <param name="X">World X.</param>
 /// <param name="Y">World Y.</param>
-public readonly record struct ConePoint(float X, float Y);
+internal readonly record struct ConePoint(float X, float Y);
 
 /// <summary>
 ///     One player's horizontal FOV footprint: a fan of rays across their view cone, each already
 ///     clipped to the first collision surface at eye height.
 /// </summary>
-public sealed class VisionCone
+internal sealed class VisionCone
 {
     /// <summary>The viewing player's roster slot.</summary>
     public int Slot { get; init; }
@@ -39,7 +39,7 @@ public sealed class VisionCone
 /// <param name="X1">Segment end world X.</param>
 /// <param name="Y1">Segment end world Y.</param>
 /// <param name="Z1">Segment end world Z.</param>
-public readonly record struct Sightline(
+internal readonly record struct Sightline(
     int ViewerSlot,
     int ViewerTeam,
     float X0,
@@ -55,7 +55,7 @@ public readonly record struct Sightline(
 ///     and <c>VisionLayer</c> both live in Pipeline and the contract only carries the result. That also
 ///     means vision Advance can move off the UI thread without touching the contract.
 /// </summary>
-public sealed class SceneVision
+internal sealed class SceneVision
 {
     /// <summary>The frame state when the overlay is off or no engine is loaded for this map.</summary>
     public static readonly SceneVision Off = new();

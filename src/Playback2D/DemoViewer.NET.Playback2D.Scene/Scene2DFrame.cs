@@ -95,7 +95,7 @@ public sealed class Scene2DFrame
     }
 
     /// <summary>Solved line-of-sight geometry, or <see cref="SceneVision.Off" />.</summary>
-    public SceneVision Vision
+    internal SceneVision Vision
     {
         get => VisionField;
         init => VisionField = value;
