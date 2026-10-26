@@ -139,6 +139,41 @@ DemoViewer.NET.Extensions.Sdk.DemoInterest
 DemoViewer.NET.Extensions.Sdk.DemoInterest.AfterUpstream = 2 -> DemoViewer.NET.Extensions.Sdk.DemoInterest
 DemoViewer.NET.Extensions.Sdk.DemoInterest.No = 0 -> DemoViewer.NET.Extensions.Sdk.DemoInterest
 DemoViewer.NET.Extensions.Sdk.DemoInterest.Yes = 1 -> DemoViewer.NET.Extensions.Sdk.DemoInterest
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionReviewPackExport
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionReviewPackExport.DefaultOutputDirectory.get -> string?
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionReviewPackExport.Formats.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionReviewPackExport.Plan(string! outputPath, string! formatId) -> DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan!
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionReviewPackExport.RunAsync(DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan! plan, System.IProgress<DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress>! progress, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult!>!
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionReviewPackExport.Validate(string! outputPath, string! formatId) -> string?
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan.ClipCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan.DemoCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan.OutputDescription.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan.Seconds.get -> double
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan.SkipReasons.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan.SkippedCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan.TitleCardCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackPlan.TrimmedCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.Deconstruct(out int Segment, out int SegmentCount, out string! Label) -> void
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.Equals(DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.ReviewPackProgress() -> void
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.ReviewPackProgress(int Segment, int SegmentCount, string! Label) -> void
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.Segment.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.Segment.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.SegmentCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.SegmentCount.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult!
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.ClipsRendered.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.ClipsRendered.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.Deconstruct(out int ClipsRendered, out System.Collections.Generic.IReadOnlyList<string!>! FailureReasons) -> void
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.Equals(DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.FailureReasons.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.FailureReasons.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.ReviewPackResult(int ClipsRendered, System.Collections.Generic.IReadOnlyList<string!>! FailureReasons) -> void
 DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory
 DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory!
 DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Deconstruct(out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.StoreInventoryItem!>! Items) -> void
@@ -886,6 +921,41 @@ DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Run.get -> System.Func<DemoVi
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.ToolbarItem(string! id, string! label, string! tooltip, System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment!, bool>! run, string? actionId = null, int order = 0, string? icon = null, string? menuHeader = null) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Tooltip.get -> string!
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Tooltip.set -> void
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.Add(System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.Review.ReviewClip!>! clips, string? sectionTitle = null, string! sectionSubtitle = "") -> int
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.AddSection(string! title) -> void
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.Clear() -> void
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.ClipCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.ClipsUnder(System.Guid cardId) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Review.ReviewClip!>!
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.Entries.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Review.ReviewClip!>!
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.FileProblem.get -> string?
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.MoveBy(System.Guid id, int delta) -> void
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.Remove(System.Collections.Generic.IEnumerable<System.Guid>! ids) -> int
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.SetNote(System.Guid id, string! note) -> bool
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.SetQuestion(System.Guid id, string! question) -> bool
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.SetReviewed(System.Collections.Generic.IEnumerable<System.Guid>! ids, bool reviewed) -> int
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.SetTitle(System.Guid id, string! title) -> bool
+DemoViewer.NET.Extensions.Sdk.Review.IExtensionReviewQueue.UnreviewedCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.DemoPath.get -> string!
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.FromTick.get -> int
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Id.get -> System.Guid
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Kind.get -> DemoViewer.NET.Extensions.Sdk.Review.ReviewClipKind
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Note.get -> string!
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Question.get -> string!
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Reviewed.get -> bool
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Seconds.get -> double?
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Sha256.get -> string?
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Source.get -> string!
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.TeamId.get -> System.Guid?
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.TickRate.get -> int
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Title.get -> string!
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.ToTick.get -> int
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClipKind
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClipKind.Clip = 0 -> DemoViewer.NET.Extensions.Sdk.Review.ReviewClipKind
+DemoViewer.NET.Extensions.Sdk.Review.ReviewClipKind.Section = 1 -> DemoViewer.NET.Extensions.Sdk.Review.ReviewClipKind
+DemoViewer.NET.Extensions.Sdk.Review.ReviewSources
 DemoViewer.NET.Extensions.Sdk.RoundEndReason
 DemoViewer.NET.Extensions.Sdk.RoundEndReason.BombDefused = 7 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
 DemoViewer.NET.Extensions.Sdk.RoundEndReason.CTStoppedEscape = 5 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
@@ -1244,6 +1314,12 @@ const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DFeature = "tab.playback2d"
 const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DTab = "playback2d.viewport" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass = "roundfacts" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.StatsTab = "builtin.stats" -> string!
+const DemoViewer.NET.Extensions.Sdk.Review.ReviewSources.Dossier = "dossier" -> string!
+const DemoViewer.NET.Extensions.Sdk.Review.ReviewSources.Highlight = "highlight" -> string!
+const DemoViewer.NET.Extensions.Sdk.Review.ReviewSources.Lineup = "lineup" -> string!
+const DemoViewer.NET.Extensions.Sdk.Review.ReviewSources.Manual = "manual" -> string!
+const DemoViewer.NET.Extensions.Sdk.Review.ReviewSources.Situation = "situation" -> string!
+const DemoViewer.NET.Extensions.Sdk.Review.ReviewSources.Tag = "tag" -> string!
 const DemoViewer.NET.Extensions.Sdk.RoundFactsClock.FrameClockKind = "dv-frame-clock" -> string!
 const DemoViewer.NET.Extensions.Sdk.RoundFactsRows.CurrentSchema = 1 -> int
 const DemoViewer.NET.Extensions.Sdk.RoundFactsRows.FacetId = "roundfacts" -> string!
@@ -1272,6 +1348,10 @@ override DemoViewer.NET.Extensions.Sdk.DemoDataStamp.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.DemoDataWrite.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.DemoDataWrite.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.ToString() -> string!
@@ -1404,6 +1484,10 @@ static DemoViewer.NET.Extensions.Sdk.DemoDataStamp.operator !=(DemoViewer.NET.Ex
 static DemoViewer.NET.Extensions.Sdk.DemoDataStamp.operator ==(DemoViewer.NET.Extensions.Sdk.DemoDataStamp? left, DemoViewer.NET.Extensions.Sdk.DemoDataStamp? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.DemoDataWrite.operator !=(DemoViewer.NET.Extensions.Sdk.DemoDataWrite? left, DemoViewer.NET.Extensions.Sdk.DemoDataWrite? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.DemoDataWrite.operator ==(DemoViewer.NET.Extensions.Sdk.DemoDataWrite? left, DemoViewer.NET.Extensions.Sdk.DemoDataWrite? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.operator !=(DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress left, DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.operator ==(DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress left, DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.operator !=(DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult? left, DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult.operator ==(DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult? left, DemoViewer.NET.Extensions.Sdk.Export.ReviewPackResult? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? right) -> bool
@@ -1477,6 +1561,7 @@ static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.operator !=(DemoVie
 static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Review.ReviewClip.Clip(string! demoPath, int fromTick, int toTick, string! note, string! source, int tickRate = 0, string? sha256 = null, System.Guid? teamId = null) -> DemoViewer.NET.Extensions.Sdk.Review.ReviewClip!
 static DemoViewer.NET.Extensions.Sdk.RoundFactsClock.For(CS2DemoKit.Parser.ParsedDemo! parsed) -> DemoViewer.NET.Extensions.Sdk.RoundFactsClock!
 static DemoViewer.NET.Extensions.Sdk.RoundFactsClock.For(DemoViewer.NET.Modules.Abstractions.IModuleContext! context) -> DemoViewer.NET.Extensions.Sdk.RoundFactsClock!
 static DemoViewer.NET.Extensions.Sdk.RoundFactsRules.FindRound(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.RoundFacts!>! rounds, int frameClockTick) -> DemoViewer.NET.Extensions.Sdk.RoundFacts?
@@ -1773,6 +1858,8 @@ static DemoViewer.NET.Extensions.Sdk.ObservedProjectile.operator !=(DemoViewer.N
 static DemoViewer.NET.Extensions.Sdk.ObservedProjectile.operator ==(DemoViewer.NET.Extensions.Sdk.ObservedProjectile left, DemoViewer.NET.Extensions.Sdk.ObservedProjectile right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ObservedRead.operator !=(DemoViewer.NET.Extensions.Sdk.ObservedRead left, DemoViewer.NET.Extensions.Sdk.ObservedRead right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ObservedRead.operator ==(DemoViewer.NET.Extensions.Sdk.ObservedRead left, DemoViewer.NET.Extensions.Sdk.ObservedRead right) -> bool
+~override DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.Equals(object obj) -> bool
+~override DemoViewer.NET.Extensions.Sdk.Export.ReviewPackProgress.ToString() -> string
 ~override DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Equals(object obj) -> bool
 ~override DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ToString() -> string
 ~override DemoViewer.NET.Extensions.Sdk.ObservedRead.Equals(object obj) -> bool
