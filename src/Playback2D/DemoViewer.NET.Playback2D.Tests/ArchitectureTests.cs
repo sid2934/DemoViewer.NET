@@ -55,8 +55,6 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Annotations.TimingRun",
         "DemoViewer.NET.Playback2D.AreaEffect",
         "DemoViewer.NET.Playback2D.AreaEffectKind",
-        "DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline",
-        "DemoViewer.NET.Playback2D.Assets.ZoneLoadResult",
         "DemoViewer.NET.Playback2D.BombMarker",
         "DemoViewer.NET.Playback2D.Cameras.ICameraRig",
         "DemoViewer.NET.Playback2D.Cameras.ManualRig",

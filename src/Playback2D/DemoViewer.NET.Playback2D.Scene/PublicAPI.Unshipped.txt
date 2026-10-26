@@ -1838,51 +1838,22 @@ DemoViewer.NET.Playback2D.Annotations.DemoIdentity.Sha256.get -> string!
 DemoViewer.NET.Playback2D.Annotations.DemoIdentity.Sha256.init -> void
 DemoViewer.NET.Playback2D.Annotations.DemoIdentity.SizeBytes.get -> long
 DemoViewer.NET.Playback2D.Annotations.DemoIdentity.SizeBytes.init -> void
-DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.<Clone>$() -> DemoViewer.NET.Playback2D.Assets.ZoneLoadResult!
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Baked.get -> DemoViewer.NET.Playback2D.Zones.ZoneSet?
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Baked.init -> void
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Deconstruct(out DemoViewer.NET.Playback2D.Zones.PlaceResolver? Resolver, out DemoViewer.NET.Playback2D.Zones.ZoneSet? Baked, out string? OverlayPath, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic!>! Diagnostics) -> void
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Diagnostics.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic!>!
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Diagnostics.init -> void
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Equals(DemoViewer.NET.Playback2D.Assets.ZoneLoadResult? other) -> bool
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.OverlayApplied.get -> bool
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.OverlayPath.get -> string?
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.OverlayPath.init -> void
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Resolver.get -> DemoViewer.NET.Playback2D.Zones.PlaceResolver?
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Resolver.init -> void
-DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.ZoneLoadResult(DemoViewer.NET.Playback2D.Zones.PlaceResolver? Resolver, DemoViewer.NET.Playback2D.Zones.ZoneSet? Baked, string? OverlayPath, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic!>! Diagnostics) -> void
 DemoViewer.NET.Playback2D.DemoContentHash
 const DemoViewer.NET.Playback2D.Annotations.ClockIdentity.DvFrameClock = "dv-frame-clock" -> string!
-const DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.FileName = "zones.json" -> string!
-const DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.GzipFileName = "zones.json.gz" -> string!
-const DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.OverlaySuffix = ".zones.json" -> string!
 override DemoViewer.NET.Playback2D.Annotations.ClockIdentity.Equals(object? obj) -> bool
 override DemoViewer.NET.Playback2D.Annotations.ClockIdentity.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Annotations.ClockIdentity.ToString() -> string!
 override DemoViewer.NET.Playback2D.Annotations.DemoIdentity.Equals(object? obj) -> bool
 override DemoViewer.NET.Playback2D.Annotations.DemoIdentity.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Annotations.DemoIdentity.ToString() -> string!
-override DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.ToString() -> string!
 static DemoViewer.NET.Playback2D.Annotations.ClockIdentity.Unknown.get -> DemoViewer.NET.Playback2D.Annotations.ClockIdentity!
 static DemoViewer.NET.Playback2D.Annotations.ClockIdentity.operator !=(DemoViewer.NET.Playback2D.Annotations.ClockIdentity? left, DemoViewer.NET.Playback2D.Annotations.ClockIdentity? right) -> bool
 static DemoViewer.NET.Playback2D.Annotations.ClockIdentity.operator ==(DemoViewer.NET.Playback2D.Annotations.ClockIdentity? left, DemoViewer.NET.Playback2D.Annotations.ClockIdentity? right) -> bool
 static DemoViewer.NET.Playback2D.Annotations.DemoIdentity.operator !=(DemoViewer.NET.Playback2D.Annotations.DemoIdentity? left, DemoViewer.NET.Playback2D.Annotations.DemoIdentity? right) -> bool
 static DemoViewer.NET.Playback2D.Annotations.DemoIdentity.operator ==(DemoViewer.NET.Playback2D.Annotations.DemoIdentity? left, DemoViewer.NET.Playback2D.Annotations.DemoIdentity? right) -> bool
-static DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.Load(string? bundleDir, string? overlayDir) -> DemoViewer.NET.Playback2D.Assets.ZoneLoadResult!
-static DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.LoadWithOverlayFile(string? bundleDir, string? overlayFile) -> DemoViewer.NET.Playback2D.Assets.ZoneLoadResult!
-static DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.OverlayPathFor(string? overlayDir, string? mapName) -> string?
-static DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.TryLoad(string? bundleDir, string? overlayDir) -> DemoViewer.NET.Playback2D.Zones.PlaceResolver?
-static DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.TryReadBaked(string? bundleDir) -> DemoViewer.NET.Playback2D.Zones.ZoneSet?
-static DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.operator !=(DemoViewer.NET.Playback2D.Assets.ZoneLoadResult? left, DemoViewer.NET.Playback2D.Assets.ZoneLoadResult? right) -> bool
-static DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.operator ==(DemoViewer.NET.Playback2D.Assets.ZoneLoadResult? left, DemoViewer.NET.Playback2D.Assets.ZoneLoadResult? right) -> bool
 static DemoViewer.NET.Playback2D.DemoContentHash.Compute(System.ReadOnlySpan<byte> bytes) -> string!
 static DemoViewer.NET.Playback2D.DemoContentHash.Compute(string! path) -> string!
 static DemoViewer.NET.Playback2D.DemoContentHash.TryCompute(string! path) -> string?
-static readonly DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Empty -> DemoViewer.NET.Playback2D.Assets.ZoneLoadResult!
 DemoViewer.NET.Playback2D.Levels.IMapAsset
 DemoViewer.NET.Playback2D.Levels.IMapAsset.CreateRadarBinder() -> DemoViewer.NET.Playback2D.Levels.ILevelRadarBinder!
 DemoViewer.NET.Playback2D.Levels.IMapAsset.DescribeRadars() -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.MapRadarImage!>!

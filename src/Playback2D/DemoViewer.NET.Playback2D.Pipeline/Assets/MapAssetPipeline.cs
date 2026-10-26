@@ -85,13 +85,13 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     ///     The place resolver over this map's <c>zones.json</c> plus the user overlay, or null when the
     ///     bundle directory has no zones file. <b>Lazy</b>: the file is parsed and the grid built on the
     ///     first read, so <c>EnsureMapAsset</c> needs no new wiring and a map whose zones nobody asks
-    ///     for costs nothing. Consumers outside playback call <see cref="ZoneAssetPipeline.TryLoad" />
-    ///     directly.
+    ///     for costs nothing. Consumers outside playback read it off the lease they hold, through
+    ///     <see cref="RefreshZones" />.
     /// </summary>
     public PlaceResolver? Zones => ZoneLoad.Resolver;
 
     /// <summary>The last zones load in full: resolver, baked set, overlay path and diagnostics.</summary>
-    public ZoneLoadResult ZoneLoad
+    internal ZoneLoadResult ZoneLoad
     {
         get
         {
@@ -119,7 +119,7 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     ///     author sees an edited overlay without a map reload. The previous resolver stays valid for anyone
     ///     still holding it; a fresh one is built and returned.
     /// </summary>
-    public ZoneLoadResult ReloadZones()
+    internal ZoneLoadResult ReloadZones()
     {
         lock (_zoneLock)
         {
@@ -131,10 +131,6 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     ///     The map's places, re-read only when the overlay file's stamp has moved since the last read.
     ///     Unchanged means the <b>same instance</b>, which is what lets a caller cache the graph it folded
     ///     out of a resolver and compare by reference instead of by zones version.
-    ///     <para>
-    ///         Public although <see cref="ZoneLoad" /> is internal: a test lease outside this assembly's
-    ///         friends implements the published lease member by delegating here.
-    ///     </para>
     /// </summary>
     public PlaceResolver? RefreshZones()
     {

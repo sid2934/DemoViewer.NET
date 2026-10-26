@@ -4,7 +4,7 @@
       The scene contract of the 2D map: the frame, the frames an export caller supplies, the layer
       interface, floors and panes, places, the viewport transform, cameras and the palette, plus the
       annotation, timeline, tool and HUD contracts, the query and overlay layers an extension draws with,
-      the zone loaders and the demo content key. The stack that draws a layer is the host's, and internal. SkiaSharp and the BCL only, enforced by ArchitectureTests, which also pins its public types
+      and the demo content key. The zone loaders are first-party: an extension reads places off a map lease. The stack that draws a layer is the host's, and internal. SkiaSharp and the BCL only, enforced by ArchitectureTests, which also pins its public types
       to an allow-list.
       Every type sits under DemoViewer.NET.Playback2D; the app's own layers, the drawing tools, export
       and the rendering backends stay under DemoViewer.NET.Playback2D.Pipeline, which is not published.

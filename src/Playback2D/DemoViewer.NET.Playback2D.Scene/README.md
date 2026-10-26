@@ -15,7 +15,7 @@ The app ships this assembly and SkiaSharp, so copies in your extension's folder 
 against the SkiaSharp version this package depends on.
 
 Every type sits under `DemoViewer.NET.Playback2D`, matching the package's root namespace: the scene
-contract, the zone loaders, the sidecar identity records and the content key alike.
+contract, place lookup, the sidecar identity records and the content key alike.
 
 ## What is in it
 
@@ -35,7 +35,6 @@ contract, the zone loaders, the sidecar identity records and the content key ali
 | `Playback2D.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens needs. Writing ink is first-party: the session and the authoring clock are not on `IToolServices` |
 | `Playback2D.Hud` | `IHudDataSource`, `HudSnapshot`, `IIconSource` |
 | `Playback2D.Vision` | `IVisionSolver`, `VisionSolution` |
-| `Playback2D.Assets` | `ZoneAssetPipeline`, `ZoneLoadResult`: a map's places loaded from its bundle directory, with the user's zone overlay already applied |
 | `Playback2D.Annotations` | `DemoIdentity`, `ClockIdentity`: which demo and which parse a sidecar was written against |
 | `Playback2D` | `DemoContentHash`, the demo content key every store joins on |
 | `Playback2D` (more) | `MarkerSmoother`, `SceneGuides`, `TrailGeometry`, `SceneDefaults`; `Levels.MapSpaceFactory`; `Zones.NavPathfinder` |

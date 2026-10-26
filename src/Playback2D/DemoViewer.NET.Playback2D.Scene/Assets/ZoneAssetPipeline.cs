@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2D.Assets;
 /// <param name="Baked">The baked set before the overlay, or null.</param>
 /// <param name="OverlayPath">The overlay file that was looked for, whether or not it existed.</param>
 /// <param name="Diagnostics">Everything the overlay loader skipped or flagged.</param>
-public sealed record ZoneLoadResult(
+internal sealed record ZoneLoadResult(
     PlaceResolver? Resolver,
     ZoneSet? Baked,
     string? OverlayPath,
@@ -31,6 +31,11 @@ public sealed record ZoneLoadResult(
 ///     and builds the <see cref="PlaceResolver" /> over the effective set. The sibling of
 ///     <c>MapAssetPipeline</c> for the zone file.
 ///     <para>
+///         <b>First-party.</b> An extension reads a map's places off the lease it holds, which is what
+///         gives it one load per map and a saved overlay without a restart; a loader that takes a pair of
+///         directories hands it neither.
+///     </para>
+///     <para>
 ///         <b>Never throws, reads nothing from <c>bundle.json</c>.</b> The file is located by path
 ///         (a <c>--zones</c> top-up cannot write a bundle reference, so nothing reads one),
 ///         and a missing, unreadable or malformed file is null. The overlay is the other way round:
@@ -38,7 +43,7 @@ public sealed record ZoneLoadResult(
 ///         a diagnostic, and a malformed entry inside it yields the rest of the overlay plus a diagnostic.
 ///     </para>
 /// </summary>
-public static class ZoneAssetPipeline
+internal static class ZoneAssetPipeline
 {
     /// <summary>The plain file the baker writes beside <c>bundle.json</c>.</summary>
     public const string FileName = "zones.json";
