@@ -5,8 +5,10 @@
 # Publishes only on a tag push matching sdk/v<version>, or a workflow_dispatch run against that same
 # tag with dry_run=false. The tag must equal the computed version (create it with
 # `dotnet nbgv tag -p src/Sdk/DemoViewer.NET.Extensions.Sdk` on main, after scripts/ship-public-api.sh).
-# Every other trigger, any dispatch from a branch included, is a dry run. Publishing needs the
-# nuget.org trust policy, which names this file; nothing else here does.
+# Every other trigger, any dispatch from a branch included, is a dry run. nuget.org auth is a
+# trusted-publishing policy (owner sid2934, repo sid2934/DemoViewer.NET, workflow release-sdk.yml):
+# the login step exchanges this workflow's OIDC token for a short-lived key, with no stored secret.
+# Same arrangement as CS2DemoKit's nuget.yml.
 #
 # A dry run covers: the verify-ci gate, the nbgv version, the tag against that version on a tag ref,
 # packing every project sdk-packages.sh names, and the artifact upload. It does NOT cover the
@@ -168,23 +170,19 @@ jobs:
           done
 
       # The key nuget.org mints here lives one hour, so this runs immediately before the push and not
-      # at the top of the job. NUGET_USER is the nuget.org profile name, not an email address. The trust
-      # policy on nuget.org names this file, so renaming this workflow breaks publishing.
-      - name: Exchange the OIDC token for a nuget.org key
+      # at the top of the job. The trust policy names this file, so renaming this workflow breaks it.
+      - name: Log in to nuget.org (trusted publishing)
         id: nuget-login
         uses: NuGet/login@v1
         with:
-          user: ${{ secrets.NUGET_USER }}
+          user: sid2934
 
       - name: Push to nuget.org
-        env:
-          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "$NUGET_API_KEY" ]; then
-            echo "error: the login step returned no key; check the trust policy on nuget.org" >&2
-            exit 1
-          fi
           for package in artifacts/sdk-packages/*.nupkg; do
-            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+            dotnet nuget push "$package" \
+              --source https://api.nuget.org/v3/index.json \
+              --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+              --skip-duplicate
           done
