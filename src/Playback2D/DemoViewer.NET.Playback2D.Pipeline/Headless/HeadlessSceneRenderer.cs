@@ -173,7 +173,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     }
 
     /// <summary>The submission built by the last <see cref="Advance" />.</summary>
-    public SceneSubmission LastSubmission { get; private set; }
+    internal SceneSubmission LastSubmission { get; private set; }
 
     /// <summary>Releases the cached surface. The compositor and provider belong to the caller.</summary>
     public void Dispose()

@@ -37,7 +37,7 @@ namespace DemoViewer.NET.Playback2D.Compositing;
 ///     The level set, so a pane can answer <c>BelongsHere</c> with the pre-v2 nearest-band fallback.
 ///     Null on a single-level submission, where the sentinel already passes everything.
 /// </param>
-public readonly record struct SceneSubmission(
+internal readonly record struct SceneSubmission(
     long SubmissionId,
     Scene2DFrame Frame,
     SceneTime Time,

@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Playback2D.Compositing;
 ///         <see cref="SceneCompositor.Gate" /> null: single-threaded callers have nothing to serialize.
 ///     </para>
 /// </summary>
-public sealed class SceneRenderGate
+internal sealed class SceneRenderGate
 {
     private readonly Lock _lock = new();
 

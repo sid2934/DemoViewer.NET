@@ -111,14 +111,11 @@ DemoViewer.NET.Playback2D.Compositing.SceneCompositor.AddOwned(System.IDisposabl
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Advance(in DemoViewer.NET.Playback2D.SceneTime time, DemoViewer.NET.Playback2D.Scene2DFrame! frame) -> bool
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Dispose() -> void
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Find(string! layerId) -> DemoViewer.NET.Playback2D.Compositing.ISceneLayer?
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Gate.get -> DemoViewer.NET.Playback2D.Compositing.SceneRenderGate?
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Gate.set -> void
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.InvalidateCaches() -> void
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.InvalidatePaneCaches(DemoViewer.NET.Playback2D.Levels.MapLevelId levelId) -> void
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Layers.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>!
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Remove(string! layerId) -> bool
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Render(SkiaSharp.SKCanvas! canvas, in DemoViewer.NET.Playback2D.Compositing.SceneRenderContext ctx) -> void
-DemoViewer.NET.Playback2D.Compositing.SceneCompositor.Render(SkiaSharp.SKCanvas! canvas, in DemoViewer.NET.Playback2D.Compositing.SceneSubmission submission) -> void
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.SceneCompositor() -> void
 DemoViewer.NET.Playback2D.Compositing.SceneCompositor.SetEnabled(string! layerId, bool enabled) -> void
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext
@@ -155,33 +152,6 @@ DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Time.get -> DemoViewer.
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Time.init -> void
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Transform.get -> DemoViewer.NET.Playback2D.ViewportTransform
 DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Transform.init -> void
-DemoViewer.NET.Playback2D.Compositing.SceneRenderGate
-DemoViewer.NET.Playback2D.Compositing.SceneRenderGate.Enter() -> System.IDisposable!
-DemoViewer.NET.Playback2D.Compositing.SceneRenderGate.IsHeld.get -> bool
-DemoViewer.NET.Playback2D.Compositing.SceneRenderGate.SceneRenderGate() -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Deconstruct(out long SubmissionId, out DemoViewer.NET.Playback2D.Scene2DFrame! Frame, out DemoViewer.NET.Playback2D.SceneTime Time, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Levels.LevelPaneSnapshot>! Panes, out DemoViewer.NET.Playback2D.ScenePalette Palette, out DemoViewer.NET.Playback2D.RenderPurpose Purpose, out SkiaSharp.SKRect HostBounds, out float RenderScaling, out DemoViewer.NET.Playback2D.Levels.MapSpace? Levels) -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Equals(DemoViewer.NET.Playback2D.Compositing.SceneSubmission other) -> bool
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Frame.get -> DemoViewer.NET.Playback2D.Scene2DFrame!
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Frame.init -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.HostBounds.get -> SkiaSharp.SKRect
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.HostBounds.init -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Levels.get -> DemoViewer.NET.Playback2D.Levels.MapSpace?
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Levels.init -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Palette.get -> DemoViewer.NET.Playback2D.ScenePalette
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Palette.init -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Panes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Levels.LevelPaneSnapshot>!
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Panes.init -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Purpose.get -> DemoViewer.NET.Playback2D.RenderPurpose
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Purpose.init -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.RenderScaling.get -> float
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.RenderScaling.init -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.SceneSubmission() -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.SceneSubmission(long SubmissionId, DemoViewer.NET.Playback2D.Scene2DFrame! Frame, DemoViewer.NET.Playback2D.SceneTime Time, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Levels.LevelPaneSnapshot>! Panes, DemoViewer.NET.Playback2D.ScenePalette Palette, DemoViewer.NET.Playback2D.RenderPurpose Purpose, SkiaSharp.SKRect HostBounds, float RenderScaling, DemoViewer.NET.Playback2D.Levels.MapSpace? Levels = null) -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.SubmissionId.get -> long
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.SubmissionId.init -> void
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Time.get -> DemoViewer.NET.Playback2D.SceneTime
-DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Time.init -> void
 DemoViewer.NET.Playback2D.ConePoint
 DemoViewer.NET.Playback2D.ConePoint.ConePoint() -> void
 DemoViewer.NET.Playback2D.ConePoint.ConePoint(float X, float Y) -> void
@@ -966,7 +936,6 @@ DemoViewer.NET.Playback2D.Zones.ZoneVolumeKind.Place = 0 -> DemoViewer.NET.Playb
 override DemoViewer.NET.Playback2D.AreaEffect.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.BombMarker.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Compositing.SceneSubmission.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.ConePoint.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.GrenadeTrailPoint.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.KillFeedRow.GetHashCode() -> int
@@ -1005,8 +974,6 @@ static DemoViewer.NET.Playback2D.BombMarker.operator !=(DemoViewer.NET.Playback2
 static DemoViewer.NET.Playback2D.BombMarker.operator ==(DemoViewer.NET.Playback2D.BombMarker left, DemoViewer.NET.Playback2D.BombMarker right) -> bool
 static DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.operator !=(DemoViewer.NET.Playback2D.Compositing.SceneRenderContext left, DemoViewer.NET.Playback2D.Compositing.SceneRenderContext right) -> bool
 static DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.operator ==(DemoViewer.NET.Playback2D.Compositing.SceneRenderContext left, DemoViewer.NET.Playback2D.Compositing.SceneRenderContext right) -> bool
-static DemoViewer.NET.Playback2D.Compositing.SceneSubmission.operator !=(DemoViewer.NET.Playback2D.Compositing.SceneSubmission left, DemoViewer.NET.Playback2D.Compositing.SceneSubmission right) -> bool
-static DemoViewer.NET.Playback2D.Compositing.SceneSubmission.operator ==(DemoViewer.NET.Playback2D.Compositing.SceneSubmission left, DemoViewer.NET.Playback2D.Compositing.SceneSubmission right) -> bool
 static DemoViewer.NET.Playback2D.ConePoint.operator !=(DemoViewer.NET.Playback2D.ConePoint left, DemoViewer.NET.Playback2D.ConePoint right) -> bool
 static DemoViewer.NET.Playback2D.ConePoint.operator ==(DemoViewer.NET.Playback2D.ConePoint left, DemoViewer.NET.Playback2D.ConePoint right) -> bool
 static DemoViewer.NET.Playback2D.GrenadeTrailPoint.operator !=(DemoViewer.NET.Playback2D.GrenadeTrailPoint left, DemoViewer.NET.Playback2D.GrenadeTrailPoint right) -> bool
@@ -1081,8 +1048,6 @@ static readonly DemoViewer.NET.Playback2D.Zones.PlaceHit.None -> DemoViewer.NET.
 ~override DemoViewer.NET.Playback2D.BombMarker.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.Compositing.SceneRenderContext.ToString() -> string
-~override DemoViewer.NET.Playback2D.Compositing.SceneSubmission.Equals(object obj) -> bool
-~override DemoViewer.NET.Playback2D.Compositing.SceneSubmission.ToString() -> string
 ~override DemoViewer.NET.Playback2D.ConePoint.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.ConePoint.ToString() -> string
 ~override DemoViewer.NET.Playback2D.GrenadeTrailPoint.Equals(object obj) -> bool

@@ -68,8 +68,6 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Compositing.LayerSlot",
         "DemoViewer.NET.Playback2D.Compositing.SceneCompositor",
         "DemoViewer.NET.Playback2D.Compositing.SceneRenderContext",
-        "DemoViewer.NET.Playback2D.Compositing.SceneRenderGate",
-        "DemoViewer.NET.Playback2D.Compositing.SceneSubmission",
         "DemoViewer.NET.Playback2D.ConePoint",
         "DemoViewer.NET.Playback2D.DemoContentHash",
         "DemoViewer.NET.Playback2D.GrenadeKind",
