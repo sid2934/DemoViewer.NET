@@ -414,7 +414,7 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.Dispose() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.IsBlankByDesign(string! key) -> bool
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.Lookup(string! key, float pixelHeight) -> SkiaSharp.SKImage?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.MapIcons() -> void
-static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.RenderPng(DemoViewer.NET.Playback2D.Scene2DFrame! frame, DemoViewer.NET.Playback2D.Levels.IMapAsset? map, System.Collections.Generic.IReadOnlyList<string!>! layerIds, DemoViewer.NET.Playback2D.ViewportTransform camera, SkiaSharp.SKSizeI size, DemoViewer.NET.Playback2D.Overlay.OverlayDocument? overlay = null) -> byte[]!
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.RenderPng(DemoViewer.NET.Playback2D.Scene2DFrame! frame, DemoViewer.NET.Playback2D.Levels.IMapAsset? map, System.Collections.Generic.IReadOnlyList<string!>! layerIds, DemoViewer.NET.Playback2D.ViewportTransform camera, SkiaSharp.SKSizeI size, System.Collections.Generic.IReadOnlyList<System.Func<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>!>? layers = null) -> byte[]!
 static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.Acquire(string? mapName) -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.IMapAssetLease?
 static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.Describe(string? mapName) -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapDescription?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.IMapAssetLease

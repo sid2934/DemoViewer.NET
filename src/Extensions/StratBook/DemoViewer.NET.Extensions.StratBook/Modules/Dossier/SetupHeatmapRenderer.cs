@@ -65,9 +65,11 @@ public sealed class SetupHeatmapRenderer : IDisposable
         Scene2DFrame frame = BuildFrame(overlay, asset);
         WorldBounds bounds = frame.Map.NetworkedBounds ?? frame.Map.ObservedBounds;
 
-        return MapAssets.RenderPng(frame, asset, [SceneLayerIds.Radar, SceneLayerIds.Overlay],
+        // Radar alone in the id list: the heatmap layer comes in as a factory now, and naming
+        // playback2d.overlay as well would ask the catalog for a second one it cannot feed.
+        return MapAssets.RenderPng(frame, asset, [SceneLayerIds.Radar],
             ViewportTransform.Fit(Size.Width, Size.Height, bounds.MinX, bounds.MinY, bounds.MaxX, bounds.MaxY), Size,
-            overlay);
+            [() => new OverlayHeatmapLayer(overlay)]);
     }
 
     /// <summary>

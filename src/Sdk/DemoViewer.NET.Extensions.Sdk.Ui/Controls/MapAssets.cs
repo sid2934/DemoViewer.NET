@@ -1,9 +1,9 @@
 #region
 
 using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Hud;
 using DemoViewer.NET.Playback2D.Levels;
-using DemoViewer.NET.Playback2D.Overlay;
 using DemoViewer.NET.Playback2D.Zones;
 using SkiaSharp;
 
@@ -50,16 +50,21 @@ public static class MapAssets
     /// <param name="layerIds">The app's layers to draw, from <c>SceneLayerIds</c>.</param>
     /// <param name="camera">Where the picture looks.</param>
     /// <param name="size">The picture's size in pixels.</param>
-    /// <param name="overlay">The points the overlay heatmap layer draws, when <paramref name="layerIds" /> includes it.</param>
+    /// <param name="layers">
+    ///     Layers of your own to draw beside the app's, one factory called once per render. A factory, not an
+    ///     instance, because the renderer disposes what it drew. Each layer draws where its own
+    ///     <see cref="ISceneLayer.Slot" /> and <see cref="ISceneLayer.Order" /> put it, and an id already
+    ///     registered by <paramref name="layerIds" /> or by an earlier factory throws.
+    /// </param>
     /// <exception cref="InvalidOperationException">No app is installed to render.</exception>
     public static byte[] RenderPng(Scene2DFrame frame, IMapAsset? map, IReadOnlyList<string> layerIds,
-        ViewportTransform camera, SKSizeI size, OverlayDocument? overlay = null)
+        ViewportTransform camera, SKSizeI size, IReadOnlyList<Func<ISceneLayer>>? layers = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(layerIds);
         IMapAssetsBackend backend = Backend
                                     ?? throw new InvalidOperationException("Map pictures are rendered by the app, and none is running.");
-        return backend.RenderPng(frame, map, layerIds, camera, size, overlay);
+        return backend.RenderPng(frame, map, layerIds, camera, size, layers);
     }
 }
 
@@ -139,5 +144,5 @@ internal interface IMapAssetsBackend
 
     /// <summary>One frame drawn to a PNG.</summary>
     byte[] RenderPng(Scene2DFrame frame, IMapAsset? map, IReadOnlyList<string> layerIds, ViewportTransform camera,
-        SKSizeI size, OverlayDocument? overlay);
+        SKSizeI size, IReadOnlyList<Func<ISceneLayer>>? layers);
 }
