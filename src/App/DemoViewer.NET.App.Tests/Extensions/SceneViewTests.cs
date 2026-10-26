@@ -131,6 +131,33 @@ public class SceneViewTests
         });
     }
 
+    /// <summary>A second layer under one id is refused, and the first keeps the id and its own removal.</summary>
+    [Test]
+    public async Task AddLayer_RefusesAnIdTheSceneAlreadyHolds()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeSource source = new();
+            source.Publish(Frame(1));
+            (Window window, SceneView view) = Mount(source);
+            Scene2DHost host = view.GetVisualDescendants().OfType<Scene2DHost>().Single();
+
+            InertLayer? first = null;
+            IDisposable layer = view.AddLayer("sample.guides", () => first = new InertLayer("sample.guides"));
+            Assert.Throws<ArgumentException>(() => view.AddLayer("sample.guides", () => new InertLayer("sample.guides")));
+
+            // By reference, not by count: two layers of one id read alike, and the refused add must leave
+            // the host holding the FIRST one. Holding the second is the corruption a replacement caused,
+            // the view's handle then removing a factory the host had already dropped.
+            await Assert.That(host.Compositor.Find("sample.guides")).IsSameReferenceAs(first);
+
+            layer.Dispose();
+            await Assert.That(host.Compositor.Layers.Any(l => l.Id == "sample.guides")).IsFalse()
+                .Because("the refused add left the first handle in charge of the id");
+            window.Close();
+        });
+    }
+
     // A data source rather than [Arguments], for the reason in MapViewTests.ViewOwnLayerIds.
     public static IEnumerable<string> SceneOwnLayerIds()
     {

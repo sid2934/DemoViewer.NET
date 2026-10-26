@@ -194,12 +194,16 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     /// <summary>
     ///     Registers a scene layer on this host only, built fresh by <paramref name="layer" /> now and
     ///     again every time a release rebuilds the compositor. <paramref name="layerId" /> must match
-    ///     <see cref="ISceneLayer.Id" />; registering the same id again replaces it. Refuses an id this
-    ///     host already manages itself (<see cref="OwnLayerIds" />).
+    ///     <see cref="ISceneLayer.Id" />. Refuses an id this host already manages itself
+    ///     (<see cref="OwnLayerIds" />) and one it already holds a layer under.
     /// </summary>
     /// <param name="layerId">The layer's id.</param>
     /// <param name="layer">Builds a fresh layer instance.</param>
-    /// <exception cref="ArgumentException"><paramref name="layerId" /> names one of this host's own layers.</exception>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="layerId" /> names one of this host's own layers, or one it already holds. Taking
+    ///     the second silently is what let one caller's layer leave another holding a handle that removed
+    ///     nothing.
+    /// </exception>
     public void AddLayer(string layerId, Func<ISceneLayer> layer)
     {
         ArgumentNullException.ThrowIfNull(layerId);
@@ -210,7 +214,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             throw new ArgumentException($"'{layerId}' is one of this host's own layers.", nameof(layerId));
         }
 
-        _extraLayers[layerId] = layer;
+        if (!_extraLayers.TryAdd(layerId, layer))
+        {
+            throw new ArgumentException($"A layer is already registered as '{layerId}'.", nameof(layerId));
+        }
+
         if (_released)
         {
             return;

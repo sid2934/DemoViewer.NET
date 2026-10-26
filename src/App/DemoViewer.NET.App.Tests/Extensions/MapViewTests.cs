@@ -95,6 +95,42 @@ public class MapViewTests
         });
     }
 
+    /// <summary>
+    ///     A second layer under one id is refused rather than replacing the first. A replacement left the
+    ///     first owner holding a handle that removed nothing.
+    /// </summary>
+    [Test]
+    public async Task AddLayer_RefusesAnIdTheViewAlreadyHolds()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Window window, MapView view) = Mount();
+            view.MapName = Map;
+            CountingLayer? first = null;
+            IDisposable added = view.AddLayer("sample.dots", () => first = new CountingLayer("sample.dots"));
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame();
+
+            Assert.Throws<ArgumentException>(() => view.AddLayer("sample.dots", () => new CountingLayer("sample.dots")));
+
+            int before = first!.Renders;
+            view.Invalidate();
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame();
+            await Assert.That(first.Renders).IsGreaterThan(before).Because("the refused add left the first layer drawing");
+
+            // The refused add must leave the first handle in charge of the id: a factory it had recorded
+            // over the first one would make this dispose a no-op and the layer would never leave.
+            added.Dispose();
+            before = first.Renders;
+            view.Invalidate();
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame();
+            await Assert.That(first.Renders).IsEqualTo(before);
+            window.Close();
+        });
+    }
+
     // A data source rather than [Arguments]: the ids are static readonly, so an attribute argument
     // cannot take them, and a literal here would stop referencing the type this test is about.
     public static IEnumerable<string> ViewOwnLayerIds()

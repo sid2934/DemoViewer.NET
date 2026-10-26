@@ -140,7 +140,11 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(layer);
-        _layers[id] = layer;
+        if (!_layers.TryAdd(id, layer))
+        {
+            throw new ArgumentException($"A layer is already registered as '{id}'.", nameof(id));
+        }
+
         if (_released)
         {
             return;

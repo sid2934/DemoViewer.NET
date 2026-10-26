@@ -81,12 +81,14 @@ public sealed class MapView : Control
     /// <summary>
     ///     A layer drawn over the radar, ordered by <see cref="ISceneLayer.Slot" /> and
     ///     <see cref="ISceneLayer.Order" />. The built layer's <see cref="ISceneLayer.Id" /> must be
-    ///     <paramref name="id" />; adding an id again replaces that layer.
+    ///     <paramref name="id" />.
     /// </summary>
     /// <param name="id">The layer's id. The radar's and the floor label's ids are the view's own and are refused.</param>
     /// <param name="layer">Builds a fresh layer; called now and whenever the map rebuilds its scene.</param>
     /// <returns>Removes the layer.</returns>
-    /// <exception cref="ArgumentException"><paramref name="id" /> is one of the view's own layers.</exception>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="id" /> is one of the view's own layers, or one a layer on this view already holds.
+    /// </exception>
     public IDisposable AddLayer(string id, Func<ISceneLayer> layer)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
@@ -96,8 +98,14 @@ public sealed class MapView : Control
             throw new ArgumentException($"'{id}' is one of the map view's own layers.", nameof(id));
         }
 
-        _layers[id] = layer;
+        // The host first: a refused id must leave nothing recorded here either. With no host to refuse
+        // it, this map is the only registry there is.
         _backend?.SetLayer(id, layer);
+        if (!_layers.TryAdd(id, layer))
+        {
+            throw new ArgumentException($"A layer is already registered as '{id}'.", nameof(id));
+        }
+
         return new Removal(() =>
         {
             if (_layers.TryGetValue(id, out Func<ISceneLayer>? current) && ReferenceEquals(current, layer))
@@ -215,7 +223,7 @@ internal interface IMapViewBackend
     /// <summary>A map was bound or unbound.</summary>
     event Action? MapBound;
 
-    /// <summary>Adds or replaces a layer.</summary>
+    /// <summary>Adds a layer, refusing an id it already holds.</summary>
     void SetLayer(string id, Func<ISceneLayer> layer);
 
     /// <summary>Removes a layer.</summary>
