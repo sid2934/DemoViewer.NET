@@ -360,8 +360,11 @@ internal sealed class HelloModule(Func<HelloTabViewModel> viewModel) : IWorkspac
                 HelloScene scene = new();
                 SceneView view = new() { Source = scene };
                 view.AddLayer("hello.rings", () => new HelloLayer("hello.rings"));
-                view.AddTool(scene.Pin);
-                view.SetActiveTool(scene.Pin.Kind);
+
+                // The handle reports the id the host filed the tool under, which is the id selection speaks.
+                // The tool's own Id is the local one, so selecting by it would find nothing.
+                IToolHandle pin = view.AddTool(scene.Pin);
+                view.SetActiveTool(pin.ToolId);
                 return view;
             }
         };
@@ -466,7 +469,10 @@ internal sealed class HelloPinTool(Action<SKPoint> moved) : IPointerTool
     private SKPoint _pin;
     private SKPoint? _pressedFrom;
 
-    /// <summary>Map and Token are the two kinds the scene does not register a tool of its own under.</summary>
+    /// <summary>An id of its own. The host files it under this extension, so no scene tool's id is reachable from here.</summary>
+    public string Id => "pin";
+
+    /// <summary>A category, not an identity: Map is the one for a tool that places something of its own and writes no ink.</summary>
     public ToolKind Kind => ToolKind.Map;
 
     public bool OnPressed(in ToolPointerEvent e, IToolServices s)
