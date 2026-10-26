@@ -1949,59 +1949,6 @@ virtual DemoViewer.NET.Playback2D.Annotations.SpaceRef.PrintMembers(System.Text.
 ~override DemoViewer.NET.Playback2D.Vision.SightlineSegment.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Zones.NavWaypoint.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.Zones.NavWaypoint.ToString() -> string
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayApplier
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.<Clone>$() -> DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.BasedOn.get -> string?
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.BasedOn.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Deconstruct(out int SchemaVersion, out string? MapName, out string? BasedOn, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone!>! Zones, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge!>! Merges, out System.Collections.Generic.IReadOnlyList<string!>! Hidden) -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Equals(DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument? other) -> bool
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Hidden.get -> System.Collections.Generic.IReadOnlyList<string!>!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Hidden.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.MapName.get -> string?
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.MapName.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Merges.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge!>!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Merges.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.SchemaVersion.get -> int
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.SchemaVersion.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.ZoneOverlayDocument(int SchemaVersion, string? MapName, string? BasedOn, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone!>! Zones, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge!>! Merges, System.Collections.Generic.IReadOnlyList<string!>! Hidden) -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Zones.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone!>!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Zones.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.<Clone>$() -> DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.Deconstruct(out string! Into, out System.Collections.Generic.IReadOnlyList<string!>! From) -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.Equals(DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge? other) -> bool
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.From.get -> System.Collections.Generic.IReadOnlyList<string!>!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.From.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.Into.get -> string!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.Into.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.ZoneOverlayMerge(string! Into, System.Collections.Generic.IReadOnlyList<string!>! From) -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.<Clone>$() -> DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.Deconstruct(out DemoViewer.NET.Playback2D.Zones.ZoneSet! Effective, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic!>! Diagnostics) -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.Diagnostics.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic!>!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.Diagnostics.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.Effective.get -> DemoViewer.NET.Playback2D.Zones.ZoneSet!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.Effective.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.Equals(DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult? other) -> bool
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.ZoneOverlayResult(DemoViewer.NET.Playback2D.Zones.ZoneSet! Effective, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic!>! Diagnostics) -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.<Clone>$() -> DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Deconstruct(out string! Name, out double Floor, out System.Collections.Generic.IReadOnlyList<double>! Polygon, out double? MinZ, out double? MaxZ, out bool Replaces) -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Equals(DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone? other) -> bool
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Floor.get -> double
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Floor.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.MaxZ.get -> double?
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.MaxZ.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.MinZ.get -> double?
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.MinZ.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Name.get -> string!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Name.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Polygon.get -> System.Collections.Generic.IReadOnlyList<double>!
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Polygon.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Replaces.get -> bool
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Replaces.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.ZoneOverlayZone(string! Name, double Floor, System.Collections.Generic.IReadOnlyList<double>! Polygon, double? MinZ, double? MaxZ, bool Replaces) -> void
 DemoViewer.NET.Playback2D.Annotations.ClockIdentity
 DemoViewer.NET.Playback2D.Annotations.ClockIdentity.<Clone>$() -> DemoViewer.NET.Playback2D.Annotations.ClockIdentity!
 DemoViewer.NET.Playback2D.Annotations.ClockIdentity.ClockIdentity(string! Kind, int TickRate, int FrameCount, int FirstTick, int LastTick) -> void
@@ -2049,18 +1996,6 @@ const DemoViewer.NET.Playback2D.Annotations.ClockIdentity.DvFrameClock = "dv-fra
 const DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.FileName = "zones.json" -> string!
 const DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.GzipFileName = "zones.json.gz" -> string!
 const DemoViewer.NET.Playback2D.Assets.ZoneAssetPipeline.OverlaySuffix = ".zones.json" -> string!
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.ToString() -> string!
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.ToString() -> string!
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.ToString() -> string!
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.ToString() -> string!
 override DemoViewer.NET.Playback2D.Annotations.ClockIdentity.Equals(object? obj) -> bool
 override DemoViewer.NET.Playback2D.Annotations.ClockIdentity.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Annotations.ClockIdentity.ToString() -> string!
@@ -2070,15 +2005,6 @@ override DemoViewer.NET.Playback2D.Annotations.DemoIdentity.ToString() -> string
 override DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Equals(object? obj) -> bool
 override DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.ToString() -> string!
-static DemoViewer.NET.Playback2D.Zones.ZoneOverlayApplier.Apply(DemoViewer.NET.Playback2D.Zones.ZoneSet! baked, DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument! overlay, System.ReadOnlySpan<byte> overlayBytes, string? overlayPath) -> DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult!
-static DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.operator !=(DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument? left, DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument? right) -> bool
-static DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.operator ==(DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument? left, DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument? right) -> bool
-static DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.operator !=(DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge? left, DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge? right) -> bool
-static DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge.operator ==(DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge? left, DemoViewer.NET.Playback2D.Zones.ZoneOverlayMerge? right) -> bool
-static DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.operator !=(DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult? left, DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult? right) -> bool
-static DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult.operator ==(DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult? left, DemoViewer.NET.Playback2D.Zones.ZoneOverlayResult? right) -> bool
-static DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.operator !=(DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone? left, DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone? right) -> bool
-static DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone.operator ==(DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone? left, DemoViewer.NET.Playback2D.Zones.ZoneOverlayZone? right) -> bool
 static DemoViewer.NET.Playback2D.Annotations.ClockIdentity.Unknown.get -> DemoViewer.NET.Playback2D.Annotations.ClockIdentity!
 static DemoViewer.NET.Playback2D.Annotations.ClockIdentity.operator !=(DemoViewer.NET.Playback2D.Annotations.ClockIdentity? left, DemoViewer.NET.Playback2D.Annotations.ClockIdentity? right) -> bool
 static DemoViewer.NET.Playback2D.Annotations.ClockIdentity.operator ==(DemoViewer.NET.Playback2D.Annotations.ClockIdentity? left, DemoViewer.NET.Playback2D.Annotations.ClockIdentity? right) -> bool
@@ -2094,7 +2020,6 @@ static DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.operator ==(DemoViewer.NE
 static DemoViewer.NET.Playback2D.DemoContentHash.Compute(System.ReadOnlySpan<byte> bytes) -> string!
 static DemoViewer.NET.Playback2D.DemoContentHash.Compute(string! path) -> string!
 static DemoViewer.NET.Playback2D.DemoContentHash.TryCompute(string! path) -> string?
-static readonly DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument.Empty -> DemoViewer.NET.Playback2D.Zones.ZoneOverlayDocument!
 static readonly DemoViewer.NET.Playback2D.Assets.ZoneLoadResult.Empty -> DemoViewer.NET.Playback2D.Assets.ZoneLoadResult!
 DemoViewer.NET.Playback2D.Levels.IMapAsset
 DemoViewer.NET.Playback2D.Levels.IMapAsset.CreateRadarBinder() -> DemoViewer.NET.Playback2D.Levels.ILevelRadarBinder!

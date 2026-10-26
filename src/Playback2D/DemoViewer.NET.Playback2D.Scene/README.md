@@ -35,8 +35,7 @@ contract, the zone loaders, the sidecar identity records and the content key ali
 | `Playback2D.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens needs. Writing ink is first-party: the session and the authoring clock are not on `IToolServices` |
 | `Playback2D.Hud` | `IHudDataSource`, `HudSnapshot`, `IIconSource` |
 | `Playback2D.Vision` | `IVisionSolver`, `VisionSolution` |
-| `Playback2D.Zones` (overlays) | `ZoneOverlayDocument`, `ZoneOverlayApplier`: a user's zone edits over the baked set |
-| `Playback2D.Assets` | `ZoneAssetPipeline`, `ZoneLoadResult`: a map's places loaded from its bundle directory |
+| `Playback2D.Assets` | `ZoneAssetPipeline`, `ZoneLoadResult`: a map's places loaded from its bundle directory, with the user's zone overlay already applied |
 | `Playback2D.Annotations` | `DemoIdentity`, `ClockIdentity`: which demo and which parse a sidecar was written against |
 | `Playback2D` | `DemoContentHash`, the demo content key every store joins on |
 | `Playback2D` (more) | `MarkerSmoother`, `SceneGuides`, `TrailGeometry`, `SceneDefaults`; `Levels.MapSpaceFactory`; `Zones.NavPathfinder` |

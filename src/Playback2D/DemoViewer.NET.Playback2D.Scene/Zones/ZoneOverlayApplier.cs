@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Zones;
 /// <summary>The effective set an overlay produced, and what the loader skipped on the way.</summary>
 /// <param name="Effective">The set every consumer sees.</param>
 /// <param name="Diagnostics">One row per skipped or flagged entry. Empty when the overlay applied cleanly.</param>
-public sealed record ZoneOverlayResult(ZoneSet Effective, IReadOnlyList<ZoneDiagnostic> Diagnostics);
+internal sealed record ZoneOverlayResult(ZoneSet Effective, IReadOnlyList<ZoneDiagnostic> Diagnostics);
 
 /// <summary>
 ///     Applies a user overlay to a baked set, in the order the format promises: <c>hidden</c> and
@@ -22,7 +22,7 @@ public sealed record ZoneOverlayResult(ZoneSet Effective, IReadOnlyList<ZoneDiag
 ///         and a loader that threw would do exactly that one layer up.
 ///     </para>
 /// </summary>
-public static class ZoneOverlayApplier
+internal static class ZoneOverlayApplier
 {
     /// <summary>Applies the overlay.</summary>
     /// <param name="baked">The baked set.</param>
