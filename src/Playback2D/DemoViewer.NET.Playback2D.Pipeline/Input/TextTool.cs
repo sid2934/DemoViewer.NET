@@ -26,6 +26,9 @@ public sealed class TextTool : IPointerTool
     private IDisposable? _gesture;
 
     /// <inheritdoc />
+    public string Id => ToolIds.Of(ToolKind.Text);
+
+    /// <inheritdoc />
     public ToolKind Kind => ToolKind.Text;
 
     /// <summary>The element whose text is being typed, or null when no edit is open.</summary>

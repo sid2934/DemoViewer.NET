@@ -23,6 +23,9 @@ public sealed class PanZoomTool : IPointerTool
     public bool IsDragging => _gesture.IsDragging;
 
     /// <inheritdoc />
+    public string Id => ToolIds.Of(ToolKind.PanZoom);
+
+    /// <inheritdoc />
     public ToolKind Kind => ToolKind.PanZoom;
 
     /// <inheritdoc />

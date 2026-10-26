@@ -1224,6 +1224,7 @@ DemoViewer.NET.Playback2D.ISceneFrames.TimeAt(int frameIndex) -> DemoViewer.NET.
 DemoViewer.NET.Playback2D.ISmoothedPositionSource
 DemoViewer.NET.Playback2D.ISmoothedPositionSource.TryGetSmoothed(int slot, out float x, out float y) -> bool
 DemoViewer.NET.Playback2D.Input.IPointerTool
+DemoViewer.NET.Playback2D.Input.IPointerTool.Id.get -> string!
 DemoViewer.NET.Playback2D.Input.IPointerTool.Kind.get -> DemoViewer.NET.Playback2D.Input.ToolKind
 DemoViewer.NET.Playback2D.Input.IPointerTool.OnCancelled(DemoViewer.NET.Playback2D.Input.IToolServices! s) -> void
 DemoViewer.NET.Playback2D.Input.IPointerTool.OnMoved(in DemoViewer.NET.Playback2D.Input.ToolPointerEvent e, DemoViewer.NET.Playback2D.Input.IToolServices! s) -> void
@@ -1248,6 +1249,7 @@ DemoViewer.NET.Playback2D.Input.TokenGrip
 DemoViewer.NET.Playback2D.Input.TokenGrip.Body = 0 -> DemoViewer.NET.Playback2D.Input.TokenGrip
 DemoViewer.NET.Playback2D.Input.TokenGrip.Heading = 1 -> DemoViewer.NET.Playback2D.Input.TokenGrip
 DemoViewer.NET.Playback2D.Input.TokenHitTest
+DemoViewer.NET.Playback2D.Input.ToolIds
 DemoViewer.NET.Playback2D.Input.ToolKind
 DemoViewer.NET.Playback2D.Input.ToolKind.Arrow = 5 -> DemoViewer.NET.Playback2D.Input.ToolKind
 DemoViewer.NET.Playback2D.Input.ToolKind.Draw = 1 -> DemoViewer.NET.Playback2D.Input.ToolKind
@@ -1730,6 +1732,7 @@ static DemoViewer.NET.Playback2D.Hud.HudSnapshot.operator !=(DemoViewer.NET.Play
 static DemoViewer.NET.Playback2D.Hud.HudSnapshot.operator ==(DemoViewer.NET.Playback2D.Hud.HudSnapshot left, DemoViewer.NET.Playback2D.Hud.HudSnapshot right) -> bool
 static DemoViewer.NET.Playback2D.Input.TokenHitTest.Classify(float tokenX, float tokenY, float yawDegrees, SkiaSharp.SKPoint world, float worldRadius, bool cone = false) -> DemoViewer.NET.Playback2D.Input.TokenGrip?
 static DemoViewer.NET.Playback2D.Input.TokenHitTest.WorldRadius(double worldUnitsPerPixel) -> float
+static DemoViewer.NET.Playback2D.Input.ToolIds.Of(DemoViewer.NET.Playback2D.Input.ToolKind kind) -> string!
 static DemoViewer.NET.Playback2D.Input.ToolWheelEvent.operator !=(DemoViewer.NET.Playback2D.Input.ToolWheelEvent left, DemoViewer.NET.Playback2D.Input.ToolWheelEvent right) -> bool
 static DemoViewer.NET.Playback2D.Input.ToolWheelEvent.operator ==(DemoViewer.NET.Playback2D.Input.ToolWheelEvent left, DemoViewer.NET.Playback2D.Input.ToolWheelEvent right) -> bool
 static DemoViewer.NET.Playback2D.Layers.QueryTokenLayer.ScreenPosition(in DemoViewer.NET.Playback2D.Query.QueryToken token, DemoViewer.NET.Playback2D.ViewportTransform transform) -> SkiaSharp.SKPoint

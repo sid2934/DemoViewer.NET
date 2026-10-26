@@ -29,8 +29,12 @@ public sealed class InputToolRouter
 {
     private readonly PanZoomTool _panZoom;
     private readonly IToolServices _services;
-    private readonly Dictionary<ToolKind, IPointerTool> _tools = [];
+    private readonly Dictionary<string, IPointerTool> _tools = new(StringComparer.Ordinal);
     private ToolPointerButton _gestureButton;
+
+    // The registered tool declaring ToolKind.Token, for OnPressed's fall-through. Cached rather than
+    // searched: a dictionary scan would pick whichever of two the enumeration order happened to yield.
+    private IPointerTool? _tokenTool;
 
     /// <summary>Creates a router over the host's services with pan/zoom as the permanent fallback.</summary>
     /// <param name="services">Host services handed to every tool.</param>
@@ -42,14 +46,20 @@ public sealed class InputToolRouter
 
         _services = services;
         _panZoom = panZoom;
-        _tools[ToolKind.PanZoom] = panZoom;
+        _tools[panZoom.Id] = panZoom;
     }
 
     /// <summary>The selected tool. Not necessarily the one owning an in-flight gesture.</summary>
-    public IPointerTool Active => _tools.TryGetValue(ActiveKind, out IPointerTool? tool) ? tool : _panZoom;
+    public IPointerTool Active => _tools.TryGetValue(ActiveToolId, out IPointerTool? tool) ? tool : _panZoom;
 
-    /// <summary>The selected tool's kind.</summary>
-    public ToolKind ActiveKind { get; private set; } = ToolKind.PanZoom;
+    /// <summary>The selected tool's id, which is what selection and registration key on.</summary>
+    public string ActiveToolId { get; private set; } = ToolIds.Of(ToolKind.PanZoom);
+
+    /// <summary>
+    ///     The selected tool's category, for the toolbar and the ink session. Two contributed tools may
+    ///     report the same one, so it does not identify the selection; <see cref="ActiveToolId" /> does.
+    /// </summary>
+    public ToolKind ActiveKind => Active.Kind;
 
     /// <summary>
     ///     Whether the hold-to-pan modifier is down. Set by the host's key handlers; read only at press
@@ -63,6 +73,10 @@ public sealed class InputToolRouter
     ///     differs, through <c>AnnotationSession.StyleFor</c>. An unregistered kind falls back to
     ///     <see cref="Active" /> rather than to pan: a right-drag that silently panned would be the same
     ///     surprise this property exists to remove.
+    ///     <para>
+    ///         A kind and not an id: it arrives from the annotations panel and from a persisted settings
+    ///         string, both of which only ever name a first-party tool.
+    ///     </para>
     /// </summary>
     public ToolKind? SecondaryTool { get; set; }
 
@@ -91,69 +105,105 @@ public sealed class InputToolRouter
     ///     every authoring tool. The token tool drags as much as the pen does, and
     ///     Esc has to cancel that drag rather than stop playback. Wider than
     ///     <see cref="ToolKinds.IsAnnotationTool" />, which still answers "does this tool write ink".
+    ///     <para>
+    ///         Keyed on the id, not the category: a contributed tool reporting
+    ///         <see cref="ToolKind.PanZoom" /> still drags, and Esc still has to reach it.
+    ///     </para>
     /// </summary>
-    public bool IsDrawingToolActive => ActiveKind != ToolKind.PanZoom;
+    public bool IsDrawingToolActive => !string.Equals(ActiveToolId, ToolIds.Of(ToolKind.PanZoom), StringComparison.Ordinal);
 
     // No ActiveToolChanged event: the selection round-trips through AnnotationsPanelViewModel's own
     // ObservableProperty, which is what the toolbar binds and what the View's ToolSelected wire drives
     // INTO this router. SetActive mirrors onto the session, which is the part anything downstream
     // actually reads.
 
-    /// <summary>Registers a tool. Replacing a registered kind is allowed (a test double, a re-wire).</summary>
+    /// <summary>
+    ///     Registers a tool under its <see cref="IPointerTool.Id" />. Registering the same instance again is
+    ///     a no-op.
+    /// </summary>
     /// <param name="tool">The tool.</param>
+    /// <exception cref="ArgumentException">
+    ///     Another tool is already registered under that id. Overwriting it silently is what let a
+    ///     contributed tool replace a built-in and leave no trace of having done so.
+    /// </exception>
     public void Register(IPointerTool tool)
     {
         ArgumentNullException.ThrowIfNull(tool);
-        _tools[tool.Kind] = tool;
+        string id = tool.Id;
+        ArgumentException.ThrowIfNullOrEmpty(id, nameof(tool));
+        if (_tools.TryGetValue(id, out IPointerTool? current))
+        {
+            if (ReferenceEquals(current, tool))
+            {
+                return;
+            }
+
+            throw new ArgumentException($"A tool is already registered as '{id}'.", nameof(tool));
+        }
+
+        _tools[id] = tool;
+        if (tool.Kind == ToolKind.Token)
+        {
+            _tokenTool ??= tool;
+        }
     }
 
     /// <summary>
-    ///     Drops a registered tool, falling back to pan/zoom if it was active. A kind registered to a different
-    ///     tool since is left alone. Pan/zoom itself cannot be dropped.
+    ///     Drops a registered tool, falling back to pan/zoom if it was active. An id registered to a
+    ///     different tool since is left alone. Pan/zoom itself cannot be dropped.
     /// </summary>
     /// <param name="tool">The tool.</param>
     public void Unregister(IPointerTool tool)
     {
         ArgumentNullException.ThrowIfNull(tool);
-        if (tool.Kind == ToolKind.PanZoom || !_tools.TryGetValue(tool.Kind, out IPointerTool? current)
+        if (ReferenceEquals(tool, _panZoom) || !_tools.TryGetValue(tool.Id, out IPointerTool? current)
             || !ReferenceEquals(current, tool))
         {
             return;
         }
 
-        if (ActiveKind == tool.Kind)
+        if (string.Equals(ActiveToolId, tool.Id, StringComparison.Ordinal))
         {
             SetActive(ToolKind.PanZoom);
         }
 
-        _tools.Remove(tool.Kind);
+        _tools.Remove(tool.Id);
+        if (ReferenceEquals(_tokenTool, tool))
+        {
+            _tokenTool = null;
+        }
     }
 
+    /// <summary>Selects the first-party tool of this kind. The toolbar's and the keymap's way in.</summary>
+    /// <param name="kind">The tool to select. A kind with no tool registered falls back to pan/zoom.</param>
+    public void SetActive(ToolKind kind) => SetActive(ToolIds.Of(kind));
+
     /// <summary>
-    ///     Selects a tool, cancelling any gesture in flight first: a half-drawn stroke must not be
-    ///     completed by whichever tool the user just switched to.
+    ///     Selects a tool by id, cancelling any gesture in flight first: a half-drawn stroke must not be
+    ///     completed by whichever tool the user just switched to. The only way to reach a contributed tool,
+    ///     whose id no <see cref="ToolKind" /> names.
     /// </summary>
-    /// <param name="kind">The tool to select. An unregistered kind falls back to pan/zoom.</param>
-    public void SetActive(ToolKind kind)
+    /// <param name="toolId">The tool's id. An unregistered id falls back to pan/zoom.</param>
+    public void SetActive(string toolId)
     {
-        if (!_tools.ContainsKey(kind))
+        if (toolId is null || !_tools.ContainsKey(toolId))
         {
-            kind = ToolKind.PanZoom;
+            toolId = ToolIds.Of(ToolKind.PanZoom);
         }
 
-        if (ActiveKind == kind)
+        if (string.Equals(ActiveToolId, toolId, StringComparison.Ordinal))
         {
             return;
         }
 
         CancelActive();
-        ActiveKind = kind;
+        ActiveToolId = toolId;
 
         // Only a host that writes ink has a session to mirror the selection into. A static map view has
         // none, and ActiveTool exists for the annotations panel, which that host does not show.
         if (_services is IInkToolServices ink)
         {
-            ink.Session.ActiveTool = kind;
+            ink.Session.ActiveTool = ActiveKind;
         }
     }
 
@@ -188,7 +238,7 @@ public sealed class InputToolRouter
         // Under pan, a left press on a token drags the token; the token tool refuses a miss, and with no token
         // editor (the 2D tab) it refuses everything, so the press pans.
         if (ReferenceEquals(tool, _panZoom) && !divert && e.Button == ToolPointerButton.Left
-            && _tools.TryGetValue(ToolKind.Token, out IPointerTool? token) && token.OnPressed(in e, _services))
+            && _tokenTool is { } token && token.OnPressed(in e, _services))
         {
             GestureTool = token;
             _gestureButton = e.Button;
@@ -265,7 +315,7 @@ public sealed class InputToolRouter
     private IPointerTool ToolForButton(ToolPointerButton button) =>
         button == ToolPointerButton.Right
         && SecondaryTool is { } kind
-        && _tools.TryGetValue(kind, out IPointerTool? secondary)
+        && _tools.TryGetValue(ToolIds.Of(kind), out IPointerTool? secondary)
             ? secondary
             : Active;
 }

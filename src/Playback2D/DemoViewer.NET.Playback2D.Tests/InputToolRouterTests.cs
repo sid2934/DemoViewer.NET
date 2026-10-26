@@ -579,7 +579,7 @@ public class InputToolRouterTests
     }
 
     [Test]
-    public async Task Unregister_ActiveToolFallsBackToPan_AReplacedKindIsLeftAlone_AndPanStays()
+    public async Task Unregister_ActiveToolFallsBackToPan_FreesTheId_AndPanStays()
     {
         (InputToolRouter router, FakeToolServices _, PaneSet _) = Build();
         InertTool first = new(ToolKind.Token);
@@ -591,16 +591,75 @@ public class InputToolRouterTests
         await Assert.That(router.Active).IsTypeOf<PanZoomTool>();
 
         InertTool second = new(ToolKind.Token);
-        router.Register(first);
         router.Register(second);
         router.SetActive(ToolKind.Token);
-        router.Unregister(first);
-        await Assert.That(router.Active).IsSameReferenceAs(second).Because("the kind belongs to a later tool now");
+        await Assert.That(router.Active).IsSameReferenceAs(second).Because("the dropped tool's id is free again");
 
         router.SetActive(ToolKind.PanZoom);
         IPointerTool pan = router.Active;
         router.Unregister(pan);
         await Assert.That(router.Active).IsSameReferenceAs(pan).Because("pan/zoom cannot be dropped");
+    }
+
+    /// <summary>
+    ///     Two tools under one id: the second is refused and the first keeps the id and the pointer.
+    ///     Registering replaced whatever held the id and reported nothing, so a contributed tool could take
+    ///     a built-in off its own surface and the built-in's gestures simply stopped arriving.
+    /// </summary>
+    [Test]
+    public async Task Register_RefusesASecondToolUnderOneId_AndTheHeldToolKeepsThePointer()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        router.SetActive(ToolKind.Draw);
+        IPointerTool pen = router.Active;
+
+        ArgumentException refused = Assert.Throws<ArgumentException>(() => router.Register(new InertTool(ToolKind.Draw)));
+        router.Register(pen);
+
+        SKPoint at = new(200, 100);
+        LevelPane pane = services.PaneAt(at)!;
+        bool taken = router.OnPressed(Sample(pane, at));
+        router.OnReleased(Sample(pane, at));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(refused.Message).Contains(ToolIds.Of(ToolKind.Draw));
+            await Assert.That(router.Active).IsSameReferenceAs(pen).Because("the registered tool keeps the id");
+            await Assert.That(taken).IsTrue().Because("and the pointer: the refused tool takes no press");
+            await Assert.That(services.Session.Document.Elements).IsNotEmpty().Because("the pen still writes ink");
+        }
+    }
+
+    /// <summary>
+    ///     A tool whose id is no <see cref="ToolKind" />'s is registered, selected and pressed. This is what
+    ///     a contributed tool is: the host files it under its extension, so its id can never be one of these.
+    /// </summary>
+    [Test]
+    public async Task AToolWhoseIdIsNoKinds_IsSelectableAndTakesPresses()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        TakingTool contributed = new("ext.dev.example.hello.pin");
+        router.Register(contributed);
+        router.SetActive(contributed.Id);
+
+        SKPoint at = new(200, 100);
+        LevelPane pane = services.PaneAt(at)!;
+        bool taken = router.OnPressed(Sample(pane, at));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(router.ActiveToolId).IsEqualTo(contributed.Id);
+            await Assert.That(router.Active).IsSameReferenceAs(contributed);
+            await Assert.That(taken).IsTrue();
+            await Assert.That(router.IsDrawingToolActive).IsTrue()
+                .Because("it drags, so Space holds to pan and Esc cancels under it");
+            await Assert.That(router.ActiveKind).IsEqualTo(ToolKind.Map)
+                .Because("the category it reports, which identifies nothing");
+        }
+
+        router.SetActive("ext.dev.example.hello.nothing");
+        await Assert.That(router.ActiveToolId).IsEqualTo(ToolIds.Of(ToolKind.PanZoom))
+            .Because("an unregistered id pans, exactly as an unregistered kind does");
     }
 
     private static (InputToolRouter Router, FakeToolServices Services, PaneSet Panes) Build()
@@ -657,9 +716,34 @@ public class InputToolRouterTests
         public void OnCancelled(IMapToolContext context) => Calls.Add("cancel");
     }
 
-    // Stands in for a tool that lives outside the renderer (the query canvas's), so every kind can be selected.
-    private sealed class InertTool(ToolKind kind) : IPointerTool
+    // A contributed tool: an id of its own and presses it keeps.
+    private sealed class TakingTool(string id) : IPointerTool
     {
+        public string Id => id;
+
+        public ToolKind Kind => ToolKind.Map;
+
+        public bool OnPressed(in ToolPointerEvent e, IToolServices s) => true;
+
+        public void OnMoved(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnReleased(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnCancelled(IToolServices s)
+        {
+        }
+    }
+
+    // Stands in for a tool that lives outside the renderer (the query canvas's), so every kind can be
+    // selected. An explicit id stands in for a contributed tool, whose id is no kind's.
+    private sealed class InertTool(ToolKind kind, string? id = null) : IPointerTool
+    {
+        public string Id => id ?? ToolIds.Of(kind);
+
         public ToolKind Kind => kind;
 
         public bool OnPressed(in ToolPointerEvent e, IToolServices s) => false;

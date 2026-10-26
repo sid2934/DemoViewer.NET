@@ -48,6 +48,9 @@ public sealed class ShapeTool : IPointerTool
     }
 
     /// <inheritdoc />
+    public string Id => ToolIds.Of(Kind);
+
+    /// <inheritdoc />
     public ToolKind Kind { get; }
 
     /// <inheritdoc />

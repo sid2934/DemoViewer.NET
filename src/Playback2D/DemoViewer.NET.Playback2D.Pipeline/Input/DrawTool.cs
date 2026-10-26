@@ -29,6 +29,9 @@ public sealed class DrawTool : IPointerTool
     private long _lastEventMs;
 
     /// <inheritdoc />
+    public string Id => ToolIds.Of(ToolKind.Draw);
+
+    /// <inheritdoc />
     public ToolKind Kind => ToolKind.Draw;
 
     /// <inheritdoc />

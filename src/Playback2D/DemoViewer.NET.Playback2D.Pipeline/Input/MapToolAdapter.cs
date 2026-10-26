@@ -25,6 +25,9 @@ public sealed class MapToolAdapter : IPointerTool
     public IMapTool Tool { get; }
 
     /// <inheritdoc />
+    public string Id => ToolIds.Of(ToolKind.Map);
+
+    /// <inheritdoc />
     public ToolKind Kind => ToolKind.Map;
 
     /// <inheritdoc />

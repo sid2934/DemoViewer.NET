@@ -26,6 +26,9 @@ public sealed class EraseTool : IPointerTool
     private IDisposable? _gesture;
 
     /// <inheritdoc />
+    public string Id => ToolIds.Of(ToolKind.Erase);
+
+    /// <inheritdoc />
     public ToolKind Kind => ToolKind.Erase;
 
     /// <inheritdoc />
