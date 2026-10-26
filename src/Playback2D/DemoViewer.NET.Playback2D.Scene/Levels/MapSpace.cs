@@ -308,7 +308,10 @@ public sealed class MapSpace
     ///     </para>
     /// </summary>
     /// <param name="bands">The floor bands, lowest first.</param>
-    /// <param name="radarByLevel">Radar image per band, positionally aligned; null for none.</param>
+    /// <param name="radarByLevel">
+    ///     Radar image per band, positionally aligned; null for none. Borrowed: the space stores these and
+    ///     never disposes them, so a caller may pass the images the map's own decode holds.
+    /// </param>
     /// <param name="quality">How confidently the radar images were matched.</param>
     /// <param name="radarNamesByLevel">
     ///     Bundle file names for <paramref name="radarByLevel" />, positionally aligned. Optional;

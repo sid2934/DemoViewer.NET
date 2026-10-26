@@ -17,6 +17,11 @@ public sealed class MapRadarImage
     public required string Name { get; init; }
 
     /// <summary>The decoded image, or null when undecoded or unavailable (fixtures never carry pixels).</summary>
+    /// <remarks>
+    ///     Borrowed, never owned: one decode is shared by every holder of the map, and the host releases it
+    ///     when the last lease ends. Draw it, do not dispose it, and do not read it once the lease it came
+    ///     from is gone.
+    /// </remarks>
     public SKImage? Image { get; init; }
 
     /// <summary>The world rectangle this image spans, from the bundle's radar transform.</summary>

@@ -15,7 +15,10 @@ public interface ILevelRadarBinder
 {
     /// <summary>Binds one image (or none) per band.</summary>
     /// <param name="bands">The floor bands, lowest first.</param>
-    /// <param name="images">Destination for the per-band image, cleared first.</param>
+    /// <param name="images">
+    ///     Destination for the per-band image, cleared first. Borrowed: write the map's own images here,
+    ///     because nothing downstream disposes them.
+    /// </param>
     /// <param name="names">Destination for the per-band bundle file name, cleared first.</param>
     /// <returns>How confidently the match was made.</returns>
     RadarBindingQuality Bind(IReadOnlyList<FloorSlice> bands, List<SKImage?> images, List<string?> names);

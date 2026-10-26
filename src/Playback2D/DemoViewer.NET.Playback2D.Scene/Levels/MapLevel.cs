@@ -37,6 +37,7 @@ public sealed class MapLevel
     public required double ZMax { get; init; }
 
     /// <summary>The radar image bound to this level, or null when the map has none for it.</summary>
+    /// <remarks>Borrowed from the map's decode. Draw it, do not dispose it.</remarks>
     public SKImage? Radar { get; internal set; }
 
     /// <summary>The bundle file name of <see cref="Radar" />, for diagnostics and fixtures.</summary>

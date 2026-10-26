@@ -23,6 +23,7 @@ public interface IMapAsset
     PlaceResolver? Zones { get; }
 
     /// <summary>The radar images with the heights each covers, as a frame's <see cref="SceneMapInfo.Radars" /> takes them.</summary>
+    /// <remarks>The images belong to the map, not the caller. See <c>MapRadarImage.Image</c>.</remarks>
     IReadOnlyList<MapRadarImage> DescribeRadars();
 
     /// <summary>A binder that gives each floor band its radar image.</summary>
