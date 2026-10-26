@@ -9,19 +9,24 @@ using DemoViewer.NET.Extensions.Sdk.Playback;
 using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Timeline;
 using Microsoft.Extensions.DependencyInjection;
 using SkiaSharp;
 
 namespace HelloExtension;
 
 /// <summary>
-///     A tab that shows the open demo, a tab with a map of its own, a hub tab with two sections, a status chip,
-///     a pass that counts the open demo's frames and keeps the count as the demo's own data, a ruleset whose
-///     kills table the host keeps as library facts and the tab reads back, a settings page the host renders, a
-///     Match Overview action that greets a demo from a job on its parse and posts a notification when it is
-///     done, a 2D Playback toolbar button and map layer, and the user's active account read from the host with
-///     the demos the library holds it in, opened in the host's Player Overview from the tab.
+///     A tab that shows the open demo, a tab with a map of its own, a tab with a scene of its own frames and a
+///     pointer tool over them, a hub tab with two sections, a status chip, a pass that counts the open demo's
+///     frames and keeps the count as the demo's own data, a ruleset whose kills table the host keeps as library
+///     facts and the tab reads back, a settings page the host renders, a Match Overview action that greets a
+///     demo from a job on its parse and posts a notification when it is done, a 2D Playback toolbar button, map
+///     layer and timeline lane, and the user's active account read from the host with the demos the library
+///     holds it in, opened in the host's Player Overview from the tab.
 /// </summary>
 public sealed class HelloExtension : IExtension
 {
@@ -341,6 +346,25 @@ internal sealed class HelloModule(Func<HelloTabViewModel> viewModel) : IWorkspac
                 return map;
             }
         };
+
+        // A scene of its own: frames the extension builds, drawn the way the 2D Playback tab draws a demo,
+        // with a layer and a pointer tool of the extension's over them.
+        yield return new WorkspaceTabDescriptor
+        {
+            TabId = "hello.scene",
+            Header = "Hello scene",
+            Order = 54,
+            FeatureId = HelloExtension.TabFeature,
+            ViewFactory = () =>
+            {
+                HelloScene scene = new();
+                SceneView view = new() { Source = scene };
+                view.AddLayer("hello.rings", () => new HelloLayer("hello.rings"));
+                view.AddTool(scene.Pin);
+                view.SetActiveTool(scene.Pin.Kind);
+                return view;
+            }
+        };
     }
 }
 
@@ -383,6 +407,104 @@ internal sealed class HelloLayer(string id) : ISceneLayer
     }
 
     public void Dispose() => _paint.Dispose();
+}
+
+/// <summary>
+///     What the Hello scene tab draws: frames of the extension's own making rather than the open demo's, with
+///     one marker the pin tool moves. A move publishes a new frame instead of changing the last one, which the
+///     render thread may still be replaying.
+/// </summary>
+internal sealed class HelloScene : ISceneSource
+{
+    private const string Mirage = "de_mirage";
+
+    // Read once per scene: Describe decodes nothing, but it answers null outside the app, where the map's
+    // own radar rectangle stands in.
+    private readonly WorldBounds _extent =
+        MapAssets.Describe(Mirage)?.RadarBounds ?? new WorldBounds(-3230, -3410, 1860, 1680);
+
+    public HelloScene()
+    {
+        Pin = new HelloPinTool(Publish);
+        Frame = Build(new SKPoint(0, 0));
+    }
+
+    /// <summary>The tool that moves the marker; the view selects it by its kind.</summary>
+    public HelloPinTool Pin { get; }
+
+    public Scene2DFrame Frame { get; private set; }
+
+    /// <summary>Null draws the grid. Art comes from a MapAssets.Acquire lease, held for as long as it draws.</summary>
+    public IMapAsset? MapAsset => null;
+
+    /// <summary>No ink, so the view mounts none of its drawing tools and the pin tool sees every press.</summary>
+    public AnnotationSession? Ink => null;
+
+    public event Action? FrameUpdated;
+
+    // Called by the tool, which the view runs on the UI thread.
+    private void Publish(SKPoint pin)
+    {
+        Frame = Build(pin);
+        FrameUpdated?.Invoke();
+    }
+
+    private Scene2DFrame Build(SKPoint pin) => new()
+    {
+        Markers = [new PlayerMarker(0, 2, pin.X, pin.Y, 64f, 0f, RingState.Team, 1, "Hello", true)],
+        Map = new SceneMapInfo { MapName = Mirage, ObservedBounds = _extent, NetworkedBounds = _extent }
+    };
+}
+
+/// <summary>
+///     Puts the scene's marker where the pointer pressed and keeps it under the pointer while the button is
+///     down. A cancelled gesture puts it back: the router cancels when the active tool changes under an open
+///     gesture, and SceneView.CancelGesture does it from a key handler of your own.
+/// </summary>
+internal sealed class HelloPinTool(Action<SKPoint> moved) : IPointerTool
+{
+    private SKPoint _pin;
+    private SKPoint? _pressedFrom;
+
+    /// <summary>Map and Token are the two kinds the scene does not register a tool of its own under.</summary>
+    public ToolKind Kind => ToolKind.Map;
+
+    public bool OnPressed(in ToolPointerEvent e, IToolServices s)
+    {
+        if (e.Pane is null || e.Button != ToolPointerButton.Left)
+        {
+            return false;
+        }
+
+        _pressedFrom = _pin;
+        Move(e.World);
+        return true;
+    }
+
+    public void OnMoved(in ToolPointerEvent e, IToolServices s)
+    {
+        if (_pressedFrom is not null && e.Pane is not null)
+        {
+            Move(e.World);
+        }
+    }
+
+    public void OnReleased(in ToolPointerEvent e, IToolServices s) => _pressedFrom = null;
+
+    public void OnCancelled(IToolServices s)
+    {
+        if (_pressedFrom is { } back)
+        {
+            Move(back);
+            _pressedFrom = null;
+        }
+    }
+
+    private void Move(SKPoint world)
+    {
+        _pin = world;
+        moved(world);
+    }
 }
 
 /// <summary>The hub's two sections. Plain controls, so the sections need nothing from the container.</summary>
@@ -443,8 +565,12 @@ public sealed class HelloChip : IStatusChipSource
 
 internal sealed class HelloPlayback : IPlaybackContribution
 {
+    private readonly HelloSpanTrack _span = new();
     private IDisposable? _item;
     private IDisposable? _layer;
+    private IDisposable? _menu;
+    private IDisposable? _mode;
+    private ILaneHandle? _lane;
 
     public void Attach(IPlaybackSurface surface, IModuleContext context)
     {
@@ -456,13 +582,119 @@ internal sealed class HelloPlayback : IPlaybackContribution
         // Filed by the host as ext.dev.example.hello.rings, beside the tab's own layers. The name is
         // the label on the layer's own visibility row; nothing here remembers the user's choice.
         _layer = surface.AddLayer("rings", () => new HelloLayer("rings"), "Hello rings");
+
+        // The behaviour reaches the handle through a lambda because the handle is what AddLane returns.
+        _lane = surface.AddLane(_span, new HelloLane(_span, () => _lane));
+
+        // One lane row is shared, and a press on it goes to the first lane that takes edits, so this one
+        // takes them only while the extension's own mode is on.
+        ModeToggle mode = new(HelloExtension.ExtensionId + ".span", "Hello span", "Mark a span on the Hello lane");
+        mode.Changed += () => Editing(mode.IsOn);
+        _mode = surface.AddModeToggle(mode);
+
+        // A band-menu contributor is asked about every band on the timeline, so the lane's own are told
+        // apart by the id the host filed the lane under, never the id the track asked for.
+        _menu = surface.AddBandMenu(band => band.TrackId == _lane?.TrackId
+            ? [new MenuEntry("Clear the Hello span", Clear)]
+            : []);
     }
 
     public void Detach()
     {
+        _menu?.Dispose();
+        _mode?.Dispose();
+        _lane?.Dispose();
         _item?.Dispose();
         _layer?.Dispose();
+        _menu = null;
+        _mode = null;
+        _lane = null;
         _item = null;
         _layer = null;
     }
+
+    // The handles are the lane's, the band is the track's, so both have to go.
+    private void Clear()
+    {
+        _span.Set(null);
+        if (_lane is { } lane)
+        {
+            lane.EditSpan = null;
+        }
+    }
+
+    private void Editing(bool on)
+    {
+        if (_lane is { } lane)
+        {
+            lane.IsEditable = on;
+            if (!on)
+            {
+                lane.EditSpan = null;
+            }
+        }
+    }
+}
+
+/// <summary>
+///     The Hello lane's one band: the span the user marked on it. A track is otherwise stateless about the
+///     demo, everything coming from the data it is handed, and the host re-queries both lists on Changed.
+/// </summary>
+internal sealed class HelloSpanTrack : ITimelineTrack
+{
+    private (int Start, int End)? _span;
+
+    public string Id => "span";
+
+    public string DisplayName => "Hello span";
+
+    public event Action? Changed;
+
+    /// <summary>The lane is the extension's own, so no demo is without it.</summary>
+    public bool IsAvailable(ITimelineData data) => true;
+
+    public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => [];
+
+    public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data)
+    {
+        // The span came off the lane, so it is already in frame indices, but the demo opened after it may be
+        // the shorter one. Argb 0 leaves the colour to the host.
+        if (data is null || _span is not { } span || data.TotalFrames == 0)
+        {
+            return [];
+        }
+
+        int last = data.TotalFrames - 1;
+        int start = Math.Clamp(span.Start, 0, last);
+        return [new TimelineBand(Id, start, Math.Clamp(span.End, start, last), "Hello", "The span you marked", 0)];
+    }
+
+    /// <summary>Sets the span the band draws, or clears it with null.</summary>
+    public void Set((int Start, int End)? span)
+    {
+        _span = span;
+        Changed?.Invoke();
+    }
+}
+
+/// <summary>
+///     The Hello lane's presses: a press on the empty lane starts a span, and dragging its two handles moves
+///     it. The host writes the dragged span onto the handle itself before it calls here.
+/// </summary>
+internal sealed class HelloLane(HelloSpanTrack track, Func<ILaneHandle?> lane) : ILaneBehaviour
+{
+    // Frame indices, not ticks: the lane's x axis is the frame.
+    private const int StartingFrames = 128;
+
+    public void OnLabelRequested(int frame)
+    {
+        if (lane() is { } handle)
+        {
+            handle.EditSpan = (frame, frame + StartingFrames);
+        }
+
+        track.Set((frame, frame + StartingFrames));
+    }
+
+    public void OnEditSpanDragged(int startFrame, int endFrame) => track.Set((startFrame, endFrame));
 }
