@@ -151,8 +151,9 @@ public class TokenToolTests
         services.Tokens = editor;
 
         InputToolRouter router = new(services, new PanZoomTool());
-        router.Register(new TokenTool());
-        router.SetActive(ToolKind.Token);
+        TokenTool tool = new();
+        router.Register(tool);
+        router.SetActive(tool.Id);
         router.IsSpaceHeld = holdSpace;
 
         SKPoint start = new(200, 100);

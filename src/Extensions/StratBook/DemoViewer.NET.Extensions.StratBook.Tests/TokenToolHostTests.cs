@@ -46,10 +46,11 @@ public class TokenToolHostTests
             fake.Publish(Frame(1, true, TenTokens()));
 
             (Window window, Scene2DHost host) = Mount(fake);
-            host.AddTool(new TokenTool());
+            TokenTool tool = new();
+            host.AddTool(tool);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
-            host.SetActiveTool(ToolKind.Token);
+            host.SetActiveTool(tool.Id);
             await Assert.That(host.Router.ActiveKind).IsEqualTo(ToolKind.Token)
                 .Because("the host registers the token tool, or selecting it would fall back to pan");
 
@@ -81,10 +82,11 @@ public class TokenToolHostTests
             fake.Publish(Frame(1, true, TenTokens()));
 
             (Window window, Scene2DHost host) = Mount(fake);
-            host.AddTool(new TokenTool());
+            TokenTool tool = new();
+            host.AddTool(tool);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
-            host.SetActiveTool(ToolKind.Token);
+            host.SetActiveTool(tool.Id);
 
             window.MouseDown(Playback2DTimelineHarness.ToWindow(host, window, 300, 300), MouseButton.Left);
             window.MouseMove(Playback2DTimelineHarness.ToWindow(host, window, 320, 300));
