@@ -205,13 +205,16 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         return panel;
     }
 
-    public IDisposable AddLayer(string id, Func<ISceneLayer> layer)
+    // The name is normalized here, outside the guard: a string handed to the host cannot throw, and
+    // an unnamed layer still gets a row, labelled with the extension's name.
+    public IDisposable AddLayer(string id, Func<ISceneLayer> layer, string? displayName = null, bool enabled = true)
     {
         ArgumentNullException.ThrowIfNull(layer);
         string filed = ExtensionLayerIds.Compose(_guard.Scope.Id, id);
+        string name = string.IsNullOrWhiteSpace(displayName) ? _guard.Scope.Name : displayName;
         ISceneLayer Build() =>
             new GuardedSceneLayer(filed, _guard.Run<ISceneLayer>("scene layer factory", layer, EmptySceneLayer.Instance), _guard);
-        return Own(_surface.AddLayer(filed, Build));
+        return Own(_surface.AddLayer(filed, Build, name, enabled));
     }
 
     public void RequestRender() => _surface.RequestRender();

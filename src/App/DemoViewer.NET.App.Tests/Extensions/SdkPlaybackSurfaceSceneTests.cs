@@ -80,7 +80,12 @@ public class SdkPlaybackSurfaceSceneTests
         }
 
         added.Dispose();
-        await Assert.That(inner.Layers).IsEmpty();
+        using (Assert.Multiple())
+        {
+            await Assert.That(inner.Layers).IsEmpty();
+            await Assert.That(inner.ContributedLayers).IsEmpty();
+        }
+
         vm.Dispose();
     }
 
@@ -93,8 +98,14 @@ public class SdkPlaybackSurfaceSceneTests
         (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
         using SdkPlaybackSurface surface = new(inner, new FaultRig().Guard);
 
-        Assert.Throws<ArgumentException>(() => surface.AddLayer(id, () => new RecordingLayer("x")));
-        await Assert.That(inner.Layers).IsEmpty();
+        Assert.Throws<ArgumentException>(() => surface.AddLayer(id, () => new RecordingLayer("x"), "Heat"));
+        using (Assert.Multiple())
+        {
+            await Assert.That(inner.Layers).IsEmpty();
+            await Assert.That(inner.ContributedLayers).IsEmpty()
+                .Because("the id is composed before anything is filed, so a bad one leaves no half-registered row");
+        }
+
         vm.Dispose();
     }
 
@@ -157,6 +168,243 @@ public class SdkPlaybackSurfaceSceneTests
 
         await Assert.That(built.Id).IsEqualTo("ext.pack.fake.x");
         await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsEqualTo(1);
+        vm.Dispose();
+    }
+
+
+    /// <summary>
+    ///     The user's row and the layer's own flag are two different flags. Assigning the row onto the
+    ///     layer (which is what <c>SceneCompositor.SetEnabled</c> does) would overwrite the extension's own,
+    ///     and <c>GuardedSceneLayer</c> honours that one.
+    /// </summary>
+    [Test]
+    public async Task AUserToggleOff_StopsTheLayerDrawing_AndLeavesTheExtensionsOwnFlagAlone()
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        using SdkPlaybackSurface surface = new(inner, new FaultRig().Guard);
+        RecordingLayer own = new("x");
+        using IDisposable _ = surface.AddLayer("x", () => own, "Heat");
+        ISceneLayer hosted = inner.Layers.Single().Value();
+        ContributedLayerToggle row = inner.ContributedLayers.Single();
+
+        await Assert.That(hosted.IsEnabled).IsTrue().Because("a layer with no choice made starts on");
+
+        row.IsEnabled = false;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(hosted.IsEnabled).IsFalse()
+                .Because("the compositor skips Advance and Render for a layer that reads disabled");
+            await Assert.That(own.IsEnabled).IsTrue()
+                .Because("the row is the host's flag; writing it through destroys the extension's");
+            await Assert.That(row.Id).IsEqualTo("ext.pack.fake.x");
+            await Assert.That(row.DisplayName).IsEqualTo("Heat");
+            await Assert.That(row.Tooltip).Contains("ext.pack.fake.x");
+        }
+
+        vm.Dispose();
+    }
+
+    [Test]
+    public async Task AUserToggleOn_DoesNotRevive_ALayerItsOwnerSwitchedOff()
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        using SdkPlaybackSurface surface = new(inner, new FaultRig().Guard);
+        RecordingLayer own = new("x") { IsEnabled = false };
+        using IDisposable _ = surface.AddLayer("x", () => own, "Heat");
+        ISceneLayer hosted = inner.Layers.Single().Value();
+        ContributedLayerToggle row = inner.ContributedLayers.Single();
+
+        row.IsEnabled = false;
+        row.IsEnabled = true;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(hosted.IsEnabled).IsFalse()
+                .Because("both flags must be on; the row cannot overrule the layer's owner");
+            await Assert.That(own.IsEnabled).IsFalse().Because("and the row never wrote to it");
+        }
+
+        vm.Dispose();
+    }
+
+    [Test]
+    public async Task AUserToggleOn_DoesNotRevive_AFaultedLayer()
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        FaultRig rig = new();
+        using SdkPlaybackSurface surface = new(inner, rig.Guard);
+        using IDisposable _ = surface.AddLayer("x", () => new RecordingLayer("x") { ThrowInRender = true }, "Heat");
+        ISceneLayer hosted = inner.Layers.Single().Value();
+        ContributedLayerToggle row = inner.ContributedLayers.Single();
+
+        using SKSurface target = SKSurface.Create(new SKImageInfo(16, 16));
+        hosted.Render(target.Canvas, default);
+
+        row.IsEnabled = false;
+        row.IsEnabled = true;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(hosted.IsEnabled).IsFalse()
+                .Because("a layer that threw stops drawing for the session, whatever the row says");
+            await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsEqualTo(1);
+        }
+
+        vm.Dispose();
+    }
+
+    /// <summary>
+    ///     A flip arms the frame loop and nothing else. <c>LayersChanged</c> reaches the host's
+    ///     <c>OnContributedLayersChanged</c>, which removes and re-creates every contributed layer: raising
+    ///     it here would rebuild the whole stack on each click, and the gate is read live anyway.
+    /// </summary>
+    [Test]
+    public async Task AFlip_AsksForOneRepaint_AndNeverRebuildsTheLayerStack()
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        using SdkPlaybackSurface surface = new(inner, new FaultRig().Guard);
+        using IDisposable _ = surface.AddLayer("x", () => new RecordingLayer("x"), "Heat");
+
+        int repaints = 0;
+        int rebuilds = 0;
+        inner.RenderRequested += () => repaints++;
+        inner.LayersChanged += () => rebuilds++;
+
+        inner.ContributedLayers.Single().IsEnabled = false;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(repaints).IsEqualTo(1);
+            await Assert.That(rebuilds).IsEqualTo(0).Because("a checkbox must not rebuild every contributed layer");
+        }
+
+        // Setting it to what it already is changes nothing and asks for nothing.
+        inner.ContributedLayers.Single().IsEnabled = false;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(repaints).IsEqualTo(1);
+            await Assert.That(rebuilds).IsEqualTo(0);
+        }
+
+        vm.Dispose();
+    }
+
+    /// <summary>
+    ///     The choice is keyed by the filed id and outlives the registration: re-adding the id, and the
+    ///     gate cycle that disposes and re-attaches the whole contribution, both keep it. Another owner's
+    ///     layer is a different id, so it starts from its own default.
+    /// </summary>
+    [Test]
+    public async Task AUsersChoice_SurvivesAReAdd_AndAGateCycle_AndIsNotSharedWithAnotherOwner()
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        SdkPlaybackSurface first = new(inner, new FaultRig().Guard);
+        IDisposable initial = first.AddLayer("x", () => new RecordingLayer("x"), "Heat");
+        inner.ContributedLayers.Single().IsEnabled = false;
+
+        IDisposable again = first.AddLayer("x", () => new RecordingLayer("x"), "Heat again");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(inner.ContributedLayers.Count).IsEqualTo(1).Because("re-adding an id replaces its row");
+            await Assert.That(inner.ContributedLayers.Single().IsEnabled).IsFalse();
+            await Assert.That(inner.ContributedLayers.Single().DisplayName).IsEqualTo("Heat again");
+        }
+
+        // The feature gate off: the contribution is detached whole, which disposes both registrations.
+        initial.Dispose();
+        again.Dispose();
+        first.Dispose();
+        await Assert.That(inner.ContributedLayers).IsEmpty();
+
+        // And back on: a fresh SdkPlaybackSurface over the same tab.
+        using SdkPlaybackSurface revived = new(inner, new FaultRig().Guard);
+        using IDisposable restored = revived.AddLayer("x", () => new RecordingLayer("x"), "Heat");
+
+        await Assert.That(inner.ContributedLayers.Single().IsEnabled).IsFalse()
+            .Because("enabled is the default only for an id the user has not touched this session");
+
+        using SdkPlaybackSurface other = new(inner, new FaultRig("pack.other").Guard);
+        using IDisposable mine = other.AddLayer("x", () => new RecordingLayer("x"), "Theirs");
+        using IDisposable off = other.AddLayer("y", () => new RecordingLayer("y"), "Starts off", false);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(inner.ContributedLayers.Single(t => t.Id == "ext.pack.fake.x").IsEnabled).IsFalse();
+            await Assert.That(inner.ContributedLayers.Single(t => t.Id == "ext.pack.other.x").IsEnabled).IsTrue()
+                .Because("one owner's choice is not another's, even on the same local id");
+            await Assert.That(inner.ContributedLayers.Single(t => t.Id == "ext.pack.other.y").IsEnabled).IsFalse()
+                .Because("an untouched id takes the enabled the caller asked for");
+        }
+
+        vm.Dispose();
+    }
+
+    /// <summary>
+    ///     Two owners can compose ONE filed id: "pack.a" + "b.c" and "pack.a.b" + "c" are both
+    ///     <c>ext.pack.a.b.c</c>. The second replaces the first, so the first's registration is stale, and
+    ///     disposing it must not take the row that now belongs to the second.
+    /// </summary>
+    [Test]
+    public async Task WhenTwoOwnersComposeOneFiledId_TheLoserDisposing_LeavesTheWinnersRow()
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        using SdkPlaybackSurface outer = new(inner, new FaultRig("pack.a").Guard);
+        using SdkPlaybackSurface nested = new(inner, new FaultRig("pack.a.b").Guard);
+
+        IDisposable loser = outer.AddLayer("b.c", () => new RecordingLayer("1"), "Outer");
+        IDisposable winner = nested.AddLayer("c", () => new RecordingLayer("2"), "Nested");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(inner.Layers.Single().Key).IsEqualTo("ext.pack.a.b.c");
+            await Assert.That(inner.ContributedLayers.Single().DisplayName).IsEqualTo("Nested");
+        }
+
+        loser.Dispose();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(inner.ContributedLayers.Single().DisplayName).IsEqualTo("Nested")
+                .Because("the row is dropped by instance, inside the branch that actually removed a layer");
+            await Assert.That(inner.Layers.Count).IsEqualTo(1);
+        }
+
+        winner.Dispose();
+        using (Assert.Multiple())
+        {
+            await Assert.That(inner.ContributedLayers).IsEmpty();
+            await Assert.That(inner.Layers).IsEmpty();
+        }
+
+        vm.Dispose();
+    }
+
+    /// <summary>
+    ///     A layer with no name of its own still gets a row, labelled with the extension's name, the way
+    ///     <c>CoreTrack</c> labels a lane. Null means "label it with the extension", never "no row".
+    /// </summary>
+    [Test]
+    [Arguments(null)]
+    [Arguments("")]
+    [Arguments("   ")]
+    public async Task ALayerWithNoNameOfItsOwn_IsStillListed_UnderTheExtensionsName(string? name)
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        using SdkPlaybackSurface surface = new(inner, new FaultRig().Guard);
+        using IDisposable _ = surface.AddLayer("x", () => new RecordingLayer("x"), name);
+
+        ContributedLayerToggle row = inner.ContributedLayers.Single();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(row.DisplayName).IsEqualTo("Fake").Because("that is the fake extension's scope name");
+            await Assert.That(row.Tooltip).Contains("ext.pack.fake.x")
+                .Because("two unnamed layers from one extension are told apart by the filed id on hover");
+        }
+
         vm.Dispose();
     }
 

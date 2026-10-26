@@ -4,6 +4,6 @@
   "version": "{version}",
   "assembly": "ThirdPartyFake.dll",
   "entryType": "ThirdPartyFake.FakeExtension",
-  "requiresHost": "^1.1",
+  "requiresHost": "^2.0",
   "requiresCs2DemoKit": "*"
 }

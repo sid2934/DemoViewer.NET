@@ -218,6 +218,33 @@
                         <Button Content="Reload zones" FontSize="11" Padding="6,1"
                                 Command="{Binding ReloadZonesCommand}"
                                 ToolTip.Tip="Re-read the zones file and your overlay without reloading the map" />
+
+                        <!-- A row per contributed layer, the shape the timeline's TrackToggles already uses.
+                             One ItemsControl rather than literals, because the ids are an extension's.
+                             Its panel WRAPS: the budget above has nothing left for a section that grows with
+                             the packs installed, and the docked stack's contract permits extra lines.
+                             Collapsed while empty, so the outer WrapPanel spends no ItemSpacing on it.
+                             The label is bounded in the VIEW, not by trimming the name: the tooltip carries
+                             the whole thing plus the filed id. -->
+                        <ItemsControl x:Name="ContributedLayerToggles"
+                                      ItemsSource="{Binding Surface.ContributedLayers}"
+                                      IsVisible="{Binding Surface.HasContributedLayers}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" ItemSpacing="9" LineSpacing="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ContributedLayerToggle">
+                                    <CheckBox FontSize="11" MinWidth="0"
+                                              IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                              ToolTip.Tip="{Binding Tooltip}">
+                                        <TextBlock Text="{Binding DisplayName}" MaxWidth="120" MaxLines="1"
+                                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                    </CheckBox>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </WrapPanel>
 
                     <!-- Annotation toolbar, on its OWN line rather than sharing the header's fill

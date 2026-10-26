@@ -38,7 +38,7 @@ package version, embed the result in the assembly and copy it beside the DLL:
   "version": "{version}",
   "assembly": "MyExtension.dll",
   "entryType": "MyExtension.MyExtension",
-  "requiresHost": "^1.2",
+  "requiresHost": "^2.0",
   "requiresCs2DemoKit": "*"
 }
 ```
@@ -146,9 +146,12 @@ A toolbar item's `PlaybackMoment` and a pointer handler's `PlaybackPointer` carr
 (`Frame`, a `DemoViewer.NET.Playback2D.Scene2DFrame`): the players' markers, grenades and clock.
 It is valid only during the call; the tab refills it for the next frame.
 
-`AddLayer(id, factory)` draws an `ISceneLayer` on the tab's map among its own layers. The host files it as
-`ext.<your extension id>.<id>`, so it can never take one of the tab's layers or another extension's, and the
-built layer's own `Id` is not used. The factory runs again whenever the map rebuilds its scene. The layer sees
+`AddLayer(id, factory, displayName, enabled)` draws an `ISceneLayer` on the tab's map among its own layers. The host files it
+as `ext.<your extension id>.<id>`, so it can never take one of the tab's layers or another extension's, and
+the built layer's own `Id` is not used. `displayName` labels the layer's own visibility row in the tab's overlay
+strip, and a null or blank one labels it with your extension's name; `enabled` is where that row starts. The
+host keeps the user's choice for the session only, so pass back what you stored through `IExtensionSettings`
+if you want it remembered. The factory runs again whenever the map rebuilds its scene. The layer sees
 only what it is handed: the frame in `Advance`, the canvas and the `SceneRenderContext` in `Render`, which
 runs on the render thread. The canvas is restored after each call, and a layer that throws stops drawing for
 the session. `AddTool(tool)` adds an `IMapTool` that is offered every primary press the tab does not pan
@@ -585,4 +588,6 @@ every 1.x host. The SDK starts at 1.1 because 1.0.0 is what the app reported for
 extension contract; `^1.1` keeps those builds from loading SDK extensions. 1.2 adds `IExtensionContext.Identity`:
 an extension that reads it states `^1.2`, since a 1.1 host has no such member. 1.2 also adds
 `IExtensionLibrary.Players` and `IExtensionShell.OpenPlayerOverview` with default bodies, so a host or a test
-double written before them answers no accounts and opens nothing.
+double written before them answers no accounts and opens nothing. 2.0 changes `IPlaybackSurface.AddLayer`,
+which now takes a display name and a starting state for the layer's own visibility row; a pack that adds a
+scene layer states `^2.0`.

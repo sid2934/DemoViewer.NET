@@ -139,7 +139,16 @@ public interface IPlaybackSurface
     ///     extension's; <see cref="ISceneLayer.Id" /> of the built layer is not used. Adding an id again replaces it.
     /// </param>
     /// <param name="layer">Builds the layer.</param>
-    IDisposable AddLayer(string id, Func<ISceneLayer> layer);
+    /// <param name="displayName">
+    ///     The label on the layer's own visibility row in the tab's overlay strip. Null or blank labels
+    ///     the row with the extension's name, so no contributed overlay is left unswitchable.
+    /// </param>
+    /// <param name="enabled">
+    ///     Whether the row starts on. The host's choice is session-only and keyed by the filed id: an
+    ///     extension that wants it remembered stores it through <c>IExtensionSettings</c> and passes the
+    ///     remembered value back here.
+    /// </param>
+    IDisposable AddLayer(string id, Func<ISceneLayer> layer, string? displayName = null, bool enabled = true);
 
     /// <summary>
     ///     Repaints the map once. A contributed layer calls this when its own data changes, which the

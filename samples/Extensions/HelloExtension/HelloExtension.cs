@@ -453,8 +453,9 @@ internal sealed class HelloPlayback : IPlaybackContribution
         _item = surface.AddToolbarItem(new ToolbarItem(HelloExtension.ExtensionId + ".where", "Where am I?",
             $"Logs the tick shown{surface.GestureHint(HelloExtension.WhereAction)}",
             moment => moment.Tick >= 0, HelloExtension.WhereAction));
-        // Filed by the host as ext.dev.example.hello.rings, beside the tab's own layers.
-        _layer = surface.AddLayer("rings", () => new HelloLayer("rings"));
+        // Filed by the host as ext.dev.example.hello.rings, beside the tab's own layers. The name is
+        // the label on the layer's own visibility row; nothing here remembers the user's choice.
+        _layer = surface.AddLayer("rings", () => new HelloLayer("rings"), "Hello rings");
     }
 
     public void Detach()

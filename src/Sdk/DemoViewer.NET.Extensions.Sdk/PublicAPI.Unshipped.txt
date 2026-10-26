@@ -1555,7 +1555,7 @@ DemoViewer.NET.Extensions.Sdk.IStatusChipSource.Label.get -> string!
 DemoViewer.NET.Extensions.Sdk.IStatusChipSource.PrimaryAction.get -> System.Windows.Input.ICommand?
 DemoViewer.NET.Extensions.Sdk.IStatusChipSource.Tooltip.get -> string?
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.ActionFor(string! scope, Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) -> string?
-DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>! layer) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>! layer, string? displayName = null, bool enabled = true) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.RequestRender() -> void
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddTool(DemoViewer.NET.Playback2D.Tools.IMapTool! tool) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.PlaceAt(string? level, double worldX, double worldY) -> string?

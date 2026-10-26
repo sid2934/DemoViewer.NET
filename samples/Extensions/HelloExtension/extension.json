@@ -4,7 +4,7 @@
   "version": "{version}",
   "assembly": "HelloExtension.dll",
   "entryType": "HelloExtension.HelloExtension",
-  "requiresHost": "^1.2",
+  "requiresHost": "^2.0",
   "requiresCs2DemoKit": "*",
   "rulesets": ["kills"]
 }
