@@ -22,7 +22,7 @@ layer contract, floors, places and the world-to-screen transform, over SkiaSharp
     <Version>1.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.2.*" />
+    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="2.0.*" />
     <PackageReference Include="Avalonia" Version="12.1.4" />
   </ItemGroup>
 </Project>
@@ -620,8 +620,8 @@ them did not load.
 ## Compatibility
 
 The SDK follows semantic versioning, and the app never makes a breaking change to it outside a new major
-version of the app. The assembly version is `Major.0.0.0`, so an extension built against any 1.x SDK binds to
-every 1.x host. The SDK starts at 1.1 because 1.0.0 is what the app reported for its earlier, internal
+version of the app. The assembly version is `Major.0.0.0`, so an extension built against any 2.x SDK binds to
+every 2.x host. The SDK starts at 1.1 because 1.0.0 is what the app reported for its earlier, internal
 extension contract; `^1.1` keeps those builds from loading SDK extensions. 1.2 adds `IExtensionContext.Identity`:
 an extension that reads it states `^1.2`, since a 1.1 host has no such member. 1.2 also adds
 `IExtensionLibrary.Players` and `IExtensionShell.OpenPlayerOverview` with default bodies, so a host or a test
