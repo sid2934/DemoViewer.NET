@@ -580,7 +580,10 @@ public sealed class StratBookPack : IExtension
                 spawns: new StratSpawnSource(map => StratSpawnSource.LoadShipped(map, Paths(sp).ZonesDirectory)),
                 layout: sp.GetRequiredService<StratBookLayout>(),
                 lineupMap: map => UtilityBookFor(sp, map),
-                canvasServices: canvasServices);
+                canvasServices: canvasServices,
+                // Resolved at click time, so switching the pack off hides the button: null on the browser
+                // head, which exports nothing.
+                sceneExport: () => Host(sp).Features.IsEnabled(PackFeatureId) ? Host(sp).SceneExport : null);
         });
 
         // Create Strat From Round. Transient: the gate is read fresh on every
@@ -603,11 +606,6 @@ public sealed class StratBookPack : IExtension
                     sp.GetRequiredService<StratBookTabViewModel>().OpenStrat(id);
                 });
         });
-
-        // Strat Export, through the host's own scene export. Null where the host exports nothing (the browser
-        // head) or the pack is off, and the tab's Export button stays hidden.
-        services.AddTransient(sp =>
-            Host(sp).Features.IsEnabled(PackFeatureId) ? Host(sp).SceneExport! : null!);
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
         // Like This, so the set the keys walk is the set the tab shows.

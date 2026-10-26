@@ -10,6 +10,7 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 using DemoViewer.NET.Services;
@@ -23,6 +24,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.TestSupport;
+using Microsoft.Extensions.DependencyInjection;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
@@ -177,11 +179,12 @@ public class StratExportTests
     }
 
     /// <summary>
-    ///     A pane opened over a strat that is then closed captures nothing, and the host refuses the run with
-    ///     the copy the pane named rather than with its own.
+    ///     The host's own Start-to-setup round trip, the half the pane's capture callback reaches: the scene
+    ///     the tab captures rides the request's ink session and comes back as the run's setup, and a request
+    ///     carrying no capture is refused with the copy the pane named rather than the host's own.
     /// </summary>
     [Test]
-    public async Task TheHost_RefusesAStartWithNoCapture_WithTheStratsOwnCopy()
+    public async Task TheHost_ReadsTheCaptureBackOffTheRequest_AndRefusesARunWithout()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -192,23 +195,76 @@ public class StratExportTests
                 vm.OpenExportCommand.Execute(null);
                 Playback2DExportDialogViewModel dialog = (Playback2DExportDialogViewModel)vm.ExportDialog!;
                 ExportRangeOption range = dialog.SelectedRange!;
-                vm.Session.Close();
 
-                ExportSceneSetup? setup = null;
+                SceneExportScene scene = StratExportJob.Scene(vm.Canvas.CaptureForExport()!);
+                AnnotationSession key = export.Key(scene)!;
+                ExportSceneSetup setup = export.Setup(new Scene2DExportRequest(dialog.BuildRequest(range),
+                    "unused.gif", string.Empty, range.StartFrame, range.EndFrame, Ink: key));
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(key).IsSameReferenceAs(scene.Ink);
+                    await Assert.That(setup.Annotations).IsSameReferenceAs(scene.Ink);
+                    await Assert.That(setup.Source).IsNotNull().Because("a strat has no demo behind it");
+                    await Assert.That(setup.Frames).IsEmpty();
+                    await Assert.That(setup.DisplayMode).IsEqualTo(LevelDisplayMode.Stacked);
+                    await Assert.That(setup.Palette).IsEqualTo(ScenePalette.Dark).Because("the request named none");
+                }
+
+                setup.Owned?.Dispose();
+
                 ExportRefusedException? refused = null;
                 try
                 {
-                    setup = Capture(vm, dialog, range);
+                    export.Setup(new Scene2DExportRequest(dialog.BuildRequest(range), "unused.gif", string.Empty));
                 }
                 catch (ExportRefusedException ex)
                 {
                     refused = ex;
                 }
 
-                await Assert.That(setup).IsNull();
                 await Assert.That(refused?.Message).IsEqualTo(StratExportJob.NoStratRefusal);
             }
         });
+    }
+
+    /// <summary>
+    ///     The shell's own wiring, through the real container. The tab reads the export off a resolver the
+    ///     pack hands it, because <c>IModuleContext.GetService</c> answers only for types in the extension's
+    ///     own assembly and <c>IExtensionSceneExport</c> is the SDK's: looking it up there left the tab with
+    ///     no export and no Export button, and nothing but this says so.
+    /// </summary>
+    [Test]
+    [Category("Integration")]
+    public async Task TheShell_WiresTheExport_SoTheTabCanOpenAPane()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dv-strat-export-wiring-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        string? previous = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                try
+                {
+                    await Assert.That(provider.GetRequiredService<StratBookTabViewModel>().HasSceneExport).IsTrue();
+                }
+                finally
+                {
+                    provider.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, previous);
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, true);
+            }
+        }
     }
 
     /// <summary>
@@ -329,16 +385,16 @@ public class StratExportTests
             throw new InvalidOperationException(saved.Reason);
         }
 
-        StratBookTabViewModel vm = new(store, null, null, false, canvasMapLoader: _ => null);
-        vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
-        vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
-
         List<Playback2DExportStatusViewModel> chips = [];
         ExtensionSceneExport export = new(StratBookPack.PackId, StratBookPack.PackFeatureId, _exports, null,
             new ChipCollector(chips), ExtensionGuard.Standalone(new StratBookPack()), null);
 
+        StratBookTabViewModel vm = new(store, null, null, false, canvasMapLoader: _ => null,
+            sceneExport: () => export);
+        vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
+        vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
+
         ModuleContext context = new(new PlaybackController(), () => null);
-        context.RegisterService<IExtensionSceneExport>(() => export);
         vm.OnActivated(context);
         vm.Session.Open(document.Id);
         return (vm, chips, export);

@@ -78,6 +78,8 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     // The open pane, or null. The host owns it; closing it disposes this handle, not the running export.
     private ISceneExportPane? _exportPane;
 
+    private readonly Func<IExtensionSceneExport?>? _sceneExport;
+
 
     // The shell's feature projection, captured at activation so deactivation unsubscribes the same instance.
     private IModuleFeatureGate? _features;
@@ -159,6 +161,11 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     ///     <paramref name="canvasPlaces" /> / <paramref name="canvasRouting" /> are not supplied; null gives both
     ///     canvases nothing to fall back on.
     /// </param>
+    /// <param name="sceneExport">
+    ///     The host's scene export, resolved at click time, or null for a host that exports nothing and a tab
+    ///     with no Export button. Handed in rather than looked up through <c>IModuleContext.GetService</c>,
+    ///     which answers only for types in the extension's own assembly and so never for an SDK one.
+    /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, IMapAssetLease?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
@@ -167,8 +174,9 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         StratSpawnSource? spawns = null,
         StratBookLayout? layout = null, Func<string, UtilityBookTabViewModel>? lineupMap = null,
         Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null, Func<bool>? canvasRouting = null,
-        StratCanvasServices? canvasServices = null)
+        StratCanvasServices? canvasServices = null, Func<IExtensionSceneExport?>? sceneExport = null)
     {
+        _sceneExport = sceneExport;
         _spawns = spawns;
         ArgumentNullException.ThrowIfNull(store);
         Layout = layout ?? new StratBookLayout();
@@ -341,8 +349,14 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     /// </summary>
     public bool CanExport =>
         _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
-        _context?.GetService<IExtensionSceneExport>() is not null &&
+        HasSceneExport &&
         HasOpenStrat;
+
+    /// <summary>
+    ///     True when the shell wired an export to open a pane on. Internal: the wiring is what a test pins,
+    ///     since a tab that cannot see the export offers no button and nothing else says so.
+    /// </summary>
+    internal bool HasSceneExport => _sceneExport?.Invoke() is not null;
 
     /// <summary>
     ///     What the Export button's slot says when the button cannot exist: on the browser, where there is no file
@@ -550,7 +564,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     [RelayCommand(CanExecute = nameof(CanExport))]
     private void OpenExport()
     {
-        if (!CanExport || _context?.GetService<IExtensionSceneExport>() is not { } export
+        if (!CanExport || _sceneExport?.Invoke() is not { } export
                        || Canvas.Projection is not { } projection || Session.Document is not { } document)
         {
             return;

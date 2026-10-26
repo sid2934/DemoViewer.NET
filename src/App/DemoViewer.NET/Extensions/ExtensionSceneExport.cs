@@ -300,9 +300,13 @@ internal sealed class ExtensionSceneExport : IExtensionSceneExport, IDisposable
         return _job;
     }
 
-    // The ink session the capture rides on. A scene with no ink still needs a key, and an empty session
-    // draws nothing: the ink layer renders only when the pane's layer set names it.
-    private AnnotationSession? Key(SceneExportScene? scene)
+    /// <summary>
+    ///     The ink session the capture rides on. A scene with no ink still needs a key, and an empty session
+    ///     draws nothing: the ink layer renders only when the pane's layer set names it.
+    ///     <b>Internal</b> rather than private so a test can drive the Start-to-setup round trip, which is
+    ///     otherwise reachable only through the pane's own capture callback.
+    /// </summary>
+    internal AnnotationSession? Key(SceneExportScene? scene)
     {
         if (scene is null)
         {
@@ -314,7 +318,12 @@ internal sealed class ExtensionSceneExport : IExtensionSceneExport, IDisposable
         return key;
     }
 
-    private ExportSceneSetup Setup(Scene2DExportRequest request)
+    /// <summary>
+    ///     The setup for one run, read back from the scene the capture keyed onto the request's ink session.
+    ///     Throws the pane's own refusal when the request carries no scene this instance keyed.
+    /// </summary>
+    /// <exception cref="ExportRefusedException">No scene was captured for this run.</exception>
+    internal ExportSceneSetup Setup(Scene2DExportRequest request)
     {
         if (request.Ink is not { } ink || !_captures.TryGetValue(ink, out SceneExportScene? scene))
         {
