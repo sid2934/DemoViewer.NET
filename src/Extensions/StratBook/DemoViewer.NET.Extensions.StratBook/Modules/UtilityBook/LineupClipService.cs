@@ -1186,8 +1186,11 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
     {
         _loadMap = loadMap ?? MapAssets.Acquire;
         _log = log;
+        // Every seam named, including the two taking the constructor's own default: the setup is handed
+        // over whole, so the no-setup refusal is unreachable here.
         _render = render ?? ((request, setup, ct) => new SceneExportRunner(_ => setup, RenderSurfaceProviderFactory.CreateCpu,
-            static () => FirstPartySceneExport.ManagedFfmpegDirectory, _log, EncoderProbeCache.Shared).RunAsync(request, NoProgress.Instance, ct));
+            static () => FirstPartySceneExport.ManagedFfmpegDirectory, _log, EncoderProbeCache.Shared,
+            locateFfmpeg: null, noSetupRefusal: null).RunAsync(request, NoProgress.Instance, ct));
     }
 
     /// <summary>The unfinished GIF's path for <paramref name="gifPath" />.</summary>

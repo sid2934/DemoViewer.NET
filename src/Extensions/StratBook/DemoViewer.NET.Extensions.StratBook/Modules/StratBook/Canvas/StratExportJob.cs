@@ -6,14 +6,10 @@ using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Hud;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
-using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Playback2D.Levels;
-using DemoViewer.NET.Playback2D.Pipeline.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
-using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
@@ -42,30 +38,23 @@ public sealed record StratExportCapture(
     WorldBounds FallbackBounds);
 
 /// <summary>
-///     Strat Export: the strat rendered to GIF or video through
-///     <c>SceneExportSession</c> with a <see cref="StratFrameSource" /> and no demo behind it.
-///     <para>
-///         <b>The 2D export's job with a different source.</b> This is the <c>IExportRunner</c> an
-///         <c>ExportJobService</c> runs, so the refusals, the heavy-job gate, single-flight, the status
-///         chip and cancel are that service's; the encoder ladder, the managed GIF floor and the ffmpeg sink are
-///         <c>ExportEncoding</c>'s. What is here is the strat's half: the spec, the layer stack and the map.
-///     </para>
+///     Strat Export: the strat's half of a <c>SceneExportRunner</c> run. A strat has no demo, so it
+///     supplies its own <see cref="StratFrameSource" /> and its own HUD through
+///     <see cref="ExportSceneSetup.Source" />; everything downstream of that is the 2D export's.
 ///     <para>
 ///         <b>The capture rides the request.</b> The dialog only knows how to freeze an ink session at Start, so
 ///         the capture is keyed by that session and read back by reference on the pool thread; two Starts cannot
 ///         trade strats, for the reason <c>Scene2DExportRequest.Ink</c> gives.
 ///     </para>
 ///     <para>
-///         <b>Private everything</b>, as the 2D export: its own map bundle, compositor and surface. The canvas's
-///         bundle is disposed when the user opens a strat on another map, which can happen mid-render.
+///         <b>Private art.</b> The setup takes its own hold on the map bundle and hands it to the runner as
+///         <see cref="ExportSceneSetup.Owned" />: the canvas drops its own when the user opens a strat on
+///         another map, which can happen mid-render.
 ///     </para>
 /// </summary>
-public sealed class StratExportJob : IExportRunner
+public static class StratExportJob
 {
     /// <summary>Default frame rate: the GIF rate that divides 100 and keeps a round under the cap.</summary>
-    /// <summary>Runs over the built layer stack before the export starts; the golden gate silences text with it.</summary>
-    public Action<SceneCompositor>? ConfigureLayers { get; init; }
-
     public const int DefaultFps = 20;
 
     /// <summary>Default width. Square, so a radar fills it and the text arithmetic holds.</summary>
@@ -81,35 +70,6 @@ public sealed class StratExportJob : IExportRunner
     public const string NoStratRefusal = "There is no open strat to export.";
 
     private static readonly ConditionalWeakTable<AnnotationSession, StratExportCapture> _captures = new();
-
-    private readonly ExportEncoding _encoding;
-    private readonly Func<string?, IMapAssetLease?> _mapLoader;
-    private readonly Func<IRenderSurfaceProvider> _surfaces;
-
-    /// <summary>Creates the job.</summary>
-    /// <param name="mapLoader">Loads the strat's map bundle by name; null draws the grid.</param>
-    /// <param name="surfaces">Builds the render surface provider; the CPU rasteriser when omitted.</param>
-    /// <param name="managedFfmpegDirectory">Where an app-managed ffmpeg lives; the reels' directory when omitted.</param>
-    /// <param name="log">Line sink for the chosen encoder and ffmpeg's stderr.</param>
-    /// <param name="encoderProbe">How ladder rungs are verified; the process-wide cache when omitted.</param>
-    /// <param name="locateFfmpeg">
-    ///     Finds ffmpeg given the managed directory; <c>FfmpegLocator.Locate</c> when omitted. The seam is what
-    ///     lets a test take the managed GIF floor on a machine that has ffmpeg on PATH.
-    /// </param>
-    public StratExportJob(
-        Func<string?, IMapAssetLease?> mapLoader,
-        Func<IRenderSurfaceProvider>? surfaces = null,
-        Func<string?>? managedFfmpegDirectory = null,
-        Action<string>? log = null,
-        IEncoderProbe? encoderProbe = null,
-        Func<string?, FfmpegLocation>? locateFfmpeg = null)
-    {
-        ArgumentNullException.ThrowIfNull(mapLoader);
-        _mapLoader = mapLoader;
-        _surfaces = surfaces ?? (static () => new CpuSurfaceProvider());
-        _encoding = new ExportEncoding(managedFfmpegDirectory ?? (static () => FirstPartySceneExport.ManagedFfmpegDirectory),
-            locateFfmpeg ?? FfmpegLocator.Locate, log, new EncoderSelector(encoderProbe));
-    }
 
     /// <summary>
     ///     The layers a strat export draws: the seven scene layers, then the ink and the round clock when asked
@@ -204,55 +164,54 @@ public sealed class StratExportJob : IExportRunner
         };
     }
 
-    /// <inheritdoc />
-    public async Task RunAsync(Scene2DExportRequest request, IProgress<ExportProgress> progress,
-        CancellationToken ct)
+    /// <summary>
+    ///     The scene one strat export renders: the capture riding the request's ink session, its own hold on
+    ///     the strat's map art, and the strat frame source over the requested tick range. Null when the
+    ///     request carries no capture this type registered, which the runner reports as
+    ///     <see cref="NoStratRefusal" />.
+    /// </summary>
+    /// <param name="request">The run being set up. Its range is in strat ticks, not demo frames.</param>
+    /// <param name="mapLoader">Takes a hold on the strat's map bundle by name; null draws the grid.</param>
+    public static ExportSceneSetup? Setup(Scene2DExportRequest request, Func<string?, IMapAssetLease?> mapLoader)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(mapLoader);
 
         if (request.Ink is not { } ink || !_captures.TryGetValue(ink, out StratExportCapture? capture))
         {
-            throw new ExportRefusedException(NoStratRefusal);
+            return null;
         }
 
-        (FfmpegLocation ffmpeg, EncoderSelection? encoder) = _encoding.Resolve(request, ct);
-
-        using IMapAssetLease? asset = SafeLoad(capture.MapName);
-
-        // The dialog's range is in strat ticks: DemoStartFrame and DemoEndFrame carry them, and the dialog sized
-        // the request with StratFrameSource.OutputFrameCount, the source's own arithmetic.
-        StratSceneSpec spec = BuildSpec(capture, asset, request.DemoStartFrame, request.DemoEndFrame,
-            request.Core.Fps, request.Core.Speed);
-        StratFrameSource source = new(spec);
-        ExportRequest core = request.Core with
+        IMapAssetLease? asset = SafeLoad(mapLoader, capture.MapName);
+        try
         {
-            StartFrame = 0,
-            EndFrame = Math.Max(0, source.FrameCount - 1)
-        };
+            // The dialog's range is in strat ticks: DemoStartFrame and DemoEndFrame carry them, and the dialog
+            // sized the request with StratFrameSource.OutputFrameCount, the source's own arithmetic.
+            StratSceneSpec spec = BuildSpec(capture, asset, request.DemoStartFrame, request.DemoEndFrame,
+                request.Core.Fps, request.Core.Speed);
 
-        // No vision solver: the layer is named with the other six and draws nothing without one.
-        using SceneCompositor compositor = SceneLayerCatalog.CreateSceneStack([.. core.LayerIds], null, null,
-            new StratHudDataSource(spec.RoundSeconds, spec.CountsUp), spec.Ink);
-        ConfigureLayers?.Invoke(compositor);
-        using IRenderSurfaceProvider surfaces = _surfaces();
-
-        SceneExportSession session = new(compositor)
+            // No frames and no tick rate: Source stands in for both. No vision solver either, since the
+            // layer is named with the other six and draws nothing without one.
+            return new ExportSceneSetup([], 0, capture.MapName, request.Palette ?? ScenePalette.Dark,
+                LevelDisplayMode.Stacked, null, null, asset, spec.Ink)
+            {
+                Source = () => new StratFrameSource(spec),
+                SourceHud = new StratHudDataSource(spec.RoundSeconds, spec.CountsUp),
+                Owned = asset
+            };
+        }
+        catch
         {
-            Palette = request.Palette ?? ScenePalette.Dark,
-            DisplayMode = LevelDisplayMode.Stacked,
-            AuthoritativeFloors = asset?.Floors,
-            RadarBinder = asset is null ? null : asset.CreateRadarBinder()
-        };
-
-        IFrameSink sink = _encoding.BuildSink(request, core, ffmpeg, encoder);
-        await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
+            asset?.Dispose();
+            throw;
+        }
     }
 
-    private IMapAssetLease? SafeLoad(string map)
+    private static IMapAssetLease? SafeLoad(Func<string?, IMapAssetLease?> mapLoader, string map)
     {
         try
         {
-            return _mapLoader(map);
+            return mapLoader(map);
         }
         catch (Exception)
         {

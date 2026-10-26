@@ -352,7 +352,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     /// <summary>
     ///     Makes the export job. The production job when unset; a test swaps in one with a fixed ffmpeg answer.
     /// </summary>
-    internal Func<IStratExport, StratExportJob>? ExportJobFactory { get; set; }
+    internal Func<IStratExport, IExportRunner>? ExportJobFactory { get; set; }
 
     /// <inheritdoc />
     public void OnActivated(IModuleContext context)
@@ -546,8 +546,9 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
 
     /// <summary>
     ///     Opens the export pane over the open strat: GIF at 20 fps, 640 square, the first
-    ///     step to the last plus 2 s. The job is the 2D export's service over a <see cref="StratExportJob" />, so
-    ///     the gate, the interlocks, the chip and cancel are the same ones.
+    ///     step to the last plus 2 s. The job is the 2D export's service over the 2D export's own runner, with
+    ///     <see cref="StratExportJob.Setup" /> for the scene, so the gate, the interlocks, the chip, cancel and
+    ///     every pixel downstream of the frame source are the same ones.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanExport))]
     private void OpenExport()
@@ -561,13 +562,14 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         if (_exportJob is null)
         {
             // Every seam named, the 2D tab's rule: an omitted optional is invisible at the call site.
-            StratExportJob job = ExportJobFactory?.Invoke(host) ?? new StratExportJob(
-                Canvas.MapLoader,
+            IExportRunner job = ExportJobFactory?.Invoke(host) ?? new SceneExportRunner(
+                request => StratExportJob.Setup(request, Canvas.MapLoader),
                 surfaces: RenderSurfaceProviderFactory.CreateCpu,
                 managedFfmpegDirectory: static () => FirstPartySceneExport.ManagedFfmpegDirectory,
                 log: AppendExportLog,
                 encoderProbe: EncoderProbeCache.Shared,
-                locateFfmpeg: null);
+                locateFfmpeg: null,
+                noSetupRefusal: StratExportJob.NoStratRefusal);
             if (host.NewJob?.Invoke(job, AppendExportLog) is not { } exportJob)
             {
                 return;

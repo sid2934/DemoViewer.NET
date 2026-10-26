@@ -926,7 +926,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
                     // Process-wide, so an app session pays for one two-frame test encode per rung rather
                     // than one per export.
-                    EncoderProbeCache.Shared),
+                    EncoderProbeCache.Shared,
+
+                    // Both the constructor's own defaults: FfmpegLocator.Locate, and the refusal for a
+                    // run with no loaded demo, which is this tab's case exactly.
+                    locateFfmpeg: null,
+                    noSetupRefusal: null),
                 host.IsLiveSyncBusy,
                 host.IsReelRunning,
                 AppendExportLog);

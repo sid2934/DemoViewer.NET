@@ -119,10 +119,12 @@ public class StratExportTests
                     Scene2DExportRequest silencedRequest = new(dialog.BuildRequest(range), silencedOutput, string.Empty,
                         range.StartFrame, range.EndFrame, dialog.SelectedEncoder, dialog.SelectedQuality,
                         StratExportJob.Register(vm.Canvas.CaptureForExport()!));
-                    StratExportJob silencedJob = new(vm.Canvas.MapLoader, locateFfmpeg: _ => FfmpegLocation.NotFound)
-                    {
-                        ConfigureLayers = SceneLayerCatalog.SilenceText
-                    };
+                    SceneExportRunner silencedJob = new(
+                        request => StratExportJob.Setup(request, vm.Canvas.MapLoader) is { } setup
+                            ? setup with { ConfigureLayers = SceneLayerCatalog.SilenceText }
+                            : null,
+                        locateFfmpeg: _ => FfmpegLocation.NotFound,
+                        noSetupRefusal: StratExportJob.NoStratRefusal);
                     await silencedJob.RunAsync(silencedRequest, new Progress<ExportProgress>(), CancellationToken.None);
                 }
 
@@ -183,7 +185,9 @@ public class StratExportTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            StratExportJob job = new(_ => null, locateFfmpeg: _ => FfmpegLocation.NotFound);
+            SceneExportRunner job = new(request => StratExportJob.Setup(request, _ => null),
+                locateFfmpeg: _ => FfmpegLocation.NotFound,
+                noSetupRefusal: StratExportJob.NoStratRefusal);
             ExportRequest core = new(0, 0, 20, new SKSizeI(64, 64), 1.0, ExportFormats.Gif,
                 StratExportJob.LayerIds(false, false), new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>()));
 
@@ -327,8 +331,10 @@ public class StratExportTests
         return (vm, chips);
     }
 
-    private static StratExportJob NoFfmpegJob(StratBookTabViewModel vm) =>
-        new(vm.Canvas.MapLoader, locateFfmpeg: _ => FfmpegLocation.NotFound);
+    private static SceneExportRunner NoFfmpegJob(StratBookTabViewModel vm) =>
+        new(request => StratExportJob.Setup(request, vm.Canvas.MapLoader),
+            locateFfmpeg: _ => FfmpegLocation.NotFound,
+            noSetupRefusal: StratExportJob.NoStratRefusal);
 
     private static ExportRequest Request(int frames, string format, int fps = 20) =>
         new(0, frames - 1, fps, new SKSizeI(640, 640), 1.0, format, StratExportJob.LayerIds(true, true),

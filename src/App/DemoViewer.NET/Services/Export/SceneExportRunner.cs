@@ -47,6 +47,7 @@ public sealed class SceneExportRunner : IExportRunner
         "Download button where one is offered — then press Re-check, or switch the format to GIF.";
 
     private readonly ExportEncoding _encoding;
+    private readonly string _noSetupRefusal;
     private readonly Func<Scene2DExportRequest, ExportSceneSetup?> _setup;
     private readonly Func<IRenderSurfaceProvider> _surfaces;
 
@@ -64,18 +65,30 @@ public sealed class SceneExportRunner : IExportRunner
     ///     encoder rather than one per export. The seam is here so a test can drive the fallback path
     ///     without a GPU, a driver or a subprocess.
     /// </param>
+    /// <param name="locateFfmpeg">
+    ///     Finds ffmpeg given the managed directory; <c>FfmpegLocator.Locate</c> when omitted. The seam is
+    ///     what lets a test take the managed GIF floor on a machine that has ffmpeg on PATH, and the floor
+    ///     and the ffmpeg encoder do not produce the same bytes.
+    /// </param>
+    /// <param name="noSetupRefusal">
+    ///     The refusal when <paramref name="setup" /> returns null. A strat export refuses with its own
+    ///     copy: there is no demo in that sentence to be unloaded.
+    /// </param>
     public SceneExportRunner(
         Func<Scene2DExportRequest, ExportSceneSetup?> setup,
         Func<IRenderSurfaceProvider>? surfaces = null,
         Func<string?>? managedFfmpegDirectory = null,
         Action<string>? log = null,
-        IEncoderProbe? encoderProbe = null)
+        IEncoderProbe? encoderProbe = null,
+        Func<string?, FfmpegLocation>? locateFfmpeg = null,
+        string? noSetupRefusal = null)
     {
         ArgumentNullException.ThrowIfNull(setup);
         _setup = setup;
         _surfaces = surfaces ?? (static () => new CpuSurfaceProvider());
+        _noSetupRefusal = noSetupRefusal ?? "There is no loaded demo to export.";
         _encoding = new ExportEncoding(managedFfmpegDirectory ?? (static () => FfmpegDependency.ManagedDirectory),
-            FfmpegLocator.Locate, log, new EncoderSelector(encoderProbe));
+            locateFfmpeg ?? FfmpegLocator.Locate, log, new EncoderSelector(encoderProbe));
     }
 
     /// <inheritdoc />
@@ -84,18 +97,24 @@ public sealed class SceneExportRunner : IExportRunner
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        ExportSceneSetup setup = _setup(request)
-                                 ?? throw new ExportRefusedException(
-                                     "There is no loaded demo to export.");
+        ExportSceneSetup setup = _setup(request) ?? throw new ExportRefusedException(_noSetupRefusal);
 
-        // BEFORE the replay: the ladder walk spawns one short ffmpeg per hardware rung, and a refusal
-        // ("you asked for h264_nvenc and this driver cannot run it") has to arrive before the export
-        // spends a minute seeking rather than after it spends ten encoding into a pipe.
-        (FfmpegLocation ffmpeg, EncoderSelection? encoder) = _encoding.Resolve(request, ct);
+        // Setup may already hold the run's map art, so every exit from here on has to release it.
+        try
+        {
+            // BEFORE the replay: the ladder walk spawns one short ffmpeg per hardware rung, and a refusal
+            // ("you asked for h264_nvenc and this driver cannot run it") has to arrive before the export
+            // spends a minute seeking rather than after it spends ten encoding into a pipe.
+            (FfmpegLocation ffmpeg, EncoderSelection? encoder) = _encoding.Resolve(request, ct);
 
-        IFrameSink sink = _encoding.BuildSink(request, request.Core, ffmpeg, encoder);
-        using IRenderSurfaceProvider surfaces = _surfaces();
-        await RenderSceneAsync(request, setup, sink, surfaces, progress, ct).ConfigureAwait(false);
+            IFrameSink sink = _encoding.BuildSink(request, request.Core, ffmpeg, encoder);
+            using IRenderSurfaceProvider surfaces = _surfaces();
+            await RenderSceneAsync(request, setup, sink, surfaces, progress, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            setup.Owned?.Dispose();
+        }
     }
 
     /// <summary>
@@ -115,36 +134,56 @@ public sealed class SceneExportRunner : IExportRunner
         IRenderSurfaceProvider surfaces, IProgress<ExportProgress>? progress, CancellationToken ct,
         int? maxFrames = null)
     {
-        using TrackerFrameSource source = BuildSource(request, setup);
-        int last = Math.Max(0, source.FrameCount - 1);
-        if (maxFrames is int cap)
+        ISceneFrameSource source;
+        IHudDataSource? hud;
+        if (setup.Source is { } frames)
         {
-            last = Math.Min(last, Math.Max(0, cap - 1));
+            source = frames();
+            hud = setup.SourceHud;
+        }
+        else
+        {
+            // The HUD is built after the source because its clock reads the source's own last-built
+            // frame: the whole point of the factory (see ExportSceneSetup.Hud).
+            TrackerFrameSource tracker = BuildSource(request, setup);
+            source = tracker;
+            hud = setup.Hud?.Invoke(tracker);
         }
 
-        ExportRequest core = request.Core with
+        try
         {
-            // Re-stamped from the source itself: the dialog sized the range with
-            // TrackerFrameSource.OutputFrameCount, and this is the assertion that the two agree.
-            StartFrame = 0,
-            EndFrame = last
-        };
+            int last = Math.Max(0, source.FrameCount - 1);
+            if (maxFrames is int cap)
+            {
+                last = Math.Min(last, Math.Max(0, cap - 1));
+            }
 
-        // After BuildSource, because the HUD's clock reads the source's own last-built frame: the whole
-        // point of the factory (see ExportSceneSetup.Hud).
-        IHudDataSource? hud = setup.Hud?.Invoke(source);
+            ExportRequest core = request.Core with
+            {
+                // Re-stamped from the source itself: the dialog sized the range with the source's own
+                // OutputFrameCount, and this is the assertion that the two agree.
+                StartFrame = 0,
+                EndFrame = last
+            };
 
-        using SceneCompositor compositor = BuildCompositor(core, setup, hud);
+            using SceneCompositor compositor = BuildCompositor(core, setup, hud);
+            setup.ConfigureLayers?.Invoke(compositor);
 
-        SceneExportSession session = new(compositor)
+            SceneExportSession session = new(compositor)
+            {
+                Palette = setup.Palette,
+                DisplayMode = setup.DisplayMode,
+                AuthoritativeFloors = setup.MapAssets?.Floors,
+                RadarBinder = setup.MapAssets?.CreateRadarBinder()
+            };
+
+            await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
+        }
+        finally
         {
-            Palette = setup.Palette,
-            DisplayMode = setup.DisplayMode,
-            AuthoritativeFloors = setup.MapAssets?.Floors,
-            RadarBinder = setup.MapAssets?.CreateRadarBinder()
-        };
-
-        await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
+            // TrackerFrameSource holds a private EntityTracker; a caller-supplied source may hold nothing.
+            (source as IDisposable)?.Dispose();
+        }
     }
 
     private static TrackerFrameSource BuildSource(Scene2DExportRequest request, ExportSceneSetup setup)

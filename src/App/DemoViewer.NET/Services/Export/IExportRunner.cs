@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
@@ -77,4 +78,35 @@ public sealed record ExportSceneSetup(
     IVisionSolver? Vision,
     Func<TrackerFrameSource, IHudDataSource>? Hud,
     IMapAsset? MapAssets,
-    AnnotationSession? Annotations = null);
+    AnnotationSession? Annotations = null)
+{
+    /// <summary>
+    ///     Frames the caller already holds, as a finished source, for an export with no demo behind it:
+    ///     a strat, which never had one. Set, it stands in for <see cref="Frames" /> and
+    ///     <see cref="TickRate" />, which such a caller leaves empty.
+    ///     <para>
+    ///         A factory rather than a source, so the source is built on the render's own thread after
+    ///         the heavy-job gate has let the run through, as the demo path's tracker is.
+    ///     </para>
+    /// </summary>
+    public Func<ISceneFrameSource>? Source { get; init; }
+
+    /// <summary>
+    ///     The HUD for a <see cref="Source" /> export, which has no tracker for <see cref="Hud" />'s
+    ///     factory to read. Ignored on the demo path.
+    /// </summary>
+    public IHudDataSource? SourceHud { get; init; }
+
+    /// <summary>
+    ///     Disposed when the run ends, however it ends. The strat export's hold on its map art: the
+    ///     canvas drops its own when the user opens a strat on another map, which can happen mid-render.
+    /// </summary>
+    public IDisposable? Owned { get; init; }
+
+    /// <summary>
+    ///     Runs over the built stack before the first frame; the golden gates silence text with it.
+    ///     <b>Internal</b>: an extension composes a scene through the layer ids on the request, and the
+    ///     hook hands out the compositor itself.
+    /// </summary>
+    internal Action<SceneCompositor>? ConfigureLayers { get; init; }
+}
