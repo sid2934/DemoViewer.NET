@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.Sdk.Export;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -54,6 +55,12 @@ public interface IExtensionContext
 
     /// <summary>The user's own accounts, read only.</summary>
     IExtensionIdentity Identity { get; }
+
+    /// <summary>
+    ///     The host's 2D scene export, or null where the host exports nothing (the browser build has no
+    ///     encoder and no files). Hide an export surface while it is null.
+    /// </summary>
+    IExtensionSceneExport? SceneExport => null;
 
     /// <summary>A logger whose lines land in the app's diagnostics log, tagged with the extension.</summary>
     ILogger CreateLogger(string category);

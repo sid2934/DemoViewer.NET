@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.Sdk.Export;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
@@ -102,6 +103,7 @@ internal sealed class ExtensionContext : IExtensionContext
 {
     private readonly Lazy<IExtensionDemoData> _data;
     private readonly Lazy<IExtensionLibrary> _library;
+    private readonly Lazy<IExtensionSceneExport?> _sceneExport;
     private readonly ExtensionGuard _guard;
     private readonly HostKeymap _keymap;
     private readonly string _logPrefix;
@@ -138,6 +140,14 @@ internal sealed class ExtensionContext : IExtensionContext
                         _ => load(), DemoJobPriority.UserRequested, "extension-data-load:" + extension.Id)
                     : null)
             : UnavailableDemoData.Instance);
+        // Lazy, and one per extension: the chip is filed under the extension and the job is single-flight
+        // across every pane the extension opens.
+        _sceneExport = new Lazy<IExtensionSceneExport?>(() =>
+            !OperatingSystem.IsBrowser() && services.GetService<FirstPartyExports>() is { } exports
+                ? new ExtensionSceneExport(extension.Id, extension.FeatureId, exports,
+                    services.GetService<ExtensionShellHub>(), services.GetService<ExtensionShellHub>(), _guard,
+                    Shell.RevealInFileManager)
+                : null);
         _library = new Lazy<IExtensionLibrary>(() => new ExtensionLibraryView(
             HostLibrary.For(services.GetRequiredService<DemoCacheStore>(), services.GetService<IDemoProcessingQueue>(),
                 () => services.GetService<AnalysisFacts>() ?? (IAnalysisFacts)NoFacts.Instance), _guard,
@@ -174,6 +184,8 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionKeymap Keymap => _keymap;
 
     public IExtensionIdentity Identity { get; }
+
+    public IExtensionSceneExport? SceneExport => _sceneExport.Value;
 
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 

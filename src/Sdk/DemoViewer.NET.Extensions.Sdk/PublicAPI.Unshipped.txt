@@ -1908,3 +1908,185 @@ DemoViewer.NET.Extensions.Sdk.IExtensionFile.WriteAtomic(System.Action<System.IO
 DemoViewer.NET.Extensions.Sdk.IExtensionFile.WriteAtomic(System.ReadOnlySpan<byte> content) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionStores.OpenFile(string! storeId) -> DemoViewer.NET.Extensions.Sdk.IExtensionFile?
 DemoViewer.NET.Extensions.Sdk.IExtensionStores.Own(DemoViewer.NET.Extensions.Sdk.StoreRoot root) -> DemoViewer.NET.Extensions.Sdk.IExtensionFolder?
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionSceneExport
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionSceneExport.OpenPane(DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest! request) -> DemoViewer.NET.Extensions.Sdk.Export.ISceneExportPane!
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionSceneExport.RenderAsync(DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip! clip, System.Threading.CancellationToken ct) -> System.Threading.Tasks.Task<DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome!>!
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionSceneExport.SizePresets.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize!>!
+DemoViewer.NET.Extensions.Sdk.Export.IExtensionSceneExport.SupportedFps(string! formatId) -> System.Collections.Generic.IReadOnlyList<int>!
+DemoViewer.NET.Extensions.Sdk.Export.ISceneExportPane
+DemoViewer.NET.Extensions.Sdk.Export.ISceneExportPane.Started -> System.Action?
+DemoViewer.NET.Extensions.Sdk.Export.ISceneExportPane.ViewModel.get -> object!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.Deconstruct(out string! FormatId, out int Fps, out int Width, out int Height, out bool IncludeHud, out bool IncludeHudClock, out bool IncludeAnnotations, out bool IncludeVision) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.Equals(DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.FormatId.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.FormatId.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.Fps.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.Fps.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.Height.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.Height.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.IncludeAnnotations.get -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.IncludeAnnotations.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.IncludeHud.get -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.IncludeHud.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.IncludeHudClock.get -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.IncludeHudClock.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.IncludeVision.get -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.IncludeVision.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.SceneExportChoices(string! FormatId, int Fps, int Width, int Height, bool IncludeHud, bool IncludeHudClock, bool IncludeAnnotations, bool IncludeVision) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.Width.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.Width.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Equals(DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.FollowSteamId.get -> ulong?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.FollowSteamId.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.FormatId.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.FormatId.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Fps.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Fps.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.FromTick.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.FromTick.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Height.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Height.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.LayerIds.get -> System.Collections.Generic.IReadOnlySet<string!>?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.LayerIds.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Log.get -> System.Action<string!>?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Log.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.OutputPath.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.OutputPath.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Scene.get -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Scene.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.SceneExportClip() -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.ToTick.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.ToTick.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Width.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Width.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportFrameCount
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.Completed.get -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.Deconstruct(out DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal Refusal, out string? Message, out string? OutputPath) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.Equals(DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.Message.get -> string?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.Message.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.OutputPath.get -> string?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.OutputPath.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.Refusal.get -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.Refusal.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.SceneExportOutcome(DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal Refusal, string? Message = null, string? OutputPath = null) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Capture.get -> System.Func<DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene?>!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Capture.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Choices.get -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Choices.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Equals(DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.FileStem.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.FileStem.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Layers.get -> System.Func<bool, bool, System.Collections.Generic.IReadOnlySet<string!>!>?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Layers.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Log.get -> System.Action<string!>?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Log.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.NothingToExport.get -> string?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.NothingToExport.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.OutputFrameCount.get -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportFrameCount!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.OutputFrameCount.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Ranges.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange!>!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Ranges.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.SceneExportPaneRequest() -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Sizes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize!>?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Sizes.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Title.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Title.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.Deconstruct(out string! Label, out int Start, out int End) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.End.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.End.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.Equals(DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.SceneExportRange(string! Label, int Start, int End) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.Start.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.Start.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.Cancelled = 4 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.Failed = 5 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.Invalid = 2 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.None = 0 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.NothingToExport = 1 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.Refused = 3 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.DisplayMode.get -> DemoViewer.NET.Playback2D.Levels.LevelDisplayMode
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.DisplayMode.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Equals(DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Frames.get -> System.Collections.Generic.IReadOnlyList<CS2DemoKit.Parser.DemoFrame!>!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Frames.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Hud.get -> DemoViewer.NET.Playback2D.Hud.IHudDataSource?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Hud.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Ink.get -> DemoViewer.NET.Playback2D.Annotations.AnnotationSession?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Ink.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.MapName.get -> string?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.MapName.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Palette.get -> DemoViewer.NET.Playback2D.ScenePalette?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Palette.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.SceneExportScene() -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Source.get -> DemoViewer.NET.Extensions.Sdk.Export.SceneFramesFactory?
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Source.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.TickRate.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.TickRate.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.Deconstruct(out string! Label, out int Width, out int Height) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.Equals(DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.Height.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.Height.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.SceneExportSize(string! Label, int Width, int Height) -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.Width.get -> int
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.Width.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneFramesFactory
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.SceneExport.get -> DemoViewer.NET.Extensions.Sdk.Export.IExtensionSceneExport?
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportChoices? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportPaneRequest? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportScene? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize? left, DemoViewer.NET.Extensions.Sdk.Export.SceneExportSize? right) -> bool
+virtual DemoViewer.NET.Extensions.Sdk.Export.SceneExportFrameCount.Invoke(int start, int end, int fps, double speed) -> int
+virtual DemoViewer.NET.Extensions.Sdk.Export.SceneFramesFactory.Invoke(DemoViewer.NET.Playback2D.Levels.IMapAsset? map) -> DemoViewer.NET.Playback2D.ISceneFrames!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.DemoPath.get -> string!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.DemoPath.init -> void
