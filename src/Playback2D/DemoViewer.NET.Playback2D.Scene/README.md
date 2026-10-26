@@ -26,7 +26,7 @@ contract, the zone loaders, the sidecar identity records and the content key ali
 | `Playback2D.Layers` | `SceneLayerIds`, the ids of the app's own layers |
 | `Playback2D.Levels` | `MapSpace`, `MapLevel`, `MapLevelId`, `PaneSet`, `LevelPane`, `StackedLayout`, `SingleLayout`, `IMapAsset` (a loaded map's floors, radar images and places) |
 | `Playback2D.Zones` | `PlaceResolver`, `ZoneSet`, `PlaceHit` and the zone geometry |
-| `Playback2D.Cameras` | `ICameraRig` and the built-in rigs |
+| `Playback2D.Cameras` | `ICameraRig`, the contract a pane's camera is driven through, and `ManualRig`, which holds whatever the camera already shows. The fit and follow rigs are the host's, and internal |
 | `Playback2D.Tools` | `IMapTool`, `MapToolEvent`, `IMapToolContext`, `MapToolButton`, `MapToolModifiers` |
 | `Playback2D.Layers` (drawing) | `OverlayHeatmapLayer`, `QueryTokenLayer` |
 | `Playback2D.Overlay`, `.Query` | the documents those two layers draw |

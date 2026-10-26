@@ -32,7 +32,7 @@ public sealed class ManualRig : ICameraRig
 ///     when the map publishes them, else the all-demo observed extent, the approximation the mode
 ///     selector labels "Map (approx.)". Port of <c>TryComputeTarget</c>'s <c>Map</c> arm (lines 716-728).
 /// </summary>
-public sealed class FitMapRig : ICameraRig
+internal sealed class FitMapRig : ICameraRig
 {
     /// <summary>The shared instance. Stateless.</summary>
     public static readonly FitMapRig Instance = new();
@@ -58,7 +58,7 @@ public sealed class FitMapRig : ICameraRig
 ///     players holds rather than snapping somewhere arbitrary, and a single alive player gets a fixed
 ///     box rather than a degenerate zero-area fit.
 /// </summary>
-public sealed class FitAliveRig : ICameraRig
+internal sealed class FitAliveRig : ICameraRig
 {
     /// <summary>The shared instance with the pre-v2 constants.</summary>
     public static readonly FitAliveRig Instance = new();
@@ -135,7 +135,7 @@ public sealed class FitAliveRig : ICameraRig
 ///         what the parity test uses.
 ///     </para>
 /// </summary>
-public sealed class FollowPlayerRig : ICameraRig
+internal sealed class FollowPlayerRig : ICameraRig
 {
     private readonly double _halfWorld;
     private bool _committed;

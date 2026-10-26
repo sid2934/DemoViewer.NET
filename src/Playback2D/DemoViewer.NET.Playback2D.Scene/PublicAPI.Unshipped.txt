@@ -62,23 +62,6 @@ DemoViewer.NET.Playback2D.BombMarker.WorldY.get -> float
 DemoViewer.NET.Playback2D.BombMarker.WorldY.init -> void
 DemoViewer.NET.Playback2D.BombMarker.WorldZ.get -> float
 DemoViewer.NET.Playback2D.BombMarker.WorldZ.init -> void
-DemoViewer.NET.Playback2D.Cameras.FitAliveRig
-DemoViewer.NET.Playback2D.Cameras.FitAliveRig.ComputeTarget(DemoViewer.NET.Playback2D.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Scene2DFrame! frame) -> DemoViewer.NET.Playback2D.ViewportTransform?
-DemoViewer.NET.Playback2D.Cameras.FitAliveRig.FitAliveRig(double padding = 0.18, double minHalfWorld = 900) -> void
-DemoViewer.NET.Playback2D.Cameras.FitAliveRig.Id.get -> string!
-DemoViewer.NET.Playback2D.Cameras.FitMapRig
-DemoViewer.NET.Playback2D.Cameras.FitMapRig.ComputeTarget(DemoViewer.NET.Playback2D.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Scene2DFrame! frame) -> DemoViewer.NET.Playback2D.ViewportTransform?
-DemoViewer.NET.Playback2D.Cameras.FitMapRig.FitMapRig() -> void
-DemoViewer.NET.Playback2D.Cameras.FitMapRig.Id.get -> string!
-DemoViewer.NET.Playback2D.Cameras.FollowPlayerRig
-DemoViewer.NET.Playback2D.Cameras.FollowPlayerRig.ComputeTarget(DemoViewer.NET.Playback2D.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Scene2DFrame! frame) -> DemoViewer.NET.Playback2D.ViewportTransform?
-DemoViewer.NET.Playback2D.Cameras.FollowPlayerRig.DeadzoneHalfWorld.get -> double
-DemoViewer.NET.Playback2D.Cameras.FollowPlayerRig.DeadzoneHalfWorld.set -> void
-DemoViewer.NET.Playback2D.Cameras.FollowPlayerRig.FollowPlayerRig(int slot, double halfWorld = 900, double deadzoneHalfWorld = 180) -> void
-DemoViewer.NET.Playback2D.Cameras.FollowPlayerRig.Id.get -> string!
-DemoViewer.NET.Playback2D.Cameras.FollowPlayerRig.ResetDeadzone() -> void
-DemoViewer.NET.Playback2D.Cameras.FollowPlayerRig.Slot.get -> int
-DemoViewer.NET.Playback2D.Cameras.FollowPlayerRig.Slot.set -> void
 DemoViewer.NET.Playback2D.Cameras.ICameraRig
 DemoViewer.NET.Playback2D.Cameras.ICameraRig.ComputeTarget(DemoViewer.NET.Playback2D.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Scene2DFrame! frame) -> DemoViewer.NET.Playback2D.ViewportTransform?
 DemoViewer.NET.Playback2D.Cameras.ICameraRig.Id.get -> string!
@@ -1016,8 +999,6 @@ static DemoViewer.NET.Playback2D.Zones.ZoneFloor.operator !=(DemoViewer.NET.Play
 static DemoViewer.NET.Playback2D.Zones.ZoneFloor.operator ==(DemoViewer.NET.Playback2D.Zones.ZoneFloor left, DemoViewer.NET.Playback2D.Zones.ZoneFloor right) -> bool
 static DemoViewer.NET.Playback2D.Zones.ZonePlace.operator !=(DemoViewer.NET.Playback2D.Zones.ZonePlace? left, DemoViewer.NET.Playback2D.Zones.ZonePlace? right) -> bool
 static DemoViewer.NET.Playback2D.Zones.ZonePlace.operator ==(DemoViewer.NET.Playback2D.Zones.ZonePlace? left, DemoViewer.NET.Playback2D.Zones.ZonePlace? right) -> bool
-static readonly DemoViewer.NET.Playback2D.Cameras.FitAliveRig.Instance -> DemoViewer.NET.Playback2D.Cameras.FitAliveRig!
-static readonly DemoViewer.NET.Playback2D.Cameras.FitMapRig.Instance -> DemoViewer.NET.Playback2D.Cameras.FitMapRig!
 static readonly DemoViewer.NET.Playback2D.Cameras.ManualRig.Instance -> DemoViewer.NET.Playback2D.Cameras.ManualRig!
 static readonly DemoViewer.NET.Playback2D.Levels.LevelSetChange.None -> DemoViewer.NET.Playback2D.Levels.LevelSetChange!
 static readonly DemoViewer.NET.Playback2D.Scene2DFrame.Empty -> DemoViewer.NET.Playback2D.Scene2DFrame!
