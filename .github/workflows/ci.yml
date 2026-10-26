@@ -197,10 +197,12 @@ jobs:
       # a slow runner. Raise DV2D_BUDGET_SCALE with a measurement if it does; do not restore the
       # removed --budget-bytes-per-frame override or swap the fixture. Measured: 11.1 ms p99 on
       # 2026-09-23, 16.1 and 17.8 ms p99 on 2026-10-04 for a render that benches identically on one
-      # machine at both commits (1.5 ms p99), so 3.0 is runner headroom, not a looser render bar.
+      # machine at both commits (1.5 ms p99), so the scale is runner headroom, not a looser render bar.
+      # 4.0 since 2026-10-26: 27.5 ms p99 against the 24 ms that 3.0 allowed, on a commit whose only
+      # change was eight lines in an App.Tests wait this lane cannot see.
       - name: Frame-budget gate
         env:
-          DV2D_BUDGET_SCALE: '3.0'
+          DV2D_BUDGET_SCALE: '4.0'
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
           bench --name duel-mirage-b --frames 512 --cpu --gate --json
@@ -248,8 +250,11 @@ jobs:
       # The ZERO-ALLOCATION assertion is deliberately NOT scaled by this. Zero is zero on every
       # machine, and it is the half of the budget that catches most of the regressions. 3.0 since
       # 2026-10-04: the runner renders the same frame in 15 to 18 ms where it took 11 three weeks
-      # earlier, with the render itself unchanged (identical local bench at both commits).
-      DV2D_BUDGET_SCALE: '3.0'
+      # earlier, with the render itself unchanged (identical local bench at both commits). 4.0 since
+      # 2026-10-26, the same drift again: FullScene_WithRealStrokeInk measured 27.5 ms p99 against the
+      # 24 ms that 3.0 allowed, on a lane that passed locally at 43 of 43 and passed twice on the
+      # preceding commit.
+      DV2D_BUDGET_SCALE: '4.0'
     steps:
       - uses: actions/checkout@v4
         with:
