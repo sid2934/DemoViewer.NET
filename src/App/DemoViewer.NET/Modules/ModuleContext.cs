@@ -1,6 +1,7 @@
 #region
 
 using System.Numerics;
+using System.Reflection;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
@@ -54,6 +55,16 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     // Explicit registration wins over the DI container. Checked fresh on every call, never cached,
     // so a live pack toggle is always reflected.
     private readonly Dictionary<Type, Func<object?>> _serviceLookups = new();
+
+    // The two assemblies an extension compiles against to reach the host. Published scene drawing
+    // (Playback2D.Scene) and the module abstractions are deliberately not here: unpublished first-party
+    // code registers against those too, so a registration there is not a publication.
+    private static readonly Assembly[] _publishedContract =
+    [
+        typeof(Extensions.Sdk.IExtension).Assembly,
+        typeof(Extensions.Sdk.Ui.ExtensionViewModel).Assembly
+    ];
+
     private IServiceProvider? _services;
     private ExtensionFaults? _faults;
     private readonly MulticastGuard<Action<IPlaybackSnapshot>> _advancedGuard = new("playback frame handler", FaultKind.Recurring);
@@ -335,7 +346,8 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     /// <summary>
     ///     Wires the app's DI container as <see cref="GetService{T}" />'s fallback for anything not
     ///     explicitly registered through <see cref="RegisterService{T}" />: a pack's capture or export
-    ///     host, resolved by type. Null (tests, designer) leaves every unregistered lookup at null.
+    ///     host, resolved by type, and anything the host offers under a type the SDK publishes. Null
+    ///     (tests, designer) leaves every unregistered lookup at null.
     /// </summary>
     public void SetServices(IServiceProvider? services) => _services = services;
 
@@ -355,16 +367,27 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
             return (T?)resolve();
         }
 
-        // The container answers only for an extension's own types while that extension is on. A host type is
-        // never reachable this way: the host's services are not a module's to resolve.
-        if (_services is null || _faults?.Owner(typeof(T).Assembly) is not { } owner)
+        if (_services is null)
+        {
+            return null;
+        }
+
+        // The container answers for a type the SDK publishes, and for an extension's own types while that
+        // extension is on. An unpublished host type is never reachable this way, and neither is one the SDK
+        // keeps internal: the host's own services are not a module's to resolve.
+        ExtensionScope? owner = _faults?.Owner(typeof(T).Assembly);
+        if (owner is null && !IsPublishedContract(typeof(T)))
         {
             return null;
         }
 
         try
         {
-            return _services.GetService<IFeatureGate>()?.IsEnabled(owner.FeatureId) == false ? null : _services.GetService<T>();
+            // The published contract has no owning extension, so there is no switch to read: a service the
+            // host offers under an SDK type is the host's to answer for.
+            return owner is not null && _services.GetService<IFeatureGate>()?.IsEnabled(owner.FeatureId) == false
+                ? null
+                : _services.GetService<T>();
         }
         catch (ObjectDisposedException)
         {
@@ -372,6 +395,11 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
             return null;
         }
     }
+
+    // IsVisible, not IsPublic: the SDK assembly also carries internal host seams such as
+    // IExtensionContextAccess, which hands out every loaded pack's context.
+    private static bool IsPublishedContract(Type type) =>
+        type.IsVisible && Array.Exists(_publishedContract, a => ReferenceEquals(a, type.Assembly));
 
     /// <summary>
     ///     Sets the shared game-clock calibration (mirrors <see cref="SetRoster" />). The host owns the

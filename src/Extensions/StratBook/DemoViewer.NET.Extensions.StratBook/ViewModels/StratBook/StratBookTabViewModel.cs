@@ -163,8 +163,8 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     /// </param>
     /// <param name="sceneExport">
     ///     The host's scene export, resolved at click time, or null for a host that exports nothing and a tab
-    ///     with no Export button. Handed in rather than looked up through <c>IModuleContext.GetService</c>,
-    ///     which answers only for types in the extension's own assembly and so never for an SDK one.
+    ///     with no Export button. Handed in rather than looked up by type: the export is built per extension
+    ///     and carries this one's id, feature switch and fault guard.
     /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, IMapAssetLease?>? canvasMapLoader = null,

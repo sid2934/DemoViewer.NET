@@ -230,9 +230,9 @@ public class StratExportTests
 
     /// <summary>
     ///     The shell's own wiring, through the real container. The tab reads the export off a resolver the
-    ///     pack hands it, because <c>IModuleContext.GetService</c> answers only for types in the extension's
-    ///     own assembly and <c>IExtensionSceneExport</c> is the SDK's: looking it up there left the tab with
-    ///     no export and no Export button, and nothing but this says so.
+    ///     pack hands it: the export is built per extension, carrying that extension's id, feature switch
+    ///     and fault guard, so it is handed over rather than registered in the one root container for every
+    ///     pack to resolve. Nothing but this says the wiring is there at all.
     /// </summary>
     [Test]
     [Category("Integration")]

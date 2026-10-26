@@ -1485,8 +1485,9 @@ public class App : Application
                 // The Player Overview's rank rows, read from the records.
                 sp.GetRequiredService<PlayerRankCache>());
 
-            // GetService<T> falls back to this container for a pack's by-type registrations. Wired here,
-            // not in OnFrameworkInitializationCompleted, so a caller that never runs that path still gets it.
+            // GetService<T> falls back to this container for a pack's by-type registrations and for anything
+            // registered under a public SDK type. Wired here, not in OnFrameworkInitializationCompleted, so
+            // a caller that never runs that path still gets it.
             if (shell.ModuleContext is ModuleContext moduleContext)
             {
                 moduleContext.SetServices(sp);
