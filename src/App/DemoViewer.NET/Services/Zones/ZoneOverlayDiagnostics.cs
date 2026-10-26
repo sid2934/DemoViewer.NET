@@ -28,7 +28,7 @@ public static class ZoneOverlayDiagnostics
     public static event Action? Changed;
 
     /// <summary>The diagnostics of the last load. Empty when the overlay applied cleanly or there was none.</summary>
-    public static IReadOnlyList<ZoneDiagnostic> Current
+    internal static IReadOnlyList<ZoneDiagnostic> Current
     {
         get
         {
@@ -67,7 +67,7 @@ public static class ZoneOverlayDiagnostics
     /// <param name="mapName">The map loaded.</param>
     /// <param name="overlayPath">The overlay file looked for, or null.</param>
     /// <param name="diagnostics">What the loader skipped or flagged.</param>
-    public static void Publish(string? mapName, string? overlayPath, IReadOnlyList<ZoneDiagnostic> diagnostics)
+    internal static void Publish(string? mapName, string? overlayPath, IReadOnlyList<ZoneDiagnostic> diagnostics)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
 

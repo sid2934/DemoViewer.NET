@@ -42,7 +42,7 @@ public sealed record WorkbenchDiagnostic(
     /// </summary>
     /// <param name="diagnostic">The loader's diagnostic.</param>
     /// <param name="overlayPath">The overlay file, or null.</param>
-    public static WorkbenchDiagnostic FromZones(ZoneDiagnostic diagnostic, string? overlayPath)
+    internal static WorkbenchDiagnostic FromZones(ZoneDiagnostic diagnostic, string? overlayPath)
     {
         ArgumentNullException.ThrowIfNull(diagnostic);
         string location = overlayPath is null ? "zones overlay" : Path.GetFileName(overlayPath);

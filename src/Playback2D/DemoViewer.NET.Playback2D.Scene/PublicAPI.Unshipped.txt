@@ -748,17 +748,6 @@ DemoViewer.NET.Playback2D.Zones.ZoneArea.WithPlace(int placeId) -> DemoViewer.NE
 DemoViewer.NET.Playback2D.Zones.ZoneArea.Xy.get -> System.Collections.Generic.IReadOnlyList<double>!
 DemoViewer.NET.Playback2D.Zones.ZoneArea.Z.get -> double
 DemoViewer.NET.Playback2D.Zones.ZoneArea.ZoneArea(int id, int placeId, double floorKey, bool isSeed, double z, System.Collections.Generic.IReadOnlyList<double>! xy) -> void
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.<Clone>$() -> DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic!
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.Code.get -> string!
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.Code.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.Deconstruct(out string! Code, out string! Message, out string? Entry) -> void
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.Entry.get -> string?
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.Entry.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.Equals(DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic? other) -> bool
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.Message.get -> string!
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.Message.init -> void
-DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.ZoneDiagnostic(string! Code, string! Message, string? Entry = null) -> void
 DemoViewer.NET.Playback2D.Zones.ZoneFloor
 DemoViewer.NET.Playback2D.Zones.ZoneFloor.Contains(double z) -> bool
 DemoViewer.NET.Playback2D.Zones.ZoneFloor.Deconstruct(out double Key, out double MinZ, out double MaxZ) -> void
@@ -843,9 +832,6 @@ override DemoViewer.NET.Playback2D.Zones.PlaceHit.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Zones.PlaceOutline.Equals(object? obj) -> bool
 override DemoViewer.NET.Playback2D.Zones.PlaceOutline.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Zones.PlaceOutline.ToString() -> string!
-override DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.ToString() -> string!
 override DemoViewer.NET.Playback2D.Zones.ZoneFloor.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Zones.ZonePlace.Equals(object? obj) -> bool
 override DemoViewer.NET.Playback2D.Zones.ZonePlace.GetHashCode() -> int
@@ -897,8 +883,6 @@ static DemoViewer.NET.Playback2D.Zones.PlaceHit.operator !=(DemoViewer.NET.Playb
 static DemoViewer.NET.Playback2D.Zones.PlaceHit.operator ==(DemoViewer.NET.Playback2D.Zones.PlaceHit left, DemoViewer.NET.Playback2D.Zones.PlaceHit right) -> bool
 static DemoViewer.NET.Playback2D.Zones.PlaceOutline.operator !=(DemoViewer.NET.Playback2D.Zones.PlaceOutline? left, DemoViewer.NET.Playback2D.Zones.PlaceOutline? right) -> bool
 static DemoViewer.NET.Playback2D.Zones.PlaceOutline.operator ==(DemoViewer.NET.Playback2D.Zones.PlaceOutline? left, DemoViewer.NET.Playback2D.Zones.PlaceOutline? right) -> bool
-static DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.operator !=(DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic? left, DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic? right) -> bool
-static DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic.operator ==(DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic? left, DemoViewer.NET.Playback2D.Zones.ZoneDiagnostic? right) -> bool
 static DemoViewer.NET.Playback2D.Zones.ZoneFloor.operator !=(DemoViewer.NET.Playback2D.Zones.ZoneFloor left, DemoViewer.NET.Playback2D.Zones.ZoneFloor right) -> bool
 static DemoViewer.NET.Playback2D.Zones.ZoneFloor.operator ==(DemoViewer.NET.Playback2D.Zones.ZoneFloor left, DemoViewer.NET.Playback2D.Zones.ZoneFloor right) -> bool
 static DemoViewer.NET.Playback2D.Zones.ZonePlace.operator !=(DemoViewer.NET.Playback2D.Zones.ZonePlace? left, DemoViewer.NET.Playback2D.Zones.ZonePlace? right) -> bool
