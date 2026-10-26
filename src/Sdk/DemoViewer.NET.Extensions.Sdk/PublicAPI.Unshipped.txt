@@ -2012,8 +2012,6 @@ DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.SceneExportRange(string! L
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.Start.get -> int
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportRange.Start.init -> void
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
-DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.Cancelled = 4 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
-DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.Failed = 5 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.Invalid = 2 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.None = 0 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.NothingToExport = 1 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal
@@ -2110,3 +2108,4 @@ override DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.ToString() -> s
 static DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.operator !=(DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest? left, DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest.operator ==(DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest? left, DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest? right) -> bool
 virtual DemoViewer.NET.Extensions.Sdk.Export.SceneFramesFactory.Invoke(DemoViewer.NET.Extensions.Sdk.Export.SceneFramesRequest! request) -> DemoViewer.NET.Playback2D.ISceneFrames!
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal.Failed = 4 -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportRefusal

@@ -135,9 +135,6 @@ public enum SceneExportRefusal
     /// <summary>The host would not start it: something else owns the machine, or a video format has no encoder.</summary>
     Refused,
 
-    /// <summary>It was cancelled. No partial file survives.</summary>
-    Cancelled,
-
     /// <summary>It failed while rendering or encoding.</summary>
     Failed
 }
@@ -145,7 +142,8 @@ public enum SceneExportRefusal
 /// <summary>
 ///     How one export ended. A <b>typed outcome</b> rather than an exception: a refusal is an ordinary answer
 ///     to "can this render", and the only part of it an extension should put in front of a user is
-///     <see cref="Message" />, which the host writes.
+///     <see cref="Message" />, which the host writes. A cancellation is not one of these: it is the
+///     caller's own token coming back as <see cref="OperationCanceledException" />.
 /// </summary>
 /// <param name="Refusal">Why it did not produce a file, or <see cref="SceneExportRefusal.None" />.</param>
 /// <param name="Message">User-facing copy for a refusal or a failure; null on success.</param>
