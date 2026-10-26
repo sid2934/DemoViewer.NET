@@ -404,8 +404,10 @@ internal static class SdkSceneHosts
     /// </summary>
     public static void Install()
     {
-        MapViewHost.Factory = static () => new HostedMapView();
-        SceneViewHost.Factory = static () => new HostedSceneView();
+        // null, not ExtensionFaults.Current: Faults reads Current per call, so capturing it here would
+        // pin whatever was installed the moment Install ran.
+        MapViewHost.Factory = static () => new HostedMapView(faults: null);
+        SceneViewHost.Factory = static () => new HostedSceneView(faults: null);
         TimelineHost.Factory = static () => new HostedTimeline();
     }
 }
