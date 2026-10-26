@@ -69,7 +69,7 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
     public IReadOnlyList<LevelPane> Panes => _host.Panes;
 
     /// <inheritdoc />
-    public ToolKind ActiveTool => _host.Router.ActiveKind;
+    public string ActiveTool => _host.Router.ActiveToolId;
 
     /// <inheritdoc />
     public event Action<Point, double>? TextEditRequested;
@@ -88,11 +88,21 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
     public void RemoveLayer(string id) => _host.RemoveLayer(id);
 
     /// <inheritdoc />
-    public void AddTool(IPointerTool tool)
+    public string AddTool(IPointerTool tool)
     {
-        IPointerTool guarded = Guard(tool);
-        _tools[tool] = guarded;
-        _host.AddTool(guarded);
+        // The same instance again answers with the id it already holds: building a second wrapper would
+        // compose the same id and the router would refuse it as a duplicate of the tool's own self.
+        if (_tools.TryGetValue(tool, out IPointerTool? already))
+        {
+            return already.Id;
+        }
+
+        IPointerTool filed = Guard(tool);
+
+        // Register first. A refused id must leave nothing recorded here either.
+        _host.AddTool(filed);
+        _tools[tool] = filed;
+        return filed.Id;
     }
 
     /// <inheritdoc />
@@ -105,7 +115,7 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
     }
 
     /// <inheritdoc />
-    public void SetActiveTool(ToolKind kind) => _host.SetActiveTool(kind);
+    public void SetActiveTool(string toolId) => _host.SetActiveTool(toolId);
 
     /// <inheritdoc />
     public void SetHoldPan(bool held) => _host.SetSpacePanHeld(held);
@@ -152,6 +162,9 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
         return built is null ? new GuardedSceneLayer(id, EmptySceneLayer.Instance, guard) : new GuardedSceneLayer(id, built, guard);
     }
 
+    // A tool from an extension assembly is filed under it, so it can take neither a scene tool's id nor
+    // another extension's. One from no loaded extension (a test, the capture tool) keeps its bare id, and a
+    // bare id that collides with a scene tool's is what the router's refusal is there to say out loud.
     private static IPointerTool Guard(IPointerTool tool) =>
         ExtensionFaults.Current is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
             ? new GuardedPointerTool(tool, faults.GuardFor(owner))

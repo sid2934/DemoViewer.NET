@@ -181,6 +181,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     ///     view model leaves the tool in place but inert, exactly as an unregistered tool would be.
     /// </summary>
     /// <param name="tool">The tool.</param>
+    /// <exception cref="ArgumentException">Another tool already holds <see cref="IPointerTool.Id" />.</exception>
     public void AddTool(IPointerTool tool) => Router.Register(tool);
 
     /// <summary>Drops a tool added with <see cref="AddTool" />; the router pans if it was active.</summary>
@@ -459,6 +460,17 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     {
         _textTool.CompleteEdit(_toolServices, null);
         Router.SetActive(kind);
+    }
+
+    /// <summary>
+    ///     Selects the active pointer tool by id, closing an open label as <see cref="SetActiveTool(ToolKind)" />
+    ///     does. The only way to a contributed tool, whose id no <see cref="ToolKind" /> names.
+    /// </summary>
+    /// <param name="toolId">The tool's id.</param>
+    internal void SetActiveTool(string toolId)
+    {
+        _textTool.CompleteEdit(_toolServices, null);
+        Router.SetActive(toolId);
     }
 
     /// <summary>

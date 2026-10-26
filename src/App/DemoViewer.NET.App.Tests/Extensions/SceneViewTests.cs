@@ -12,6 +12,7 @@ using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Pipeline.Input;
 using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Timeline;
@@ -110,11 +111,17 @@ public class SceneViewTests
             (Window window, SceneView view) = Mount(source);
             Scene2DHost host = view.GetVisualDescendants().OfType<Scene2DHost>().Single();
 
-            IDisposable tool = view.AddTool(new InertTool(ToolKind.Token));
-            view.SetActiveTool(ToolKind.Token);
-            await Assert.That(view.ActiveTool).IsEqualTo(ToolKind.Token);
+            IToolHandle tool = view.AddTool(new InertTool(ToolKind.Token, "notes"));
+            view.SetActiveTool(tool.ToolId);
+            using (Assert.Multiple())
+            {
+                await Assert.That(tool.ToolId).IsEqualTo("notes")
+                    .Because("a tool from no loaded extension keeps its bare id; there is no owner to file it under");
+                await Assert.That(view.ActiveTool).IsEqualTo(tool.ToolId);
+            }
+
             tool.Dispose();
-            await Assert.That(view.ActiveTool).IsEqualTo(ToolKind.PanZoom).Because("removing the active tool pans");
+            await Assert.That(view.ActiveTool).IsEqualTo(ToolIds.Of(ToolKind.PanZoom)).Because("removing the active tool pans");
 
             IDisposable layer = view.AddLayer("sample.guides", () => new InertLayer("sample.guides"));
             await Assert.That(host.Compositor.Layers.Any(l => l.Id == "sample.guides")).IsTrue();
@@ -157,9 +164,86 @@ public class SceneViewTests
         using (Assert.Multiple())
         {
             await Assert.That(taken).IsFalse();
+            await Assert.That(tool.Id).IsEqualTo("ext.test.library.throwing");
             await Assert.That(tool.Kind).IsEqualTo(ToolKind.Token);
             await Assert.That(guard.Faults.StateOf(extension.FeatureId).Count).IsGreaterThanOrEqualTo(1);
         }
+    }
+
+    /// <summary>
+    ///     A contributed tool calling itself <c>"draw"</c>: filed under its extension, so the scene's pen
+    ///     keeps its id, its selection and its presses, and the contributed tool is reachable by the id it
+    ///     was filed under. Keyed on <see cref="ToolKind" /> the tool replaced the pen outright and nothing
+    ///     said so.
+    /// </summary>
+    [Test]
+    public async Task AContributedToolCallingItselfDraw_TakesNothingOfThePen()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            HostLibraryTests.LibraryTestExtension extension = new();
+            GuardedPointerTool impostor = new(new InertTool(ToolKind.Draw, "draw"), ExtensionGuard.Standalone(extension));
+            using Scene2DHost host = new();
+
+            host.AddTool(impostor);
+            host.SetActiveTool(ToolKind.Draw);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(impostor.Id).IsEqualTo("ext.test.library.draw");
+                await Assert.That(host.Router.Active).IsTypeOf<DrawTool>().Because("the scene's pen still holds 'draw'");
+                await Assert.That(host.Router.ActiveToolId).IsEqualTo(ToolIds.Of(ToolKind.Draw));
+            }
+
+            host.SetActiveTool(impostor.Id);
+            using (Assert.Multiple())
+            {
+                await Assert.That(host.Router.Active).IsSameReferenceAs(impostor).Because("its own filed id reaches it");
+                await Assert.That(host.Router.ActiveKind).IsEqualTo(ToolKind.Draw)
+                    .Because("the category it claimed, which selects nothing");
+            }
+        });
+    }
+
+    /// <summary>
+    ///     Two extensions naming one local id get two ids and two registrations. The router refuses a
+    ///     duplicate, so the ids have to differ by owner before it is asked.
+    /// </summary>
+    [Test]
+    public async Task TwoExtensionsNamingOneLocalId_GetTwoToolsOnOneHost()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            GuardedPointerTool a = new(new InertTool(ToolKind.Map, "pin"), new FaultRig("pack.a").Guard);
+            GuardedPointerTool b = new(new InertTool(ToolKind.Map, "pin"), new FaultRig("pack.b").Guard);
+            using Scene2DHost host = new();
+
+            host.AddTool(a);
+            host.AddTool(b);
+            host.SetActiveTool(b.Id);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(a.Id).IsEqualTo("ext.pack.a.pin");
+                await Assert.That(b.Id).IsEqualTo("ext.pack.b.pin");
+                await Assert.That(host.Router.Active).IsSameReferenceAs(b).Because("one owner's id reaches its own tool only");
+            }
+
+            host.RemoveTool(b);
+            host.SetActiveTool(a.Id);
+            await Assert.That(host.Router.Active).IsSameReferenceAs(a).Because("dropping one leaves the other registered");
+        });
+    }
+
+    /// <summary>A local id outside the composer's alphabet throws out of the add, rather than being filed as a fault's fallback.</summary>
+    [Test]
+    public async Task AToolWhoseLocalIdIsNotAnId_IsRefused()
+    {
+        HostLibraryTests.LibraryTestExtension extension = new();
+        ExtensionGuard guard = ExtensionGuard.Standalone(extension);
+
+        Assert.Throws<ArgumentException>(() => _ = new GuardedPointerTool(new InertTool(ToolKind.Map, "my pin"), guard).Id);
+        await Assert.That(ExtensionLayerIds.Compose(extension.Id, "pin")).StartsWith(ExtensionLayerIds.Root);
     }
 
     [Test]
@@ -278,8 +362,10 @@ public class SceneViewTests
         }
     }
 
-    private sealed class InertTool(ToolKind kind) : IPointerTool
+    private sealed class InertTool(ToolKind kind, string? id = null) : IPointerTool
     {
+        public string Id => id ?? ToolIds.Of(kind);
+
         public ToolKind Kind => kind;
 
         public bool OnPressed(in ToolPointerEvent e, IToolServices s) => false;
@@ -299,6 +385,8 @@ public class SceneViewTests
 
     private sealed class ThrowingTool : IPointerTool
     {
+        public string Id => "throwing";
+
         public ToolKind Kind => ToolKind.Token;
 
         public bool OnPressed(in ToolPointerEvent e, IToolServices s) => throw new InvalidOperationException("press");

@@ -11,15 +11,19 @@ using SkiaSharp;
 
 namespace DemoViewer.NET.Extensions;
 
-/// <summary>Where an extension's scene layers are filed, so they can never take a host layer's id.</summary>
+/// <summary>
+///     Where an extension's contributions are filed, so none can take a host id: scene layers, timeline
+///     lanes and pointer tools all compose through here, which is what makes one extension's ids agree
+///     with each other by construction rather than by three matching conventions.
+/// </summary>
 public static partial class ExtensionLayerIds
 {
-    /// <summary>The root every extension layer id starts with. No host layer id does.</summary>
+    /// <summary>The root every composed id starts with. No host layer, lane or tool id does.</summary>
     public const string Root = "ext.";
 
-    /// <summary>The id an extension's layer is filed under: <c>ext.&lt;extension id&gt;.&lt;id&gt;</c>.</summary>
+    /// <summary>The id an extension's contribution is filed under: <c>ext.&lt;extension id&gt;.&lt;id&gt;</c>.</summary>
     /// <param name="extensionId">The extension's id.</param>
-    /// <param name="id">The layer's id within the extension.</param>
+    /// <param name="id">The contribution's id within the extension.</param>
     /// <exception cref="ArgumentException"><paramref name="id" /> is empty or has a character outside letters, digits, '.', '-' and '_'.</exception>
     public static string Compose(string extensionId, string id)
     {
@@ -27,7 +31,7 @@ public static partial class ExtensionLayerIds
         ArgumentException.ThrowIfNullOrEmpty(id);
         if (!LocalId().IsMatch(id))
         {
-            throw new ArgumentException($"'{id}' is not a layer id: use letters, digits, '.', '-' and '_'.", nameof(id));
+            throw new ArgumentException($"'{id}' is not a local id: use letters, digits, '.', '-' and '_'.", nameof(id));
         }
 
         return Root + extensionId + "." + id;
@@ -202,14 +206,38 @@ internal sealed class EmptySceneLayer : ISceneLayer
 }
 
 /// <summary>
-///     An extension's <see cref="IPointerTool" /> on a scene view, every call run as the extension's. A throw
-///     is reported and the sample dropped; the event is a ref struct, so the calls cannot go through a lambda.
+///     An extension's <see cref="IPointerTool" /> on a scene view, filed under its extension and with every
+///     call run as the extension's. A throw is reported and the sample dropped; the event is a ref struct,
+///     so the calls cannot go through a lambda.
 /// </summary>
-internal sealed class GuardedPointerTool(IPointerTool inner, ExtensionGuard guard) : IPointerTool
+internal sealed class GuardedPointerTool : IPointerTool
 {
-    public IPointerTool Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
+    private readonly ExtensionGuard _guard;
 
-    public ToolKind Kind => Inner.Kind;
+    /// <summary>
+    ///     Files <paramref name="inner" /> under <paramref name="guard" />'s extension. Composing OUTSIDE
+    ///     the guard is deliberate: a bad local id must throw out of the add rather than be swallowed as a
+    ///     fault and leave two of the extension's tools sharing the fallback id.
+    /// </summary>
+    /// <param name="inner">The extension's tool.</param>
+    /// <param name="guard">The extension's guard.</param>
+    public GuardedPointerTool(IPointerTool inner, ExtensionGuard guard)
+    {
+        ArgumentNullException.ThrowIfNull(inner);
+        ArgumentNullException.ThrowIfNull(guard);
+        Inner = inner;
+        _guard = guard;
+
+        // Read once: the router keys on the id and reads the category on every selection.
+        Id = ExtensionLayerIds.Compose(guard.Scope.Id, guard.Run("pointer tool", () => inner.Id, "tool"));
+        Kind = guard.Run("pointer tool", () => inner.Kind, ToolKind.Map);
+    }
+
+    public IPointerTool Inner { get; }
+
+    public string Id { get; }
+
+    public ToolKind Kind { get; }
 
     public bool OnPressed(in ToolPointerEvent e, IToolServices s)
     {
@@ -219,7 +247,7 @@ internal sealed class GuardedPointerTool(IPointerTool inner, ExtensionGuard guar
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            guard.Report("pointer tool", ex, FaultKind.Recurring);
+            _guard.Report("pointer tool", ex, FaultKind.Recurring);
             return false;
         }
     }
@@ -232,7 +260,7 @@ internal sealed class GuardedPointerTool(IPointerTool inner, ExtensionGuard guar
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            guard.Report("pointer tool", ex, FaultKind.Recurring);
+            _guard.Report("pointer tool", ex, FaultKind.Recurring);
         }
     }
 
@@ -244,9 +272,9 @@ internal sealed class GuardedPointerTool(IPointerTool inner, ExtensionGuard guar
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            guard.Report("pointer tool", ex, FaultKind.Recurring);
+            _guard.Report("pointer tool", ex, FaultKind.Recurring);
         }
     }
 
-    public void OnCancelled(IToolServices s) => guard.Run("pointer tool", () => Inner.OnCancelled(s), FaultKind.Recurring);
+    public void OnCancelled(IToolServices s) => _guard.Run("pointer tool", () => Inner.OnCancelled(s), FaultKind.Recurring);
 }

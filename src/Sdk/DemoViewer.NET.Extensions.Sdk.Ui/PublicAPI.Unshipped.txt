@@ -433,6 +433,8 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.OnLevelsMoved(System.Coll
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.OnPress(DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress! press) -> bool
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.ShowViewCones.get -> bool
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.TokenEditor.get -> DemoViewer.NET.Playback2D.Input.ITokenEditor?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.IToolHandle
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.IToolHandle.ToolId.get -> string!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Deconstruct(out DemoViewer.NET.Playback2D.Levels.MapLevel! Level, out double WorldX, out double WorldY, out Avalonia.Point Screen, out Avalonia.Input.KeyModifiers Modifiers) -> void
@@ -461,9 +463,9 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.TotalFrames.get -> int
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.UnregisterTrack(DemoViewer.NET.Playback2D.Timeline.ITimelineTrack! track) -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.UpdatePlayhead(int frameIndex, int tick) -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.ActiveTool.get -> DemoViewer.NET.Playback2D.Input.ToolKind
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.ActiveTool.get -> string!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>! layer) -> System.IDisposable!
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.AddTool(DemoViewer.NET.Playback2D.Input.IPointerTool! tool) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.AddTool(DemoViewer.NET.Playback2D.Input.IPointerTool! tool) -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.IToolHandle!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.CancelGesture() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.CompleteTextEdit(string? text) -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Fit() -> void
@@ -471,7 +473,7 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Invalidate() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.PaneAt(Avalonia.Point point) -> DemoViewer.NET.Playback2D.Levels.LevelPane?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Panes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Levels.LevelPane!>!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SceneView() -> void
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SetActiveTool(DemoViewer.NET.Playback2D.Input.ToolKind kind) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SetActiveTool(string! toolId) -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SetHoldPan(bool held) -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Source.get -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Source.set -> void

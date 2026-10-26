@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 ///         Set <see cref="Source" /> to what to draw; the view re-reads it on every
 ///         <see cref="ISceneSource.FrameUpdated" />. A press goes to the source first
 ///         (<see cref="ISceneSource.OnPress" />), then to the active tool: one of the drawing tools, chosen with
-///         <see cref="SetActiveTool" />, or a tool you added whose <see cref="IPointerTool.Kind" /> you chose.
+///         <see cref="SetActiveTool" />, or a tool you added, by the id <see cref="AddTool" /> reports.
 ///         Space, Control and the middle button always pan, and the wheel zooms.
 ///     </para>
 ///     <para>
@@ -62,8 +62,11 @@ public sealed class SceneView : Control
     /// <summary>The panes as last arranged, one per floor on screen.</summary>
     public IReadOnlyList<LevelPane> Panes => _backend?.Panes ?? [];
 
-    /// <summary>The tool presses go to. <see cref="ToolKind.PanZoom" /> pans.</summary>
-    public ToolKind ActiveTool => _backend?.ActiveTool ?? ToolKind.PanZoom;
+    /// <summary>
+    ///     The id of the tool presses go to: one of the scene's own, or the one
+    ///     <see cref="IToolHandle.ToolId" /> reported for a tool of yours.
+    /// </summary>
+    public string ActiveTool => _backend?.ActiveTool ?? ToolIds.Of(ToolKind.PanZoom);
 
     /// <summary>
     ///     Raised when the text tool placed a label and wants its text typed: the point in this view the label's
@@ -103,21 +106,29 @@ public sealed class SceneView : Control
     }
 
     /// <summary>
-    ///     A pointer tool <see cref="SetActiveTool" /> can select by its <see cref="IPointerTool.Kind" />. A kind
-    ///     the scene's own drawing tools use is replaced by the tool for this view.
+    ///     A pointer tool of your own. The host files it under your extension, so its
+    ///     <see cref="IPointerTool.Id" /> is yours to choose and can take neither the scene's own nor another
+    ///     extension's. Select it with <see cref="SetActiveTool" /> and the handle's
+    ///     <see cref="IToolHandle.ToolId" />; adding the same tool again hands back the same id.
     /// </summary>
     /// <param name="tool">The tool.</param>
-    /// <returns>Removes the tool; the view pans again if it was active.</returns>
-    public IDisposable AddTool(IPointerTool tool)
+    /// <returns>The id it was filed under, and removes it; the view pans again if it was active.</returns>
+    /// <exception cref="ArgumentException">
+    ///     <see cref="IPointerTool.Id" /> is empty, has a character outside letters, digits, '.', '-' and
+    ///     '_', or is one another tool on this view already holds.
+    /// </exception>
+    public IToolHandle AddTool(IPointerTool tool)
     {
         ArgumentNullException.ThrowIfNull(tool);
+
+        // The host first: a refused id must leave nothing added here either.
+        string id = _backend?.AddTool(tool) ?? tool.Id;
         if (!_tools.Contains(tool))
         {
             _tools.Add(tool);
-            _backend?.AddTool(tool);
         }
 
-        return new Removal(() =>
+        return new ToolHandle(id, () =>
         {
             if (_tools.Remove(tool))
             {
@@ -126,9 +137,13 @@ public sealed class SceneView : Control
         });
     }
 
-    /// <summary>Selects the tool presses go to. A gesture in flight is cancelled first, and an open label is kept.</summary>
-    /// <param name="kind">The tool; an unknown kind pans.</param>
-    public void SetActiveTool(ToolKind kind) => _backend?.SetActiveTool(kind);
+    /// <summary>
+    ///     Selects the tool presses go to. A gesture in flight is cancelled first, and an open label is kept.
+    ///     Reach one of the scene's own drawing tools through <see cref="ToolIds.Of" />, and one of yours
+    ///     through <see cref="IToolHandle.ToolId" />.
+    /// </summary>
+    /// <param name="toolId">The tool's id; an id with no tool on this view pans.</param>
+    public void SetActiveTool(string toolId) => _backend?.SetActiveTool(toolId);
 
     /// <summary>Hold-to-pan: while held, every press pans whatever tool is active. Set it from your pan key.</summary>
     /// <param name="held">Whether the pan key is down.</param>
@@ -181,6 +196,26 @@ public sealed class SceneView : Control
 
         public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
     }
+
+    private sealed class ToolHandle(string id, Action dispose) : IToolHandle
+    {
+        private Action? _dispose = dispose;
+
+        public string ToolId => id;
+
+        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
+}
+
+/// <summary>A pointer tool added to a <see cref="SceneView" />: the id it was filed under, and its removal.</summary>
+public interface IToolHandle : IDisposable
+{
+    /// <summary>
+    ///     The id the host filed the tool under, which is what <see cref="SceneView.SetActiveTool" /> and
+    ///     <see cref="SceneView.ActiveTool" /> speak. Not <see cref="IPointerTool.Id" />, which is the local
+    ///     id you chose: the host composes that under your extension, so this is the only id that matches.
+    /// </summary>
+    string ToolId { get; }
 }
 
 /// <summary>What draws a <see cref="SceneView" />: the app's scene renderer, installed at startup.</summary>
@@ -195,8 +230,8 @@ internal interface ISceneViewBackend
     /// <summary>The panes as last arranged.</summary>
     IReadOnlyList<LevelPane> Panes { get; }
 
-    /// <summary>The tool presses go to.</summary>
-    ToolKind ActiveTool { get; }
+    /// <summary>The id of the tool presses go to.</summary>
+    string ActiveTool { get; }
 
     /// <summary>The text tool placed a label.</summary>
     event Action<Point, double>? TextEditRequested;
@@ -207,14 +242,14 @@ internal interface ISceneViewBackend
     /// <summary>Removes a layer.</summary>
     void RemoveLayer(string id);
 
-    /// <summary>Registers a tool under its kind.</summary>
-    void AddTool(IPointerTool tool);
+    /// <summary>Registers a tool, filed under its extension, and answers the id it was filed under.</summary>
+    string AddTool(IPointerTool tool);
 
     /// <summary>Removes a tool; pans if it was active.</summary>
     void RemoveTool(IPointerTool tool);
 
-    /// <summary>Selects the active tool.</summary>
-    void SetActiveTool(ToolKind kind);
+    /// <summary>Selects the active tool by id.</summary>
+    void SetActiveTool(string toolId);
 
     /// <summary>Hold-to-pan.</summary>
     void SetHoldPan(bool held);

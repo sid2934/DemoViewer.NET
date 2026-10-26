@@ -181,6 +181,14 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
 
         Router.CancelActive();
         _panFallback = false;
+
+        // Every adapter files under the same id, there being one primary tool, so the one leaving has to be
+        // unregistered before the one arriving is offered.
+        if (_primary is { } previous)
+        {
+            Router.Unregister(previous);
+        }
+
         if (tool is null)
         {
             _primary = null;
