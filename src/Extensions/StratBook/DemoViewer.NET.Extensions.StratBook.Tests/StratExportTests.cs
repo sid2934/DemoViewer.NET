@@ -58,7 +58,8 @@ public class StratExportTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (StratBookTabViewModel vm, List<Playback2DExportStatusViewModel> chips) = OpenFiveSteps();
+            (StratBookTabViewModel vm, List<Playback2DExportStatusViewModel> chips, ExtensionSceneExport export) = OpenFiveSteps();
+            using (export)
             using (vm)
             {
                 vm.OpenExportCommand.Execute(null);
@@ -100,12 +101,13 @@ public class StratExportTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (StratBookTabViewModel vm, _) = OpenFiveSteps();
+            (StratBookTabViewModel vm, _, ExtensionSceneExport export) = OpenFiveSteps();
             string dir = Path.Combine(Path.GetTempPath(), "dv-strat-export-" + Guid.NewGuid().ToString("N"));
             string output = Path.Combine(dir, "five-steps.gif");
             string silencedOutput = Path.Combine(dir, "five-steps-silenced.gif");
             try
             {
+                using (export)
                 using (vm)
                 {
                     vm.OpenExportCommand.Execute(null);
@@ -183,7 +185,8 @@ public class StratExportTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (StratBookTabViewModel vm, _) = OpenFiveSteps();
+            (StratBookTabViewModel vm, _, ExtensionSceneExport export) = OpenFiveSteps();
+            using (export)
             using (vm)
             {
                 vm.OpenExportCommand.Execute(null);
@@ -309,7 +312,14 @@ public class StratExportTests
 
     // A Strat Book tab with the five-step strat open, activated on a real ModuleContext carrying a strat export host
     // whose job never finds ffmpeg; the list collects the chips the host is asked to mount.
-    private static (StratBookTabViewModel Vm, List<Playback2DExportStatusViewModel> Chips) OpenFiveSteps()
+    // The gate and the queue are the machine's, one per process: nothing here starts an export, and a fresh
+    // pair per test would leave a queue running for every case in the suite.
+    private static readonly HeavyJobGate _gate = new();
+
+    private static readonly FirstPartyExports _exports = new(_gate, new DemoProcessingQueue(_gate, a => a()));
+
+    private static (StratBookTabViewModel Vm, List<Playback2DExportStatusViewModel> Chips, ExtensionSceneExport Export)
+        OpenFiveSteps()
     {
         StratStore store = new(null);
         StratDocument document = FiveSteps();
@@ -324,16 +334,14 @@ public class StratExportTests
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
 
         List<Playback2DExportStatusViewModel> chips = [];
-        HeavyJobGate gate = new();
-        ExtensionSceneExport export = new(StratBookPack.PackId, StratBookPack.PackFeatureId,
-            new FirstPartyExports(gate, new DemoProcessingQueue(gate, a => a())), null, new ChipCollector(chips),
-            ExtensionGuard.Standalone(new StratBookPack()), null);
+        ExtensionSceneExport export = new(StratBookPack.PackId, StratBookPack.PackFeatureId, _exports, null,
+            new ChipCollector(chips), ExtensionGuard.Standalone(new StratBookPack()), null);
 
         ModuleContext context = new(new PlaybackController(), () => null);
         context.RegisterService<IExtensionSceneExport>(() => export);
         vm.OnActivated(context);
         vm.Session.Open(document.Id);
-        return (vm, chips);
+        return (vm, chips, export);
     }
 
     // The scene the pane's Start would hand over, as the host builds it: the tab's capture, no map art (the
