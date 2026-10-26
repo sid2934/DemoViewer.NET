@@ -47,6 +47,11 @@ public sealed record ExportRequest(
 /// <summary>
 ///     Well-known <see cref="ExportRequest.FormatId" /> values. <b>Persisted keys</b>: they appear in
 ///     saved defaults and in CLI arguments, so they are never renamed.
+///     <para>
+///         The source of truth. The SDK publishes the same ids as <c>SceneExportFormats</c>, because this
+///         assembly is not published and cannot reference the SDK; <c>SceneExportFormatsPinTests</c> holds
+///         the two copies together.
+///     </para>
 /// </summary>
 public static class ExportFormats
 {

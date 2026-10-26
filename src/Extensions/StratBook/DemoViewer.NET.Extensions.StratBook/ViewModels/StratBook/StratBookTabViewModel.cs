@@ -14,7 +14,6 @@ using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
-using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
@@ -578,7 +577,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
             Title = "Export strat",
             FileStem = ExportFileStem(document.Name),
             Ranges = StratExportJob.Ranges(projection),
-            Choices = new SceneExportChoices(ExportFormats.Gif, StratExportJob.DefaultFps,
+            Choices = new SceneExportChoices(SceneExportFormats.Gif, StratExportJob.DefaultFps,
                 StratExportJob.DefaultWidth, StratExportJob.DefaultHeight, IncludeHud: true,
                 IncludeHudClock: true, IncludeAnnotations: true, IncludeVision: false),
             OutputFrameCount = StratFrameSource.OutputFrameCount,

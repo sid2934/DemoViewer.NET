@@ -22,7 +22,7 @@ public sealed record SceneExportSize(string Label, int Width, int Height);
 public sealed record SceneExportRange(string Label, int Start, int End);
 
 /// <summary>An extension's own starting choices for the export pane over its scene.</summary>
-/// <param name="FormatId">The output format id: <c>"gif"</c>, <c>"webm"</c> or <c>"mp4"</c>.</param>
+/// <param name="FormatId">The output format id, one of <see cref="SceneExportFormats" />.</param>
 /// <param name="Fps">Output frames per second. One of <see cref="IExtensionSceneExport.SupportedFps" />.</param>
 /// <param name="Width">Output width in pixels.</param>
 /// <param name="Height">Output height in pixels.</param>
@@ -167,7 +167,7 @@ public sealed record SceneExportClip
     /// <summary>Where the encoded file goes. Its directory must exist.</summary>
     public required string OutputPath { get; init; }
 
-    /// <summary>The output format id: <c>"gif"</c>, <c>"webm"</c> or <c>"mp4"</c>.</summary>
+    /// <summary>The output format id, one of <see cref="SceneExportFormats" />.</summary>
     public required string FormatId { get; init; }
 
     /// <summary>The demo the clip comes from, for the host's own diagnostics; empty where there is none.</summary>
@@ -288,7 +288,7 @@ public interface IExtensionSceneExport
     ///     The frame rates a format supports, in pane order. GIF has its own, shorter list: a rate off it is
     ///     refused as <see cref="SceneExportRefusal.Invalid" /> rather than silently resampled.
     /// </summary>
-    /// <param name="formatId">The output format id.</param>
+    /// <param name="formatId">The output format id, one of <see cref="SceneExportFormats" />.</param>
     IReadOnlyList<int> SupportedFps(string formatId);
 
     /// <summary>Opens the host's export pane over an extension's scene.</summary>

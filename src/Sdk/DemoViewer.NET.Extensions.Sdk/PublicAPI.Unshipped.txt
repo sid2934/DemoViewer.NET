@@ -1230,6 +1230,9 @@ DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.WorkspaceTabDescripto
 const DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds.Compute = "section" -> string!
 const DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds.Load = "load" -> string!
 const DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds.Save = "save" -> string!
+const DemoViewer.NET.Extensions.Sdk.Export.SceneExportFormats.Gif = "gif" -> string!
+const DemoViewer.NET.Extensions.Sdk.Export.SceneExportFormats.Mp4 = "mp4" -> string!
+const DemoViewer.NET.Extensions.Sdk.Export.SceneExportFormats.WebM = "webm" -> string!
 const DemoViewer.NET.Extensions.Sdk.FactKey.ScoreboardOutput = "scoreboard" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.FactsPass = "facts" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.LibraryFeature = "tab.library" -> string!
@@ -1963,6 +1966,7 @@ DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.ToTick.get -> int
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.ToTick.init -> void
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Width.get -> int
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportClip.Width.init -> void
+DemoViewer.NET.Extensions.Sdk.Export.SceneExportFormats
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportFrameCount
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome
 DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Export.SceneExportOutcome!

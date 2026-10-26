@@ -5,7 +5,6 @@ using System.Security.Cryptography;
 using System.Text;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.Sdk.Export;
-using DemoViewer.NET.Playback2D.Pipeline.Export;
 
 #endregion
 
@@ -66,7 +65,7 @@ public sealed record LineupClipJob(
 /// </summary>
 public static class LineupClipPlanner
 {
-    /// <summary>The GIF's rate: one of <c>SceneExportSession.SupportedFps</c>'s GIF rates, the Strat Export default.</summary>
+    /// <summary>The GIF's rate: one of <c>IExtensionSceneExport.SupportedFps</c>'s GIF rates, the Strat Export default.</summary>
     public const int Fps = 20;
 
     /// <summary>The GIF's side, square like a Lineup Card's radar.</summary>
@@ -320,7 +319,7 @@ public static class LineupClipPlanner
             Scene = scene,
             OutputPath = job.GifPath,
             DemoPath = job.DemoPath,
-            FormatId = ExportFormats.Gif,
+            FormatId = SceneExportFormats.Gif,
             Fps = Fps,
             Width = Side,
             Height = Side,

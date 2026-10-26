@@ -193,6 +193,8 @@ no opt-in layer: no ink, no HUD and no telestration is ever burned in without be
 A render that does not produce a file answers with a `SceneExportOutcome` rather than throwing, and
 `Message` is the only part of it to put in front of a user. `SupportedFps(formatId)` lists the rates a format
 takes, which are shorter for GIF than for video, and `SizePresets` the sizes the host's own export offers.
+Every `formatId` here is one of `SceneExportFormats.WebM`, `.Mp4` or `.Gif`. They are persisted keys, so name
+them through that class rather than writing the string.
 
 ## The host
 
