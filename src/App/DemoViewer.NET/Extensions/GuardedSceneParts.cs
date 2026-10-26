@@ -151,6 +151,46 @@ internal sealed class GuardedSceneLayer : ISceneLayer
     }
 }
 
+/// <summary>
+///     Where a scene layer handed to a <see cref="Sdk.Ui.Controls.MapView" /> or a
+///     <see cref="Sdk.Ui.Controls.SceneView" /> is filed: under the extension whose code wrote the factory,
+///     or under the id it was given when no loaded extension owns that code (host code, a test, the
+///     capture tool). A bare id colliding with a view's own layer is what the view's own refusal says out
+///     loud, where a filed one cannot collide at all.
+/// </summary>
+internal static class ContributedSceneLayer
+{
+    /// <summary>
+    ///     The id <paramref name="factory" /> is filed under, and the factory the view keeps. Composing
+    ///     OUTSIDE the guard is deliberate, as it is for a lane and a tool: a bad local id throws out of the
+    ///     add rather than being swallowed as a fault, which would leave two of the extension's layers
+    ///     sharing one fallback id.
+    /// </summary>
+    /// <param name="id">The layer's id within its extension.</param>
+    /// <param name="factory">Builds the layer.</param>
+    /// <param name="site">The call site's name in the fault log.</param>
+    /// <param name="faults">The fault tracker to attribute <paramref name="factory" /> to, or null for none.</param>
+    /// <exception cref="ArgumentException"><paramref name="id" /> has a character outside letters, digits, '.', '-' and '_'.</exception>
+    public static (string Id, Func<ISceneLayer> Factory) File(string id, Func<ISceneLayer> factory, string site,
+        ExtensionFaults? faults)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        ArgumentNullException.ThrowIfNull(factory);
+        if (faults?.Owner(factory) is not { } owner)
+        {
+            return (id, factory);
+        }
+
+        ExtensionGuard guard = faults.GuardFor(owner);
+        string filed = ExtensionLayerIds.Compose(owner.Id, id);
+        // The fallback answers for a factory that threw; the coalesce for one that returned null, which
+        // GuardedSceneLayer refuses and which would throw out here, outside the guard, on every rebuild.
+        return (filed,
+            () => new GuardedSceneLayer(filed,
+                guard.Run<ISceneLayer?>(site, factory, EmptySceneLayer.Instance) ?? EmptySceneLayer.Instance, guard));
+    }
+}
+
 /// <summary>An extension's map tool with every call run as the extension's. A throwing press is a refused one.</summary>
 internal sealed class GuardedMapTool(IMapTool inner, ExtensionGuard guard) : IMapTool
 {

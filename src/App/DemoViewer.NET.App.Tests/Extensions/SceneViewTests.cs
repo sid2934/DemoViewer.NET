@@ -131,6 +131,48 @@ public class SceneViewTests
         });
     }
 
+    /// <summary>
+    ///     An extension's layer is filed under it and the handle reports that id. The local id the
+    ///     extension chose names nothing in the stack, and neither does the built layer's own.
+    /// </summary>
+    [Test]
+    public async Task AnExtensionsLayer_IsFiledUnderIt_AndTheHandleReportsThatId()
+    {
+        FaultRig rig = new("pack.a");
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                // Inside the session: App.Initialize installs the renderers, so a factory set before the
+                // first RunOnUi is replaced. This view's own tracker rather than the process's, since
+                // installing one process-wide would file every other test's layer factory under it too,
+                // this assembly being what the rig's scope owns.
+                SceneViewHost.Factory = () => new HostedSceneView(rig.Faults);
+                FakeSource source = new();
+                source.Publish(Frame(1));
+                (Window window, SceneView view) = Mount(source);
+                Scene2DHost host = view.GetVisualDescendants().OfType<Scene2DHost>().Single();
+
+                ILayerHandle layer = view.AddLayer("heat", () => new InertLayer("mine"));
+                using (Assert.Multiple())
+                {
+                    await Assert.That(layer.LayerId).IsEqualTo("ext.pack.a.heat");
+                    await Assert.That(host.Compositor.Layers.Any(l => l.Id == "ext.pack.a.heat")).IsTrue();
+                    await Assert.That(host.Compositor.Layers.Any(l => l.Id is "heat" or "mine")).IsFalse()
+                        .Because("the filed id is the only one the layer answers to");
+                }
+
+                layer.Dispose();
+                await Assert.That(host.Compositor.Layers.Any(l => l.Id == "ext.pack.a.heat")).IsFalse();
+                window.Close();
+            });
+        }
+        finally
+        {
+            SdkSceneHosts.Install();
+        }
+    }
+
     /// <summary>A second layer under one id is refused, and the first keeps the id and its own removal.</summary>
     [Test]
     public async Task AddLayer_RefusesAnIdTheSceneAlreadyHolds()

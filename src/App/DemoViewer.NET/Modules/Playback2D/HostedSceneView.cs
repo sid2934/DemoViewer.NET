@@ -31,11 +31,17 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
 {
     private readonly Scene2DHost _host = new();
     private readonly Dictionary<IPointerTool, IPointerTool> _tools = new(ReferenceEqualityComparer.Instance);
+    private readonly ExtensionFaults? _faults;
     private SourceFrameHost? _bound;
 
     /// <summary>Creates the view over a fresh scene host.</summary>
-    public HostedSceneView()
+    /// <param name="faults">
+    ///     The tracker a contributed layer or tool of this view is attributed to, or null for the
+    ///     process's. A test host files under a scope of its own without installing one process-wide.
+    /// </param>
+    public HostedSceneView(ExtensionFaults? faults = null)
     {
+        _faults = faults;
         ClipToBounds = true;
         _host.TextEditRequested += (at, emPixels) => TextEditRequested?.Invoke(at, emPixels);
         LogicalChildren.Add(_host);
@@ -44,6 +50,10 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
 
     /// <summary>The scene host drawing the view.</summary>
     internal Scene2DHost Host => _host;
+
+    // Read per add, not cached: the desktop head installs the process's tracker before the first view is
+    // built, but a host built in a test or a designer may outlive one being installed.
+    private ExtensionFaults? Faults => _faults ?? ExtensionFaults.Current;
 
     /// <inheritdoc />
     public Control View => this;
@@ -82,7 +92,16 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
     }
 
     /// <inheritdoc />
-    public void SetLayer(string id, Func<ISceneLayer> layer) => _host.AddLayer(id, () => Build(id, layer));
+    public string AddLayer(string id, Func<ISceneLayer> layer)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        ArgumentNullException.ThrowIfNull(layer);
+        (string filed, Func<ISceneLayer> build) = ContributedSceneLayer.File(id, layer, "scene view layer factory", Faults);
+
+        // The host holds the registry and refuses a duplicate, so nothing is recorded before it has taken it.
+        _host.AddLayer(filed, build);
+        return filed;
+    }
 
     /// <inheritdoc />
     public void RemoveLayer(string id) => _host.RemoveLayer(id);
@@ -149,24 +168,11 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
         return finalSize;
     }
 
-    // An extension's layer or tool runs as the extension's; anything else runs as it is.
-    private static ISceneLayer Build(string id, Func<ISceneLayer> factory)
-    {
-        if (ExtensionFaults.Current is not { } faults || faults.Owner(factory) is not { } owner)
-        {
-            return factory();
-        }
-
-        ExtensionGuard guard = faults.GuardFor(owner);
-        ISceneLayer? built = guard.Run("scene view layer factory", factory, null);
-        return built is null ? new GuardedSceneLayer(id, EmptySceneLayer.Instance, guard) : new GuardedSceneLayer(id, built, guard);
-    }
-
     // A tool from an extension assembly is filed under it, so it can take neither a scene tool's id nor
     // another extension's. One from no loaded extension (a test, the capture tool) keeps its bare id, and a
     // bare id that collides with a scene tool's is what the router's refusal is there to say out loud.
-    private static IPointerTool Guard(IPointerTool tool) =>
-        ExtensionFaults.Current is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
+    private IPointerTool Guard(IPointerTool tool) =>
+        Faults is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
             ? new GuardedPointerTool(tool, faults.GuardFor(owner))
             : tool;
 

@@ -70,9 +70,16 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     private long _submissionId;
     private TextBlobCache _text;
 
+    private readonly ExtensionFaults? _faults;
+
     /// <summary>Creates the host and its base layer stack.</summary>
-    public HostedMapView()
+    /// <param name="faults">
+    ///     The tracker a contributed layer or tool of this view is attributed to, or null for the
+    ///     process's. A test host files under a scope of its own without installing one process-wide.
+    /// </param>
+    public HostedMapView(ExtensionFaults? faults = null)
     {
+        _faults = faults;
         Focusable = true;
         ClipToBounds = true;
 
@@ -90,6 +97,10 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
 
     // The tool a plain left press goes to.
     private ToolKind PrimaryKind => _primary is null ? ToolKind.PanZoom : ToolKind.Map;
+
+    // Read per add, not cached: the desktop head installs the process's tracker before the first view is
+    // built, but a host built in a test or a designer may outlive one being installed.
+    private ExtensionFaults? Faults => _faults ?? ExtensionFaults.Current;
 
     /// <inheritdoc />
     public Control View => this;
@@ -136,27 +147,29 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     }
 
     /// <inheritdoc />
-    public void SetLayer(string id, Func<ISceneLayer> layer)
+    public string AddLayer(string id, Func<ISceneLayer> layer)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(layer);
-        if (!_layers.TryAdd(id, layer))
+        (string filed, Func<ISceneLayer> build) = ContributedSceneLayer.File(id, layer, "map view layer factory", Faults);
+        if (!_layers.TryAdd(filed, build))
         {
-            throw new ArgumentException($"A layer is already registered as '{id}'.", nameof(id));
+            throw new ArgumentException($"A layer is already registered as '{filed}'.", nameof(id));
         }
 
         if (_released)
         {
-            return;
+            return filed;
         }
 
         using (_gate.Enter())
         {
-            _compositor.Remove(id);
-            _compositor.Add(Build(id, layer));
+            _compositor.Remove(filed);
+            _compositor.Add(build());
         }
 
         InvalidateVisual();
+        return filed;
     }
 
     /// <inheritdoc />
@@ -513,9 +526,9 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
         };
         _compositor.Add(_radarLayer);
         _compositor.Add(new FloorLabelLayer(_text));
-        foreach ((string id, Func<ISceneLayer> layer) in _layers)
+        foreach (Func<ISceneLayer> layer in _layers.Values)
         {
-            _compositor.Add(Build(id, layer));
+            _compositor.Add(layer());
         }
 
         _boundAsset = null;
@@ -584,21 +597,9 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
         _boundAsset = null;
     }
 
-    // An extension's layer or tool runs as the extension's; anything else runs as it is.
-    private static ISceneLayer Build(string id, Func<ISceneLayer> factory)
-    {
-        if (ExtensionFaults.Current is not { } faults || faults.Owner(factory) is not { } owner)
-        {
-            return factory();
-        }
-
-        ExtensionGuard guard = faults.GuardFor(owner);
-        ISceneLayer? built = guard.Run("map view layer factory", factory, null);
-        return built is null ? new GuardedSceneLayer(id, EmptySceneLayer.Instance, guard) : new GuardedSceneLayer(id, built, guard);
-    }
-
-    private static IMapTool Guard(IMapTool tool) =>
-        ExtensionFaults.Current is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
+    // An extension's tool runs as the extension's; anything else runs as it is.
+    private IMapTool Guard(IMapTool tool) =>
+        Faults is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
             ? new GuardedMapTool(tool, faults.GuardFor(owner))
             : tool;
 

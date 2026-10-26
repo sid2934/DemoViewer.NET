@@ -80,16 +80,22 @@ public sealed class MapView : Control
 
     /// <summary>
     ///     A layer drawn over the radar, ordered by <see cref="ISceneLayer.Slot" /> and
-    ///     <see cref="ISceneLayer.Order" />. The built layer's <see cref="ISceneLayer.Id" /> must be
-    ///     <paramref name="id" />.
+    ///     <see cref="ISceneLayer.Order" />. The host files it under your extension, so
+    ///     <paramref name="id" /> is yours to choose and can take neither the view's own layers nor another
+    ///     extension's; the handle reports the id it was filed under, and the built layer's own
+    ///     <see cref="ISceneLayer.Id" /> is not read.
     /// </summary>
-    /// <param name="id">The layer's id. The radar's and the floor label's ids are the view's own and are refused.</param>
+    /// <param name="id">
+    ///     The layer's id within your extension: letters, digits, '.', '-' and '_'. The radar's and the
+    ///     floor label's ids are the view's own and are refused.
+    /// </param>
     /// <param name="layer">Builds a fresh layer; called now and whenever the map rebuilds its scene.</param>
-    /// <returns>Removes the layer.</returns>
+    /// <returns>The id it was filed under, and removes the layer.</returns>
     /// <exception cref="ArgumentException">
-    ///     <paramref name="id" /> is one of the view's own layers, or one a layer on this view already holds.
+    ///     <paramref name="id" /> is one of the view's own layers, has a character outside letters, digits,
+    ///     '.', '-' and '_', or is one a layer on this view already holds.
     /// </exception>
-    public IDisposable AddLayer(string id, Func<ISceneLayer> layer)
+    public ILayerHandle AddLayer(string id, Func<ISceneLayer> layer)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(layer);
@@ -98,20 +104,21 @@ public sealed class MapView : Control
             throw new ArgumentException($"'{id}' is one of the map view's own layers.", nameof(id));
         }
 
-        // The host first: a refused id must leave nothing recorded here either. With no host to refuse
-        // it, this map is the only registry there is.
-        _backend?.SetLayer(id, layer);
-        if (!_layers.TryAdd(id, layer))
+        // The host first: it composes the id and refuses a duplicate, so a refused add must leave nothing
+        // recorded here either. With no host to file it, the id is its own and this map is the only
+        // registry there is.
+        string filed = _backend?.AddLayer(id, layer) ?? id;
+        if (!_layers.TryAdd(filed, layer))
         {
-            throw new ArgumentException($"A layer is already registered as '{id}'.", nameof(id));
+            throw new ArgumentException($"A layer is already registered as '{filed}'.", nameof(id));
         }
 
-        return new Removal(() =>
+        return new LayerHandle(filed, () =>
         {
-            if (_layers.TryGetValue(id, out Func<ISceneLayer>? current) && ReferenceEquals(current, layer))
+            if (_layers.TryGetValue(filed, out Func<ISceneLayer>? current) && ReferenceEquals(current, layer))
             {
-                _layers.Remove(id);
-                _backend?.RemoveLayer(id);
+                _layers.Remove(filed);
+                _backend?.RemoveLayer(filed);
             }
         });
     }
@@ -197,6 +204,29 @@ public sealed class MapView : Control
 
         public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
     }
+
+    private sealed class LayerHandle(string id, Action dispose) : ILayerHandle
+    {
+        private Action? _dispose = dispose;
+
+        public string LayerId => id;
+
+        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
+}
+
+/// <summary>
+///     A scene layer added to a <see cref="MapView" /> or a <see cref="SceneView" />: the id it was filed
+///     under, and its removal.
+/// </summary>
+public interface ILayerHandle : IDisposable
+{
+    /// <summary>
+    ///     The id the host filed the layer under, <c>ext.&lt;extension id&gt;.&lt;id&gt;</c> for a layer of
+    ///     yours. Not the id you passed, which is the local one. Nothing in this kit takes a layer id back,
+    ///     so this is how you recognise your own layer rather than how you reach it.
+    /// </summary>
+    string LayerId { get; }
 }
 
 /// <summary>What draws a <see cref="MapView" />: the app's map renderer, installed at startup.</summary>
@@ -223,8 +253,8 @@ internal interface IMapViewBackend
     /// <summary>A map was bound or unbound.</summary>
     event Action? MapBound;
 
-    /// <summary>Adds a layer, refusing an id it already holds.</summary>
-    void SetLayer(string id, Func<ISceneLayer> layer);
+    /// <summary>Registers a layer, filed under its extension, and answers the id it was filed under.</summary>
+    string AddLayer(string id, Func<ISceneLayer> layer);
 
     /// <summary>Removes a layer.</summary>
     void RemoveLayer(string id);

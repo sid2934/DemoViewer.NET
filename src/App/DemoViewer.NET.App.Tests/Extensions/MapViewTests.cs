@@ -96,6 +96,51 @@ public class MapViewTests
     }
 
     /// <summary>
+    ///     An extension's layer is filed under it and the handle reports that id, and the layer the host
+    ///     built under that id is the one drawing.
+    /// </summary>
+    [Test]
+    public async Task AnExtensionsLayer_IsFiledUnderIt_AndTheHandleReportsThatId()
+    {
+        FaultRig rig = new("pack.a");
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                // Inside the session: App.Initialize installs the renderers, so a factory set before the
+                // first RunOnUi is replaced. This view's own tracker rather than the process's, since
+                // installing one process-wide would file every other test's layer factory under it too,
+                // this assembly being what the rig's scope owns.
+                MapViewHost.Factory = () => new HostedMapView(rig.Faults);
+                (Window window, MapView view) = Mount();
+                view.MapName = Map;
+                CountingLayer? built = null;
+                ILayerHandle layer = view.AddLayer("heat", () => built = new CountingLayer("mine"));
+                Playback2DTimelineHarness.Pump();
+                window.CaptureRenderedFrame();
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(layer.LayerId).IsEqualTo("ext.pack.a.heat");
+                    await Assert.That(built!.Renders).IsGreaterThan(0).Because("the filed layer is the one in the stack");
+                }
+
+                layer.Dispose();
+                int before = built.Renders;
+                view.Invalidate();
+                Playback2DTimelineHarness.Pump();
+                window.CaptureRenderedFrame();
+                await Assert.That(built.Renders).IsEqualTo(before).Because("the handle removes it by the filed id");
+                window.Close();
+            });
+        }
+        finally
+        {
+            SdkSceneHosts.Install();
+        }
+    }
+
+    /// <summary>
     ///     A second layer under one id is refused rather than replacing the first. A replacement left the
     ///     first owner holding a handle that removed nothing.
     /// </summary>

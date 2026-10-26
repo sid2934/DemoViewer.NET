@@ -48,7 +48,7 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.PreviousValue.init -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Value.get -> string!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Value.init -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>! layer) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>! layer) -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.ILayerHandle!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.AddTool(DemoViewer.NET.Playback2D.Tools.IMapTool! tool) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.CancelGesture() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.EscapePressed -> System.EventHandler?
@@ -433,6 +433,8 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.OnLevelsMoved(System.Coll
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.OnPress(DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress! press) -> bool
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.ShowViewCones.get -> bool
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.TokenEditor.get -> DemoViewer.NET.Playback2D.Input.ITokenEditor?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ILayerHandle
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ILayerHandle.LayerId.get -> string!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.IToolHandle
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.IToolHandle.ToolId.get -> string!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress
@@ -464,7 +466,7 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.UnregisterTrack(DemoView
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.UpdatePlayhead(int frameIndex, int tick) -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.ActiveTool.get -> string!
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>! layer) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Compositing.ISceneLayer!>! layer) -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.ILayerHandle!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.AddTool(DemoViewer.NET.Playback2D.Input.IPointerTool! tool) -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.IToolHandle!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.CancelGesture() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.CompleteTextEdit(string? text) -> void

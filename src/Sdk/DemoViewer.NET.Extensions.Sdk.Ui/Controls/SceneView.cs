@@ -77,16 +77,22 @@ public sealed class SceneView : Control
 
     /// <summary>
     ///     A layer drawn among the scene's own, ordered by <see cref="ISceneLayer.Slot" /> and
-    ///     <see cref="ISceneLayer.Order" />. The built layer's <see cref="ISceneLayer.Id" /> must be
-    ///     <paramref name="id" />.
+    ///     <see cref="ISceneLayer.Order" />. The host files it under your extension, so
+    ///     <paramref name="id" /> is yours to choose and can take neither the scene's own layers nor another
+    ///     extension's; the handle reports the id it was filed under, and the built layer's own
+    ///     <see cref="ISceneLayer.Id" /> is not read.
     /// </summary>
-    /// <param name="id">The layer's id. The scene's own ids are refused.</param>
+    /// <param name="id">
+    ///     The layer's id within your extension: letters, digits, '.', '-' and '_'. The scene's own ids are
+    ///     refused.
+    /// </param>
     /// <param name="layer">Builds a fresh layer; called now and whenever the scene rebuilds.</param>
-    /// <returns>Removes the layer.</returns>
+    /// <returns>The id it was filed under, and removes the layer.</returns>
     /// <exception cref="ArgumentException">
-    ///     <paramref name="id" /> is one of the scene's own layers, or one a layer on this view already holds.
+    ///     <paramref name="id" /> is one of the scene's own layers, has a character outside letters, digits,
+    ///     '.', '-' and '_', or is one a layer on this view already holds.
     /// </exception>
-    public IDisposable AddLayer(string id, Func<ISceneLayer> layer)
+    public ILayerHandle AddLayer(string id, Func<ISceneLayer> layer)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(layer);
@@ -95,20 +101,21 @@ public sealed class SceneView : Control
             throw new ArgumentException($"'{id}' is one of the scene's own layers.", nameof(id));
         }
 
-        // The host first: a refused id must leave nothing recorded here either. With no host to refuse
-        // it, this map is the only registry there is.
-        _backend?.SetLayer(id, layer);
-        if (!_layers.TryAdd(id, layer))
+        // The host first: it composes the id and refuses a duplicate, so a refused add must leave nothing
+        // recorded here either. With no host to file it, the id is its own and this map is the only
+        // registry there is.
+        string filed = _backend?.AddLayer(id, layer) ?? id;
+        if (!_layers.TryAdd(filed, layer))
         {
-            throw new ArgumentException($"A layer is already registered as '{id}'.", nameof(id));
+            throw new ArgumentException($"A layer is already registered as '{filed}'.", nameof(id));
         }
 
-        return new Removal(() =>
+        return new LayerHandle(filed, () =>
         {
-            if (_layers.TryGetValue(id, out Func<ISceneLayer>? current) && ReferenceEquals(current, layer))
+            if (_layers.TryGetValue(filed, out Func<ISceneLayer>? current) && ReferenceEquals(current, layer))
             {
-                _layers.Remove(id);
-                _backend?.RemoveLayer(id);
+                _layers.Remove(filed);
+                _backend?.RemoveLayer(filed);
             }
         });
     }
@@ -205,6 +212,15 @@ public sealed class SceneView : Control
         public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
     }
 
+    private sealed class LayerHandle(string id, Action dispose) : ILayerHandle
+    {
+        private Action? _dispose = dispose;
+
+        public string LayerId => id;
+
+        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
+
     private sealed class ToolHandle(string id, Action dispose) : IToolHandle
     {
         private Action? _dispose = dispose;
@@ -244,8 +260,8 @@ internal interface ISceneViewBackend
     /// <summary>The text tool placed a label.</summary>
     event Action<Point, double>? TextEditRequested;
 
-    /// <summary>Adds a layer, refusing an id it already holds.</summary>
-    void SetLayer(string id, Func<ISceneLayer> layer);
+    /// <summary>Registers a layer, filed under its extension, and answers the id it was filed under.</summary>
+    string AddLayer(string id, Func<ISceneLayer> layer);
 
     /// <summary>Removes a layer.</summary>
     void RemoveLayer(string id);
