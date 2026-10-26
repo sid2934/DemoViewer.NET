@@ -1293,19 +1293,6 @@ DemoViewer.NET.Playback2D.Hud.HudSnapshot.TScore.get -> int
 DemoViewer.NET.Playback2D.Hud.HudSnapshot.TScore.init -> void
 DemoViewer.NET.Playback2D.Hud.HudSnapshot.Tick.get -> int
 DemoViewer.NET.Playback2D.Hud.HudSnapshot.Tick.init -> void
-DemoViewer.NET.Playback2D.Hud.HudStyle
-DemoViewer.NET.Playback2D.Hud.HudStyle.<Clone>$() -> DemoViewer.NET.Playback2D.Hud.HudStyle!
-DemoViewer.NET.Playback2D.Hud.HudStyle.Deconstruct(out float FontSizePx, out float MarginPx, out uint TextArgb, out uint PanelArgb) -> void
-DemoViewer.NET.Playback2D.Hud.HudStyle.Equals(DemoViewer.NET.Playback2D.Hud.HudStyle? other) -> bool
-DemoViewer.NET.Playback2D.Hud.HudStyle.FontSizePx.get -> float
-DemoViewer.NET.Playback2D.Hud.HudStyle.FontSizePx.init -> void
-DemoViewer.NET.Playback2D.Hud.HudStyle.HudStyle(float FontSizePx = 14, float MarginPx = 12, uint TextArgb = 4294111986, uint PanelArgb = 2567966736) -> void
-DemoViewer.NET.Playback2D.Hud.HudStyle.MarginPx.get -> float
-DemoViewer.NET.Playback2D.Hud.HudStyle.MarginPx.init -> void
-DemoViewer.NET.Playback2D.Hud.HudStyle.PanelArgb.get -> uint
-DemoViewer.NET.Playback2D.Hud.HudStyle.PanelArgb.init -> void
-DemoViewer.NET.Playback2D.Hud.HudStyle.TextArgb.get -> uint
-DemoViewer.NET.Playback2D.Hud.HudStyle.TextArgb.init -> void
 DemoViewer.NET.Playback2D.Hud.IHudDataSource
 DemoViewer.NET.Playback2D.Hud.IHudDataSource.At(int tick) -> DemoViewer.NET.Playback2D.Hud.HudSnapshot
 DemoViewer.NET.Playback2D.Hud.IIconSource
@@ -1768,9 +1755,6 @@ override DemoViewer.NET.Playback2D.GuidePin.ToString() -> string!
 override DemoViewer.NET.Playback2D.GuideToken.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Hud.HudPlayerRow.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Hud.HudSnapshot.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Hud.HudStyle.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Hud.HudStyle.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Hud.HudStyle.ToString() -> string!
 override DemoViewer.NET.Playback2D.Input.ToolWheelEvent.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Overlay.OverlayPoint.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Query.QueryToken.GetHashCode() -> int
@@ -1825,8 +1809,6 @@ static DemoViewer.NET.Playback2D.Hud.HudPlayerRow.operator ==(DemoViewer.NET.Pla
 static DemoViewer.NET.Playback2D.Hud.HudSnapshot.Empty.get -> DemoViewer.NET.Playback2D.Hud.HudSnapshot
 static DemoViewer.NET.Playback2D.Hud.HudSnapshot.operator !=(DemoViewer.NET.Playback2D.Hud.HudSnapshot left, DemoViewer.NET.Playback2D.Hud.HudSnapshot right) -> bool
 static DemoViewer.NET.Playback2D.Hud.HudSnapshot.operator ==(DemoViewer.NET.Playback2D.Hud.HudSnapshot left, DemoViewer.NET.Playback2D.Hud.HudSnapshot right) -> bool
-static DemoViewer.NET.Playback2D.Hud.HudStyle.operator !=(DemoViewer.NET.Playback2D.Hud.HudStyle? left, DemoViewer.NET.Playback2D.Hud.HudStyle? right) -> bool
-static DemoViewer.NET.Playback2D.Hud.HudStyle.operator ==(DemoViewer.NET.Playback2D.Hud.HudStyle? left, DemoViewer.NET.Playback2D.Hud.HudStyle? right) -> bool
 static DemoViewer.NET.Playback2D.Input.TokenHitTest.Classify(float tokenX, float tokenY, float yawDegrees, SkiaSharp.SKPoint world, float worldRadius, bool cone = false) -> DemoViewer.NET.Playback2D.Input.TokenGrip?
 static DemoViewer.NET.Playback2D.Input.TokenHitTest.WorldRadius(double worldUnitsPerPixel) -> float
 static DemoViewer.NET.Playback2D.Input.ToolWheelEvent.operator !=(DemoViewer.NET.Playback2D.Input.ToolWheelEvent left, DemoViewer.NET.Playback2D.Input.ToolWheelEvent right) -> bool

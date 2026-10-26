@@ -61,7 +61,7 @@ public sealed class KillFeedLayer : ISceneLayer
     ///     the shipped default: every export golden was baselined against them, so a source arrives here
     ///     only when a caller has decided to re-baseline.
     /// </param>
-    public KillFeedLayer(
+    internal KillFeedLayer(
         IHudDataSource data,
         HudStyle? style = null,
         TextBlobCache? text = null,
@@ -209,7 +209,7 @@ public sealed class KillFeedLayer : ISceneLayer
     ///     </para>
     /// </summary>
     /// <param name="style">The style the feed will be drawn with.</param>
-    public static float ReservedBandHeight(HudStyle style)
+    internal static float ReservedBandHeight(HudStyle style)
     {
         ArgumentNullException.ThrowIfNull(style);
 

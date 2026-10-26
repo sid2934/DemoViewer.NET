@@ -69,7 +69,7 @@ public sealed class RosterLayer : ISceneLayer
     /// <param name="data">The tick → HUD state function.</param>
     /// <param name="style">Colours and metrics; the shipped look when null.</param>
     /// <param name="text">A shared blob cache; a private one when null, disposed with the layer.</param>
-    public RosterLayer(IHudDataSource data, HudStyle? style = null, TextBlobCache? text = null)
+    internal RosterLayer(IHudDataSource data, HudStyle? style = null, TextBlobCache? text = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         _data = data;

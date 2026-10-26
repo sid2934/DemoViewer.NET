@@ -73,7 +73,6 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.GuideToken",
         "DemoViewer.NET.Playback2D.Hud.HudPlayerRow",
         "DemoViewer.NET.Playback2D.Hud.HudSnapshot",
-        "DemoViewer.NET.Playback2D.Hud.HudStyle",
         "DemoViewer.NET.Playback2D.Hud.IHudDataSource",
         "DemoViewer.NET.Playback2D.Hud.IIconSource",
         "DemoViewer.NET.Playback2D.ISceneFrames",
