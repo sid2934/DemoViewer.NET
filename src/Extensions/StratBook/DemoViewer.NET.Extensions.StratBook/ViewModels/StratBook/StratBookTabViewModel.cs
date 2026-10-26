@@ -22,10 +22,8 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 using GrenadeKind = DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeKind;
-using DemoViewer.NET.ViewModels;
 
 #endregion
 
