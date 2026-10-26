@@ -622,12 +622,12 @@ public class ExtensionLoaderTests
     {
         ExtensionCandidate candidate = Candidate("1.3.0");
         LoadOutcome? outcome = ExtensionLoader.CheckReferences(candidate, typeof(StratBookPack).Assembly,
-            name => name == "DemoViewer.NET" ? new Version(9, 9, 0, 0) : null);
+            name => name == "DemoViewer.NET.Extensions.Sdk" ? new Version(9, 9, 0, 0) : null);
 
         using (Assert.Multiple())
         {
             await Assert.That(outcome?.Failure).IsEqualTo(LoadFailure.ReferenceMismatch);
-            await Assert.That(outcome!.UserMessage).StartsWith("Update 1.3.0 was not loaded: it was built against DemoViewer.NET ")
+            await Assert.That(outcome!.UserMessage).StartsWith("Update 1.3.0 was not loaded: it was built against DemoViewer.NET.Extensions.Sdk ")
                 .And.EndsWith("; this app ships 9.9.0.0");
             await Assert.That(ExtensionLoader.RunningVersion("DemoViewer.NET")).IsEqualTo(typeof(DemoViewer.NET.Extensions.ExtensionHost).Assembly.GetName().Version);
             await Assert.That(ExtensionLoader.RunningVersion("No.Such.Assembly")).IsNull();
