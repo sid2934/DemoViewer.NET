@@ -8,6 +8,7 @@ using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using TUnit.Assertions.Enums;
+using DemoViewer.NET.Extensions;
 
 #endregion
 
@@ -29,7 +30,7 @@ public class ReviewQueueTabTests
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 640, 1920, "a"), Clip("/d/b.dem", 64, 128, "b")], "Aces");
         ResultCardTests.RecordingPlayback seam = new();
-        using ReviewQueueTabViewModel tab = new(queue, () => seam, isBrowser: false);
+        using ReviewQueueTabViewModel tab = new(new ExtensionReviewQueue(queue), () => seam, isBrowser: false);
 
         using (Assert.Multiple())
         {
@@ -84,7 +85,7 @@ public class ReviewQueueTabTests
     public async Task TheModule_ContributesTheReviewSection_UnderThePersistedIds_WithTheClipCountAsBadge()
     {
         ReviewQueue queue = new(null);
-        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), () => true, queue);
+        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), () => true, new ExtensionReviewQueue(queue));
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
         await Assert.That(tab.Badge).IsNull();
         queue.Add([Clip("/d/a.dem", 1, 2)], "A section");
@@ -112,7 +113,7 @@ public class ReviewQueueTabTests
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 1, 2)], "A section");
-        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), () => false, queue);
+        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), () => false, new ExtensionReviewQueue(queue));
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         await Assert.That(tab.Badge).IsNull().Because("the initial read is skipped while the section is off");

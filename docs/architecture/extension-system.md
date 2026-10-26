@@ -6,12 +6,14 @@ this page is the host side.
 
 The Strat Book is the reference extension. It ships with the app, but it is built on the surfaces a
 third-party extension gets: the SDK, its UI kit, the scene package and the module abstractions. It is the
-evidence that those surfaces are enough for a real extension. Where it still binds the app or the
-unpublished Playback2D assembly directly (pack export, the review queue, and the zones overlay folder
-through `FirstPartyHost`), `PackPlayback2DBindingTests` pins every such type with its
-reason, and each entry is a contract the SDK has yet to publish rather than one the Strat Book keeps. The
-target state is both of that test's allow-lists empty and the app `ProjectReference` gone from the pack's
-project.
+evidence that those surfaces are enough for a real extension. Where it still binds the app directly (the
+zones overlay folder through `FirstPartyHost`), `PackPlayback2DBindingTests` pins every such type with its
+reason, and each entry is a contract the SDK has yet to publish rather than one the Strat Book keeps. Its
+Playback2D list is empty: the review queue and its pack export go through `IExtensionReviewQueue` and
+`IExtensionReviewPackExport`, and video and clip export through `IExtensionSceneExport`. The target state
+is the app `ProjectReference` gone from the pack's project, which an empty allow-list does not prove on its
+own: the list reads type references, and a const emits none, so the format ids the pack still names from
+`ExportFormats` are invisible to it.
 
 Two of the naming rules a third party is held to are keyed off an id under the reserved
 `net.demoviewer.` prefix, and a shipped extension is exempt from both. `PackContributions.StoreRefusal`

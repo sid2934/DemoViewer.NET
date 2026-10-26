@@ -10,6 +10,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
 using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
+using DemoViewer.NET.Extensions;
 
 #endregion
 
@@ -381,7 +382,7 @@ public class PackExportTests
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 0, 64)]);
-        using ReviewQueueTabViewModel vm = new(queue, isBrowser: true, fileExists: Exists);
+        using ReviewQueueTabViewModel vm = new(new ExtensionReviewQueue(queue), isBrowser: true);
 
         await Assert.That(vm.CanPack).IsFalse();
         await Assert.That(vm.ExportPackCommand.CanExecute(null)).IsFalse();
@@ -393,12 +394,14 @@ public class PackExportTests
         ReviewQueue queue = new(null);
         queue.Add(Queue());
         PackPlan? handed = null;
-        using ReviewQueueTabViewModel vm = new(queue, isBrowser: false, fileExists: Exists, packDirectory: "/packs",
-            exportPack: (plan, _, _) =>
-            {
-                handed = plan;
-                return Task.FromResult(new PackResult([plan.Settings.OutputPath], plan.Clips.Count, []));
-            });
+        using ReviewQueueTabViewModel vm = new(new ExtensionReviewQueue(queue), isBrowser: false,
+            packExport: new ExtensionReviewPackExport(
+                (plan, _, _) =>
+                {
+                    handed = plan;
+                    return Task.FromResult(new PackResult([plan.Settings.OutputPath], plan.Clips.Count, []));
+                },
+                queue, "/packs", Exists));
 
         await Assert.That(vm.PackSummary).StartsWith("4 clips from 3 demos · 2 title cards · ");
         await Assert.That(vm.PackSummary).Contains("1 left out (demo not found)");
@@ -424,8 +427,9 @@ public class PackExportTests
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 0, 64)]);
-        using ReviewQueueTabViewModel vm = new(queue, isBrowser: false, fileExists: Exists,
-            exportPack: (_, _, _) => throw new ExportRefusedException(SceneExportRunner.NoFfmpegRefusal));
+        using ReviewQueueTabViewModel vm = new(new ExtensionReviewQueue(queue), isBrowser: false,
+            packExport: new ExtensionReviewPackExport(
+                (_, _, _) => throw new ExportRefusedException(SceneExportRunner.NoFfmpegRefusal), queue, fileExists: Exists));
 
         await vm.ExportPackCommand.ExecuteAsync(null);
 

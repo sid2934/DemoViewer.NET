@@ -9,14 +9,18 @@ using DemoViewer.NET.Extensions.StratBook;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     The pack draws through the published scene package. What it still binds in the unpublished Playback2D
-///     assembly, and in the app itself, is read from its metadata, not its source: the scene package and
-///     Pipeline declare the same namespaces, so only the assembly reference tells the two apart.
+///     The pack draws through the published scene package and reaches the host's services through the SDK.
+///     What it still binds in the unpublished Playback2D assembly, and in the app itself, is read from its
+///     metadata, not its source: the scene package and Pipeline declare the same namespaces, so only the
+///     assembly reference tells the two apart.
+///     <para>
+///         A const is invisible here, because it emits no type reference: the format ids the pack still
+///         names are inlined at every call site, so an empty list is not the same as an empty
+///         <c>ProjectReference</c>.
+///     </para>
 /// </summary>
 public class PackPlayback2DBindingTests
 {
-    private const string Export = "video and clip export stays first-party";
-    private const string ReviewQueue = "the review queue stays first-party";
     private const string UserFolders = "the app's zones overlay folder, read only (FirstPartyHostSurfaceTests pins it)";
 
     private static readonly string[] UnpublishedAssemblies = ["DemoViewer.NET.Playback2D.Pipeline"];
@@ -24,27 +28,14 @@ public class PackPlayback2DBindingTests
     /// <summary>Every app type the pack may bind, with the reason. Anything else of the app goes through the SDK.</summary>
     private static readonly (string Type, string Reason)[] AllowedApp =
     [
-        ("DemoViewer.NET.Extensions.FirstPartyExports", Export),
         ("DemoViewer.NET.Extensions.FirstPartyHost", UserFolders),
-        ("DemoViewer.NET.Services.Review.ReviewQueue", ReviewQueue),
     ];
 
-    /// <summary>Every type the pack may bind in the unpublished Playback2D assembly, with the reason.</summary>
-    private static readonly (string Assembly, string Type, string Reason)[] Allowed =
-    [
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackClip", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackPlan", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackPlanner", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackProgress", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackResult", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackSegment", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackSettings", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackSkip", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.Pack.PackTitleCard", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Review.ReviewEntry", ReviewQueue),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Review.ReviewEntryKind", ReviewQueue),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Review.ReviewHighlightRef", ReviewQueue),
-    ];
+    /// <summary>
+    ///     What the pack may bind in the unpublished Playback2D assembly: nothing. Video and clip export,
+    ///     the review queue and the pack export all go through the SDK.
+    /// </summary>
+    private static readonly (string Assembly, string Type, string Reason)[] Allowed = [];
 
     [Test]
     public async Task ThePack_BindsOnlyTheAllowedTypes_InTheApp()

@@ -3,7 +3,7 @@
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.Views.Review;
 
@@ -13,9 +13,8 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.Review;
 
 /// <summary>
 ///     The Review Queue module: the Review section of the Strat Book tab's rail (<c>"review.queue"</c>,
-///     after Utility) over the shared
-///     <c>ReviewQueue</c> that the Reels tray, Result Cards, a Matrix cell and a
-///     pick at the playhead all send clips to.
+///     after Utility) over the host's shared review queue, which the Reels tray, Result Cards, a Matrix
+///     cell and a pick at the playhead all send clips to.
 ///     <para>
 ///         <b>The ids are persisted keys.</b> <c>TabId "review.queue"</c> and <see cref="TabFeatureId" />
 ///         key the user's per-tab session state and feature overrides; the header "Review" is display text.
@@ -41,7 +40,7 @@ public sealed class ReviewQueueModule : IWorkspaceModule
     /// <summary>The tab's feature id. A persisted key; never renamed.</summary>
     public const string TabFeatureId = "tab.review";
 
-    private readonly ReviewQueue? _queue;
+    private readonly IExtensionReviewQueue? _queue;
     private readonly Func<ReviewQueueTabViewModel> _viewModelFactory;
     private readonly Func<bool> _enabled;
     private readonly IExtensionFeatures? _gate;
@@ -56,7 +55,7 @@ public sealed class ReviewQueueModule : IWorkspaceModule
     ///     a live toggle clears the badge going off and recomputes it going on, instead of leaving the last
     ///     value stale until the next unrelated <c>queue.Changed</c>. Null skips that push.
     /// </param>
-    public ReviewQueueModule(Func<ReviewQueueTabViewModel> viewModelFactory, Func<bool> enabled, ReviewQueue? queue = null,
+    public ReviewQueueModule(Func<ReviewQueueTabViewModel> viewModelFactory, Func<bool> enabled, IExtensionReviewQueue? queue = null,
         IExtensionFeatures? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);

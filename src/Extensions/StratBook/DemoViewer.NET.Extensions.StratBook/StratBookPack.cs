@@ -24,7 +24,6 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
 using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
-using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
@@ -406,10 +405,9 @@ public sealed class StratBookPack : IExtension
             IExtensionLibrary library = Library(sp);
             TeamIdentityService teams = sp.GetRequiredService<TeamIdentityService>();
             return new ReviewQueueTabViewModel(
-                sp.GetRequiredService<ReviewQueue>(),
+                Host(sp).Review,
                 () => sp.GetService<ISituationPlayback>(),
-                exportPack: sp.GetService<FirstPartyExports>()?.PackExport,
-                packDirectory: sp.GetService<FirstPartyExports>()?.ExportOutputDirectory,
+                packExport: Host(sp).PackExport,
                 mapOf: clip => (clip.Sha256 is { } sha ? library.FindBySha256(sha) : null)?.MapName
                                ?? library.Find(clip.DemoPath)?.MapName,
                 teamName: id => teams.AllTeams.FirstOrDefault(t => t.Id == id || t.MergedFrom.Contains(id))?.Name);
@@ -971,7 +969,7 @@ public sealed class StratBookPack : IExtension
         bool reviewOn = reviewGate.IsEnabled(ReviewQueueModule.TabFeatureId);
         contributions.Tabs(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
             () => reviewGate.IsEnabled(ReviewQueueModule.TabFeatureId),
-            reviewOn ? sp.GetRequiredService<ReviewQueue>() : null,
+            reviewOn ? Host(sp).Review : null,
             reviewGate));
 
         // The Suggested section. The badge reads the demo index, so it counts before the section opens.

@@ -13,6 +13,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.Views.Review;
+using DemoViewer.NET.Extensions;
 
 #endregion
 
@@ -61,7 +62,7 @@ public class ReviewQueuePerfTests
             await HeadlessSession.RunOnUi(async () =>
             {
                 // The app has its shell up before the section opens; pay the controls' first-use cost here.
-                using (ReviewQueueTabViewModel warm = new(new ReviewQueue(null)))
+                using (ReviewQueueTabViewModel warm = new(new ExtensionReviewQueue(new ReviewQueue(null))))
                 {
                     Window first = new() { Width = 400, Height = 300, Content = new ReviewQueueTabView { DataContext = warm } };
                     first.Show();
@@ -77,8 +78,9 @@ public class ReviewQueuePerfTests
 
                 sw.Restart();
                 // An exporter makes CanPack true, so PackSummary costs what it does in the app.
-                using ReviewQueueTabViewModel vm = new(queue,
-                    exportPack: static (_, _, _) => Task.FromException<PackResult>(new NotSupportedException()));
+                using ReviewQueueTabViewModel vm = new(new ExtensionReviewQueue(queue),
+                    packExport: new ExtensionReviewPackExport(
+                        static (_, _, _) => Task.FromException<PackResult>(new NotSupportedException()), queue));
                 double build = sw.Elapsed.TotalMilliseconds;
                 sw.Restart();
                 ReviewQueueTabView view = new() { DataContext = vm };

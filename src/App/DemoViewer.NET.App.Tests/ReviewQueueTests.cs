@@ -461,7 +461,7 @@ public class ReviewQueueTests
         queue.Add(Enumerable.Range(0, ReviewQueueTabViewModel.CollapseAbove + 1)
             .Select(i => Clip($"/d/{i}.dem", i, i + 1, $"smoke {i}", ReviewSources.Lineup)), "Lineup clips, de_mirage");
         queue.Add([Clip("/d/x.dem", 1, 2, "a plant", ReviewSources.Dossier)], "Dossier");
-        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        using ReviewQueueTabViewModel tab = new(new PublishedQueue(queue), isBrowser: false);
 
         ReviewRowViewModel card = tab.Rows[0];
         using (Assert.Multiple())
@@ -495,7 +495,7 @@ public class ReviewQueueTests
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 1, 2), Clip("/d/b.dem", 1, 2)], "A");
-        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        using ReviewQueueTabViewModel tab = new(new PublishedQueue(queue), isBrowser: false);
         ReviewRowViewModel row = tab.Rows[1];
         int resets = 0;
         tab.Rows.CollectionChanged += (_, _) => resets++;
