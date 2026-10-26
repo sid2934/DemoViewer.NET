@@ -26,13 +26,33 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     private readonly Lock _zoneLock = new();
     private bool _disposed;
     private IReadOnlyList<FloorSlice>? _floors;
+    private Lazy<IReadOnlyDictionary<string, SKImage>> _radarImages;
     private ZoneLoadResult? _zones;
+
+    /// <summary>Creates an undecoded bundle; the radar art is decoded on the first read.</summary>
+    public LoadedMapAsset() =>
+        // A method group, not a lambda over Bundle and BakedDir: those are init-only and still unset
+        // here, and the factory only reads them once something forces it.
+        _radarImages = new Lazy<IReadOnlyDictionary<string, SKImage>>(
+            DecodeOwnRadars, LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>The parsed bundle manifest.</summary>
     public required MapAssetBundle Bundle { get; init; }
 
-    /// <summary>Decoded radar images by file name (best-effort, empty when nothing decoded).</summary>
-    public required IReadOnlyDictionary<string, SKImage> RadarImages { get; init; }
+    /// <summary>
+    ///     Decoded radar images by file name (best-effort, empty when nothing decoded).
+    ///     <para>
+    ///         <b>Decoded on the first read</b>, which is the first draw: a radar is 1024x1024 RGBA and a
+    ///         holder that only wants floors, bounds or places (the zone sources, a thumbnail index) would
+    ///         otherwise pin megabytes of unmanaged pixels per map it touched. Setting it pre-seeds the
+    ///         decode instead, for a test that builds a bundle by hand.
+    ///     </para>
+    /// </summary>
+    public IReadOnlyDictionary<string, SKImage> RadarImages
+    {
+        get => _radarImages.Value;
+        init => _radarImages = new Lazy<IReadOnlyDictionary<string, SKImage>>(value);
+    }
 
     /// <summary>The directory the bundle was loaded from (holds sibling artifacts like <c>collision.tris</c>).</summary>
     public required string BakedDir { get; init; }
@@ -126,7 +146,12 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
         }
 
         _disposed = true;
-        foreach (SKImage image in RadarImages.Values)
+        if (!_radarImages.IsValueCreated)
+        {
+            return; // nothing drew this bundle, so there are no pixels to release
+        }
+
+        foreach (SKImage image in _radarImages.Value.Values)
         {
             image.Dispose();
         }
@@ -140,6 +165,8 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
 
     /// <inheritdoc />
     ILevelRadarBinder IMapAsset.CreateRadarBinder() => new MapRadarBinder(this);
+
+    private IReadOnlyDictionary<string, SKImage> DecodeOwnRadars() => MapAssetPipeline.DecodeRadars(BakedDir, Bundle);
 }
 
 /// <summary>
@@ -150,6 +177,8 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
 /// </summary>
 public static class MapAssetPipeline
 {
+    private static int _radarDecodes;
+
     /// <summary>Loads the bundle for a map name, or null when there is none.</summary>
     /// <param name="mapName">e.g. <c>de_nuke</c>.</param>
     public static LoadedMapAsset? TryLoad(string? mapName)
@@ -245,8 +274,21 @@ public static class MapAssetPipeline
             return null;
         }
 
-        // Best-effort per image: a decode failure still yields the floor metadata and the transform,
-        // which is what the level split actually needs.
+        return new LoadedMapAsset
+        {
+            Bundle = bundle,
+            BakedDir = dir,
+            ZoneOverlayDirectory = zoneOverlayDirectory
+        };
+    }
+
+    /// <summary>Radar decodes since the process started. For tests: the count "one decode per map" means.</summary>
+    internal static int RadarDecodes => Volatile.Read(ref _radarDecodes);
+
+    // One bundle's radar art. Best-effort per image: a decode failure still yields the floor metadata
+    // and the transform, which is what the level split actually needs.
+    internal static IReadOnlyDictionary<string, SKImage> DecodeRadars(string dir, MapAssetBundle bundle)
+    {
         Dictionary<string, SKImage> images = new(StringComparer.Ordinal);
         foreach (string name in bundle.RadarImages)
         {
@@ -270,13 +312,8 @@ public static class MapAssetPipeline
             }
         }
 
-        return new LoadedMapAsset
-        {
-            Bundle = bundle,
-            RadarImages = images,
-            BakedDir = dir,
-            ZoneOverlayDirectory = zoneOverlayDirectory
-        };
+        Interlocked.Increment(ref _radarDecodes);
+        return images;
     }
 
     /// <summary>

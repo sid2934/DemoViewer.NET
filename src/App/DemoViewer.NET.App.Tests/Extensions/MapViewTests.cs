@@ -10,6 +10,7 @@ using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Tools;
 using SkiaSharp;
 using TUnit.Assertions.Enums;
@@ -182,6 +183,7 @@ public class MapViewTests
             await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(0)
                 .Because("the decode count only means something while nobody else holds the map");
             int decodes = MapBundleLeases.Decodes;
+            int radarDecodes = MapAssetPipeline.RadarDecodes;
 
             Playback2DFakeContext ctx = new()
             {
@@ -209,6 +211,8 @@ public class MapViewTests
                 await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(3);
                 await Assert.That(MapBundleLeases.Decodes - decodes).IsEqualTo(1)
                     .Because("three holders of one map decode it once");
+                await Assert.That(MapAssetPipeline.RadarDecodes - radarDecodes).IsEqualTo(1)
+                    .Because("and the two of them that draw share one radar decode");
                 await Assert.That(tab.MapAsset).IsSameReferenceAs(((MapBundleLease)offThread!).Bundle)
                     .Because("the tab and the extension read the same decode");
             }
@@ -221,6 +225,40 @@ public class MapViewTests
             await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(0)
                 .Because("the last hold given back drops the entry");
             window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     What the lazy radar decode is for: a holder that only wants floors, bounds or places opens the
+    ///     bundle and decodes no pixels. The zone sources hold one lease per cached map and never draw.
+    /// </summary>
+    [Test]
+    public async Task AHolderThatDrawsNothing_OpensTheBundle_AndDecodesNoRadarArt()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(0)
+                .Because("the decode counts only mean something while nobody else holds the map");
+            int decodes = MapBundleLeases.Decodes;
+            int radarDecodes = MapAssetPipeline.RadarDecodes;
+
+            using IMapAssetLease? lease = MapAssets.Acquire(Shared);
+            await Assert.That(lease).IsNotNull();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(lease!.Floors.Count).IsGreaterThanOrEqualTo(1);
+                await Assert.That(lease.RadarBounds.MaxX).IsGreaterThan(lease.RadarBounds.MinX);
+                await Assert.That(lease.Zones).IsNotNull();
+                await Assert.That(MapBundleLeases.Decodes - decodes).IsEqualTo(1)
+                    .Because("the bundle manifest was read");
+                await Assert.That(MapAssetPipeline.RadarDecodes - radarDecodes).IsEqualTo(0)
+                    .Because("floors, bounds and places are all in the manifest and the zones file");
+            }
+
+            lease.DescribeRadars();
+            await Assert.That(MapAssetPipeline.RadarDecodes - radarDecodes).IsEqualTo(1)
+                .Because("asking for the art is what decodes it");
         });
     }
 
