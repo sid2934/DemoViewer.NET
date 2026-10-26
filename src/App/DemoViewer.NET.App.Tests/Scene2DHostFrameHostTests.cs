@@ -176,6 +176,48 @@ public class Scene2DHostFrameHostTests
     }
 
     /// <summary>
+    ///     A contributed tool survives a session rebind, though the session only ever carried its category.
+    ///     The router mirrors the active tool's <see cref="ToolKind" /> onto the session and the rebind
+    ///     re-selects from that mirror, which reaches a first-party tool alone: a contributed tool would be
+    ///     swapped for the built-in of its category, and one whose category has no built-in dropped to pan.
+    /// </summary>
+    [Test]
+    public async Task AContributedTool_SurvivesASessionRebind_ThoughTheMirrorCarriesOnlyItsCategory()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            HostLibraryTests.LibraryTestExtension extension = new();
+            GuardedPointerTool contributed =
+                new(new InertPointerTool("pin", ToolKind.Draw), ExtensionGuard.Standalone(extension));
+            FakeSceneFrameHost first = new() { AnnotationSession = new AnnotationSession(new AnnotationDocument()) };
+            (Window window, Scene2DHost host) = Mount(first);
+
+            host.AddTool(contributed);
+            host.SetActiveTool(contributed.Id);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(contributed.Id).IsEqualTo("ext.test.library.pin");
+                await Assert.That(host.Router.ActiveToolId).IsEqualTo(contributed.Id);
+                await Assert.That(first.AnnotationSession!.ActiveTool).IsEqualTo(ToolKind.Draw)
+                    .Because("the mirror carries the category, which is the pen's here");
+            }
+
+            FakeSceneFrameHost second = new()
+            {
+                AnnotationSession = new AnnotationSession(new AnnotationDocument()) { ActiveTool = ToolKind.Draw }
+            };
+            host.DataContext = second;
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(host.Router.ActiveToolId).IsEqualTo(contributed.Id)
+                .Because("a category the active tool already reports is already selected");
+
+            window.Close();
+        });
+    }
+
+    /// <summary>
     ///     A primary press offers itself to the host's pointer pre-handler before the router: one
     ///     that consumes it stops there, so the pan tool never opens a gesture; one that does not falls
     ///     through, and the press is the pan tool's as if there were no pre-handler at all.
@@ -607,6 +649,28 @@ public class Scene2DHostFrameHostTests
         public void OnReleased(in MapToolEvent e, IMapToolContext context) => Calls.Add("release");
 
         public void OnCancelled(IMapToolContext context) => Calls.Add("cancel");
+    }
+
+    // A contributed tool: an id and a category of its own, and no behaviour at all.
+    private sealed class InertPointerTool(string id, ToolKind kind) : IPointerTool
+    {
+        public string Id => id;
+
+        public ToolKind Kind => kind;
+
+        public bool OnPressed(in ToolPointerEvent e, IToolServices s) => false;
+
+        public void OnMoved(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnReleased(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnCancelled(IToolServices s)
+        {
+        }
     }
 
     private sealed class FakeSceneFrameHost : ISceneFrameHost

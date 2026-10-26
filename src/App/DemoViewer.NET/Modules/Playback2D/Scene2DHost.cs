@@ -1364,7 +1364,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         }
 
         _toolServices.Session = session;
-        Router.SetActive(session.ActiveTool);
+
+        // Only when the category actually differs. The router mirrors the active tool's CATEGORY onto the
+        // session, so re-selecting from that mirror by kind reaches a first-party tool only: a contributed
+        // tool would be swapped for the built-in of its category, or dropped to pan where there is none.
+        if (Router.ActiveKind != session.ActiveTool)
+        {
+            Router.SetActive(session.ActiveTool);
+        }
     }
 
     // Mounts, re-points or drops the zone outline layer. Under the render gate for the same reason
