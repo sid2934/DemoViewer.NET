@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Playback2D.Overlay;
@@ -234,17 +235,27 @@ public class SetupHeatmapTests
         using Harness h = await Harness.Create();
         ReviewQueue queue = new(null);
         List<string> shown = [];
+        // NOT the usual inline `a => a()`. The heatmap build really runs on a worker, so an inline post
+        // runs its completion on that thread while this one is still inside the view model, and the two
+        // meet in RebuildSections: it clears MapSections and refills it one section at a time, so two
+        // passes leave the collection holding both and the next rebuild throws on the duplicate key.
+        // Dispatcher.UIThread.Post defers to the owning thread in the app; this does the same here.
+        ConcurrentQueue<Action> posted = new();
         using DossierTabViewModel vm = new(h.Teams, h.Cache.Library(), new VetoHistoryStore(null), false,
             h.Service, new ExtensionReviewQueue(queue), id =>
             {
                 shown.Add(id);
                 return true;
             },
-            () => new SetupHeatmapRenderer(_ => null), a => a(), _ => null);
+            () => new SetupHeatmapRenderer(_ => null), posted.Enqueue, _ => null);
 
         await Assert.That(vm.HasHeatmapSection).IsTrue();
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == h.TeamB);
         await vm.HeatmapTask;
+        while (posted.TryDequeue(out Action? pending))
+        {
+            pending();
+        }
 
         await Assert.That(vm.Heatmaps.Count).IsEqualTo(2);
         SetupHeatmapViewModel full = vm.Heatmaps[1];
