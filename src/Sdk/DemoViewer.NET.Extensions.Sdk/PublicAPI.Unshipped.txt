@@ -1,4 +1,1 @@
 #nullable enable
-DemoViewer.NET.Extensions.Sdk.IExtensionFolder.DirectoryExists(string! relativePath) -> bool
-DemoViewer.NET.Extensions.Sdk.IExtensionFolder.SetLastWriteTimeUtc(string! relativePath, System.DateTime value) -> void
-DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.OwnsLabelPresses.get -> bool

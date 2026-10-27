@@ -625,6 +625,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionFolder
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Append(string! relativePath, string! line) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Create() -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Delete(string! relativePath) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.DirectoryExists(string! relativePath) -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.EnumerateDirectories(string! relativePath) -> System.Collections.Generic.IEnumerable<string!>!
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.EnumerateFiles(string! relativePath, string! searchPattern) -> System.Collections.Generic.IEnumerable<string!>!
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.FileExists(string! relativePath) -> bool
@@ -633,6 +634,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Move(string! fromRelativePath, st
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.OpenRead(string! relativePath) -> System.IO.Stream?
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Path.get -> string!
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Read(string! relativePath) -> byte[]?
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.SetLastWriteTimeUtc(string! relativePath, System.DateTime value) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.WriteAtomic(string! relativePath, System.Action<System.IO.Stream!>! write) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionFolder.WriteAtomic(string! relativePath, System.ReadOnlySpan<byte> content) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionIdentity
@@ -1242,6 +1244,7 @@ DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsEditable.get -> bool
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsEditable.set -> void
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsSuppressed.get -> bool
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsSuppressed.set -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.OwnsLabelPresses.get -> bool
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.Track.get -> DemoViewer.NET.Playback2D.Timeline.ITimelineTrack!
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.TrackId.get -> string!
 DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle

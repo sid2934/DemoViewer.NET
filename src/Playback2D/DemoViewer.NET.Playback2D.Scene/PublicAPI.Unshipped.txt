@@ -1,17 +1,1 @@
 #nullable enable
-DemoViewer.NET.Playback2D.Tools.IMapToolContext.CurrentTick.get -> int?
-DemoViewer.NET.Playback2D.Tools.IMapToolContext.ScreenToWorld(SkiaSharp.SKPoint screen) -> SkiaSharp.SKPoint?
-DemoViewer.NET.Playback2D.Tools.IMapToolContext.Tokens.get -> DemoViewer.NET.Playback2D.Input.ITokenEditor?
-DemoViewer.NET.Playback2D.Tools.MapToolAdapter
-DemoViewer.NET.Playback2D.Tools.MapToolAdapter.Id.get -> string!
-DemoViewer.NET.Playback2D.Tools.MapToolAdapter.Kind.get -> DemoViewer.NET.Playback2D.Input.ToolKind
-DemoViewer.NET.Playback2D.Tools.MapToolAdapter.MapToolAdapter(DemoViewer.NET.Playback2D.Tools.IMapTool! tool) -> void
-DemoViewer.NET.Playback2D.Tools.MapToolAdapter.OnCancelled(DemoViewer.NET.Playback2D.Input.IToolServices! s) -> void
-DemoViewer.NET.Playback2D.Tools.MapToolAdapter.OnMoved(in DemoViewer.NET.Playback2D.Input.ToolPointerEvent e, DemoViewer.NET.Playback2D.Input.IToolServices! s) -> void
-DemoViewer.NET.Playback2D.Tools.MapToolAdapter.OnPressed(in DemoViewer.NET.Playback2D.Input.ToolPointerEvent e, DemoViewer.NET.Playback2D.Input.IToolServices! s) -> bool
-DemoViewer.NET.Playback2D.Tools.MapToolAdapter.OnReleased(in DemoViewer.NET.Playback2D.Input.ToolPointerEvent e, DemoViewer.NET.Playback2D.Input.IToolServices! s) -> void
-DemoViewer.NET.Playback2D.Tools.MapToolAdapter.Tool.get -> DemoViewer.NET.Playback2D.Tools.IMapTool!
-DemoViewer.NET.Playback2D.Tools.MapToolModifiers.Space = 8 -> DemoViewer.NET.Playback2D.Tools.MapToolModifiers
-static DemoViewer.NET.Playback2D.Tools.MapToolAdapter.ContextOver(DemoViewer.NET.Playback2D.Input.IToolServices! services) -> DemoViewer.NET.Playback2D.Tools.IMapToolContext!
-static DemoViewer.NET.Playback2D.Tools.MapToolAdapter.Convert(DemoViewer.NET.Playback2D.Input.ToolModifiers modifiers) -> DemoViewer.NET.Playback2D.Tools.MapToolModifiers
-static DemoViewer.NET.Playback2D.Tools.MapToolAdapter.Convert(in DemoViewer.NET.Playback2D.Input.ToolPointerEvent e) -> DemoViewer.NET.Playback2D.Tools.MapToolEvent

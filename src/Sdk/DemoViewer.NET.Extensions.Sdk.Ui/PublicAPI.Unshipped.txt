@@ -1,2 +1,1 @@
 #nullable enable
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.PanesArranged -> System.EventHandler?
