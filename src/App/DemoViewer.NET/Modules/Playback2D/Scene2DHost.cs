@@ -193,30 +193,45 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
     /// <summary>
     ///     Registers a scene layer on this host only, built fresh by <paramref name="layer" /> now and
-    ///     again every time a release rebuilds the compositor. <paramref name="layerId" /> must match
+    ///     again every time a release rebuilds the compositor. <paramref name="id" /> must match
     ///     <see cref="ISceneLayer.Id" />. Refuses an id this host already manages itself
-    ///     (<see cref="OwnLayerIds" />) and one it already holds a layer under.
+    ///     (<see cref="OwnLayerIds" />), one it already holds a layer under, and one a bound frame host has
+    ///     contributed.
+    ///     <para>
+    ///         The parameter is named as the published <c>SceneView.AddLayer</c> names it, because this
+    ///         method throws first and its name is what reaches a caller as <c>ParamName</c>.
+    ///     </para>
     /// </summary>
-    /// <param name="layerId">The layer's id.</param>
+    /// <param name="id">The layer's id.</param>
     /// <param name="layer">Builds a fresh layer instance.</param>
     /// <exception cref="ArgumentException">
-    ///     <paramref name="layerId" /> names one of this host's own layers, or one it already holds. Taking
-    ///     the second silently is what let one caller's layer leave another holding a handle that removed
-    ///     nothing.
+    ///     <paramref name="id" /> names one of this host's own layers, one it already holds, or a
+    ///     contributed one. Taking the second silently is what let one caller's layer leave another holding
+    ///     a handle that removed nothing.
     /// </exception>
-    public void AddLayer(string layerId, Func<ISceneLayer> layer)
+    public void AddLayer(string id, Func<ISceneLayer> layer)
     {
-        ArgumentNullException.ThrowIfNull(layerId);
+        ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(layer);
 
-        if (OwnLayerIds.Contains(layerId))
+        if (OwnLayerIds.Contains(id))
         {
-            throw new ArgumentException($"'{layerId}' is one of this host's own layers.", nameof(layerId));
+            throw new ArgumentException($"'{id}' is one of this host's own layers.", nameof(id));
         }
 
-        if (!_extraLayers.TryAdd(layerId, layer))
+        // Before TryAdd, so a refusal leaves _extraLayers as it found it. Contributions already yield to
+        // this method's ids (AddContributedLayers skips them), so without this the yielding is one-way: the
+        // Remove below would evict a contributed layer from the compositor while _contributedLayerIds went
+        // on claiming the id. Refusing matches the published rule, that a second layer under an id a view
+        // holds is refused rather than replacing the first.
+        if (_contributedLayerIds.Contains(id))
         {
-            throw new ArgumentException($"A layer is already registered as '{layerId}'.", nameof(layerId));
+            throw new ArgumentException($"A layer is already registered as '{id}'.", nameof(id));
+        }
+
+        if (!_extraLayers.TryAdd(id, layer))
+        {
+            throw new ArgumentException($"A layer is already registered as '{id}'.", nameof(id));
         }
 
         if (_released)
@@ -226,7 +241,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         using (_gate.Enter())
         {
-            _compositor.Remove(layerId);
+            _compositor.Remove(id);
             _compositor.Add(layer());
         }
     }
