@@ -50,6 +50,9 @@
          undoes ContinuousIntegrationBuild. No debug directory in Release leaves nothing to re-embed. -->
     <PropertyGroup Condition="'$(Configuration)' == 'Release'">
         <DebugType>none</DebugType>
+        <!-- No PDB to pack, so no symbol package: nuget.org refuses an empty .snupkg with a 400, and the
+             push loop dies on it after the earlier packages are already live. -->
+        <IncludeSymbols>false</IncludeSymbols>
     </PropertyGroup>
 
 </Project>
