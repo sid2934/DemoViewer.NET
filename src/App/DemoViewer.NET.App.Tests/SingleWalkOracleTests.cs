@@ -72,7 +72,7 @@ public partial class SingleWalkOracleTests
                     // The forced scan, the Compute full stats press, on a row the sweep already stamped current.
                     provider.GetRequiredService<DemoCacheStore>().UpdateExisting(demo, r => r.AnalysisState = DemoAnalysisState.Pending);
                     provider.GetRequiredService<HighlightScanService>().RequestScan(demo);
-                    await SingleWalkSession.SettleAsync(provider.GetRequiredService<DemoProcessingQueue>());
+                    await SingleWalkSession.SettleAsync(provider);
                     foreach ((string key, string value) in Canonical(sweepDir, demo))
                     {
                         if (!swept.TryGetValue(key, out string? before) || before != value)
