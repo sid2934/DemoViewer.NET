@@ -112,6 +112,22 @@ jobs:
           done
           ls -l artifacts/sdk-packages
 
+      # An .snupkg with no .pdb in it is refused by nuget.org with a 400, and the push loop runs under
+      # set -e over a glob, so that refusal lands AFTER the earlier packages are already live and
+      # permanent. Catching it here means a dry run catches it, which is the whole point of having one.
+      - name: Symbol packages carry symbols
+        run: |
+          set -euo pipefail
+          for snupkg in artifacts/sdk-packages/*.snupkg; do
+            [ -e "$snupkg" ] || continue
+            listing=$(unzip -l "$snupkg")
+            case "$listing" in
+              *.pdb*) ;;
+              *) echo "::error::$(basename "$snupkg") holds no .pdb, so nuget.org will refuse it. Either give that project a PDB in Release or set IncludeSymbols=false for it." >&2
+                 exit 1 ;;
+            esac
+          done
+
       - uses: actions/upload-artifact@v4
         with:
           name: sdk-packages-${{ steps.version.outputs.version }}

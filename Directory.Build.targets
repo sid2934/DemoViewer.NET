@@ -26,9 +26,12 @@
 
         <!-- .snupkg symbols from the first publish. Note that Release builds
              set ContinuousIntegrationBuild=true, which normalizes source paths to /_/ — the PDBs
-             are deterministic but not navigable until SourceLink lands with the public repo. -->
-        <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+             are deterministic but not navigable until SourceLink lands with the public repo.
+             Conditioned because this file is imported AFTER the project body: an unconditional value
+             overrides a project that sets DebugType none and so has no PDB to pack, and pack then
+             writes an empty .snupkg that nuget.org refuses with a 400. -->
+        <IncludeSymbols Condition="'$(IncludeSymbols)' == ''">true</IncludeSymbols>
+        <SymbolPackageFormat Condition="'$(SymbolPackageFormat)' == ''">snupkg</SymbolPackageFormat>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(IsPackable)' == 'true'">
