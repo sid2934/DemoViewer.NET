@@ -300,6 +300,45 @@ public class ExtensionStoresTests
         }
     }
 
+    /// <summary>
+    ///     The two members that let a store stay on the folder instead of forking to a string root:
+    ///     DirectoryExists, the companion to FileExists for a store with subfolders of its own, and
+    ///     SetLastWriteTimeUtc, which is how a cache that evicts by recency says keep this one.
+    /// </summary>
+    [Test]
+    public async Task AFolder_AnswersForASubfolder_AndTouchesAFilesWriteTime()
+    {
+        string root = NewRoot();
+        try
+        {
+            IExtensionFolder folder = Declared(root, root).Own(StoreRoot.Config)!;
+            folder.Create();
+            folder.WriteAtomic("clips/one.gif", new byte[] { 1 });
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(folder.DirectoryExists("clips")).IsTrue();
+                await Assert.That(folder.DirectoryExists("nope")).IsFalse();
+                await Assert.That(folder.DirectoryExists("")).IsTrue().Because("an empty path is the folder itself");
+                await Assert.That(folder.FileExists("clips/one.gif")).IsTrue();
+                await Assert.That(folder.DirectoryExists("clips/one.gif")).IsFalse().Because("a file is not a folder");
+            }
+
+            DateTime touched = new(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            folder.SetLastWriteTimeUtc("clips/one.gif", touched);
+            await Assert.That(folder.LastWriteTimeUtc("clips/one.gif")).IsEqualTo(touched)
+                .Because("the write side and the read side are the same clock");
+
+            folder.SetLastWriteTimeUtc("clips/missing.gif", touched);
+            await Assert.That(folder.FileExists("clips/missing.gif")).IsFalse()
+                .Because("touching a path with no file leaves it alone rather than creating one");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     [Test]
     public async Task WhatAnOlderBuildLeftInTheCacheFolder_MovesIntoFiles_AndNeverOverTheNewerCopy()
     {

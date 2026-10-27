@@ -202,6 +202,17 @@ internal sealed class ExtensionFolder : IExtensionFolder
 
     public bool FileExists(string relativePath) => File.Exists(ResolveFile(relativePath));
 
+    public bool DirectoryExists(string relativePath) => Directory.Exists(ResolveFolder(relativePath));
+
+    public void SetLastWriteTimeUtc(string relativePath, DateTime value)
+    {
+        string path = ResolveFile(relativePath);
+        if (File.Exists(path))
+        {
+            File.SetLastWriteTimeUtc(path, value);
+        }
+    }
+
     public DateTime? LastWriteTimeUtc(string relativePath)
     {
         string path = ResolveFile(relativePath);
