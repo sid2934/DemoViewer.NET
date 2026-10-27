@@ -32,11 +32,12 @@ cd "$ROOT"
 
 export PB2D_GOLDEN_UPDATE=1
 
-# 1. The synthetic family: CPU-provider renders of the hand-authored fixtures. No demo, no Avalonia,
-#    so this half always runs. It pins the PRODUCTION layer stack through HeadlessSceneRenderer, the
-#    same path `dv2d golden verify` uses, over the same three PNGs, so the two readers of those files
-#    cannot disagree.
-echo "[goldens] synthetic (direct execution)"
+# 1. The synthetic family plus the asset-backed entries SceneGoldenTests judges: CPU-provider renders
+#    of the committed fixtures over the committed assets/ bundles. No demo, no Avalonia, so this half
+#    always runs. It pins the PRODUCTION layer stack through HeadlessSceneRenderer, the same path
+#    `dv2d golden verify` uses, over the same PNGs, so the two readers of those files cannot disagree.
+#    --synthetic-only does NOT narrow this step; it stops the script after it.
+echo "[goldens] scene corpus (direct execution)"
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG" \
   -- --treenode-filter "/*/*/SceneGoldenTests/*"
 
