@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
 
@@ -70,6 +71,20 @@ public interface IMapToolContext
     /// <summary>World units one view pixel covers in a pane, for hit radii that stay the same size on screen.</summary>
     /// <param name="pane">The pane.</param>
     double WorldUnitsPerPixel(LevelPane pane);
+
+    /// <summary>
+    ///     The tick the map is showing, or null when this context has no clock. Nullable rather than
+    ///     defaulted to a number: a tick of zero is an answer a caller cannot tell apart from a real one,
+    ///     and the contexts that cannot answer are doubles rather than the host.
+    /// </summary>
+    int? CurrentTick => null;
+
+    /// <summary>
+    ///     The token editor the map's tokens are moved through, or null when there is none. Already nullable
+    ///     on <c>IToolServices</c>, so null is a state the contract models rather than a gap this member
+    ///     introduces.
+    /// </summary>
+    ITokenEditor? Tokens => null;
 
     /// <summary>Asks for a repaint after the tool changed what a layer draws.</summary>
     void RequestRender();

@@ -125,6 +125,10 @@ public sealed class MapToolAdapter : IPointerTool
 
         public double WorldUnitsPerPixel(LevelPane pane) => services.WorldUnitsPerPixel(pane);
 
+        public int? CurrentTick => services.CurrentTick;
+
+        public ITokenEditor? Tokens => services.Tokens;
+
         public void RequestRender() => services.RequestRender();
     }
 }

@@ -1,5 +1,7 @@
 #nullable enable
+DemoViewer.NET.Playback2D.Tools.IMapToolContext.CurrentTick.get -> int?
 DemoViewer.NET.Playback2D.Tools.IMapToolContext.ScreenToWorld(SkiaSharp.SKPoint screen) -> SkiaSharp.SKPoint?
+DemoViewer.NET.Playback2D.Tools.IMapToolContext.Tokens.get -> DemoViewer.NET.Playback2D.Input.ITokenEditor?
 DemoViewer.NET.Playback2D.Tools.MapToolAdapter
 DemoViewer.NET.Playback2D.Tools.MapToolAdapter.Id.get -> string!
 DemoViewer.NET.Playback2D.Tools.MapToolAdapter.Kind.get -> DemoViewer.NET.Playback2D.Input.ToolKind
