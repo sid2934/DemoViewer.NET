@@ -1,1 +1,3 @@
 #nullable enable
+DemoViewer.NET.Playback2D.Tools.IMapToolContext.ScreenToWorld(SkiaSharp.SKPoint screen) -> SkiaSharp.SKPoint?
+DemoViewer.NET.Playback2D.Tools.MapToolModifiers.Space = 8 -> DemoViewer.NET.Playback2D.Tools.MapToolModifiers

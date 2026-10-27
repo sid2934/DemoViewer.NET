@@ -45,6 +45,28 @@ public interface IMapToolContext
     /// <param name="world">The world point.</param>
     SKPoint WorldToScreen(LevelPane pane, SKPoint world);
 
+    /// <summary>
+    ///     A point of the view as a world point, through the camera of the pane under it, or null outside
+    ///     every pane. The inverse of <see cref="WorldToScreen" />, and what hit-testing a token needs.
+    ///     <para>
+    ///         Defaulted, not abstract: every implementor already hands out panes through
+    ///         <see cref="PaneAt" /> and a pane carries its own camera and viewport, so the body is derivable
+    ///         and a context written before this member keeps compiling.
+    ///     </para>
+    /// </summary>
+    /// <param name="screen">A point in the view, in device-independent pixels.</param>
+    SKPoint? ScreenToWorld(SKPoint screen)
+    {
+        if (PaneAt(screen) is not { } pane)
+        {
+            return null;
+        }
+
+        (double x, double y) = pane.Camera.Current.ScreenToWorld(
+            screen.X - pane.ViewportRect.Left, screen.Y - pane.ViewportRect.Top);
+        return new SKPoint((float)x, (float)y);
+    }
+
     /// <summary>World units one view pixel covers in a pane, for hit radii that stay the same size on screen.</summary>
     /// <param name="pane">The pane.</param>
     double WorldUnitsPerPixel(LevelPane pane);
@@ -105,5 +127,8 @@ public enum MapToolModifiers
     Control = 2,
 
     /// <summary>Alt.</summary>
-    Alt = 4
+    Alt = 4,
+
+    /// <summary>Space, the hold-to-pan modifier. The map pans while it is held, before any tool is asked.</summary>
+    Space = 8
 }

@@ -60,7 +60,7 @@ public sealed class MapToolAdapter : IPointerTool
         Modifiers = Convert(e.Modifiers)
     };
 
-    /// <summary>Router modifiers as the published contract names them. Space has no published flag.</summary>
+    /// <summary>Router modifiers as the published contract names them.</summary>
     /// <param name="modifiers">The router's modifiers.</param>
     public static MapToolModifiers Convert(ToolModifiers modifiers)
     {
@@ -78,6 +78,11 @@ public sealed class MapToolAdapter : IPointerTool
         if ((modifiers & ToolModifiers.Alt) != 0)
         {
             result |= MapToolModifiers.Alt;
+        }
+
+        if ((modifiers & ToolModifiers.Space) != 0)
+        {
+            result |= MapToolModifiers.Space;
         }
 
         return result;

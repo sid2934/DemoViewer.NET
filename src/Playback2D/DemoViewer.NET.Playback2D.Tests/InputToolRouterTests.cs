@@ -773,6 +773,22 @@ public class InputToolRouterTests
 
     // Stands in for a tool that lives outside the renderer (the query canvas's), so every kind can be
     // selected. An explicit id stands in for a contributed tool, whose id is no kind's.
+    /// <summary>
+    ///     The published modifier set now carries Space, so a map tool can tell a hold-to-pan press from a
+    ///     plain one. The adapter dropped the flag before, and its own comment said so.
+    /// </summary>
+    [Test]
+    public async Task ConvertedModifiers_CarrySpace()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(MapToolAdapter.Convert(ToolModifiers.Space)).IsEqualTo(MapToolModifiers.Space);
+            await Assert.That(MapToolAdapter.Convert(ToolModifiers.Space | ToolModifiers.Shift))
+                .IsEqualTo(MapToolModifiers.Space | MapToolModifiers.Shift);
+            await Assert.That(MapToolAdapter.Convert(ToolModifiers.None)).IsEqualTo(MapToolModifiers.None);
+        }
+    }
+
     /// <summary>A tool that takes every press, so the token fall-through is observable.</summary>
     private sealed class GrabbingTool(ToolKind kind, string id) : IPointerTool
     {
