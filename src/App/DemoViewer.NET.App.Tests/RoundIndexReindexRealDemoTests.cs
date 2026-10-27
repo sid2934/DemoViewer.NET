@@ -61,7 +61,7 @@ public class RoundIndexReindexRealDemoTests
                 try
                 {
                     evaluator.RebuildAll();
-                    await SingleWalkSession.SettleAsync(queue);
+                    await SingleWalkSession.SettleAsync(provider);
                 }
                 finally
                 {

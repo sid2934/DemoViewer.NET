@@ -1,11 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Modules;
-using System.Globalization;
-using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
-using CS2DemoKit.Analysis.Visibility;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger;
@@ -15,11 +11,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Modules.Teams;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Levels;
-using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
-using DemoViewer.NET.Extensions.Sdk;
-using DemoViewer.NET.Extensions.StratBook.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
@@ -33,11 +25,9 @@ using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
-using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
@@ -271,7 +261,7 @@ public sealed class StratBookPack : IExtension
         // holds it. Null root (the browser) keeps tags in memory for the session.
         services.AddSingleton(sp =>
         {
-            TagStore tags = new(StoresOf(sp).Open(StratBookStores.Tags)?.Path, Host(sp).Post);
+            TagStore tags = new(StoresOf(sp).Open(StratBookStores.Tags), Host(sp).Post);
             // Shutdown flushes the index only when a factory built the store (StratBookLifecycle.OnShutdown).
             sp.GetRequiredService<StratBookPackInstances>().Tags = tags;
             return tags;
@@ -294,7 +284,7 @@ public sealed class StratBookPack : IExtension
         // no directory and offers the built-in alone.
         services.AddSingleton(sp =>
         {
-            TagPaletteStore palettes = new(PalettesDirectory(StoresOf(sp).Open(StratBookStores.Palettes)), keymap: Host(sp).Keymap);
+            TagPaletteStore palettes = new(SeededPalettes(StoresOf(sp).Open(StratBookStores.Palettes)), keymap: Host(sp).Keymap);
             palettes.Reload();
             return palettes;
         });
@@ -458,11 +448,11 @@ public sealed class StratBookPack : IExtension
         // the open demo, resolved at call time, is always built. Null roots (the
         // browser) keep all of it for the session.
         services.AddSingleton(sp => new ProposalStore(Data(sp)));
-        services.AddSingleton(sp => new SiteRegionStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)?.Path));
+        services.AddSingleton(sp => new SiteRegionStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)));
         // The parameter profile: <config>/suggested-tags/profile.json, seeded with the shipped default
         // on first read the way a theme drop-in folder is. A singleton so the evaluator's Func
         // and the tuning view's save reach the same in-memory Current.
-        services.AddSingleton(sp => new ProfileStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)?.Path));
+        services.AddSingleton(sp => new ProfileStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)));
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
@@ -501,7 +491,7 @@ public sealed class StratBookPack : IExtension
         // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps
         // strats in memory for the session. The tab VM is a container singleton resolved lazily on first
         // activation; its books are Team Identity's teams plus me.
-        services.AddSingleton(sp => new StratStore(StoresOf(sp).Open(StratBookStores.Strats)?.Path, Host(sp).Post));
+        services.AddSingleton(sp => new StratStore(StoresOf(sp).Open(StratBookStores.Strats), Host(sp).Post));
         // Callout Aliases: one resolver builder over the store's tables and the map's
         // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
         // a nav place.
@@ -712,7 +702,7 @@ public sealed class StratBookPack : IExtension
             ILogger log = DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
             LineupClipService clips = new(
                 () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
-                StoresOf(sp).Open(StratBookStores.LineupClips)?.Path,
+                StoresOf(sp).Open(StratBookStores.LineupClips),
                 () => settings.RenderLineupClips,
                 new LineupClipRenderer(Host(sp).SceneExport, line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
@@ -747,23 +737,20 @@ public sealed class StratBookPack : IExtension
 
     // The palettes folder is where the user drops files, so it is created on first use where it can be; a
     // folder that cannot be created offers the built-in palette alone.
-    private static string? PalettesDirectory(IExtensionFolder? palettes)
+    // Created up front so a user has somewhere to drop a palette. A failure is left alone: the listing
+    // of a folder that is not there yields nothing, and the built-in palette stands on its own.
+    private static IExtensionFolder? SeededPalettes(IExtensionFolder? palettes)
     {
-        if (palettes is null)
-        {
-            return null;
-        }
-
         try
         {
-            palettes.Create();
+            palettes?.Create();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // TagPaletteStore checks the folder exists and offers the built-in palette alone.
+            // Nothing to do; the store offers the built-in palette alone.
         }
 
-        return palettes.Path;
+        return palettes;
     }
 
     // Strat Mining's files in the extension's own folders. The detections rebuild on the next mine; the

@@ -5,7 +5,6 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
-using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
 

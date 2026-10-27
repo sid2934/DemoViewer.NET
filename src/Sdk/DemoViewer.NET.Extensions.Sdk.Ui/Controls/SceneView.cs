@@ -47,6 +47,7 @@ public sealed class SceneView : Control
         if (_backend is not null)
         {
             _backend.TextEditRequested += (at, emPixels) => TextEditRequested?.Invoke(at, emPixels);
+            _backend.PanesArranged += () => PanesArranged?.Invoke(this, EventArgs.Empty);
             LogicalChildren.Add(_backend.View);
             VisualChildren.Add(_backend.View);
         }
@@ -76,31 +77,31 @@ public sealed class SceneView : Control
     public event Action<Point, double>? TextEditRequested;
 
     /// <summary>
+    ///     Raised once the panes have been laid out, and again whenever that layout changes. This is when
+    ///     <see cref="Fit" /> means anything: called before it, there is nothing arranged to fit to.
+    /// </summary>
+    public event EventHandler? PanesArranged;
+
+    /// <summary>
     ///     A layer drawn among the scene's own, ordered by <see cref="ISceneLayer.Slot" /> and
     ///     <see cref="ISceneLayer.Order" />. The host files it under your extension, so
-    ///     <paramref name="id" /> is yours to choose and can take neither the scene's own layers nor another
-    ///     extension's; the handle reports the id it was filed under, and the built layer's own
+    ///     <paramref name="id" /> is yours to choose: the filed form cannot collide with the scene's own
+    ///     layers or with another extension's, so even an id the scene uses is yours to take locally. The
+    ///     handle reports the id it was filed under, and the built layer's own
     ///     <see cref="ISceneLayer.Id" /> is not read.
     /// </summary>
-    /// <param name="id">
-    ///     The layer's id within your extension: letters, digits, '.', '-' and '_'. The scene's own ids are
-    ///     refused.
-    /// </param>
+    /// <param name="id">The layer's id within your extension: letters, digits, '.', '-' and '_'.</param>
     /// <param name="layer">Builds a fresh layer; called now and whenever the scene rebuilds.</param>
     /// <returns>The id it was filed under, and removes the layer.</returns>
     /// <exception cref="ArgumentException">
-    ///     <paramref name="id" /> is one of the scene's own layers, has a character outside letters, digits,
-    ///     '.', '-' and '_', or is one a layer on this view already holds.
+    ///     <paramref name="id" /> has a character outside letters, digits, '.', '-' and '_', or its filed
+    ///     form is one this view or its host already holds. Host code, which has no extension to be filed
+    ///     under, is refused the scene's own ids as well, since its id reaches the host unchanged.
     /// </exception>
     public ILayerHandle AddLayer(string id, Func<ISceneLayer> layer)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(layer);
-        if (SceneViewHost.OwnLayerIds.Contains(id))
-        {
-            throw new ArgumentException($"'{id}' is one of the scene's own layers.", nameof(id));
-        }
-
         // The host first: it composes the id and refuses a duplicate, so a refused add must leave nothing
         // recorded here either. With no host to file it, the id is its own and this map is the only
         // registry there is.
@@ -260,6 +261,9 @@ internal interface ISceneViewBackend
     /// <summary>The text tool placed a label.</summary>
     event Action<Point, double>? TextEditRequested;
 
+    /// <summary>The panes have been laid out.</summary>
+    event Action? PanesArranged;
+
     /// <summary>Registers a layer, filed under its extension, and answers the id it was filed under.</summary>
     string AddLayer(string id, Func<ISceneLayer> layer);
 
@@ -297,13 +301,6 @@ internal interface ISceneViewBackend
 /// <summary>Where the app installs the scene renderer every <see cref="SceneView" /> is built over.</summary>
 internal static class SceneViewHost
 {
-    /// <summary>The scene's own layer ids, which <see cref="SceneView.AddLayer" /> refuses.</summary>
-    internal static readonly IReadOnlySet<string> OwnLayerIds = new HashSet<string>(StringComparer.Ordinal)
-    {
-        SceneLayerIds.Radar, SceneLayerIds.Trails, SceneLayerIds.AreaEffects, SceneLayerIds.Vision,
-        SceneLayerIds.Markers, SceneLayerIds.Bomb, SceneLayerIds.FloorLabel, SceneLayerIds.Annotations,
-        SceneLayerIds.Zones
-    };
 
     /// <summary>Builds a renderer; null before the app installs one.</summary>
     internal static Func<ISceneViewBackend>? Factory { get; set; }

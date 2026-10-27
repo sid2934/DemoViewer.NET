@@ -1,7 +1,6 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 

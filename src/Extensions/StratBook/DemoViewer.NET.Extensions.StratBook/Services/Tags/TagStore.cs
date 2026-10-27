@@ -76,24 +76,25 @@ public sealed class TagStore
     // an Update and an autosave of one document cannot interleave their replace.
     private readonly Lock _rmwGate = new();
 
-    private readonly string? _root;
+    private readonly IExtensionFolder? _folder;
 
     private int _batchDepth; // under _gate
     private bool _batchDirty; // under _gate
 
-    /// <param name="tagsRoot">
-    ///     <c>&lt;config&gt;/tags</c>, or null for an in-memory store (the browser host, tests).
+    /// <param name="tags">
+    ///     The <c>&lt;config&gt;/tags</c> store as the host opened it, or null for an in-memory store (the
+    ///     browser host, tests).
     /// </param>
     /// <param name="post">Marshals <see cref="Changed" /> and routed updates onto the UI thread; defaults to synchronous.</param>
-    public TagStore(string? tagsRoot, Action<Action>? post = null)
+    public TagStore(IExtensionFolder? tags, Action<Action>? post = null)
     {
-        _root = string.IsNullOrWhiteSpace(tagsRoot) ? null : tagsRoot;
+        _folder = tags;
         _post = post ?? (action => action());
         LoadIndex();
     }
 
-    /// <summary>False on the browser host and in tests without a root: nothing survives the process.</summary>
-    public bool IsPersistent => _root is not null;
+    /// <summary>False on the browser host and in tests without a folder: nothing survives the process.</summary>
+    public bool IsPersistent => _folder is not null;
 
     /// <summary>A point-in-time snapshot of every index row, safe to enumerate off-lock.</summary>
     public IReadOnlyList<TagIndexEntry> Index
@@ -107,11 +108,10 @@ public sealed class TagStore
         }
     }
 
-    private string? IndexPath => _root is null ? null : Path.Combine(_root, "index.json");
-
-    private string? DemosDir => _root is null ? null : Path.Combine(_root, "demos");
-
-    private string? VerdictsDir => _root is null ? null : Path.Combine(_root, "verdicts");
+    // Relative to the store folder, which is the only thing the host resolves paths against.
+    private const string IndexFileName = "index.json";
+    private const string DemosFolderName = "demos";
+    private const string VerdictsFolderName = "verdicts";
 
     /// <summary>
     ///     Raised through the post delegate after a save or a delete, with the hash that changed, or once
@@ -131,7 +131,12 @@ public sealed class TagStore
 
     /// <summary>The sidecar this store would use for a hash, or null when it keeps documents in memory.</summary>
     /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
-    public string? PathFor(string sha256) => _root is null ? null : SidecarPathFor(_root, sha256);
+    public string? PathFor(string sha256) => _folder is null ? null : SidecarPathFor(_folder.Path, sha256);
+
+    // The same file as PathFor, as the host wants it: relative to the store folder.
+    private static string SidecarIn(string key) => DemosFolderName + "/" + key + SidecarExtension;
+
+    private static string VerdictsIn(string key) => VerdictsFolderName + "/" + key + VerdictsExtension;
 
     /// <summary>Whether a document exists for a hash: on disk, or in memory on the browser.</summary>
     /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
@@ -151,8 +156,7 @@ public sealed class TagStore
             }
         }
 
-        string? path = PathFor(key);
-        return path is not null && File.Exists(path);
+        return _folder is not null && _folder.FileExists(SidecarIn(key));
     }
 
     /// <summary>Opens a batch scope: saves inside it coalesce into one <see cref="Changed" /> at dispose.</summary>
@@ -197,7 +201,7 @@ public sealed class TagStore
         string key = Normalize(sha256);
         string? path = PathFor(key);
         string? json;
-        if (path is null)
+        if (_folder is null)
         {
             lock (_gate)
             {
@@ -208,7 +212,7 @@ public sealed class TagStore
         {
             try
             {
-                json = File.Exists(path) ? File.ReadAllText(path) : null;
+                json = FolderText.Read(_folder, SidecarIn(key));
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
@@ -274,8 +278,7 @@ public sealed class TagStore
             }
 
             string json = JsonSerializer.Serialize(document, TagJsonContext.Default.TagDocument);
-            string? path = PathFor(key);
-            if (path is null)
+            if (_folder is null)
             {
                 lock (_gate)
                 {
@@ -286,7 +289,7 @@ public sealed class TagStore
             {
                 try
                 {
-                    AtomicFile.WriteAllText(path, json);
+                    FolderText.Write(_folder, SidecarIn(key), json);
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
                 {
@@ -383,7 +386,7 @@ public sealed class TagStore
     /// <summary>The verdicts file this store would use for a hash, or null when it keeps them in memory.</summary>
     /// <param name="sha256">Lowercase-hex SHA-256 of the demo.</param>
     public string? VerdictsPathFor(string sha256) =>
-        VerdictsDir is { } dir ? Path.Combine(dir, Normalize(sha256) + VerdictsExtension) : null;
+        _folder is null ? null : Path.Combine(_folder.Path, VerdictsFolderName, Normalize(sha256) + VerdictsExtension);
 
     /// <summary>
     ///     A demo's Suggested Tags verdicts, empty when it has none. Null when the file exists and cannot
@@ -395,9 +398,8 @@ public sealed class TagStore
     {
         ArgumentException.ThrowIfNullOrEmpty(sha256);
         string key = Normalize(sha256);
-        string? path = VerdictsPathFor(key);
         string? json;
-        if (path is null)
+        if (_folder is null)
         {
             lock (_gate)
             {
@@ -408,7 +410,7 @@ public sealed class TagStore
         {
             try
             {
-                json = File.Exists(path) ? File.ReadAllText(path) : null;
+                json = FolderText.Read(_folder, VerdictsIn(key));
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
@@ -499,8 +501,7 @@ public sealed class TagStore
     private bool WriteVerdicts(string key, SuggestionVerdictDocument document)
     {
         string json = JsonSerializer.Serialize(document, TagJsonContext.Default.SuggestionVerdictDocument);
-        string? path = VerdictsPathFor(key);
-        if (path is null)
+        if (_folder is null)
         {
             lock (_gate)
             {
@@ -512,7 +513,7 @@ public sealed class TagStore
 
         try
         {
-            AtomicFile.WriteAllText(path, json);
+            FolderText.Write(_folder, VerdictsIn(key), json);
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -536,12 +537,11 @@ public sealed class TagStore
                 _refused.Remove(key);
             }
 
-            string? path = PathFor(key);
-            if (path is not null && File.Exists(path))
+            if (_folder is not null && _folder.FileExists(SidecarIn(key)))
             {
                 try
                 {
-                    File.Delete(path);
+                    _folder.Delete(SidecarIn(key));
                     removed = true;
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -590,8 +590,7 @@ public sealed class TagStore
     /// </summary>
     public void SaveIndex()
     {
-        string? indexPath = IndexPath;
-        if (indexPath is null)
+        if (_folder is null)
         {
             return;
         }
@@ -607,7 +606,7 @@ public sealed class TagStore
 
         try
         {
-            AtomicFile.WriteAllText(indexPath, JsonSerializer.Serialize(file, TagJsonContext.Default.TagIndexFile));
+            FolderText.Write(_folder, IndexFileName, JsonSerializer.Serialize(file, TagJsonContext.Default.TagIndexFile));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -618,8 +617,7 @@ public sealed class TagStore
     /// <summary>Re-reads every sidecar under <c>demos/</c> into the index: the recovery for a lost index.</summary>
     public void RebuildIndexFromDisk()
     {
-        string? dir = DemosDir;
-        if (dir is null)
+        if (_folder is null)
         {
             return;
         }
@@ -631,12 +629,12 @@ public sealed class TagStore
 
         // Nothing has ever been tagged: writing an empty index here would create the tags directory on
         // every first run for no reader.
-        if (!Directory.Exists(dir))
+        if (!_folder.DirectoryExists(DemosFolderName))
         {
             return;
         }
 
-        foreach (string file in EnumerateSidecars(dir))
+        foreach (string file in EnumerateSidecars(_folder))
         {
             IndexFile(file);
         }
@@ -687,11 +685,13 @@ public sealed class TagStore
         }
     }
 
-    private static IEnumerable<string> EnumerateSidecars(string dir)
+    // Materialized here: the listing is lazy, and a folder that vanishes mid-walk must read as empty
+    // rather than throw out of the caller's loop.
+    private static IReadOnlyList<string> EnumerateSidecars(IExtensionFolder folder)
     {
         try
         {
-            return Directory.Exists(dir) ? [.. Directory.EnumerateFiles(dir, "*" + SidecarExtension)] : [];
+            return [.. folder.EnumerateFiles(DemosFolderName, "*" + SidecarExtension)];
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -722,7 +722,8 @@ public sealed class TagStore
         DateTime modified;
         try
         {
-            modified = File.GetLastWriteTimeUtc(file);
+            // Null is a file gone since the listing.
+            modified = _folder?.LastWriteTimeUtc(file) ?? DateTime.UtcNow;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -737,9 +738,7 @@ public sealed class TagStore
 
     private void LoadIndex()
     {
-        string? indexPath = IndexPath;
-        string? dir = DemosDir;
-        if (indexPath is null || dir is null)
+        if (_folder is null)
         {
             return;
         }
@@ -747,9 +746,9 @@ public sealed class TagStore
         TagIndexFile? file = null;
         try
         {
-            if (File.Exists(indexPath))
+            if (FolderText.Read(_folder, IndexFileName) is { } json)
             {
-                file = JsonSerializer.Deserialize(File.ReadAllText(indexPath), TagJsonContext.Default.TagIndexFile);
+                file = JsonSerializer.Deserialize(json, TagJsonContext.Default.TagIndexFile);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
@@ -776,7 +775,7 @@ public sealed class TagStore
         // after its write and before SaveIndex) is read and added, and a row whose file is gone is dropped.
         HashSet<string> onDisk = new(StringComparer.Ordinal);
         bool changed = false;
-        foreach (string sidecar in EnumerateSidecars(dir))
+        foreach (string sidecar in EnumerateSidecars(_folder))
         {
             string name = Path.GetFileName(sidecar);
             string key = Normalize(name[..^SidecarExtension.Length]);

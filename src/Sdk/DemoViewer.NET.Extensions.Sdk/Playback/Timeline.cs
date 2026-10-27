@@ -43,6 +43,16 @@ public interface ILaneHandle : IDisposable
     /// <summary>The lane shows even when empty, and pressing it asks for a label.</summary>
     bool IsEditable { get; set; }
 
+    /// <summary>
+    ///     True while a press on the empty lane row reaches this lane. The row is shared, and only the
+    ///     first lane that takes edits and carries a behaviour is asked, so a second editable lane can say
+    ///     it is not the one taking labels instead of waiting for a press that never comes. Pull only:
+    ///     the answer turns over with any lane's <see cref="IsEditable" /> and with every lane added or
+    ///     disposed, and nothing raises an event for it. A handle with no host behind it answers
+    ///     <see cref="IsEditable" />, the host's own answer for a lone lane that has a behaviour.
+    /// </summary>
+    bool OwnsLabelPresses => IsEditable;
+
     /// <summary>A span drawn with two drag handles; one lane's at a time.</summary>
     (int Start, int End)? EditSpan { get; set; }
 }

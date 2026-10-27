@@ -79,10 +79,11 @@ public class TagPaletteTests
 
     private static TagPaletteStore StoreWith(string json, out string dir)
     {
-        dir = TempRoot();
+        IExtensionFolder folder = PackStores.Folder(TempRoot(), StratBookStores.Palettes);
+        dir = folder.Path;
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "scrim.tagpalette.json"), json);
-        TagPaletteStore store = new(dir);
+        TagPaletteStore store = new(folder);
         store.Reload();
         return store;
     }

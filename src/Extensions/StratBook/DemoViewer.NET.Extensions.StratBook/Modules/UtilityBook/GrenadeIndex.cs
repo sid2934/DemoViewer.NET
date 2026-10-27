@@ -7,8 +7,6 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using CS2DemoKit.Analysis.Diagnostics;
-using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using Microsoft.Extensions.Logging;
 

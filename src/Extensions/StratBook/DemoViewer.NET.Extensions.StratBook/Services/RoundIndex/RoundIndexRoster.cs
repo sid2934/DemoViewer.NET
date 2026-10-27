@@ -3,7 +3,6 @@
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using CS2OpenSchema.Events;
-using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 

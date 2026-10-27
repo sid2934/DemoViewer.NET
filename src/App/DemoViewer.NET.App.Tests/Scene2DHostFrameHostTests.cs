@@ -298,6 +298,40 @@ public class Scene2DHostFrameHostTests
     }
 
     /// <summary>
+    ///     The yielding goes both ways. A contribution under an id AddLayer holds is skipped, which the test
+    ///     above covers; AddLayer under a CONTRIBUTED id is refused rather than displacing it. It used to
+    ///     remove-then-add, which evicted the contributed layer from the compositor while the host's
+    ///     contributed-id list went on claiming the id.
+    /// </summary>
+    [Test]
+    public async Task AddLayer_UnderAContributedId_IsRefused_AndLeavesTheContributionDrawing()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeSceneFrameHost fake = new();
+            fake.Publish(Frame(1, true, TenTokens()));
+            fake.Layers.Add(new("ext.pack.heat", () => new StubLayer("ext.pack.heat")));
+
+            (Window window, Scene2DHost host) = Mount(fake);
+            Playback2DTimelineHarness.Pump();
+            ISceneLayer? contributed = host.Compositor.Find("ext.pack.heat");
+            await Assert.That(contributed).IsTypeOf<StubLayer>();
+
+            ArgumentException refused = Assert.Throws<ArgumentException>(
+                () => host.AddLayer("ext.pack.heat", () => new StubLayer("mine")))!;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(refused.ParamName).IsEqualTo("id");
+                await Assert.That(host.Compositor.Find("ext.pack.heat")).IsSameReferenceAs(contributed)
+                    .Because("the contribution keeps the id and stays in the compositor");
+            }
+
+            window.Close();
+        });
+    }
+
+    /// <summary>
     ///     A contributed tool is offered the primary press after the pre-handler: the one that takes it owns
     ///     the whole gesture and the router never opens one; a refused press is the pan tool's.
     /// </summary>

@@ -32,9 +32,15 @@ public sealed class InputToolRouter
     private readonly Dictionary<string, IPointerTool> _tools = new(StringComparer.Ordinal);
     private ToolPointerButton _gestureButton;
 
-    // The registered tool declaring ToolKind.Token, for OnPressed's fall-through. Cached rather than
-    // searched: a dictionary scan would pick whichever of two the enumeration order happened to yield.
-    private IPointerTool? _tokenTool;
+    // The tools declaring ToolKind.Token, in registration order, for OnPressed's fall-through: the first
+    // still registered wins. A list rather than one cached tool, and rather than scanning _tools, because
+    // both of those lose: one cached tool never transfers when it unregisters, and a dictionary scan picks
+    // whichever of two the enumeration order happened to yield.
+    private readonly List<IPointerTool> _tokenTools = [];
+
+    // First registered, still registered. Removing the holder hands it to the next, which is what makes
+    // the rule survive an extension unloading.
+    private IPointerTool? TokenFallThrough => _tokenTools.Count > 0 ? _tokenTools[0] : null;
 
     /// <summary>Creates a router over the host's services with pan/zoom as the permanent fallback.</summary>
     /// <param name="services">Host services handed to every tool.</param>
@@ -144,7 +150,7 @@ public sealed class InputToolRouter
         _tools[id] = tool;
         if (tool.Kind == ToolKind.Token)
         {
-            _tokenTool ??= tool;
+            _tokenTools.Add(tool);
         }
     }
 
@@ -168,10 +174,7 @@ public sealed class InputToolRouter
         }
 
         _tools.Remove(tool.Id);
-        if (ReferenceEquals(_tokenTool, tool))
-        {
-            _tokenTool = null;
-        }
+        _tokenTools.Remove(tool);
     }
 
     /// <summary>Selects the first-party tool of this kind. The toolbar's and the keymap's way in.</summary>
@@ -238,7 +241,7 @@ public sealed class InputToolRouter
         // Under pan, a left press on a token drags the token; the token tool refuses a miss, and with no token
         // editor (the 2D tab) it refuses everything, so the press pans.
         if (ReferenceEquals(tool, _panZoom) && !divert && e.Button == ToolPointerButton.Left
-            && _tokenTool is { } token && token.OnPressed(in e, _services))
+            && TokenFallThrough is { } token && token.OnPressed(in e, _services))
         {
             GestureTool = token;
             _gestureButton = e.Button;

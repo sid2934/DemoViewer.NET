@@ -2,6 +2,7 @@
 
 using Avalonia.Input;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using TUnit.Assertions.Enums;
 
@@ -36,11 +37,13 @@ public class TagPaletteStoreTests
         TagPaletteValidator.Validate(TagPaletteStore.TryParse(json, out _)!, TagPaletteValidator.DefaultReservedGroups,
             HostKeymap.Instance);
 
-    private static string TempDir()
+    // The palettes store over a temp config root, opened as the app opens it. The folder itself is created
+    // because these cases drop files into it by hand.
+    private static IExtensionFolder TempDropIns()
     {
-        string dir = TagTestData.TempRoot();
-        Directory.CreateDirectory(dir);
-        return dir;
+        IExtensionFolder folder = PackStores.Folder(TagTestData.TempRoot(), StratBookStores.Palettes);
+        folder.Create();
+        return folder;
     }
 
     [Test]
@@ -74,14 +77,15 @@ public class TagPaletteStoreTests
     [Test]
     public async Task DropIns_LoadAfterTheBuiltIn_InFilenameOrder()
     {
-        string dir = TempDir();
+        IExtensionFolder folder = TempDropIns();
+        string dir = folder.Path;
         try
         {
             File.WriteAllText(Path.Combine(dir, "b-team.tagpalette.json"), Palette("zeta"));
             File.WriteAllText(Path.Combine(dir, "a-team.tagpalette.json"), Palette("alpha"));
             File.WriteAllText(Path.Combine(dir, "notes.json"), Palette("ignored"));
 
-            TagPaletteStore store = new(dir, keymap: HostKeymap.Instance);
+            TagPaletteStore store = new(folder, keymap: HostKeymap.Instance);
             await Assert.That(store.Palettes.Count).IsEqualTo(1).Because("drop-ins wait for Reload, like themes");
 
             store.Reload();
@@ -104,7 +108,8 @@ public class TagPaletteStoreTests
     [Test]
     public async Task AnInvalidFile_IsSkippedWithALogLine_AndTheRestLoad()
     {
-        string dir = TempDir();
+        IExtensionFolder folder = TempDropIns();
+        string dir = folder.Path;
         try
         {
             File.WriteAllText(Path.Combine(dir, "1-broken.tagpalette.json"), "{ \"id\": \"broken\", \"panels\": [ ");
@@ -112,7 +117,7 @@ public class TagPaletteStoreTests
             File.WriteAllText(Path.Combine(dir, "3-good.tagpalette.json"), Palette("good"));
             File.WriteAllText(Path.Combine(dir, "4-builtin.tagpalette.json"), Palette(TagPaletteStore.DefaultId));
 
-            TagPaletteStore store = new(dir, keymap: HostKeymap.Instance);
+            TagPaletteStore store = new(folder, keymap: HostKeymap.Instance);
             store.Reload();
 
             foreach (string line in store.Diagnostics)

@@ -109,6 +109,33 @@ public interface IExtensionFolder
     /// <summary>True when <paramref name="relativePath" /> is a file that exists.</summary>
     bool FileExists(string relativePath);
 
+    /// <summary>
+    ///     True when <paramref name="relativePath" /> is a folder that exists. The companion to
+    ///     <see cref="FileExists" />, for a store that keeps subfolders of its own.
+    ///     <para>
+    ///         Defaulted to false so a host or a double written before this member answers "no such folder",
+    ///         which is what every caller already handles: a guard on it skips its work rather than failing.
+    ///     </para>
+    /// </summary>
+    /// <param name="relativePath">The folder to test, relative to this one.</param>
+    bool DirectoryExists(string relativePath) => false;
+
+    /// <summary>
+    ///     Sets a file's last-write time, which is what a cache that evicts by recency needs: touching a
+    ///     file is how it says keep this one. The read side is <see cref="LastWriteTimeUtc" />. A path with
+    ///     no file is left alone.
+    ///     <para>
+    ///         Defaulted to a no-op, so a host or a double written before this member leaves the time as it
+    ///         is. A recency sweep then sees the real write time rather than the touch, which evicts sooner
+    ///         than intended rather than keeping something it should have dropped.
+    ///     </para>
+    /// </summary>
+    /// <param name="relativePath">The file to touch, relative to this folder.</param>
+    /// <param name="value">The time to set, in UTC.</param>
+    void SetLastWriteTimeUtc(string relativePath, DateTime value)
+    {
+    }
+
     /// <summary>When <paramref name="relativePath" /> was last written, UTC, or null when there is no such file.</summary>
     DateTime? LastWriteTimeUtc(string relativePath);
 

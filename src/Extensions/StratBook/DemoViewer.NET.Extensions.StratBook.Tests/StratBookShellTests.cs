@@ -3,7 +3,6 @@
 using System.Text.Json;
 using Avalonia.Controls;
 using DemoViewer.NET.Configuration;
-using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;

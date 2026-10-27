@@ -6,9 +6,10 @@ this page is the host side.
 
 The Strat Book is the reference extension. It ships with the app, but it is built on the surfaces a
 third-party extension gets: the SDK, its UI kit, the scene package and the module abstractions. It is the
-evidence that those surfaces are enough for a real extension. Where it still binds the app directly (the
-zones overlay folder through `FirstPartyHost`), `PackPlayback2DBindingTests` pins every such type with its
-reason, and each entry is a contract the SDK has yet to publish rather than one the Strat Book keeps. Its
+evidence that those surfaces are enough for a real extension. It no longer binds the app at all: the app
+`ProjectReference` is gone from the pack's project, and the zones overlay folder it used to reach through
+`FirstPartyHost` now comes from the published places API on a map lease. `PackPlayback2DBindingTests` reads
+what is left from the pack's metadata, and both of its lists are empty. Its
 Playback2D list is empty: the review queue and its pack export go through `IExtensionReviewQueue` and
 `IExtensionReviewPackExport`, and video and clip export through `IExtensionSceneExport`. The target state
 is the app `ProjectReference` gone from the pack's project, which an empty allow-list does not prove on its

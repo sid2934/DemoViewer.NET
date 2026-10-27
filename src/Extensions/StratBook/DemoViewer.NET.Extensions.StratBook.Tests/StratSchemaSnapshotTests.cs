@@ -259,7 +259,7 @@ public class StratSchemaSnapshotTests
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
             File.WriteAllText(file, original);
 
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratLoadResult loaded = store.Load(StratTestData.SampleId);
             StratDocument document = loaded.Document!;
 
@@ -320,7 +320,7 @@ public class StratSchemaSnapshotTests
         try
         {
             // Run the script through a real store with a pinned clock; the log it writes is the golden.
-            StratStore writer = new(scratch, utcNow: StratTestData.SteppingClock(StratTestData.Created));
+            StratStore writer = new(PackStores.At(scratch), utcNow: StratTestData.SteppingClock(StratTestData.Created));
             StratTestData.RunHistoryScript(writer);
             string folder = StratStore.FolderFor(scratch, StratTestData.Team, "de_mirage");
             string writtenLog = File.ReadAllText(Path.Combine(folder, StratTestData.HistoryId + StratStore.HistoryExtension));
@@ -355,7 +355,7 @@ public class StratSchemaSnapshotTests
                 string readerFolder = StratStore.FolderFor(reader, StratTestData.Team, "de_mirage");
                 Directory.CreateDirectory(readerFolder);
                 File.WriteAllText(Path.Combine(readerFolder, StratTestData.HistoryId + StratStore.HistoryExtension), committedLog);
-                StratStore store = new(reader);
+                StratStore store = new(PackStores.At(reader));
                 await Assert.That(store.TryLoad(StratTestData.HistoryId)?.Revision).IsEqualTo(StratTestData.HistoryRevisions)
                     .Because("a log with no strat file is a first commit that crashed; the store recovers the file");
 

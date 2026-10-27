@@ -1,8 +1,6 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion

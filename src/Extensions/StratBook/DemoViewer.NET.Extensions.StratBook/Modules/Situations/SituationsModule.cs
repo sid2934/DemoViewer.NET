@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using DemoViewer.NET.Extensions.StratBook.Views.Situations;

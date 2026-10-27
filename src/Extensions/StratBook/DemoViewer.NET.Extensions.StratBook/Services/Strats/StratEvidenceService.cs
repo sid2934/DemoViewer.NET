@@ -1,7 +1,6 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 

@@ -1,7 +1,6 @@
 #region
 
 using DemoViewer.NET.Extensions.Sdk.Playback;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 
 #endregion

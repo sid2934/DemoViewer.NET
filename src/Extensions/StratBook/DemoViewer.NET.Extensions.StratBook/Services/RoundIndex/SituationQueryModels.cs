@@ -1,9 +1,3 @@
-#region
-
-using DemoViewer.NET.Extensions.Sdk;
-
-#endregion
-
 namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>One queried pair: <paramref name="Count" /> players in <paramref name="Place" />.</summary>

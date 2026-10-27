@@ -12,6 +12,7 @@ using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Playback2D.Pipeline.Input;
 using DemoViewer.NET.Playback2D.Pipeline.Layers;
 using DemoViewer.NET.Playback2D.Levels;
@@ -147,11 +148,26 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     }
 
     /// <inheritdoc />
+    // The two layers this view builds for itself in Compose. A contributed layer may not take either id.
+    private static readonly HashSet<string> OwnLayerIds = new(StringComparer.Ordinal)
+    {
+        SceneLayerIds.Radar, SceneLayerIds.FloorLabel
+    };
+
     public string AddLayer(string id, Func<ISceneLayer> layer)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(layer);
         (string filed, Func<ISceneLayer> build) = ContributedSceneLayer.File(id, layer, "map view layer factory", Faults);
+
+        // On the FILED id, not the local one: an owner's layer is composed to ext.<owner>.<local> and can
+        // never collide, so only an unowned caller can reach these two. The SDK side used to refuse the
+        // local id instead, which made both names reserved words for every extension.
+        if (OwnLayerIds.Contains(filed))
+        {
+            throw new ArgumentException($"'{filed}' is one of this view's own layers.", nameof(id));
+        }
+
         if (!_layers.TryAdd(filed, build))
         {
             throw new ArgumentException($"A layer is already registered as '{filed}'.", nameof(id));

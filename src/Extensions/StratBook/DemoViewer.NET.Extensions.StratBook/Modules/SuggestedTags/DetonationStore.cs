@@ -3,7 +3,6 @@
 using System.Numerics;
 using System.Text;
 using System.Text.Json;
-using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 

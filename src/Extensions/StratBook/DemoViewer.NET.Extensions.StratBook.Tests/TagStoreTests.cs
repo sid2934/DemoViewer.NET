@@ -29,7 +29,7 @@ public class TagStoreTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             TagInstance a = Instance("A execute", 100, 200, (TagStore.StratGroup, "a-split"));
             TagInstance b = Instance("Default", 300, 400, (TagStore.StratGroup, "a-split"), ("outcome", "won"));
             TagInstance c = Instance("A execute", 500, 600);
@@ -50,7 +50,7 @@ public class TagStoreTests
             }
 
             store.SaveIndex();
-            TagStore reopened = new(root);
+            TagStore reopened = new(PackStores.At(root));
             await Assert.That(reopened.Index.Single().InstanceCount).IsEqualTo(3);
         }
         finally
@@ -63,7 +63,7 @@ public class TagStoreTests
     public async Task AFreshStore_WithNothingTagged_CreatesNoDirectory()
     {
         string root = TempRoot();
-        _ = new TagStore(root);
+        _ = new TagStore(PackStores.At(root));
         await Assert.That(Directory.Exists(root)).IsFalse();
     }
 
@@ -73,14 +73,14 @@ public class TagStoreTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             store.Save(Document(Sha, Instance("A execute", 1, 2)));
             store.SaveIndex();
 
             // Corrupt the sidecar behind the index's back: a store that read sidecars at start would
             // drop the row, one that reads lazily keeps it and finds out only when asked.
             File.WriteAllText(TagStore.SidecarPathFor(root, Sha), "{ not json");
-            TagStore reopened = new(root);
+            TagStore reopened = new(PackStores.At(root));
 
             await Assert.That(reopened.Index.Count).IsEqualTo(1);
             await Assert.That(reopened.TryLoad(Sha)).IsNull();
@@ -101,7 +101,7 @@ public class TagStoreTests
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, "{ \"schemaVersion\": 1, \"instances\": [");
 
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             TagLoadResult result = store.Load(Sha, Clock);
             TagDocument fresh = store.LoadOrCreate(Demo, Clock);
             fresh.Instances.Add(Instance("A execute", 1, 2));
@@ -128,13 +128,13 @@ public class TagStoreTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             store.Save(Document(ShaOf(1), Instance("A execute", 1, 2)));
             store.Save(Document(ShaOf(2), Instance("B execute", 1, 2), Instance("Default", 3, 4)));
             store.SaveIndex();
             File.WriteAllText(Path.Combine(root, "index.json"), "][");
 
-            TagStore reopened = new(root);
+            TagStore reopened = new(PackStores.At(root));
 
             using (Assert.Multiple())
             {
@@ -155,7 +155,7 @@ public class TagStoreTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             store.Save(Document(ShaOf(1), Instance("A execute", 1, 2)));
             store.SaveIndex();
 
@@ -163,7 +163,7 @@ public class TagStoreTests
             store.Save(Document(ShaOf(2), Instance("B execute", 1, 2)));
             File.Delete(TagStore.SidecarPathFor(root, ShaOf(1)));
 
-            TagStore reopened = new(root);
+            TagStore reopened = new(PackStores.At(root));
             await Assert.That(reopened.Index.Select(e => e.Sha256)).IsEquivalentTo(new[] { ShaOf(2) }, CollectionOrdering.Matching);
         }
         finally
@@ -178,7 +178,7 @@ public class TagStoreTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             TagDocument document = Document(Sha, Instance("A execute", 1, 2));
             store.Save(document);
             document.Instances.Add(Instance("Default", 3, 4));
@@ -202,7 +202,7 @@ public class TagStoreTests
         File.WriteAllText(blocker, "not a directory");
         try
         {
-            TagStore store = new(blocker);
+            TagStore store = new(PackStores.At(blocker));
             bool saved = store.Save(Document(Sha, Instance("A execute", 1, 2)));
 
             await Assert.That(saved).IsFalse();
@@ -264,7 +264,7 @@ public class TagStoreTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             store.Save(Document(Sha, Instance("A execute", 1, 2)));
             DateTime before = File.GetLastWriteTimeUtc(TagStore.SidecarPathFor(root, Sha));
 
@@ -332,7 +332,7 @@ public class TagStoreTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             store.Save(Document(Sha, Instance("A execute", 1, 2)));
 
             await Assert.That(store.Delete(Sha)).IsTrue();
@@ -362,7 +362,7 @@ public class TagStoreIdentityTests
         string root = TempRoot();
         try
         {
-            TagStore writer = new(root);
+            TagStore writer = new(PackStores.At(root));
             writer.Save(Document(Other, Instance("A execute", 1, 2)));
 
             // Someone copied another demo's sidecar under this demo's name.
@@ -370,7 +370,7 @@ public class TagStoreIdentityTests
             string path = TagStore.SidecarPathFor(root, Sha);
             File.WriteAllText(path, foreign);
 
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             TagLoadResult result = store.Load(Sha, Clock);
             TagDocument fresh = store.LoadOrCreate(Demo, Clock);
             fresh.Instances.Add(Instance("Default", 1, 2));

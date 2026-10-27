@@ -138,6 +138,7 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.TokenRouteLine",
         "DemoViewer.NET.Playback2D.Tools.IMapTool",
         "DemoViewer.NET.Playback2D.Tools.IMapToolContext",
+        "DemoViewer.NET.Playback2D.Tools.MapToolAdapter",
         "DemoViewer.NET.Playback2D.Tools.MapToolButton",
         "DemoViewer.NET.Playback2D.Tools.MapToolEvent",
         "DemoViewer.NET.Playback2D.Tools.MapToolModifiers",

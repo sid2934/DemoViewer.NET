@@ -595,6 +595,21 @@ The newest compatible version of each id loads. Ship your own dependencies in th
 already ships (this SDK, Avalonia, CS2DemoKit, the runtime) always come from the app, so a copy in your
 folder is ignored.
 
+### CS2DemoKit
+
+This SDK declares `CS2DemoKit.Parser` only, which is what reading demos needs. Reading the analysis layer,
+meaning evaluators, rulesets, clip models or `AnalysisRun`, needs `CS2DemoKit.Analysis` too, and you
+reference that yourself:
+
+```xml
+<PackageReference Include="CS2DemoKit.Analysis" Version="0.14.0" />
+```
+
+Pin the version the host loads, which is 0.14.0 for a 2.x SDK, and keep it equal to the
+`CS2DemoKit.Parser` version in this package's own dependencies: the two are exact-pinned to each other
+before 1.0. Because the app supplies both assemblies at runtime, as the paragraph above says, a different
+pin compiles and then fails to load.
+
 An extension the app's publisher has not signed is unverified. Unverified extensions load only after the
 user turns on "Allow unverified and potentially dangerous extensions" in Settings and restarts. An extension
 runs inside the app with the app's access to files and the network; that setting records the user's consent,

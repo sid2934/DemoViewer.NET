@@ -94,6 +94,36 @@ public class HostDataRemovalTests
         await Assert.That(facts!.Paths).IsEquivalentTo([$"demos/*.facts.{RulesetContribution.QualifiedId(id, "kills")}.json.gz"], CollectionOrdering.Matching);
     }
 
+    /// <summary>
+    ///     The confirmation names user work, and the extension's cache folder holds the extension's own
+    ///     saved state, so it has to be named. It also has to stay the whole folder: ExtensionStores strands
+    ///     an older build's entry at the root when a newer copy is already in files/, and a descriptor
+    ///     naming only the two subfolders would leave that behind on a delete.
+    /// </summary>
+    [Test]
+    public async Task TheExtensionsCacheFolder_IsNamedAsUserWork_AndCoversTheWholeFolder()
+    {
+        string id = "dev.example.cache." + Guid.NewGuid().ToString("N")[..8];
+        Pack pack = new(id);
+        ServiceCollection services = new();
+        services.AddSingleton<ExtensionShellHub>();
+        services.AddSingleton(new DemoCacheStore(null));
+        await using ServiceProvider sp = services.BuildServiceProvider();
+        PackContributions contributions = new(pack, () => new ExtensionContext(pack, sp));
+
+        StoreDescriptor cache = new HostDataRemoval(contributions, sp).Stores.Single(s => s.Id == "extension-cache");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(cache.IsUserWork).IsTrue()
+                .Because("a rebuild cannot recover what the extension saved there");
+            await Assert.That(cache.Root).IsEqualTo(StoreRoot.Cache);
+            await Assert.That(cache.Paths)
+                .IsEquivalentTo([ExtensionFolders.DataDirectoryName + "/" + id], CollectionOrdering.Matching)
+                .Because("a stranded old-layout entry sits at the folder root, outside both subfolders");
+        }
+    }
+
     [Test]
     public async Task ARulesetAPassReads_HasNoFactsToDelete_AndReachesThatPass()
     {

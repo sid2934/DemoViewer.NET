@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
-using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion

@@ -2,16 +2,13 @@
 
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
-using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;

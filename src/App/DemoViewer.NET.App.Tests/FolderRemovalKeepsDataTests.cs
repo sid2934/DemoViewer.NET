@@ -26,6 +26,9 @@ public class FolderRemovalKeepsDataTests
 {
     private const string FactsSuffix = ".facts.test";
 
+    // The tags store as the host opens it, over the config root this test drives.
+    private static ExtensionFolder Tags(string config) => new(Path.Combine(config, "tags"));
+
     [Test]
     public async Task AFolderRemovedAndAddedBack_KeepsTagsStratsAnnotationsExtensionDataAndRoundFacts()
     {
@@ -50,7 +53,7 @@ public class FolderRemovalKeepsDataTests
 
             ClockIdentity clock = new(ClockIdentity.DvFrameClock, 64, 1000, 0, 0);
             DemoIdentity identity = new(sha, "m.dem", bytes.Length);
-            TagStore tags = new(Path.Combine(config, "tags"));
+            TagStore tags = new(Tags(config));
             TagDocument document = TagDocument.Create(identity, clock);
             document.Instances.Add(new TagInstance
             {
@@ -74,7 +77,7 @@ public class FolderRemovalKeepsDataTests
             await Assert.That(cache.TryGetIndex(demo)).IsNull();
 
             // A reopened store sees only what is on disk.
-            TagStore tagsAfter = new(Path.Combine(config, "tags"));
+            TagStore tagsAfter = new(Tags(config));
             ExtensionDemoDataStore dataAfter = new("dev.example.data", Path.Combine(config, "ext"), cache, a => a(), "1.0.0");
             using (Assert.Multiple())
             {
@@ -97,7 +100,7 @@ public class FolderRemovalKeepsDataTests
                 await Assert.That(Encoding.UTF8.GetString(dataAfter.Read(demo, "rounds", 1, "fp")!)).IsEqualTo("rounds of m");
                 await Assert.That(Encoding.UTF8.GetString(data.Read(demo, "rounds", 1, "fp")!)).IsEqualTo("rounds of m");
                 await Assert.That(cache.TryReadSibling(demo, FactsSuffix)).IsEqualTo("facts of m");
-                await Assert.That(new TagStore(Path.Combine(config, "tags")).TryLoad(sha)).IsNotNull();
+                await Assert.That(new TagStore(Tags(config)).TryLoad(sha)).IsNotNull();
             }
         }
         finally

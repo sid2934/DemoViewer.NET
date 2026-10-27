@@ -376,19 +376,19 @@ public static class SiteRegionLearner
 /// <summary>
 ///     The learned tables on disk: <c>&lt;config&gt;/suggested-tags/site-regions.&lt;map&gt;.json</c>,
 ///     beside the profile. Derived data a team may still want to read and share, so it lives with the
-///     profile rather than in the cache. Whole-file atomic writes; a null directory (the browser,
+///     profile rather than in the cache. Whole-file atomic writes; a null folder (the browser,
 ///     tests) keeps the tables for the session only, the way the cache's in-memory mode does.
 /// </summary>
 public sealed class SiteRegionStore
 {
-    private readonly string? _directory;
+    private readonly IExtensionFolder? _folder;
     private readonly Dictionary<string, string> _memory = new(StringComparer.Ordinal);
     private readonly Lock _gate = new();
 
-    /// <param name="directory">The suggested-tags config directory, or null for a session-only store.</param>
-    public SiteRegionStore(string? directory)
+    /// <param name="folder">The suggested-tags store, as the host opened it, or null for a session-only store.</param>
+    public SiteRegionStore(IExtensionFolder? folder)
     {
-        _directory = directory;
+        _folder = folder;
     }
 
     /// <summary>The file name for a map's table.</summary>
@@ -413,16 +413,15 @@ public sealed class SiteRegionStore
         string name = FileNameFor(map);
         lock (_gate)
         {
-            if (_directory is null)
+            if (_folder is null)
             {
                 return _memory.TryGetValue(name, out string? json) ? SiteRegionTable.TryParse(json) : null;
             }
         }
 
-        string path = Path.Combine(_directory, name);
         try
         {
-            return File.Exists(path) ? SiteRegionTable.TryParse(File.ReadAllText(path)) : null;
+            return FolderText.Read(_folder, name) is { } text ? SiteRegionTable.TryParse(text) : null;
         }
         catch (IOException)
         {
@@ -443,14 +442,13 @@ public sealed class SiteRegionStore
         string json = table.ToJson();
         lock (_gate)
         {
-            if (_directory is null)
+            if (_folder is null)
             {
                 _memory[name] = json;
                 return;
             }
         }
 
-        Directory.CreateDirectory(_directory);
-        AtomicFile.WriteAllText(Path.Combine(_directory, name), json + "\n");
+        FolderText.Write(_folder, name, json + "\n");
     }
 }

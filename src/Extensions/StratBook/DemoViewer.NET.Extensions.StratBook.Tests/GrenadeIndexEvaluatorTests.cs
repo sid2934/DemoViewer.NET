@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
@@ -59,7 +58,7 @@ public class GrenadeIndexEvaluatorTests
     public async Task TheClipPass_FollowsTheWalk_RunsOnceOnItsVisit_AndThenWantsNothing()
     {
         (_, GrenadeIndexEvaluator evaluator) = Wire(background: true);
-        using LineupClipService clips = new(() => [], "/clips", () => true, new NoRender());
+        using LineupClipService clips = new(() => [], PackStores.At("/clips"), () => true, new NoRender());
         using LineupClipPass pass = new(evaluator, clips);
         ParsedDemo parsed = Parse();
 
@@ -82,7 +81,7 @@ public class GrenadeIndexEvaluatorTests
     public async Task TheClipPass_WithClipsOff_IsNeverOnAVisit()
     {
         (_, GrenadeIndexEvaluator evaluator) = Wire(background: true);
-        using LineupClipService clips = new(() => [], "/clips", () => false, new NoRender());
+        using LineupClipService clips = new(() => [], PackStores.At("/clips"), () => false, new NoRender());
         using LineupClipPass pass = new(evaluator, clips);
 
         evaluator.Evaluate(Demo, Parse());

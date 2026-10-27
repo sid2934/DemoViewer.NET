@@ -104,6 +104,11 @@ esac
 # ── Project registry ────────────────────────────────────────────────────────────────────────────────
 # key|path. Ordered cheapest-first so a broken build or an obvious regression surfaces in seconds
 # rather than after the slowest suite has finished.
+#
+# A key is a LANE SELECTOR, not a unique name: several rows may share one, and `-p <key>` then runs all
+# of them. `ext` is two rows, so the output carries two `ext` lines with their own timings. The lanes in
+# .github/workflows/ci.yml are pinned by name in the require-ci ruleset, so a new suite that belongs to
+# an existing lane joins it here rather than becoming a job nothing requires.
 PROJECTS=(
   "gameicons|src/GameIcons/DemoViewer.NET.GameIcons.Tests"
   "ruleauthoring|src/RuleAuthoring/DemoViewer.NET.RuleAuthoring.Tests"
@@ -113,6 +118,7 @@ PROJECTS=(
   "playback2d|src/Playback2D/DemoViewer.NET.Playback2D.Tests"
   "cli|tools/DemoViewer.NET.Playback2D.Cli.Tests"
   "app|src/App/DemoViewer.NET.App.Tests"
+  "ext|src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.SdkOnly.Tests"
   "ext|src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.Tests"
 )
 

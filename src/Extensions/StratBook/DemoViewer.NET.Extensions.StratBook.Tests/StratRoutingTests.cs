@@ -1,9 +1,6 @@
 #region
 
-using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
-using DemoViewer.NET.Features;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;

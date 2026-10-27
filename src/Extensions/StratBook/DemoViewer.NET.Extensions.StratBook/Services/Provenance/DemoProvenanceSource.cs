@@ -1,7 +1,6 @@
 #region
 
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion

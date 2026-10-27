@@ -171,6 +171,27 @@ public class SdkPlaybackSurfaceSceneTests
         vm.Dispose();
     }
 
+    /// <summary>
+    ///     A factory that returns null rather than throwing. The guard's fallback cannot answer for it,
+    ///     since nothing was thrown, so the coalesce has to: without it the null reaches
+    ///     <c>GuardedSceneLayer</c>, which refuses it outside the guard on every rebuild.
+    /// </summary>
+    [Test]
+    public async Task ANullReturningLayerFactory_BuildsALayerThatDrawsNothing_AndFilesNoFault()
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        FaultRig rig = new();
+        using SdkPlaybackSurface surface = new(inner, rig.Guard);
+        using IDisposable _ = surface.AddLayer("x", () => null!);
+
+        ISceneLayer built = inner.Layers.Single().Value();
+
+        await Assert.That(built.Id).IsEqualTo("ext.pack.fake.x");
+        await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsEqualTo(0)
+            .Because("returning null is not a throw, so there is no fault to report");
+        vm.Dispose();
+    }
+
 
     /// <summary>
     ///     The user's row and the layer's own flag are two different flags. Assigning the row onto the
@@ -537,6 +558,69 @@ public class SdkPlaybackSurfaceSceneTests
         vm.Dispose();
     }
 
+    /// <summary>
+    ///     The shared lane row takes label presses for one lane, and the lanes that are not getting them can
+    ///     see that: the first registered lane that takes edits and has a behaviour owns the row, a
+    ///     display-only lane never does whatever its editable flag says, and the row moves on when the owner
+    ///     is disposed. Who wins is unchanged; what is new is that the losers can say so.
+    /// </summary>
+    [Test]
+    public async Task OnlyOneLaneOwnsTheLabelPresses_AndTheHandleAnswersWithTheLaneTheLabelReaches()
+    {
+        (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+        vm.Timeline.PixelWidth = 999; // one px per frame over the harness's 1000 frames
+        using SdkPlaybackSurface surface = new(vm.Surface, new FaultRig().Guard);
+        RecordingLane behaviourA = new();
+        RecordingLane behaviourB = new();
+
+        SdkP.ILaneHandle display = surface.AddLane(new LabelledTrack("display", "D"));
+        SdkP.ILaneHandle a = surface.AddLane(new LabelledTrack("a", "A"), behaviourA);
+        SdkP.ILaneHandle b = surface.AddLane(new LabelledTrack("b", "B"), behaviourB);
+
+        display.IsEditable = true;
+        vm.Timeline.RequestLaneLabel(50);
+        using (Assert.Multiple())
+        {
+            await Assert.That(display.OwnsLabelPresses).IsFalse()
+                .Because("a lane registered without a behaviour has nothing to tell, so the row skips it");
+            await Assert.That(a.OwnsLabelPresses).IsFalse();
+            await Assert.That(b.OwnsLabelPresses).IsFalse();
+            await Assert.That(behaviourA.Labels).IsEmpty();
+            await Assert.That(behaviourB.Labels).IsEmpty();
+        }
+
+        b.IsEditable = true;
+        vm.Timeline.RequestLaneLabel(50);
+        using (Assert.Multiple())
+        {
+            await Assert.That(b.OwnsLabelPresses).IsTrue();
+            await Assert.That(a.OwnsLabelPresses).IsFalse().Because("a takes no edits yet");
+            await Assert.That(behaviourB.Labels).IsEquivalentTo([50], CollectionOrdering.Matching);
+        }
+
+        a.IsEditable = true;
+        vm.Timeline.RequestLaneLabel(100);
+        using (Assert.Multiple())
+        {
+            await Assert.That(a.OwnsLabelPresses).IsTrue().Because("registration order decides and a came first");
+            await Assert.That(b.OwnsLabelPresses).IsFalse();
+            await Assert.That(b.IsEditable).IsTrue().Because("the loser still takes edits, it just gets no presses");
+            await Assert.That(behaviourA.Labels).IsEquivalentTo([100], CollectionOrdering.Matching);
+            await Assert.That(behaviourB.Labels).IsEquivalentTo([50], CollectionOrdering.Matching)
+                .Because("the lane that does not own the row is told nothing");
+        }
+
+        a.Dispose();
+        vm.Timeline.RequestLaneLabel(200);
+        using (Assert.Multiple())
+        {
+            await Assert.That(b.OwnsLabelPresses).IsTrue().Because("the row moves on when its owner leaves");
+            await Assert.That(behaviourB.Labels).IsEquivalentTo([50, 200], CollectionOrdering.Matching);
+        }
+
+        vm.Dispose();
+    }
+
     [Test]
     public async Task ComposedIds_NeverStartWithAHostRoot()
     {
@@ -592,6 +676,13 @@ public class SdkPlaybackSurfaceSceneTests
         public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => [new TimelineBand(id, 10, 20, label, "", 0)];
 
         public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => [];
+    }
+
+    private sealed class RecordingLane : SdkP.ILaneBehaviour
+    {
+        public List<int> Labels { get; } = [];
+
+        public void OnLabelRequested(int frame) => Labels.Add(frame);
     }
 
     private sealed class RecordingLayer(string id) : ISceneLayer

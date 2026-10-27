@@ -1,7 +1,5 @@
 #region
 
-using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
-using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Zones;
 
 #endregion

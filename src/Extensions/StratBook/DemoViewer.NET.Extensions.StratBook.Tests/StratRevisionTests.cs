@@ -57,7 +57,7 @@ public class StratRevisionTests
     // stamped no newer than the row, so no startup check sees the difference.
     private static StratDocument KilledAfterTwoCommits(string root)
     {
-        StratStore store = new(root, utcNow: SteppingClock(Past));
+        StratStore store = new(PackStores.At(root), utcNow: SteppingClock(Past));
         StratDocument document = Minimal();
         store.Save(document, [], "created");
         store.SaveIndex();
@@ -80,7 +80,7 @@ public class StratRevisionTests
         try
         {
             StratDocument document = KilledAfterTwoCommits(root);
-            StratStore restarted = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratStore restarted = new(PackStores.At(root), utcNow: SteppingClock(Past.AddHours(1)));
             await Assert.That(restarted.Index.Single().Revision).IsEqualTo(1).Because("the stale row is trusted at start");
 
             using StratSession session = Session(restarted);
@@ -112,7 +112,7 @@ public class StratRevisionTests
         try
         {
             StratDocument document = KilledAfterTwoCommits(root);
-            StratStore restarted = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratStore restarted = new(PackStores.At(root), utcNow: SteppingClock(Past.AddHours(1)));
 
             // No Load: the row and the document both say revision 1, only the log knows better.
             StratDocument stale = restarted.Materialize(document.Id, 3)!;
@@ -138,7 +138,7 @@ public class StratRevisionTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root, utcNow: SteppingClock(Past));
+            StratStore store = new(PackStores.At(root), utcNow: SteppingClock(Past));
             StratDocument document = Minimal();
             store.Save(document, [], "created");
             store.SaveIndex();
@@ -149,7 +149,7 @@ public class StratRevisionTests
             File.SetLastWriteTimeUtc(StratFile(root, document), Past.AddMinutes(30));
             File.SetLastWriteTimeUtc(LogFile(root, document), Past.AddMinutes(30));
 
-            await Assert.That(new StratStore(root).Index.Single().Revision).IsEqualTo(3);
+            await Assert.That(new StratStore(PackStores.At(root)).Index.Single().Revision).IsEqualTo(3);
         }
         finally
         {
@@ -167,13 +167,13 @@ public class StratRevisionTests
 
             // Revision 3's content plus one edit, stamped with the stale row's revision 1, then a crash. Its
             // diff from revision 1 carries revisions 2 and 3, whose targets the head no longer holds.
-            StratStore probe = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratStore probe = new(PackStores.At(root), utcNow: SteppingClock(Past.AddHours(1)));
             StratDocument working = probe.Materialize(document.Id, 3)!;
             working.Name = "edited before the crash";
             working.Revision = 1;
             File.WriteAllText(StratFile(root, document), StratStore.Serialize(StratStore.WithPending(working, true)));
 
-            StratStore restarted = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratStore restarted = new(PackStores.At(root), utcNow: SteppingClock(Past.AddHours(1)));
             using StratSession session = Session(restarted);
             session.Open(document.Id);
 
@@ -204,11 +204,11 @@ public class StratRevisionTests
             StratDocument document = KilledAfterTwoCommits(root);
 
             // Revision 1 plus a rename; revisions 2 and 3 only moved steps.
-            StratDocument working = new StratStore(root).Materialize(document.Id, 1)!;
+            StratDocument working = new StratStore(PackStores.At(root)).Materialize(document.Id, 1)!;
             working.Name = "renamed at revision 1";
             File.WriteAllText(StratFile(root, document), StratStore.Serialize(StratStore.WithPending(working, true)));
 
-            StratStore restarted = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratStore restarted = new(PackStores.At(root), utcNow: SteppingClock(Past.AddHours(1)));
             using StratSession session = Session(restarted);
             session.Open(document.Id);
 
@@ -234,7 +234,7 @@ public class StratRevisionTests
     // Revision 1 plus its own move of step 0, which revision 2 moved somewhere else.
     private static void WriteConflictingWorkingCopy(string root, StratDocument document, double stepZero)
     {
-        StratDocument working = new StratStore(root).Materialize(document.Id, 1)!;
+        StratDocument working = new StratStore(PackStores.At(root)).Materialize(document.Id, 1)!;
         working.Steps[0].AtSeconds = stepZero;
         File.WriteAllText(StratFile(root, document), StratStore.Serialize(StratStore.WithPending(working, true)));
     }
@@ -255,7 +255,7 @@ public class StratRevisionTests
             StratDocument document = KilledAfterTwoCommits(root);
             WriteConflictingWorkingCopy(root, document, 70);
 
-            StratStore restarted = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratStore restarted = new(PackStores.At(root), utcNow: SteppingClock(Past.AddHours(1)));
             using StratSession session = Session(restarted);
             session.Open(document.Id);
 
@@ -287,9 +287,9 @@ public class StratRevisionTests
         {
             StratDocument document = KilledAfterTwoCommits(root);
             WriteConflictingWorkingCopy(root, document, 70);
-            new StratStore(root, utcNow: () => Past).TryLoad(document.Id);
+            new StratStore(PackStores.At(root), utcNow: () => Past).TryLoad(document.Id);
             WriteConflictingWorkingCopy(root, document, 65);
-            new StratStore(root, utcNow: () => Past).TryLoad(document.Id);
+            new StratStore(PackStores.At(root), utcNow: () => Past).TryLoad(document.Id);
 
             string[] kept = SetAsideFiles(root, document);
             await Assert.That(kept.Select(StepZero).Order()).IsEquivalentTo(BothCopies, CollectionOrdering.Matching);
@@ -338,7 +338,7 @@ public class StratRevisionTests
             ReadOnly(folder);
 
             // The log file itself stays writable, so only the store's refusal keeps the stale edits out of it.
-            StratStore store = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratStore store = new(PackStores.At(root), utcNow: SteppingClock(Past.AddHours(1)));
             StratLoadResult loaded = store.Load(document.Id);
             using (Assert.Multiple())
             {
@@ -412,7 +412,7 @@ public class StratRevisionTests
             WriteConflictingWorkingCopy(root, document, 70);
             folder = Path.GetDirectoryName(StratFile(root, document))!;
             ReadOnly(folder);
-            StratStore store = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratStore store = new(PackStores.At(root), utcNow: SteppingClock(Past.AddHours(1)));
             await Assert.That(store.IsUnresolved(document.Id)).IsTrue();
             Writable(folder);
 
@@ -451,7 +451,7 @@ public class StratRevisionTests
         string folder = "";
         try
         {
-            StratStore store = new(root, utcNow: SteppingClock(Past));
+            StratStore store = new(PackStores.At(root), utcNow: SteppingClock(Past));
             StratDocument document = Minimal();
             store.Save(document, [], "created");
             folder = Path.GetDirectoryName(StratFile(root, document))!;
@@ -475,7 +475,7 @@ public class StratRevisionTests
 
             session.Close();
             Writable(folder);
-            StratDocument reloaded = new StratStore(root).TryLoad(document.Id)!;
+            StratDocument reloaded = new StratStore(PackStores.At(root)).TryLoad(document.Id)!;
             using (Assert.Multiple())
             {
                 await Assert.That(File.ReadAllLines(LogFile(root, document)).Length).IsEqualTo(2);

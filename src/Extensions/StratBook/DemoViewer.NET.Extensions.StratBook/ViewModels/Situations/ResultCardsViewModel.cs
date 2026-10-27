@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Media.Imaging;
@@ -11,7 +10,6 @@ using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Overlay;
 using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Extensions.Sdk.Review;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion

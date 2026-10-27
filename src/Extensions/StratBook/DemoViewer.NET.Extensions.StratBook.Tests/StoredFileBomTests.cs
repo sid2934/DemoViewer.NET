@@ -2,7 +2,6 @@
 
 using System.Text;
 using System.Text.Json;
-using DemoViewer.NET.Extensions.StratBook;
 
 #endregion
 

@@ -3,7 +3,6 @@
 using System.Collections.ObjectModel;
 using System.Numerics;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
@@ -249,7 +248,7 @@ public class StratBookLifecycleTests
             try
             {
                 string indexPath = Path.Combine(root, "index.json");
-                StratStore store = new(root);
+                StratStore store = new(PackStores.At(root));
                 StratBookTabViewModel vm = new(store);
                 StratBookModule module = new(() => vm);
                 StratBookPackInstances instances = new() { StratBook = module };

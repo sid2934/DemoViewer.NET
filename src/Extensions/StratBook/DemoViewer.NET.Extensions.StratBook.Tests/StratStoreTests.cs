@@ -39,7 +39,7 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument team = store.Create(Team, "DE_MIRAGE", "T", "execute", "A exec");
             StratDocument mine = store.Create(StratOwner.Me(), "de_nuke", "CT", "setup", "2-1-2");
 
@@ -59,7 +59,7 @@ public class StratStoreTests
             }
 
             store.SaveIndex();
-            StratStore reopened = new(root);
+            StratStore reopened = new(PackStores.At(root));
             await Assert.That(reopened.Index.Count).IsEqualTo(2);
             await Assert.That(reopened.TryLoad(team.Id)!.Name).IsEqualTo("A exec");
         }
@@ -73,7 +73,7 @@ public class StratStoreTests
     public async Task AFreshStore_WithNothingSaved_CreatesNoDirectory()
     {
         string root = TempRoot();
-        _ = new StratStore(root);
+        _ = new StratStore(PackStores.At(root));
         await Assert.That(Directory.Exists(root)).IsFalse();
     }
 
@@ -83,17 +83,17 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument a = store.Create(Team, "de_mirage", "T", "execute", "A exec");
             StratDocument b = store.Create(StratOwner.Me(), "de_inferno", "T", "default", "default");
 
             // Missing: never saved.
-            StratStore rebuilt = new(root);
+            StratStore rebuilt = new(PackStores.At(root));
             await Assert.That(rebuilt.Index.Select(e => e.Id)).IsEquivalentTo(new[] { a.Id, b.Id }.Order(), CollectionOrdering.Matching);
 
             // Corrupt.
             File.WriteAllText(Path.Combine(root, "index.json"), "{ not json");
-            StratStore fromCorrupt = new(root);
+            StratStore fromCorrupt = new(PackStores.At(root));
             await Assert.That(fromCorrupt.Index.Select(e => e.Id)).IsEquivalentTo(new[] { a.Id, b.Id }.Order(), CollectionOrdering.Matching);
             await Assert.That(File.ReadAllText(Path.Combine(root, "index.json"))).Contains(a.Id.ToString());
         }
@@ -109,7 +109,7 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument kept = store.Create(Team, "de_mirage", "T", "execute", "kept");
             StratDocument gone = store.Create(Team, "de_mirage", "T", "execute", "gone");
             store.SaveIndex();
@@ -124,7 +124,7 @@ public class StratStoreTests
             Directory.CreateDirectory(Path.GetDirectoryName(StratFile(root, late))!);
             File.WriteAllText(StratFile(root, late), StratStore.Serialize(late));
 
-            StratStore reopened = new(root);
+            StratStore reopened = new(PackStores.At(root));
             await Assert.That(reopened.Index.Select(e => e.Id)).IsEquivalentTo(new[] { kept.Id, late.Id }.Order(), CollectionOrdering.Matching);
         }
         finally
@@ -139,12 +139,12 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument document = store.Create(Team, "de_mirage", "T", "execute", "A exec");
             string file = StratFile(root, document);
             File.WriteAllText(file, "{ \"schemaVersion\": 1, \"id\": ");
 
-            StratStore reopened = new(root);
+            StratStore reopened = new(PackStores.At(root));
             StratLoadResult loaded = reopened.Load(document.Id);
             using (Assert.Multiple())
             {
@@ -171,7 +171,7 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root, utcNow: SteppingClock(Created));
+            StratStore store = new(PackStores.At(root), utcNow: SteppingClock(Created));
             StratDocument document = Minimal();
             await Assert.That(store.Save(document, [], "created").Revision).IsEqualTo(1);
 
@@ -207,7 +207,7 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument document = Minimal();
             store.Save(document, [], "created");
             string log = LogFile(root, document);
@@ -240,7 +240,7 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument document = Minimal();
             store.Save(document, [], "created");
             store.SaveIndex();
@@ -254,7 +254,7 @@ public class StratStoreTests
             File.WriteAllText(file, revisionOne);
             File.SetLastWriteTimeUtc(file, File.GetLastWriteTimeUtc(LogFile(root, document)).AddSeconds(-5));
 
-            StratStore reopened = new(root);
+            StratStore reopened = new(PackStores.At(root));
             await Assert.That(reopened.Index.Single().Revision).IsEqualTo(2)
                 .Because("a log newer than its strat is read at start, so the index is not left a revision behind");
 
@@ -279,7 +279,7 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument document = Minimal();
             store.Save(document, [], "created");
             File.AppendAllText(LogFile(root, document), "{\"revision\":2,\"atUtc\":\"2026-09-");
@@ -287,7 +287,7 @@ public class StratStoreTests
             (StratDocument moved, PatchOp op) = MoveStep(document, 1, 70);
             await Assert.That(store.Save(moved, [op], null).Saved).IsTrue();
 
-            IReadOnlyList<HistoryEntry> log = new StratStore(root).History(document.Id);
+            IReadOnlyList<HistoryEntry> log = new StratStore(PackStores.At(root)).History(document.Id);
             await Assert.That(log.Select(e => e.Revision)).IsEquivalentTo(TwoRevisions, CollectionOrdering.Matching);
         }
         finally
@@ -304,7 +304,7 @@ public class StratStoreTests
         File.WriteAllText(blocker, "not a folder");
         try
         {
-            StratStore store = new(Path.Combine(blocker, "strats"));
+            StratStore store = new(PackStores.At(Path.Combine(blocker, "strats")));
             StratSaveResult result = store.Save(Minimal(), [], "created");
             using (Assert.Multiple())
             {
@@ -326,7 +326,7 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument document = Minimal();
             document.Steps[1].Verb = "teleport";
 
@@ -380,7 +380,7 @@ public class StratStoreTests
         try
         {
             List<Guid?> changed = [];
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             store.Changed += id => changed.Add(id);
             StratDocument document = store.Create(Team, "de_mirage", "T", "execute", "A exec");
             string trash = Path.Combine(StratStore.FolderFor(root, Team, "de_mirage"), ".trash");
@@ -396,7 +396,7 @@ public class StratStoreTests
                 await Assert.That(store.TryLoad(document.Id)).IsNull();
                 await Assert.That(store.Index.Count).IsEqualTo(0);
                 await Assert.That(changed.Last()).IsEqualTo(document.Id);
-                await Assert.That(new StratStore(root).Index.Count).IsEqualTo(0).Because("the trash is never listed");
+                await Assert.That(new StratStore(PackStores.At(root)).Index.Count).IsEqualTo(0).Because("the trash is never listed");
                 await Assert.That(store.Delete(document.Id)).IsFalse();
             }
         }
@@ -431,7 +431,7 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument document = Minimal();
             store.Save(document, [], "created");
             string oldFile = StratFile(root, document);
@@ -445,7 +445,7 @@ public class StratStoreTests
                 await Assert.That(File.Exists(oldFile)).IsFalse();
                 await Assert.That(File.Exists(StratFile(root, moved))).IsTrue();
                 await Assert.That(File.ReadAllLines(LogFile(root, moved)).Length).IsEqualTo(2);
-                await Assert.That(new StratStore(root).TryLoad(document.Id)!.Map).IsEqualTo("de_inferno");
+                await Assert.That(new StratStore(PackStores.At(root)).TryLoad(document.Id)!.Map).IsEqualTo("de_inferno");
             }
         }
         finally
@@ -460,7 +460,7 @@ public class StratStoreTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratBook book = store.LoadBook(Team);
             book.SlotDefaults["e1"] = new Dictionary<string, string> { ["A"] = "76561198000000001" };
             await Assert.That(store.SaveBook(book)).IsTrue();
@@ -472,7 +472,7 @@ public class StratStoreTests
             CalloutTable duplicate = store.LoadCallouts(Team, "de_mirage");
             duplicate.Aliases.Add(new CalloutAlias { Alias = "Palace", Place = "PalaceAlley" });
 
-            StratStore reopened = new(root);
+            StratStore reopened = new(PackStores.At(root));
             using (Assert.Multiple())
             {
                 await Assert.That(File.Exists(Path.Combine(root, "team-" + TeamId, "book.json"))).IsTrue();

@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;

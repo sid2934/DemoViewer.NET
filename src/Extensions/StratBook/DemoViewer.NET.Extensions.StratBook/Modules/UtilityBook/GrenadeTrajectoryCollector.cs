@@ -3,7 +3,6 @@
 using System.Numerics;
 using CS2DemoKit.Analysis.Observation;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 

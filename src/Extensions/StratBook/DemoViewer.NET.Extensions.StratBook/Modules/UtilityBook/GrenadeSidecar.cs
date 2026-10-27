@@ -1,10 +1,8 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 

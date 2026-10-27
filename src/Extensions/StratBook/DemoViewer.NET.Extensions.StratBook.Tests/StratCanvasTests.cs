@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using System.Text.Json.Nodes;
 using Avalonia.Input;
 using DemoViewer.NET.Extensions.StratBook;
@@ -10,7 +9,6 @@ using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Input;
-using DemoViewer.NET.Playback2D.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using SkiaSharp;
 using TUnit.Assertions.Enums;

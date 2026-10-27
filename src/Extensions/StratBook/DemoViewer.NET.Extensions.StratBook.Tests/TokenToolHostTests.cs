@@ -5,7 +5,6 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D;
@@ -13,8 +12,6 @@ using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Zones;
-using DemoViewer.NET.Playback2D.Assets;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using SkiaSharp;
 
 #endregion

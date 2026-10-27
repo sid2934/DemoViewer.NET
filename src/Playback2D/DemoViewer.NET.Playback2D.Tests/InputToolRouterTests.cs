@@ -578,6 +578,39 @@ public class InputToolRouterTests
         };
     }
 
+    /// <summary>
+    ///     The token fall-through is first-registered-wins, and it moves to the next when the holder goes.
+    ///     It used to be one cached tool nulled on unregister, so a second Token tool never inherited it and
+    ///     a press under pan simply panned. Two Token tools became possible only once a contributed tool
+    ///     could carry an id of its own.
+    /// </summary>
+    [Test]
+    public async Task TheTokenFallThrough_IsFirstRegistered_AndPassesToTheNextWhenThatOneGoes()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        GrabbingTool first = new(ToolKind.Token, "ext.a.token");
+        GrabbingTool second = new(ToolKind.Token, "ext.b.token");
+        router.Register(first);
+        router.Register(second);
+
+        SKPoint at = new(200, 100);
+        LevelPane pane = services.PaneAt(at)!;
+        router.OnPressed(Sample(pane, at));
+        await Assert.That(router.GestureTool).IsSameReferenceAs(first).Because("first registered holds it");
+        router.OnReleased(Sample(pane, at));
+
+        router.Unregister(first);
+        router.OnPressed(Sample(pane, at));
+        await Assert.That(router.GestureTool).IsSameReferenceAs(second)
+            .Because("the holder leaving hands the fall-through on rather than dropping it");
+
+        router.OnReleased(Sample(pane, at));
+        router.Unregister(second);
+        router.OnPressed(Sample(pane, at));
+        await Assert.That(router.GestureTool).IsTypeOf<PanZoomTool>()
+            .Because("with no Token tool left the press pans, which is the pre-contribution behaviour");
+    }
+
     [Test]
     public async Task Unregister_ActiveToolFallsBackToPan_FreesTheId_AndPanStays()
     {
@@ -740,6 +773,44 @@ public class InputToolRouterTests
 
     // Stands in for a tool that lives outside the renderer (the query canvas's), so every kind can be
     // selected. An explicit id stands in for a contributed tool, whose id is no kind's.
+    /// <summary>
+    ///     The published modifier set now carries Space, so a map tool can tell a hold-to-pan press from a
+    ///     plain one. The adapter dropped the flag before, and its own comment said so.
+    /// </summary>
+    [Test]
+    public async Task ConvertedModifiers_CarrySpace()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(MapToolAdapter.Convert(ToolModifiers.Space)).IsEqualTo(MapToolModifiers.Space);
+            await Assert.That(MapToolAdapter.Convert(ToolModifiers.Space | ToolModifiers.Shift))
+                .IsEqualTo(MapToolModifiers.Space | MapToolModifiers.Shift);
+            await Assert.That(MapToolAdapter.Convert(ToolModifiers.None)).IsEqualTo(MapToolModifiers.None);
+        }
+    }
+
+    /// <summary>A tool that takes every press, so the token fall-through is observable.</summary>
+    private sealed class GrabbingTool(ToolKind kind, string id) : IPointerTool
+    {
+        public string Id => id;
+
+        public ToolKind Kind => kind;
+
+        public bool OnPressed(in ToolPointerEvent e, IToolServices s) => true;
+
+        public void OnMoved(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnReleased(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnCancelled(IToolServices s)
+        {
+        }
+    }
+
     private sealed class InertTool(ToolKind kind, string? id = null) : IPointerTool
     {
         public string Id => id ?? ToolIds.Of(kind);

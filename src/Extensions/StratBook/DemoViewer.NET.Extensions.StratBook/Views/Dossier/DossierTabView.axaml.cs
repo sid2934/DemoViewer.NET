@@ -6,7 +6,6 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 #endregion

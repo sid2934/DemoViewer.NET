@@ -1,10 +1,3 @@
-#region
-
-using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Extensions.Sdk;
-
-#endregion
-
 namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>

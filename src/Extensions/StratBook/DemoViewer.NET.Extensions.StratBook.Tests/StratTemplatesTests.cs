@@ -185,7 +185,7 @@ public class StratTemplatesTests
             string root = TempRoot();
             try
             {
-                StratStore store = new(root);
+                StratStore store = new(PackStores.At(root));
                 StratTemplate template = StratTemplates.Find("retake-a")!;
                 StratDocument created = store.Create(Team, "de_inferno", StratVocabulary.SideCt, template.Type, template.Name, d =>
                 {
@@ -193,7 +193,7 @@ public class StratTemplatesTests
                     StratTemplates.Apply(d, template);
                 });
 
-                StratStore reader = new(root);
+                StratStore reader = new(PackStores.At(root));
                 StratDocument loaded = reader.Load(created.Id).Document!;
                 using (Assert.Multiple())
                 {

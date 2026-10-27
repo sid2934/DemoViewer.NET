@@ -92,7 +92,7 @@ public class StratAssignmentsTests
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
             File.WriteAllText(file, original);
 
-            StratLoadResult loaded = new StratStore(root).Load(LinesId);
+            StratLoadResult loaded = new StratStore(PackStores.At(root)).Load(LinesId);
             StratStep step = loaded.Document!.Steps[2];
             using (Assert.Multiple())
             {

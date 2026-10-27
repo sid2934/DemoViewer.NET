@@ -1,9 +1,3 @@
-#region
-
-using DemoViewer.NET.Extensions.StratBook;
-
-#endregion
-
 namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>One proposal as the library-wide Suggested section lists it.</summary>

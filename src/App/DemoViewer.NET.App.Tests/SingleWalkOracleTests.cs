@@ -56,6 +56,7 @@ public partial class SingleWalkOracleTests
         {
             SortedDictionary<string, string> dump = new(StringComparer.Ordinal);
             SingleWalkSession.Visit? sweep = null, opened = null;
+            string openPending = "not read", openFaulted = "not read";
 
             string sweepDir = Path.Combine(root, "sweep");
             await SingleWalkSession.WithAppAsync(sweepDir, SingleWalkSession.Settings(Path.GetDirectoryName(demo)!, true),
@@ -72,7 +73,7 @@ public partial class SingleWalkOracleTests
                     // The forced scan, the Compute full stats press, on a row the sweep already stamped current.
                     provider.GetRequiredService<DemoCacheStore>().UpdateExisting(demo, r => r.AnalysisState = DemoAnalysisState.Pending);
                     provider.GetRequiredService<HighlightScanService>().RequestScan(demo);
-                    await SingleWalkSession.SettleAsync(provider.GetRequiredService<DemoProcessingQueue>());
+                    await SingleWalkSession.SettleAsync(provider);
                     foreach ((string key, string value) in Canonical(sweepDir, demo))
                     {
                         if (!swept.TryGetValue(key, out string? before) || before != value)
@@ -95,13 +96,19 @@ public partial class SingleWalkOracleTests
                         dump["open/" + key] = value;
                     }
 
+                    // Read after the outputs, never before, and never at the cost of them: both reach
+                    // registry delegates a pack owns, which the host itself only calls inside a guard.
+                    openPending = Safely(() => Pending(provider.GetRequiredService<DemoProcessingQueue>()));
+                    openFaulted = Safely(() => Faulted(provider.GetRequiredService<DemoScheduler>(), demo));
                     return 0;
                 });
 
             string digest = string.Concat(dump.Select(kv => $"{kv.Key} {Sha(kv.Value)}\n"));
+            string why = $"open passes {Ran(opened!)}; sweep passes {Ran(sweep!)}; "
+                         + $"open queue at capture {openPending}; faulted on the open {openFaulted}";
             if (Environment.GetEnvironmentVariable(DumpDirEnvVar) is { Length: > 0 } dumpRoot)
             {
-                WriteDump(Path.Combine(dumpRoot, name), dump, digest);
+                WriteDump(Path.Combine(dumpRoot, name), dump, digest, why);
             }
 
             string fixture = Path.Combine(FixtureDir(), name + ".digest.txt");
@@ -125,7 +132,9 @@ public partial class SingleWalkOracleTests
                 .Where(k => expected.GetValueOrDefault(k) != actual.GetValueOrDefault(k))];
             using (Assert.Multiple())
             {
-                await Assert.That(moved).IsEmpty().Because($"{name}: outputs moved from {fixture}");
+                // The digest names keys, not causes: a pass absent from the outcomes was never planned, one
+                // listed Skipped declined when the visit reached it, and one listed Ran wrote nothing.
+                await Assert.That(moved).IsEmpty().Because($"{name}: outputs moved from {fixture}; {why}");
                 // An unmarked decode is invisible to the host's own site counter, which is how a pass can
                 // walk every frame twice and still look clean. Only the engine's meter sees it.
                 await Assert.That(sweep!.Decodes).IsEqualTo(sweep.HookDecodes)
@@ -153,6 +162,37 @@ public partial class SingleWalkOracleTests
     private static string Meter(SingleWalkSession.Visit visit) =>
         string.Join(",", visit.Meter.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}x{kv.Value}"));
 
+    // Every pass the visit ended, with its outcome. The queue ends a planned pass whatever it did, a skip
+    // included, so absent here means the plan never carried it.
+    private static string Ran(SingleWalkSession.Visit visit) =>
+        visit.Passes.Count == 0 ? "none" : string.Join(",", visit.Passes.Select(p => $"{p.Pass}:{p.Outcome}"));
+
+    private static string Pending(DemoProcessingQueue queue) =>
+        queue.Snapshot().Where(s => s.State is DemoQueueItemState.Queued or DemoQueueItemState.Running)
+                .Select(s => $"{s.Kind}/{string.Join("+", s.Owners)} {s.State}")
+                .ToList() is { Count: > 0 } busy
+            ? string.Join(",", busy)
+            : "empty";
+
+    // A pass that threw on this demo is never offered it again for the session, and only logs/ records that,
+    // which the capture skips and the cleanup deletes.
+    private static string Faulted(DemoScheduler scheduler, string demo) =>
+        scheduler.PassIds.Where(id => scheduler.IsFaulted(id, demo)).ToList() is { Count: > 0 } faulted
+            ? string.Join(",", faulted)
+            : "none";
+
+    private static string Safely(Func<string> read)
+    {
+        try
+        {
+            return read();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return $"unreadable ({ex.GetType().Name}: {ex.Message})";
+        }
+    }
+
     private static string BenchmarkDemo(int which) => DemoTestHelper.RequireSetDemo("benchmarks", which);
 
     private static string FixtureDir() =>
@@ -163,7 +203,7 @@ public partial class SingleWalkOracleTests
             .Select(l => l.Split(' ', 2))
             .ToDictionary(p => p[0], p => p.Length > 1 ? p[1] : "", StringComparer.Ordinal);
 
-    private static void WriteDump(string dir, SortedDictionary<string, string> dump, string digest)
+    private static void WriteDump(string dir, SortedDictionary<string, string> dump, string digest, string why)
     {
         if (Directory.Exists(dir))
         {
@@ -172,6 +212,8 @@ public partial class SingleWalkOracleTests
 
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "digest.txt"), digest);
+        // The same line the failure carries. The batch runner truncates its output; a file survives that.
+        File.WriteAllText(Path.Combine(dir, "why.txt"), why + "\n");
         foreach ((string key, string value) in dump)
         {
             File.WriteAllText(Path.Combine(dir, Regex.Replace(key, "[^A-Za-z0-9._-]", "_") + ".txt"), value);

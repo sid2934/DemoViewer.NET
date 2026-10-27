@@ -1,9 +1,3 @@
-#region
-
-using DemoViewer.NET.Extensions.StratBook;
-
-#endregion
-
 namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>One side's input to clustering: the key, the names behind it and the clan tag.</summary>

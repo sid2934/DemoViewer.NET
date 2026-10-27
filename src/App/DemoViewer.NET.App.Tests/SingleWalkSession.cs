@@ -106,7 +106,7 @@ internal static class SingleWalkSession
                 ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
                 try
                 {
-                    await SettleAsync(provider.GetRequiredService<DemoProcessingQueue>());
+                    await SettleAsync(provider);
                     result = await body(provider);
                 }
                 finally
@@ -203,9 +203,9 @@ internal static class SingleWalkSession
             if (scenario == Recheck)
             {
                 await library.RescanAsync();
-                await SettleAsync(queue);
+                await SettleAsync(queue, scheduler);
                 scheduler.RecheckAll();
-                await SettleAsync(queue);
+                await SettleAsync(queue, scheduler);
 
                 DemoEntry entry = library.Entries.First(e => string.Equals(e.FilePath, demo, StringComparison.OrdinalIgnoreCase));
                 counting = visit.Sites;
@@ -221,7 +221,7 @@ internal static class SingleWalkSession
                         throw new InvalidOperationException("the score repair enlisted nothing");
                     }
 
-                    await SettleAsync(queue);
+                    await SettleAsync(queue, scheduler);
                 }
 
                 visit.WallMs = Stopwatch.GetElapsedTime(start, last).TotalMilliseconds;
@@ -241,20 +241,20 @@ internal static class SingleWalkSession
                 using (window?.Invoke())
                 {
                     await library.RescanAsync();
-                    await SettleAsync(queue);
+                    await SettleAsync(queue, scheduler);
                 }
 
                 visit.WallMs = start == 0 ? 0 : Stopwatch.GetElapsedTime(start, last).TotalMilliseconds;
                 // A re-check after the import must find nothing left to read.
                 scheduler.RecheckAll();
-                await SettleAsync(queue);
+                await SettleAsync(queue, scheduler);
             }
             else
             {
                 await library.RescanAsync();
-                await SettleAsync(queue);
+                await SettleAsync(queue, scheduler);
                 scheduler.RecheckAll();
-                await SettleAsync(queue);
+                await SettleAsync(queue, scheduler);
                 if (scenario == OpenStale)
                 {
                     ClearRulesStamps(provider.GetRequiredService<DemoCacheStore>(), demo);
@@ -316,7 +316,7 @@ internal static class SingleWalkSession
                         $"the open did not run: HasFile {shell.HasFile}, shell rules runs {visit.Sites.GetValueOrDefault(ShellRulesSite)}, status '{shell.StatusText}'");
                 }
 
-                await SettleAsync(queue);
+                await SettleAsync(queue, scheduler);
             }
         }
         finally
@@ -386,23 +386,58 @@ internal static class SingleWalkSession
         }
     }
 
-    // Idle for a whole second: nothing queued or running, the scheduler's planning included.
-    public static async Task SettleAsync(DemoProcessingQueue queue)
+    private static readonly TimeSpan SettleBudget = TimeSpan.FromMinutes(20);
+
+    /// <summary>
+    ///     Waits for both of the session's work signals: the queue holding nothing queued or running, and the
+    ///     scheduler with nothing left to plan. Each wait is the queue's own idle signal, so no elapsed time is
+    ///     part of the answer.
+    /// </summary>
+    public static Task SettleAsync(ServiceProvider provider)
     {
-        DateTime deadline = DateTime.UtcNow.AddMinutes(20);
-        int quiet = 0;
-        while (quiet < 10)
+        ArgumentNullException.ThrowIfNull(provider);
+        return SettleAsync(provider.GetRequiredService<DemoProcessingQueue>(), provider.GetRequiredService<DemoScheduler>());
+    }
+
+    /// <inheritdoc cref="SettleAsync(ServiceProvider)" />
+    public static async Task SettleAsync(DemoProcessingQueue queue, DemoScheduler scheduler)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+        ArgumentNullException.ThrowIfNull(scheduler);
+        while (true)
         {
-            if (DateTime.UtcNow > deadline)
+            // Work reaches the queue through UI-thread posts, so the state is only answerable after the
+            // dispatcher has run, and WhenIdleAsync checks its predicate off the UI thread.
+            Dispatcher.UIThread.RunJobs();
+            if (!Busy(queue, scheduler))
             {
-                throw new TimeoutException("the queue never went idle");
+                return;
             }
 
-            Dispatcher.UIThread.RunJobs();
-            bool busy = queue.Snapshot().Any(s => s.State is DemoQueueItemState.Queued or DemoQueueItemState.Running);
-            quiet = busy ? 0 : quiet + 1;
-            await Task.Delay(100);
+            try
+            {
+                await queue.WhenIdleAsync(() => !Busy(queue, scheduler)).WaitAsync(SettleBudget);
+            }
+            catch (TimeoutException)
+            {
+                throw new TimeoutException($"the session never settled: {Busyness(queue, scheduler)}");
+            }
         }
+    }
+
+    // A visit the queue refuses goes back on the scheduler's dirty set and waits for a capacity event, so an
+    // idle queue with an empty snapshot says nothing about whether that demo's passes have run.
+    private static bool Busy(DemoProcessingQueue queue, DemoScheduler scheduler) =>
+        queue.Snapshot().Any(s => s.State is DemoQueueItemState.Queued or DemoQueueItemState.Running)
+        || scheduler.Check is not { IsChecking: false, Waiting: 0 };
+
+    private static string Busyness(DemoProcessingQueue queue, DemoScheduler scheduler)
+    {
+        WorkCheck check = scheduler.Check;
+        string queued = string.Join(", ", queue.Snapshot()
+            .Where(s => s.State is DemoQueueItemState.Queued or DemoQueueItemState.Running)
+            .Select(s => $"{s.Kind}/{string.Join("+", s.Owners)} {s.State}{(s.Hold == DemoQueueHold.None ? "" : " held " + s.Hold)}"));
+        return $"queue [{(queued.Length == 0 ? "empty" : queued)}], scheduler checking {check.IsChecking}, waiting {check.Waiting}";
     }
 
     // The queue's file parse, timed for one demo. Test-side: the queue has no timing seam.

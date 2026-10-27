@@ -16,9 +16,11 @@ namespace DemoViewer.NET.Playback2DTests.Rendering;
 ///     Shared plumbing for the backend suites: the skip guard every GPU case opens with, and one render
 ///     path both providers go through.
 ///     <para>
-///         The render path is deliberately identical to <c>SceneGoldenTests.Render</c>: same layer
-///         stack, same renderer, same camera pin. A parity suite that assembled the scene differently
-///         would be comparing two pipelines and calling the difference a backend difference, and
+///         The render path is deliberately identical to <c>SceneGoldenTests.Render</c> over the
+///         map-less entries the backend suites use: same layer stack, same renderer, same camera pin.
+///         It binds no map bundle, so a radar-backed entry added here would NOT match that suite.
+///         A parity suite that assembled the scene differently would be comparing two pipelines and
+///         calling the difference a backend difference, and
 ///         <c>GpuMatchesTheCommittedCpuGoldens</c> diffs against the very files that suite writes.
 ///     </para>
 ///     <para>

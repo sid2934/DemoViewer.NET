@@ -1,12 +1,10 @@
 #region
 
-using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
@@ -98,10 +96,10 @@ public class StratBookStoresTests
     private static void WriteOneItemPerStore(string configRoot, string cacheRoot)
     {
         // strats/: real API.
-        new StratStore(Path.Combine(configRoot, "strats")).Create(StratOwner.Me(), "de_dust2", "T", "default", "test");
+        new StratStore(PackStores.Folder(configRoot, StratBookStores.Strats)).Create(StratOwner.Me(), "de_dust2", "T", "default", "test");
 
         // tags/: the store's own path, written directly rather than through a live TagSession.
-        TagStore tags = new(Path.Combine(configRoot, "tags"));
+        TagStore tags = new(PackStores.Folder(configRoot, StratBookStores.Tags));
         string tagSidecar = tags.PathFor("a" + new string('b', 63))!;
         Directory.CreateDirectory(Path.GetDirectoryName(tagSidecar)!);
         File.WriteAllText(tagSidecar, "{}");
@@ -111,7 +109,7 @@ public class StratBookStoresTests
         File.WriteAllText(Path.Combine(configRoot, "palettes", "custom" + TagPaletteStore.FileExtension), "{}");
 
         // suggested-tags/: real API (the tuned detector profile).
-        new ProfileStore(Path.Combine(configRoot, "suggested-tags")).Save(DetectorProfile.Default);
+        new ProfileStore(PackStores.Folder(configRoot, StratBookStores.SuggestedTags)).Save(DetectorProfile.Default);
 
         // lineup-clips/: LineupClipService needs a built GrenadeIndex to render anything; one placed file
         // is enough to prove the directory name.

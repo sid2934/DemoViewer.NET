@@ -151,7 +151,7 @@ public class TagSessionTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             TagSession session = await Attached(store);
             await session.FlushAsync();
             session.Dispose();
@@ -186,7 +186,7 @@ public class TagSessionTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             using TagSession session = await Attached(store);
             session.AutoSaveDelay = TimeSpan.FromMilliseconds(40);
             TaskCompletionSource autoSaved = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -226,12 +226,12 @@ public class TagSessionTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             TagSession session = await Attached(store);
             session.Apply(new TagDelta.Add(Instance("A execute", 1, 2)));
             session.Detach();
 
-            await Assert.That(new TagStore(root).Index.Single().Codes).IsEquivalentTo(OneCode, CollectionOrdering.Matching);
+            await Assert.That(new TagStore(PackStores.At(root)).Index.Single().Codes).IsEquivalentTo(OneCode, CollectionOrdering.Matching);
             await Assert.That(File.Exists(Path.Combine(root, "index.json"))).IsTrue();
 
             // Released: another session can take the document now.
@@ -270,7 +270,7 @@ public class TagSessionTests
         File.WriteAllText(blocker, "not a directory");
         try
         {
-            using TagSession session = await Attached(new TagStore(blocker));
+            using TagSession session = await Attached(new TagStore(PackStores.At(blocker)));
             session.Apply(new TagDelta.Add(Instance("A execute", 1, 2)));
             await session.FlushAsync();
 
@@ -288,7 +288,7 @@ public class TagSessionTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             TagDocument stored = Document(Sha, Instance("A execute", 1, 2));
             stored.Clock.FrameCount = 1;
             store.Save(stored);
@@ -301,7 +301,7 @@ public class TagSessionTests
 
             File.WriteAllText(TagStore.SidecarPathFor(root, Sha),
                 File.ReadAllText(TagStore.SidecarPathFor(root, Sha)).Replace(Sha, new string('e', 64), StringComparison.Ordinal));
-            using TagSession foreign = await Attached(new TagStore(root));
+            using TagSession foreign = await Attached(new TagStore(PackStores.At(root)));
             foreign.Apply(new TagDelta.Add(Instance("Default", 1, 2)));
             await foreign.FlushAsync();
 

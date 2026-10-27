@@ -50,7 +50,13 @@ internal sealed class HostDataRemoval : IExtensionDataRemoval
             return
             [
                 new StoreDescriptor("extension-files", "Extension files", StoreRoot.Config, [folder], IsUserWork: true),
-                new StoreDescriptor("extension-cache", "Extension cache", StoreRoot.Cache, [folder], IsUserWork: false),
+                // User work, and the whole folder rather than its files subfolder alone. ExtensionStores sweeps
+                // an older build's entries into files/ but strands one at the root when a newer copy is
+                // already there, so naming only the subfolders would stop deleting those. The folder holds
+                // the extension's own saved state: StratBook's grenade lineups live here, and strat steps and
+                // rendered clips point at them by id.
+                new StoreDescriptor("extension-cache", "Extension saved state", StoreRoot.Cache, [folder],
+                    IsUserWork: true),
                 new StoreDescriptor("extension-settings", "Extension settings", StoreRoot.Config,
                     [ExtensionSettingsStore.DirectoryName + "/" + ExtensionFolders.SafeName(_pack.Pack.Id) + ".json"], IsUserWork: true),
                 .. _pack.Rulesets.Where(r => r.ReadBy is null).Select(r => new StoreDescriptor(StampedFacts.StampId(r.RulesetId), "Analysis facts of " + r.RulesetId,

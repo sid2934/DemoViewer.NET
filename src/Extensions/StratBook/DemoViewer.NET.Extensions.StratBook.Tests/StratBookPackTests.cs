@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Modules;
 using DemoViewer.NET.Extensions;
@@ -11,7 +10,6 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using TUnit.Assertions.Enums;
@@ -52,8 +50,6 @@ public class StratBookPackTests
         "DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle",
         // The export seam the pack renders Pack Export and strat exports through.
         "DemoViewer.NET.Extensions.FirstPartyExports",
-        // Where the user's own work already lives, one member per store, and the read-only zones overlay.
-        "DemoViewer.NET.Extensions.FirstPartyHost",
         // The extension host: the job-kind registry, the shell hub, the first-party shell state and export
         // chips it serves, the notification center, and the pack's own context under both of its keys.
         "DemoViewer.NET.Extensions.JobKindRegistry",

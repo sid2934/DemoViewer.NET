@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
-using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 

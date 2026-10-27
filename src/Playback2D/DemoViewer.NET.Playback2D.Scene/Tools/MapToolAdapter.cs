@@ -2,16 +2,28 @@
 
 using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.Playback2D.Levels;
-using DemoViewer.NET.Playback2D.Tools;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Pipeline.Input;
+namespace DemoViewer.NET.Playback2D.Tools;
 
 /// <summary>
-///     Runs a published <see cref="IMapTool" /> as one of the router's tools, under <see cref="ToolKind.Map" />.
-///     The tool sees the sample and the map, never the annotation session or the token editor.
+///     Runs an <see cref="IMapTool" /> as one of the scene's pointer tools, under
+///     <see cref="ToolKind.Map" />. The tool sees the sample and the map, never the annotation session or
+///     the token editor.
+///     <para>
+///         This is the bridge between the two tool contracts. <c>MapView</c> and
+///         <c>IPlaybackSurface.AddTool</c> take an <see cref="IMapTool" /> and key it by instance;
+///         <c>SceneView.AddTool</c> takes an <see cref="IPointerTool" /> and keys it by
+///         <see cref="IPointerTool.Id" />. Wrap the tool in this to put it on a scene.
+///     </para>
+///     <para>
+///         <b>One per view.</b> <see cref="Id" /> is the first-party map tool's id, because
+///         <see cref="IMapTool" /> carries none of its own, and a host files a contributed tool under its
+///         extension. So one extension gets one bridged map tool on a given view: a second is refused as a
+///         duplicate id. Implement <see cref="IPointerTool" /> directly for more than one.
+///     </para>
 /// </summary>
 public sealed class MapToolAdapter : IPointerTool
 {
@@ -60,7 +72,7 @@ public sealed class MapToolAdapter : IPointerTool
         Modifiers = Convert(e.Modifiers)
     };
 
-    /// <summary>Router modifiers as the published contract names them. Space has no published flag.</summary>
+    /// <summary>Router modifiers as the published contract names them.</summary>
     /// <param name="modifiers">The router's modifiers.</param>
     public static MapToolModifiers Convert(ToolModifiers modifiers)
     {
@@ -78,6 +90,11 @@ public sealed class MapToolAdapter : IPointerTool
         if ((modifiers & ToolModifiers.Alt) != 0)
         {
             result |= MapToolModifiers.Alt;
+        }
+
+        if ((modifiers & ToolModifiers.Space) != 0)
+        {
+            result |= MapToolModifiers.Space;
         }
 
         return result;
@@ -107,6 +124,10 @@ public sealed class MapToolAdapter : IPointerTool
         public SKPoint WorldToScreen(LevelPane pane, SKPoint world) => services.WorldToScreen(pane, world);
 
         public double WorldUnitsPerPixel(LevelPane pane) => services.WorldUnitsPerPixel(pane);
+
+        public int? CurrentTick => services.CurrentTick;
+
+        public ITokenEditor? Tokens => services.Tokens;
 
         public void RequestRender() => services.RequestRender();
     }

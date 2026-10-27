@@ -7,7 +7,6 @@ using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
-using TUnit.Core.Exceptions;
 
 #endregion
 
