@@ -1,7 +1,6 @@
 #region
 
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using TUnit.Assertions.Enums;
@@ -31,9 +30,7 @@ public class StratStoreWriteOrderTests
     // ExtensionFolder. The store takes its path today and takes the folder itself after the migration.
     private static StratStore Store(IExtensionFolder strats) => new(strats.Path);
 
-    private static IExtensionFolder Strats(string root) =>
-        new ExtensionStores(StratBookPack.PackId, Path.Combine(root, "config"), Path.Combine(root, "cache"),
-            StratBookStores.All).Open(StratBookStores.Strats)!;
+    private static IExtensionFolder Strats(string root) => PackStores.Folder(root, StratBookStores.Strats);
 
     private static string StratFile(IExtensionFolder strats, StratDocument document) =>
         Path.Combine(StratStore.FolderFor(strats.Path, document.Owner, document.Map), document.Id + StratStore.StratExtension);
