@@ -200,6 +200,34 @@ public class SceneViewTests
         });
     }
 
+    /// <summary>
+    ///     MapView has told a caller when its map was bound since it shipped; SceneView said nothing about
+    ///     its panes, so there was no moment at which Fit() was known to mean anything. It fires on the
+    ///     first layout, which is why mounting is enough to see it.
+    /// </summary>
+    [Test]
+    public async Task PanesArranged_FiresOnceTheScenesPanesAreLaidOut()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            SdkSceneHosts.Install();
+            FakeSource source = new();
+            source.Publish(Frame(1));
+            SceneView view = new() { Source = source };
+            int arranged = 0;
+            view.PanesArranged += (_, _) => arranged++;
+
+            Window window = new() { Width = 1000, Height = 700, Content = view };
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(arranged).IsGreaterThan(0)
+                .Because("the panes are laid out when the view is shown, and that is the signal");
+
+            window.Close();
+        });
+    }
+
     // A data source rather than [Arguments], for the reason in MapViewTests.ViewOwnLayerIds.
     public static IEnumerable<string> SceneOwnLayerIds()
     {

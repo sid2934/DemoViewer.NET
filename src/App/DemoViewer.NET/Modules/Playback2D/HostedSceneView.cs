@@ -44,6 +44,10 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
         _faults = faults;
         ClipToBounds = true;
         _host.TextEditRequested += (at, emPixels) => TextEditRequested?.Invoke(at, emPixels);
+
+        // The host's level-state signal IS "the panes were arranged": it fires on the first layout and on
+        // every change to it, which is exactly when a fit has something to fit to.
+        _host.LevelStateChanged += () => PanesArranged?.Invoke();
         LogicalChildren.Add(_host);
         VisualChildren.Add(_host);
     }
@@ -74,6 +78,9 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
             _host.DataContext = _bound;
         }
     }
+
+    /// <inheritdoc />
+    public event Action? PanesArranged;
 
     /// <inheritdoc />
     public IReadOnlyList<LevelPane> Panes => _host.Panes;

@@ -47,6 +47,7 @@ public sealed class SceneView : Control
         if (_backend is not null)
         {
             _backend.TextEditRequested += (at, emPixels) => TextEditRequested?.Invoke(at, emPixels);
+            _backend.PanesArranged += () => PanesArranged?.Invoke(this, EventArgs.Empty);
             LogicalChildren.Add(_backend.View);
             VisualChildren.Add(_backend.View);
         }
@@ -74,6 +75,12 @@ public sealed class SceneView : Control
     ///     its result to <see cref="CompleteTextEdit" />.
     /// </summary>
     public event Action<Point, double>? TextEditRequested;
+
+    /// <summary>
+    ///     Raised once the panes have been laid out, and again whenever that layout changes. This is when
+    ///     <see cref="Fit" /> means anything: called before it, there is nothing arranged to fit to.
+    /// </summary>
+    public event EventHandler? PanesArranged;
 
     /// <summary>
     ///     A layer drawn among the scene's own, ordered by <see cref="ISceneLayer.Slot" /> and
@@ -253,6 +260,9 @@ internal interface ISceneViewBackend
 
     /// <summary>The text tool placed a label.</summary>
     event Action<Point, double>? TextEditRequested;
+
+    /// <summary>The panes have been laid out.</summary>
+    event Action? PanesArranged;
 
     /// <summary>Registers a layer, filed under its extension, and answers the id it was filed under.</summary>
     string AddLayer(string id, Func<ISceneLayer> layer);
