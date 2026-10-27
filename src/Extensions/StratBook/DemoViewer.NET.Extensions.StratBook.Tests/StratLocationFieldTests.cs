@@ -3,7 +3,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -15,7 +14,6 @@ using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
-using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.TestSupport;

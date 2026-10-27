@@ -1,10 +1,8 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;

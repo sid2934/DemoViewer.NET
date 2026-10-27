@@ -6,13 +6,10 @@ using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Assets;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
-using DemoViewer.NET.Playback2D.Levels;
 using TUnit.Assertions.Enums;
 
 #endregion

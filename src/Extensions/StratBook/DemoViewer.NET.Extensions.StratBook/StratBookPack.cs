@@ -1,11 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Modules;
-using System.Globalization;
-using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
-using CS2DemoKit.Analysis.Visibility;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger;
@@ -15,11 +11,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Modules.Teams;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Levels;
-using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
-using DemoViewer.NET.Extensions.Sdk;
-using DemoViewer.NET.Extensions.StratBook.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
@@ -33,11 +25,9 @@ using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
-using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion

@@ -1,9 +1,7 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json.Serialization;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion

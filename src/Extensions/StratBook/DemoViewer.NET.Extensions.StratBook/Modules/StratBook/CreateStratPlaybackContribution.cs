@@ -1,11 +1,9 @@
 #region
 
 using CS2DemoKit.Analysis.Clips;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.Sdk.Playback;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Levels;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;

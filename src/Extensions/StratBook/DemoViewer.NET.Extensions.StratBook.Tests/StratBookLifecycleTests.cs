@@ -3,7 +3,6 @@
 using System.Collections.ObjectModel;
 using System.Numerics;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;

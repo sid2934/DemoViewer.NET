@@ -5,7 +5,6 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Extensions.StratBook;
 using Microsoft.Extensions.Logging;
 
 #endregion

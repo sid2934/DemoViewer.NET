@@ -6,7 +6,6 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.ViewModels.Library;
 using TUnit.Assertions.Enums;
 

@@ -3,8 +3,6 @@
 using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using CS2OpenSchema.Protos;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using TUnit.Assertions.Enums;

@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion

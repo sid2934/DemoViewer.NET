@@ -1,7 +1,6 @@
 #region
 
 using System.Reflection;
-using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 

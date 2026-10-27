@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Modules;
 using DemoViewer.NET.Extensions;
@@ -11,7 +10,6 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using TUnit.Assertions.Enums;

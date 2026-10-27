@@ -6,7 +6,6 @@ using Avalonia.Media.Imaging;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 using DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;

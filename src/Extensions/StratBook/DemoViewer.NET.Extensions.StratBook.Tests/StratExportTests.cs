@@ -7,7 +7,6 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
-using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;

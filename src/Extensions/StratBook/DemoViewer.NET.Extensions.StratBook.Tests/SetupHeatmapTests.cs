@@ -1,7 +1,6 @@
 #region
 
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Playback2D.Overlay;
 using DemoViewer.NET.Playback2D.Query;
@@ -9,7 +8,6 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.Facts;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;

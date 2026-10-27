@@ -10,7 +10,6 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 using DemoViewer.NET.Extensions.StratBook.Views.UtilityBook;
 using TUnit.Core.Exceptions;
-using DemoViewer.NET.Extensions.StratBook.Controls;
 using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion

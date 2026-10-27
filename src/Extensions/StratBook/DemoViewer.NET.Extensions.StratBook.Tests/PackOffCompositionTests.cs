@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;

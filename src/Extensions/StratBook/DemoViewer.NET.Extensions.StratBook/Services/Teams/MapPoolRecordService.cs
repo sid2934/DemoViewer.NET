@@ -1,9 +1,3 @@
-#region
-
-using DemoViewer.NET.Extensions.StratBook;
-
-#endregion
-
 namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>

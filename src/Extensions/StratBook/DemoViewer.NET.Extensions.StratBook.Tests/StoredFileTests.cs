@@ -2,7 +2,6 @@
 
 using System.Text;
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using TUnit.Assertions.Enums;

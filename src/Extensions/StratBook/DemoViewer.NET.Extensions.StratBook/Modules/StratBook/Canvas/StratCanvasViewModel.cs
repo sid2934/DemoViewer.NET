@@ -14,7 +14,6 @@ using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using SkiaSharp;

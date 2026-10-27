@@ -1,9 +1,7 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Overlay;
 using DemoViewer.NET.Playback2D.Query;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion

@@ -4,8 +4,6 @@ using System.Reflection;
 using System.Text.Json;
 using Avalonia.Input;
 using CS2DemoKit.Analysis.Diagnostics;
-using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Extensions.Sdk;
 using Microsoft.Extensions.Logging;
 
 #endregion

@@ -3,7 +3,6 @@
 using System.Globalization;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.Sdk.Export;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D;
 
 #endregion

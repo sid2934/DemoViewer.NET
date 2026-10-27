@@ -1,7 +1,6 @@
 #region
 
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion

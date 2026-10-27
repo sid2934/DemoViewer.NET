@@ -3,7 +3,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.Sdk.Export;
 
 #endregion

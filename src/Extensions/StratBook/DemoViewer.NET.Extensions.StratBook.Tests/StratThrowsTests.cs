@@ -8,7 +8,6 @@ using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
-using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;

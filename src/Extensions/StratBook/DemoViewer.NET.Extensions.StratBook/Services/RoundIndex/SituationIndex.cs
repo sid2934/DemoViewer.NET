@@ -3,10 +3,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using CS2DemoKit.Analysis.Diagnostics;
-using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Annotations;
-using DemoViewer.NET.Extensions.Sdk;
 using Microsoft.Extensions.Logging;
 
 #endregion

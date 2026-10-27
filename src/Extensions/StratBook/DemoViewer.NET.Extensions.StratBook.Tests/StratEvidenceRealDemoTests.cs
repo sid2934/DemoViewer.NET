@@ -4,7 +4,6 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;

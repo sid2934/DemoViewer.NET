@@ -1,7 +1,6 @@
 #region
 
 using Avalonia.Controls;
-using Avalonia.Headless;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;

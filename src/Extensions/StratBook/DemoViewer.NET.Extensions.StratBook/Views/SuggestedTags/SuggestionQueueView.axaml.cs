@@ -3,7 +3,6 @@
 using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;

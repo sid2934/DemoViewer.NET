@@ -1,7 +1,6 @@
 #region
 
 using System.Numerics;
-using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Query;

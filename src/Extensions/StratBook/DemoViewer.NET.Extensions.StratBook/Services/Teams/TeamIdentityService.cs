@@ -1,10 +1,7 @@
 #region
 
-using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
 using System.Text.Json;
-using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 

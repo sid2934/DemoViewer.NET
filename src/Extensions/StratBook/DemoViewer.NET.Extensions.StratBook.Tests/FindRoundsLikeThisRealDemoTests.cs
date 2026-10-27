@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D;
@@ -9,7 +8,6 @@ using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 
