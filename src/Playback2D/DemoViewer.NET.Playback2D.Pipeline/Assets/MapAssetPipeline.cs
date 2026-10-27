@@ -153,7 +153,8 @@ public sealed class LoadedMapAsset : IMapAsset, IDisposable
     ///     managed heap counters, and a CS2 radar is 1024×1024 RGBA ≈ 4 MB: one or two per map, orphaned
     ///     on every map swap.
     ///     <para>
-    ///         Idempotent: the tab view-model disposes on map change and on unload, and those overlap.
+    ///         Idempotent: the lease registry owns the release, and it drops an entry as its last hold ends
+    ///         rather than when the deferred dispose runs, so a second call has to be harmless.
     ///     </para>
     /// </summary>
     public void Dispose()

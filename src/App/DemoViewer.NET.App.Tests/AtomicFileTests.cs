@@ -66,30 +66,4 @@ public class AtomicFileTests
             Directory.Delete(root, true);
         }
     }
-
-    [Test]
-    public async Task ACancelledAsyncWrite_LeavesThePreviousFile()
-    {
-        string root = Path.Combine(Path.GetTempPath(), "dvatomic_" + Guid.NewGuid().ToString("N"));
-        try
-        {
-            string path = Path.Combine(root, "file.bin");
-            AtomicFile.WriteAllBytes(path, [7]);
-            using CancellationTokenSource cancelled = new();
-            await cancelled.CancelAsync();
-
-            await Assert.ThrowsAsync<OperationCanceledException>(() =>
-                AtomicFile.WriteAllBytesAsync(path, new byte[] { 8, 9 }, cancelled.Token));
-
-            using (Assert.Multiple())
-            {
-                await Assert.That(await File.ReadAllBytesAsync(path)).IsEquivalentTo(new byte[] { 7 }, CollectionOrdering.Matching);
-                await Assert.That(Directory.GetFiles(root)).IsEquivalentTo([path], CollectionOrdering.Matching);
-            }
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
-    }
 }

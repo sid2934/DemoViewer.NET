@@ -58,33 +58,6 @@ public static class AtomicFile
         }
     }
 
-    /// <summary>As <see cref="WriteAllBytes" />, writing asynchronously.</summary>
-    /// <param name="path">The file to write.</param>
-    /// <param name="content">Its whole new content.</param>
-    /// <param name="cancellationToken">Stops the write before the file is replaced.</param>
-    public static async Task WriteAllBytesAsync(string path, ReadOnlyMemory<byte> content,
-        CancellationToken cancellationToken = default)
-    {
-        string temp = TempFor(path);
-        try
-        {
-            FileStream stream = new(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true);
-            await using (stream.ConfigureAwait(false))
-            {
-                await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
-                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-                stream.Flush(flushToDisk: true);
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            File.Move(temp, path, overwrite: true);
-        }
-        finally
-        {
-            TryDelete(temp);
-        }
-    }
-
     // Beside the target, so the move is a rename on the same volume.
     private static string TempFor(string path)
     {
