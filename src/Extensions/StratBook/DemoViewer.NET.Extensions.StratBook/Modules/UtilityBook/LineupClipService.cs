@@ -76,6 +76,10 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
 
     // Read once: a batch's continuation may run after Dispose has disposed the source.
     private readonly CancellationToken _ct;
+    private readonly IExtensionFolder? _folder;
+
+    // The folder's path. The planner builds each pair's path from it, the renderer is handed those paths, and
+    // the cap pass needs file sizes, which the folder cannot answer.
     private readonly string? _directory;
     private readonly Func<bool> _enabled;
     private readonly Func<string, bool>? _fileExists;
@@ -113,7 +117,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
     private bool _running;
 
     /// <param name="clusters">Every landing cluster in the Grenade Index, all maps.</param>
-    /// <param name="directory">Where the pairs are written; null (the browser) plans nothing.</param>
+    /// <param name="clips">The clips store as the host opened it; null (the browser) plans nothing.</param>
     /// <param name="enabled">The live <see cref="Extensions.StratBook.StratBookSettings.RenderLineupClips" />.</param>
     /// <param name="renderer">Renders a demo's GIFs.</param>
     /// <param name="fileExists">The existence probe; a listing of the directory taken per plan when null.</param>
@@ -130,7 +134,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
     ///     service with no parse (tests).
     /// </param>
     /// <param name="planDebounce">How long <see cref="PlanSoon" /> waits for more index changes; 500 ms when null.</param>
-    public LineupClipService(Func<IReadOnlyList<GrenadeCluster>> clusters, string? directory,
+    public LineupClipService(Func<IReadOnlyList<GrenadeCluster>> clusters, IExtensionFolder? clips,
         Func<bool> enabled, ILineupClipRenderer renderer, Func<string, bool>? fileExists = null,
         Action<string, string>? writeText = null, Action<string>? log = null, Func<bool>? complete = null,
         Func<long>? maxBytes = null, TimeSpan? orphanGrace = null, IExtensionJobs? jobs = null,
@@ -141,7 +145,8 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
         ArgumentNullException.ThrowIfNull(enabled);
         ArgumentNullException.ThrowIfNull(renderer);
         _clusters = clusters;
-        _directory = directory;
+        _folder = clips;
+        _directory = clips?.Path;
         _enabled = enabled;
         _renderer = renderer;
         _fileExists = fileExists;
@@ -506,7 +511,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
         foreach (LineupClipJob done in rendered)
         {
             WriteSidecar(done);
-            if (File.Exists(done.SetposPath))
+            if (_folder!.FileExists(Inside(done.SetposPath)))
             {
                 DeleteFormerPairs(done);
             }
@@ -574,10 +579,8 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
 
             try
             {
-                if (File.Exists(job.GifPath))
-                {
-                    File.SetLastWriteTimeUtc(job.GifPath, DateTime.UtcNow);
-                }
+                // The cap evicts by last write, so asking for a pair that is already there keeps it.
+                _folder!.SetLastWriteTimeUtc(Inside(job.GifPath), DateTime.UtcNow);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -677,15 +680,16 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
         foreach (string former in job.FormerGifPaths)
         {
             string formerSetpos = LineupClipPlanner.SetposPathFor(former);
-            if (!File.Exists(former) || !File.Exists(formerSetpos) || !SameThrow(formerSetpos, job))
+            if (!_folder!.FileExists(Inside(former)) || !_folder.FileExists(Inside(formerSetpos))
+                || !SameThrow(formerSetpos, job))
             {
                 continue;
             }
 
             try
             {
-                File.Move(former, job.GifPath, true);
-                File.Move(formerSetpos, job.SetposPath, true);
+                _folder.Move(Inside(former), Inside(job.GifPath), true);
+                _folder.Move(Inside(formerSetpos), Inside(job.SetposPath), true);
                 return true;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -888,13 +892,16 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
         _log?.Invoke($"lineup clips: evicted {evicted.Count} pairs to stay under {cap / (1024 * 1024)} MB");
     }
 
+    // Pairs sit flat in the folder, so a file's path inside it is its name.
+    private static string Inside(string path) => Path.GetFileName(path);
+
     private void DeletePair(string gifPath)
     {
         foreach (string path in (ReadOnlySpan<string>)[gifPath, LineupClipPlanner.SetposPathFor(gifPath)])
         {
             try
             {
-                File.Delete(path);
+                _folder!.Delete(Inside(path));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -903,13 +910,14 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
         }
     }
 
-    private static HashSet<string> Listing(string directory)
+    // Absolute, because ChooseLocked's probe is asked about a job's own GifPath and a missing folder yields
+    // nothing to list. Materialized here: the listing is lazy and must not throw out of the plan.
+    private HashSet<string> Listing(string directory)
     {
         try
         {
-            return Directory.Exists(directory)
-                ? new HashSet<string>(Directory.EnumerateFiles(directory), StringComparer.OrdinalIgnoreCase)
-                : [];
+            return new HashSet<string>(_folder!.EnumerateFiles("", "*").Select(f => Path.Combine(directory, f)),
+                StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -928,11 +936,8 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
         _evicted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            string path = Path.Combine(_directory!, EvictedFileName);
-            if (File.Exists(path))
-            {
-                _evicted.UnionWith(File.ReadAllLines(path).Select(l => l.Trim()).Where(l => l.Length > 0));
-            }
+            _evicted.UnionWith(FolderText.ReadLines(_folder!, EvictedFileName).Select(l => l.Trim())
+                .Where(l => l.Length > 0));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -947,9 +952,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
     {
         try
         {
-            Directory.CreateDirectory(_directory!);
-            AtomicFile.WriteAllText(Path.Combine(_directory!, EvictedFileName),
-                string.Join('\n', LoadEvicted().Order(StringComparer.Ordinal)));
+            FolderText.Write(_folder!, EvictedFileName, string.Join('\n', LoadEvicted().Order(StringComparer.Ordinal)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1123,7 +1126,8 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
     {
         try
         {
-            return string.Equals(File.ReadAllText(setposPath).Trim(), job.ConsoleText.Trim(), StringComparison.Ordinal);
+            return string.Equals(FolderText.Read(_folder!, Inside(setposPath))?.Trim(), job.ConsoleText.Trim(),
+                StringComparison.Ordinal);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1137,7 +1141,8 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
     {
         foreach (string former in job.FormerGifPaths)
         {
-            if (File.Exists(former) || File.Exists(LineupClipPlanner.SetposPathFor(former)))
+            if (_folder!.FileExists(Inside(former))
+                || _folder.FileExists(Inside(LineupClipPlanner.SetposPathFor(former))))
             {
                 DeletePair(former);
             }

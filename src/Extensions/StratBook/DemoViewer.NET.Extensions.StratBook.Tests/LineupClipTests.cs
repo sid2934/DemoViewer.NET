@@ -138,7 +138,7 @@ public class LineupClipTests
         try
         {
             FileRenderer renderer = new();
-            using LineupClipService service = new(() => [TwoLineups()], clips, () => true, renderer);
+            using LineupClipService service = new(() => [TwoLineups()], PackStores.At(clips), () => true, renderer);
             ParsedDemo parsed = SyntheticParsedDemo.Create();
 
             int written = service.RenderOn("/d/b.dem", parsed, CancellationToken.None);
@@ -169,7 +169,7 @@ public class LineupClipTests
             FakeRenderer queued = new() { Hold = new TaskCompletionSource() };
             FileRenderer renderer = new();
             ILineupClipRenderer current = queued;
-            using LineupClipService service = new(() => [TwoLineups()], clips, () => true, new Switch(() => current));
+            using LineupClipService service = new(() => [TwoLineups()], PackStores.At(clips), () => true, new Switch(() => current));
 
             // Planned for a's and b's own reads; a's read is held, so b's clips still wait.
             service.Plan();
@@ -280,7 +280,7 @@ public class LineupClipTests
         {
             WritePair(clips, old, 100, DateTime.UtcNow);
             FileRenderer renderer = new();
-            using LineupClipService service = new(() => [Cluster(lineup)], clips, () => true, renderer);
+            using LineupClipService service = new(() => [Cluster(lineup)], PackStores.At(clips), () => true, renderer);
 
             await Assert.That(service.Plan()).IsEqualTo(1);
             await service.WorkerTask;
@@ -314,7 +314,7 @@ public class LineupClipTests
                 Interlocked.Increment(ref calls);
                 ranInCall |= Volatile.Read(ref inCall);
                 return [TwoLineups()];
-            }, Directory, () => true, renderer, _ => false, (_, _) => { }, planDebounce: TimeSpan.FromMilliseconds(50));
+            }, PackStores.At(Directory), () => true, renderer, _ => false, (_, _) => { }, planDebounce: TimeSpan.FromMilliseconds(50));
 
         Volatile.Write(ref inCall, true);
         Task first = service.PlanSoon();
@@ -345,7 +345,7 @@ public class LineupClipTests
             File.WriteAllText(Path.Combine(clips, old + LineupClipPlanner.SetposExtension),
                 "setpos 1.00 2.00 3.00; setang 0.00 0.00 0.00");
             FileRenderer renderer = new();
-            using LineupClipService service = new(() => [Cluster(lineup)], clips, () => true, renderer);
+            using LineupClipService service = new(() => [Cluster(lineup)], PackStores.At(clips), () => true, renderer);
 
             await Assert.That(service.Plan()).IsEqualTo(2).Because("the old pair shows a different throw");
             await service.WorkerTask;
@@ -374,7 +374,7 @@ public class LineupClipTests
             string old = LineupClipPlanner.FileStem(Mirage, GrenadeKind.Smoke, IdOf("spot"));
             File.WriteAllText(Path.Combine(clips, LineupClipService.EvictedFileName), old);
             FileRenderer renderer = new();
-            using LineupClipService service = new(() => [Cluster(lineup)], clips, () => true, renderer);
+            using LineupClipService service = new(() => [Cluster(lineup)], PackStores.At(clips), () => true, renderer);
 
             await Assert.That(service.Plan()).IsEqualTo(1).Because("only the second technique renders");
             await service.WorkerTask;
@@ -447,7 +447,7 @@ public class LineupClipTests
     {
         FakeRenderer renderer = new();
         Dictionary<string, string> written = [];
-        using LineupClipService service = new(() => [TwoLineups()], Directory, () => true, renderer,
+        using LineupClipService service = new(() => [TwoLineups()], PackStores.At(Directory), () => true, renderer,
             _ => false, (path, text) => written[path] = text);
 
         int planned = service.Plan();
@@ -473,7 +473,7 @@ public class LineupClipTests
     {
         FakeRenderer renderer = new() { Fail = true };
         Dictionary<string, string> written = [];
-        using LineupClipService service = new(() => [TwoLineups()], Directory, () => true, renderer,
+        using LineupClipService service = new(() => [TwoLineups()], PackStores.At(Directory), () => true, renderer,
             _ => false, (path, text) => written[path] = text);
 
         service.Plan();
@@ -490,7 +490,7 @@ public class LineupClipTests
     public async Task Service_PlansNothing_WhenOff_OrWithNoDirectory()
     {
         FakeRenderer renderer = new();
-        using LineupClipService off = new(() => [TwoLineups()], Directory, () => false, renderer, _ => false);
+        using LineupClipService off = new(() => [TwoLineups()], PackStores.At(Directory), () => false, renderer, _ => false);
         using LineupClipService browser = new(() => [TwoLineups()], null, () => true, renderer, _ => false);
 
         await Assert.That(off.Plan()).IsEqualTo(0);
@@ -540,7 +540,7 @@ public class LineupClipTests
         {
             FileRenderer renderer = new();
             GrenadeLineup current = before;
-            using LineupClipService service = new(() => [Cluster(current)], clips, () => true, renderer);
+            using LineupClipService service = new(() => [Cluster(current)], PackStores.At(clips), () => true, renderer);
 
             await Assert.That(service.Plan()).IsEqualTo(1);
             await service.WorkerTask;
@@ -568,7 +568,7 @@ public class LineupClipTests
         {
             WritePair(clips, legacy, 100, DateTime.UtcNow);
             FileRenderer renderer = new();
-            using LineupClipService service = new(() => [Cluster(lineup)], clips, () => true, renderer);
+            using LineupClipService service = new(() => [Cluster(lineup)], PackStores.At(clips), () => true, renderer);
 
             int planned = service.Plan();
             LineupClipJob job = LineupClipPlanner.Plan(lineup, "t", clips)!;
@@ -603,7 +603,7 @@ public class LineupClipTests
             File.WriteAllText(Path.Combine(clips, "notes.txt"), "not a clip");
 
             bool complete = false;
-            using (LineupClipService loading = new(() => [cluster], clips, () => true, new FileRenderer(),
+            using (LineupClipService loading = new(() => [cluster], PackStores.At(clips), () => true, new FileRenderer(),
                        complete: () => complete, orphanGrace: TimeSpan.Zero))
             {
                 loading.Plan();
@@ -624,7 +624,7 @@ public class LineupClipTests
 
             // With a grace period, the first sighting only starts the clock.
             WritePair(clips, "de_mirage-smoke-ba9876543210", 100, DateTime.UtcNow);
-            using LineupClipService patient = new(() => [cluster], clips, () => true, new FileRenderer());
+            using LineupClipService patient = new(() => [cluster], PackStores.At(clips), () => true, new FileRenderer());
             patient.Plan();
             await patient.SweepTask;
             await Assert.That(HasPair(clips, "de_mirage-smoke-ba9876543210")).IsTrue();
@@ -651,7 +651,7 @@ public class LineupClipTests
             long setpos = new FileInfo(Path.Combine(clips, "de_mirage-smoke-000000000001" + LineupClipPlanner.SetposExtension)).Length;
             long cap = 3000 + (4 * setpos);
             FileRenderer renderer = new() { Bytes = 1000 };
-            using (LineupClipService service = new(() => [cluster], clips, () => true, renderer,
+            using (LineupClipService service = new(() => [cluster], PackStores.At(clips), () => true, renderer,
                        complete: () => false, maxBytes: () => cap))
             {
                 await Assert.That(service.Plan()).IsEqualTo(2);
@@ -671,7 +671,7 @@ public class LineupClipTests
             File.Delete(jobs[0].SetposPath);
             File.WriteAllText(Path.Combine(clips, LineupClipService.EvictedFileName), jobs[0].Stem);
             FileRenderer later = new();
-            using LineupClipService next = new(() => [cluster], clips, () => true, later);
+            using LineupClipService next = new(() => [cluster], PackStores.At(clips), () => true, later);
             await Assert.That(next.Plan()).IsEqualTo(0);
 
             await Assert.That(next.Request(jobs[0].LineupId)).IsEqualTo(1);
@@ -702,7 +702,7 @@ public class LineupClipTests
 
             // A re-index drops the demo's rows for a moment, then puts them back.
             bool present = true;
-            using (LineupClipService service = new(() => present ? [cluster] : [], clips, () => true, new FileRenderer()))
+            using (LineupClipService service = new(() => present ? [cluster] : [], PackStores.At(clips), () => true, new FileRenderer()))
             {
                 present = false;
                 service.Plan();
@@ -711,7 +711,7 @@ public class LineupClipTests
                 await Assert.That(service.Evicted).IsEquivalentTo([jobs[1].Stem], CollectionOrdering.Matching);
             }
 
-            using LineupClipService impatient = new(() => present ? [cluster] : [], clips, () => true, new FileRenderer(),
+            using LineupClipService impatient = new(() => present ? [cluster] : [], PackStores.At(clips), () => true, new FileRenderer(),
                 orphanGrace: TimeSpan.Zero);
             present = false;
             impatient.Plan();
@@ -736,7 +736,7 @@ public class LineupClipTests
             // than the pairs on disk, and pushes it over the cap.
             WritePair(clips, jobs[0].Stem, 600, DateTime.UtcNow.AddHours(-1));
             FileRenderer renderer = new() { Bytes = 1000 };
-            using LineupClipService service = new(() => [cluster], clips, () => true, renderer,
+            using LineupClipService service = new(() => [cluster], PackStores.At(clips), () => true, renderer,
                 maxBytes: () => 1500);
 
             Task<int>? request = null;
@@ -810,7 +810,7 @@ public class LineupClipTests
     {
         FakeRenderer renderer = new();
         GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5), Thrown("/d/three.dem", "h", 3));
-        using LineupClipService service = new(() => [cluster], Directory, () => true, renderer, _ => false, (_, _) => { });
+        using LineupClipService service = new(() => [cluster], PackStores.At(Directory), () => true, renderer, _ => false, (_, _) => { });
 
         await Assert.That(service.Plan()).IsEqualTo(3);
         await service.WorkerTask;
@@ -839,7 +839,7 @@ public class LineupClipTests
             long cap = new System.IO.DirectoryInfo(clips).EnumerateFiles().Sum(f => f.Length) + 100; // less than one more pair
 
             FileRenderer renderer = new() { Bytes = 1000 };
-            using LineupClipService service = new(() => [Current()], clips, () => true, renderer,
+            using LineupClipService service = new(() => [Current()], PackStores.At(clips), () => true, renderer,
                 maxBytes: () => cap);
 
             await Assert.That(service.Plan()).IsEqualTo(0).Because("the cap is full and nothing outranks a kept pair");
@@ -882,7 +882,7 @@ public class LineupClipTests
         processing.Pause();
         FakeRenderer renderer = new();
         GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5));
-        using LineupClipService service = new(() => [cluster], Directory, () => true, renderer,
+        using LineupClipService service = new(() => [cluster], PackStores.At(Directory), () => true, renderer,
             _ => false, (_, _) => { }, jobs: Jobs(processing));
 
         await Assert.That(service.Plan()).IsEqualTo(2);
@@ -913,7 +913,7 @@ public class LineupClipTests
         processing.Pause();
         FakeRenderer renderer = new();
         GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5));
-        using LineupClipService service = new(() => [cluster], Directory, () => true, renderer,
+        using LineupClipService service = new(() => [cluster], PackStores.At(Directory), () => true, renderer,
             _ => false, (_, _) => { }, jobs: Jobs(processing));
 
         service.Plan();
@@ -944,7 +944,7 @@ public class LineupClipTests
             });
         FakeRenderer renderer = new();
         GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5));
-        using LineupClipService service = new(() => [cluster], Directory, () => true, renderer,
+        using LineupClipService service = new(() => [cluster], PackStores.At(Directory), () => true, renderer,
             _ => false, (_, _) => { }, jobs: Jobs(processing));
 
         service.Plan();

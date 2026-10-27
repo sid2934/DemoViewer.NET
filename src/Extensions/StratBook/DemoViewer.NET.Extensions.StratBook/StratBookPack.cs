@@ -702,7 +702,7 @@ public sealed class StratBookPack : IExtension
             ILogger log = DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
             LineupClipService clips = new(
                 () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
-                StoresOf(sp).Open(StratBookStores.LineupClips)?.Path,
+                StoresOf(sp).Open(StratBookStores.LineupClips),
                 () => settings.RenderLineupClips,
                 new LineupClipRenderer(Host(sp).SceneExport, line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),

@@ -259,7 +259,7 @@ public class PackResidentTests
             IndexOneGrenade(cache, "/d/b.dem", "de_dust2");
             using GrenadeIndex grenades = new(cache.Library(), lineups: new GrenadeLineupStore(null), scheduleSave: _ => Task.CompletedTask);
             grenades.Load();
-            using LineupClipService clips = new(() => [.. grenades.Maps().SelectMany(m => grenades.Query(new GrenadeQuery(m)))], root,
+            using LineupClipService clips = new(() => [.. grenades.Maps().SelectMany(m => grenades.Query(new GrenadeQuery(m)))], PackStores.At(root),
                 () => true, new NoRenderer(), fileExists: _ => false, planDebounce: TimeSpan.Zero);
 
             await Assert.That(clips.Plan()).IsGreaterThan(0);

@@ -146,7 +146,7 @@ public class UtilityCardClipTests
             IReadOnlyList<LineupClipJob> every = LineupClipPlanner.PlanEvery(Clusters(), clips);
             int lineups = every.Select(j => j.LineupId).Distinct().Count();
             NeverRenders renderer = new();
-            using LineupClipService service = new(Clusters, clips, () => true, renderer, complete: () => false,
+            using LineupClipService service = new(Clusters, PackStores.At(clips), () => true, renderer, complete: () => false,
                 planDebounce: TimeSpan.Zero);
 
             // What an index change costs the thread that raises it, and what the plan costs off it.
