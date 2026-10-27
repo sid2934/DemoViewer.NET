@@ -34,22 +34,22 @@ public sealed class TagPaletteStore
 
     private readonly List<TagPaletteDefinition> _builtIn = [];
     private readonly List<string> _diagnostics = [];
-    private readonly string? _directory;
+    private readonly IExtensionFolder? _folder;
     private readonly IReadOnlyCollection<string> _reservedGroups;
     private readonly IExtensionKeymap? _keymap;
     private List<TagPaletteDefinition> _user = [];
 
     /// <summary>Creates the store with the built-in palette loaded and no drop-ins yet.</summary>
-    /// <param name="directory">The drop-in directory, or null (the browser, tests) for built-ins only.</param>
+    /// <param name="folder">The drop-in store, as the host opened it, or null (the browser, tests) for built-ins only.</param>
     /// <param name="reservedGroups">
     ///     Label groups a palette may not write. Null reads the default: Round Facts' fact vocabulary plus
     ///     the reserved strat groups (<see cref="TagPaletteValidator.DefaultReservedGroups" />).
     /// </param>
     /// <param name="keymap">The keymap hotkeys are checked against; null checks them against the pack's own commands only.</param>
-    public TagPaletteStore(string? directory, IReadOnlyCollection<string>? reservedGroups = null,
+    public TagPaletteStore(IExtensionFolder? folder, IReadOnlyCollection<string>? reservedGroups = null,
         IExtensionKeymap? keymap = null)
     {
-        _directory = directory;
+        _folder = folder;
         _reservedGroups = reservedGroups ?? TagPaletteValidator.DefaultReservedGroups;
         _keymap = keymap;
         LoadBuiltIn();
@@ -137,15 +137,17 @@ public sealed class TagPaletteStore
     private List<TagPaletteDefinition> LoadUser()
     {
         List<TagPaletteDefinition> loaded = [];
-        if (_directory is null || !Directory.Exists(_directory))
+        if (_folder is null)
         {
             return loaded;
         }
 
-        string[] files;
+        List<string> files;
         try
         {
-            files = Directory.GetFiles(_directory, "*" + FileExtension);
+            // Materialized inside the try: the listing is lazy, and a drop-in folder that is not there
+            // yet (the common case) yields nothing rather than throwing.
+            files = [.. _folder.EnumerateFiles("", "*" + FileExtension)];
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -154,14 +156,20 @@ public sealed class TagPaletteStore
 
         foreach (string file in files.Order(StringComparer.Ordinal))
         {
-            string json;
+            string? json;
             try
             {
-                json = File.ReadAllText(file);
+                json = FolderText.Read(_folder, file);
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
                 Skip(Path.GetFileName(file), e.Message);
+                continue;
+            }
+
+            if (json is null)
+            {
+                Skip(Path.GetFileName(file), "the file was gone by the time it was read");
                 continue;
             }
 

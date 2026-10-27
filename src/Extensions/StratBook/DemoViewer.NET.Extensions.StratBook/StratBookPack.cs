@@ -284,7 +284,7 @@ public sealed class StratBookPack : IExtension
         // no directory and offers the built-in alone.
         services.AddSingleton(sp =>
         {
-            TagPaletteStore palettes = new(PalettesDirectory(StoresOf(sp).Open(StratBookStores.Palettes)), keymap: Host(sp).Keymap);
+            TagPaletteStore palettes = new(SeededPalettes(StoresOf(sp).Open(StratBookStores.Palettes)), keymap: Host(sp).Keymap);
             palettes.Reload();
             return palettes;
         });
@@ -737,23 +737,20 @@ public sealed class StratBookPack : IExtension
 
     // The palettes folder is where the user drops files, so it is created on first use where it can be; a
     // folder that cannot be created offers the built-in palette alone.
-    private static string? PalettesDirectory(IExtensionFolder? palettes)
+    // Created up front so a user has somewhere to drop a palette. A failure is left alone: the listing
+    // of a folder that is not there yields nothing, and the built-in palette stands on its own.
+    private static IExtensionFolder? SeededPalettes(IExtensionFolder? palettes)
     {
-        if (palettes is null)
-        {
-            return null;
-        }
-
         try
         {
-            palettes.Create();
+            palettes?.Create();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // TagPaletteStore checks the folder exists and offers the built-in palette alone.
+            // Nothing to do; the store offers the built-in palette alone.
         }
 
-        return palettes.Path;
+        return palettes;
     }
 
     // Strat Mining's files in the extension's own folders. The detections rebuild on the next mine; the
