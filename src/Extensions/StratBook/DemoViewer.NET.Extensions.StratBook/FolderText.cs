@@ -8,10 +8,9 @@ namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
 ///     Text through an <see cref="IExtensionFolder" />, for the stores that work in a folder the host handed
-///     them. The folder deals in bytes, and these files are user-editable: several editors write a UTF-8 byte
-///     order mark, <c>Utf8JsonReader</c> treats one as content and throws, and the
-///     <see cref="File.ReadAllText(string)" /> these stores read with before silently removed it. Every read
-///     here strips it, the <see cref="StoredFile" /> rule, so a file a user touched in an editor still parses.
+///     them. The folder deals in bytes and these files are user-editable, so every read here strips a UTF-8
+///     byte order mark, the <see cref="StoredFile" /> rule: several editors write one and
+///     <c>Utf8JsonReader</c> reads it as content and throws.
 /// </summary>
 internal static class FolderText
 {
