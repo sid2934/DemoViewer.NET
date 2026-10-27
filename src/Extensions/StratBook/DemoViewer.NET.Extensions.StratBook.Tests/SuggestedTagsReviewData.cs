@@ -32,7 +32,7 @@ internal sealed class SuggestedTagsReviewHarness : IDisposable
     {
         Cache = new DemoCacheStore(cacheRoot);
         Proposals = new ProposalStore(cacheRoot is null ? Cache.Data() : Cache.DiskData(cacheRoot));
-        Tags = new TagStore(tagsRoot);
+        Tags = new TagStore(tagsRoot is null ? null : PackStores.At(tagsRoot));
         Regions = new SiteRegionStore(null);
         Regions.Save(SuggestedTagsTestData.Table);
         Service = new SuggestedTagsService(Cache.Library(), Cache.RoundFacts(), Proposals, Tags, Regions, () => Profile, () => Enabled,

@@ -261,7 +261,7 @@ public sealed class StratBookPack : IExtension
         // holds it. Null root (the browser) keeps tags in memory for the session.
         services.AddSingleton(sp =>
         {
-            TagStore tags = new(StoresOf(sp).Open(StratBookStores.Tags)?.Path, Host(sp).Post);
+            TagStore tags = new(StoresOf(sp).Open(StratBookStores.Tags), Host(sp).Post);
             // Shutdown flushes the index only when a factory built the store (StratBookLifecycle.OnShutdown).
             sp.GetRequiredService<StratBookPackInstances>().Tags = tags;
             return tags;

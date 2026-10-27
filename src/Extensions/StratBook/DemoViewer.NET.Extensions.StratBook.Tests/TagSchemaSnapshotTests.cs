@@ -181,7 +181,7 @@ public class TagSchemaSnapshotTests
             Directory.CreateDirectory(Path.GetDirectoryName(sidecar)!);
             File.WriteAllText(sidecar, original);
 
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             TagLoadResult loaded = store.Load(TagTestData.Sha, TagTestData.Clock);
             TagDocument document = loaded.Document!;
 

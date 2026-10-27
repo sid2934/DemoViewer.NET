@@ -150,7 +150,7 @@ public class TagFactsRefresherTests
         string root = TempRoot();
         try
         {
-            TagStore store = new(root);
+            TagStore store = new(PackStores.At(root));
             TagInstance execute = Instance("B execute", 11_000, 13_000, ("outcome", "won"));
             store.Save(Document(Sha, execute));
             FakeFacts facts = new(Rows());
@@ -160,7 +160,7 @@ public class TagFactsRefresherTests
             facts.Rows = Rows(roundTwoCtScore: 4);
             facts.Raise(DemoPath);
 
-            TagInstance stored = new TagStore(root).TryLoad(Sha)!.Instances.Single();
+            TagInstance stored = new TagStore(PackStores.At(root)).TryLoad(Sha)!.Instances.Single();
             using (Assert.Multiple())
             {
                 await Assert.That(Value(stored, "score.ct")).IsEqualTo("4").Because("Updated drove a refresh from the new rows");

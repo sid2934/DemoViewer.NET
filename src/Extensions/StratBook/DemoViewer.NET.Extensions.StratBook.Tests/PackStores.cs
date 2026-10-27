@@ -20,4 +20,12 @@ internal static class PackStores
     public static IExtensionFolder Folder(string configRoot, string storeId) =>
         // The cache root is a sibling path that nothing here opens, so it is never created.
         new ExtensionStores(StratBookPack.PackId, configRoot, configRoot + "-cache", StratBookStores.All).Open(storeId)!;
+
+    /// <summary>
+    ///     A store folder rooted exactly at <paramref name="path" />, for the cases that already have a temp
+    ///     root of their own and only need a store over it. Which folder a descriptor names is the store
+    ///     coverage test's question, not theirs.
+    /// </summary>
+    /// <param name="path">The folder, which need not exist.</param>
+    public static IExtensionFolder At(string path) => new ExtensionFolder(path);
 }

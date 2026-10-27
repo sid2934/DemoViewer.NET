@@ -99,7 +99,7 @@ public class StratBookStoresTests
         new StratStore(Path.Combine(configRoot, "strats")).Create(StratOwner.Me(), "de_dust2", "T", "default", "test");
 
         // tags/: the store's own path, written directly rather than through a live TagSession.
-        TagStore tags = new(Path.Combine(configRoot, "tags"));
+        TagStore tags = new(PackStores.Folder(configRoot, StratBookStores.Tags));
         string tagSidecar = tags.PathFor("a" + new string('b', 63))!;
         Directory.CreateDirectory(Path.GetDirectoryName(tagSidecar)!);
         File.WriteAllText(tagSidecar, "{}");
