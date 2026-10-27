@@ -1,7 +1,7 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
 
 #endregion
@@ -31,6 +31,13 @@ public sealed class TokenTool : IPointerTool
 {
     private ITokenEditor? _editor;
     private string? _slot;
+
+    /// <summary>
+    ///     The pack's local id, which the host files under the pack. Deliberately not
+    ///     <c>ToolIds.Of(ToolKind.Token)</c>: were the two the same, a selection that reached this tool by
+    ///     kind would work in a test with no extension host and fail in the app, where the filed id differs.
+    /// </summary>
+    public string Id => "step-token";
 
     /// <inheritdoc />
     public ToolKind Kind => ToolKind.Token;

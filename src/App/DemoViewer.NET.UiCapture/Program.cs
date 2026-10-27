@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Styling;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.UiCapture;
 
 #endregion
@@ -18,6 +19,16 @@ using DemoViewer.NET.UiCapture;
 //
 // --out defaults to %TEMP%/demoviewer-uitests/<variant>.png; --size defaults to the variant's own size
 // (the WxH override sizes the render window, e.g. 800x600).
+
+// A scratch config root unless the caller named one, BEFORE anything reads AppPaths. The strat variants
+// draw a map's places through its zone overlay under <config>/zones/, and a review capture that picked up
+// whatever the developer happens to have saved there is machine-specific, which is the same defect the
+// embedded typeface exists to avoid.
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar)))
+{
+    Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar,
+        Path.Combine(Path.GetTempPath(), $"dv-uicapture-config-{Guid.NewGuid():N}"));
+}
 
 // The same compiled-in pack list as the heads, so a variant's CommandRegistry and job-kind lookups resolve.
 FeaturePacks.Configure([new StratBookPack()]);
@@ -42,8 +53,9 @@ if (args[0] is "list")
 string? outArg = OptValue("--out");
 Size? sizeArg = ParseSize(OptValue("--size"));
 // --theme accepts ANY registry id: dark / light / system, the built-in customs (high-contrast, egirl), or a
-// drop-in id (a *.json in <config>/themes/, re-scanned each run — set DEMOVIEWER_CONFIG_DIR to author against
-// a scratch folder). Blank → the app default.
+// drop-in id (a *.json in <config>/themes/, re-scanned each run). A run with no DEMOVIEWER_CONFIG_DIR gets a
+// scratch root and so sees no drop-ins; point the variable at the folder you are authoring in. Blank theme
+// is the app default.
 ThemeVariant? themeArg = CaptureHost.ResolveTheme(OptValue("--theme"));
 
 try

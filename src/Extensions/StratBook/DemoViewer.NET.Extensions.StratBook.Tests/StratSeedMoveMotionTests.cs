@@ -2,13 +2,13 @@
 
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
-using DemoViewer.NET.Services.Zones;
 using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratStepMotionTests;
@@ -32,9 +32,12 @@ public class StratSeedMoveMotionTests
     private static readonly (string Slot, double X, double Y)[] Spawn =
         [("A", -750, -790), ("B", -735, -910), ("C", -775, -690), ("D", -865, -735), ("E", -610, -800)];
 
-    private static IZonePlaceResolver Dust2() =>
-        new AssetZonePlaceResolverSource(MapAssetBundleReader.FindBundleDirectory, () => null).TryGet("de_dust2")
-        ?? throw new SkipTestException("de_dust2's zones are not in assets/");
+    private static IZonePlaceResolver Dust2()
+    {
+        using AssetZonePlaceResolverSource source = new();
+        return source.TryGet("de_dust2")
+               ?? throw new SkipTestException("de_dust2's zones are not in assets/");
+    }
 
     private static PlaceRef Point(string place, double x, double y) => new() { Place = place, X = x, Y = y, LevelMinZ = Level };
 

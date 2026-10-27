@@ -18,17 +18,18 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Levels;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Hud;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Core.Timeline;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Hud;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
+using DemoViewer.NET.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
@@ -258,9 +259,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     // The current map's radar layers, described once per map asset (see ReplaceMapAsset).
     private IReadOnlyList<MapRadarImage> _radars = [];
 
-    // The baked map-asset bundle for the current map (nav floors + radar + transform), loaded VRF-free from
-    // the dev cs2-assets/baked cache when available. Null when no bundle exists → the
-    // viewport falls back to its grid + Z-histogram floors. Reloaded when IModuleContext.MapName changes.
+    // This tab's hold on the current map's bundle, from the one registry every view holds through. Null
+    // when the map has no bundle, which leaves the viewport on its grid + Z-histogram floors.
+    private MapBundleLease? _mapLease;
 
     // The map's REAL networked world-space X/Y bounds (the radar bounding box), read ONCE from the game-rules
     // entity: CCSGameRulesProxy.m_pGameRules.m_vMinimapMins / m_vMinimapMaxs (Vector3). Lets Map mode frame
@@ -412,10 +413,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     public IReadOnlyList<FloorSlice>? AuthoritativeFloors => MapAsset?.Floors;
 
     /// <summary>The loaded map-asset bundle (radar bitmaps + transform + layers) for the current map, or null.</summary>
-    public LoadedMapAsset? MapAsset { get; private set; }
+    public LoadedMapAsset? MapAsset => _mapLease?.Bundle;
 
     /// <inheritdoc />
-    IMapAsset? ISceneFrameHost.MapAsset => MapAsset;
+    IMapAsset? ISceneFrameHost.MapAsset => _mapLease;
 
     /// <summary>
     ///     Test seam: the map name the viewport last (re)loaded assets for, set unconditionally by
@@ -627,7 +628,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         _keymapWatch?.Dispose();
         _keymapWatch = null;
         Timeline.TrackVisibilityChanged -= SaveTimelineSettings;
-        Timeline.Dispose(); // the tracks' MarkersChanged subscriptions, taken in RegisterTrack
+        Timeline.Dispose(); // the tracks' Changed subscriptions, taken in RegisterTrack
         LevelStrip.SettingsChanged -= SaveLevelSettings;
         _annotationController.Flush();
         Annotations.Dispose();
@@ -649,6 +650,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Surface.CloseSidePane();
         Surface.SidePaneOpened -= CloseExport;
         Surface.PanelsChanged -= RaisePanelState;
+
+        // Last: the hold on the map's bundle, which outlives this tab only while another view has one.
+        ReplaceMapAsset(null);
+        LoadedMapNameForTest = null;
     }
 
     public void OnActivated(IModuleContext context)
@@ -921,7 +926,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
                     // Process-wide, so an app session pays for one two-frame test encode per rung rather
                     // than one per export.
-                    EncoderProbeCache.Shared),
+                    EncoderProbeCache.Shared,
+
+                    // Both the constructor's own defaults: FfmpegLocator.Locate, and the refusal for a
+                    // run with no loaded demo, which is this tab's case exactly.
+                    locateFfmpeg: null,
+                    noSetupRefusal: null),
                 host.IsLiveSyncBusy,
                 host.IsReelRunning,
                 AppendExportLog);
@@ -1323,10 +1333,10 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <param name="press">The press, resolved to a pane and world coordinates.</param>
     public bool TryPointerPreHandler(ScenePointer press) => Surface.TryHandlePointerPress(press);
 
-    IReadOnlyList<KeyValuePair<string, Func<global::DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer>>> ISceneFrameHost.ContributedLayers =>
+    IReadOnlyList<KeyValuePair<string, Func<global::DemoViewer.NET.Playback2D.Compositing.ISceneLayer>>> ISceneFrameHost.ContributedLayers =>
         Surface.Layers;
 
-    IReadOnlyList<global::DemoViewer.NET.Playback2D.Core.Tools.IMapTool> ISceneFrameHost.ContributedTools => Surface.Tools;
+    IReadOnlyList<global::DemoViewer.NET.Playback2D.Tools.IMapTool> ISceneFrameHost.ContributedTools => Surface.Tools;
 
     event Action? ISceneFrameHost.ContributedLayersChanged
     {
@@ -2303,7 +2313,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             return;
         }
 
-        ReplaceMapAsset(MapAssetPipeline.TryLoad(name));
+        ReplaceMapAsset(string.IsNullOrEmpty(name) ? null : MapBundleLeases.Acquire(name));
         LoadedMapNameForTest = name;
 
         // Map changed → the old collision engine no longer applies. Drop it and (re)load if Vision is on.
@@ -2313,39 +2323,26 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     /// <summary>
-    ///     Swaps in a new map asset and DISPOSES the one it replaces. The radar images are Skia-backed, so
-    ///     their pixel buffers are unmanaged (~4 MB each): simply dropping the reference leaks them until a
-    ///     finalizer happens to run, which is why a map swap used to grow native memory every time.
-    ///     <para>
-    ///         The old asset is disposed at Background priority rather than inline: the render thread may
-    ///         still be replaying a cached SKPicture that references one of these images for the frame in
-    ///         flight. The render gate plus this one dispatcher hop is what covers that window.
-    ///     </para>
+    ///     Swaps in a new hold on the map's bundle and gives the previous one back. The registry owns the
+    ///     decode, so a bundle another view still holds survives this; the radar images are Skia-backed
+    ///     unmanaged buffers (~4 MB each) and are released once the last hold ends, a dispatcher hop later
+    ///     because the render thread may still be replaying a cached SKPicture that draws one.
     /// </summary>
-    private void ReplaceMapAsset(LoadedMapAsset? next)
+    private void ReplaceMapAsset(MapBundleLease? next)
     {
-        LoadedMapAsset? previous = MapAsset;
-        if (next is not null)
-        {
-            // Before anything can read Zones: the overlay lives under the config root, which only the
-            // App knows, and the asset reads it lazily from here.
-            next.ZoneOverlayDirectory = AppPaths.ZonesDirectory;
-        }
-
-        MapAsset = next;
+        MapBundleLease? previous = _mapLease;
+        _mapLease = next;
         _publishedZoneLoad = null;
 
         // Described ONCE per map, not per push: the frame publishes the same list instance every frame
         // so SceneFrameBuilder's "map facts unchanged" short-circuit holds and the steady state stays
         // allocation-free.
-        _radars = next is null ? [] : MapAssetPipeline.DescribeRadars(next);
+        _radars = next is null ? [] : next.DescribeRadars();
 
-        if (previous is null || ReferenceEquals(previous, next))
+        if (!ReferenceEquals(previous, next))
         {
-            return;
+            previous?.Dispose();
         }
-
-        Dispatcher.UIThread.Post(previous.Dispose, DispatcherPriority.Background);
     }
 
     // Resolves the current map's line-of-sight BVH off the UI thread, the first time it's needed. No-op

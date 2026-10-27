@@ -10,7 +10,6 @@ using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,14 +55,14 @@ public class StratBookPackTests
         // Where the user's own work already lives, one member per store, and the read-only zones overlay.
         "DemoViewer.NET.Extensions.FirstPartyHost",
         // The extension host: the job-kind registry, the shell hub, the first-party shell state and export
-        // chips it serves, the notification center, and the pack's own context.
+        // chips it serves, the notification center, and the pack's own context under both of its keys.
         "DemoViewer.NET.Extensions.JobKindRegistry",
         "DemoViewer.NET.Extensions.ExtensionShellHub",
         "DemoViewer.NET.Extensions.IFirstPartyShellState",
         "DemoViewer.NET.Extensions.IFirstPartyExportChips",
         "DemoViewer.NET.Extensions.NotificationCenter",
         "DemoViewer.NET.Extensions.Sdk.IExtensionContext",
-        "DemoViewer.NET.Extensions.Sdk.IExtensionContextAccess",
+        "DemoViewer.NET.Extensions.Sdk.IExtensionContext",
         // Every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
         "DemoViewer.NET.Extensions.PackContributionSet",
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
@@ -125,7 +124,6 @@ public class StratBookPackTests
         "DemoViewer.NET.Extensions.StratBook.ViewModels.Teams.TeamsTabViewModel",
         "DemoViewer.NET.Extensions.StratBook.Services.Strats.StratStore",
         "DemoViewer.NET.Extensions.StratBook.Modules.IStratCapture | Transient",
-        "DemoViewer.NET.Extensions.StratBook.Modules.StratBook.IStratExport | Transient",
         "DemoViewer.NET.Extensions.StratBook.Services.Strats.CalloutResolverSource",
         "DemoViewer.NET.Extensions.StratBook.Services.Strats.StratEvidenceService",
         "DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining.StratMiningService",

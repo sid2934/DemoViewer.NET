@@ -4,7 +4,8 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Zones;
@@ -65,6 +66,7 @@ public class ZoneOverlayLoadTests
         await HeadlessSession.RunOnUi(async () =>
         {
             ZoneOverlayDiagnostics.Reset();
+            await RequireNobodyHoldsTheMap();
             using RuleWorkbenchTabViewModel workbench = new();
 
             (Playback2DTabViewModel vm, _) = ActivatedTab();
@@ -87,6 +89,7 @@ public class ZoneOverlayLoadTests
             await Assert.That(row.Location).IsEqualTo(Path.GetFileName(overlay));
 
             vm.OnDeactivated();
+            vm.Dispose();
         });
     }
 
@@ -99,6 +102,7 @@ public class ZoneOverlayLoadTests
         await HeadlessSession.RunOnUi(async () =>
         {
             ZoneOverlayDiagnostics.Reset();
+            await RequireNobodyHoldsTheMap();
             (Playback2DTabViewModel vm, _) = ActivatedTab();
             LoadedMapAsset? asset = vm.MapAsset;
             await Assert.That(asset).IsNotNull();
@@ -135,8 +139,64 @@ public class ZoneOverlayLoadTests
             await Assert.That(vm.LoadedMapNameForTest).IsEqualTo(Map);
 
             vm.OnDeactivated();
+            vm.Dispose();
         });
     }
+
+    /// <summary>
+    ///     The lease's own refresh, over a bundle the test owns rather than the process-wide registry: a
+    ///     saved overlay is picked up, and an unchanged one hands back the same resolver instance.
+    /// </summary>
+    [Test]
+    public async Task RefreshZones_RereadsASavedOverlay_AndIsTheSameInstanceWhenNothingMoved()
+    {
+        string bundleDir = RequireBundle();
+        using ConfigDir config = new();
+        string zonesDir = AppPaths.EnsureZonesDirectory()!;
+        using TestMapAssetLease lease = new(MapAssetPipeline.TryLoadFromDirectory(bundleDir, zonesDir)!, Map);
+
+        PlaceResolver? first = lease.Zones;
+        await Assert.That(first).IsNotNull();
+        using (Assert.Multiple())
+        {
+            await Assert.That(ReferenceEquals(lease.RefreshZones(), first)).IsTrue()
+                .Because("the lazy read stamped the overlay, so the first refresh re-reads nothing");
+            await Assert.That(ReferenceEquals(lease.RefreshZones(), first)).IsTrue();
+            await Assert.That(first!.PlaceId("Sandwich")).IsNull();
+        }
+
+        ConfigDir.WriteOverlay("""
+                            {
+                              "schemaVersion": 1,
+                              "mapName": "de_nuke",
+                              "zones": [
+                                { "name": "Sandwich", "floor": -512,
+                                  "polygon": [ -1600, -1900, -1200, -1900, -1200, -1500, -1600, -1500 ] }
+                              ]
+                            }
+                            """);
+
+        PlaceResolver? second = lease.RefreshZones();
+        await Assert.That(second).IsNotNull();
+        using (Assert.Multiple())
+        {
+            await Assert.That(ReferenceEquals(second, first)).IsFalse().Because("the overlay was saved after the first read");
+            await Assert.That(second!.PlaceId("Sandwich")).IsNotNull();
+            await Assert.That(second.Zones.HasOverlay).IsTrue();
+            await Assert.That(second.Zones.EffectiveVersion).IsNotEqualTo(first!.Zones.EffectiveVersion);
+            await Assert.That(ReferenceEquals(lease.RefreshZones(), second)).IsTrue()
+                .Because("an unchanged overlay is not re-read");
+            await Assert.That(ReferenceEquals(lease.Zones, second)).IsTrue()
+                .Because("the refresh published the new load, so a plain read sees it");
+        }
+    }
+
+    // Both tab tests assert this first, and each disposes the tab it activates. The bundle registry is
+    // process-wide and keyed on the map alone, and a map's overlay root is fixed when it is first decoded,
+    // so a hold left out would serve the next test a bundle pointed at the previous one's config root.
+    private static async Task RequireNobodyHoldsTheMap() =>
+        await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(0)
+            .Because($"another test is still holding {Map}, so its overlay root is the one in force");
 
     private static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) ActivatedTab()
     {

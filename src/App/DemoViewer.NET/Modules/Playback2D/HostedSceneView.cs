@@ -7,13 +7,13 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Timeline;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion
@@ -31,11 +31,17 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
 {
     private readonly Scene2DHost _host = new();
     private readonly Dictionary<IPointerTool, IPointerTool> _tools = new(ReferenceEqualityComparer.Instance);
+    private readonly ExtensionFaults? _faults;
     private SourceFrameHost? _bound;
 
     /// <summary>Creates the view over a fresh scene host.</summary>
-    public HostedSceneView()
+    /// <param name="faults">
+    ///     The tracker a contributed layer or tool of this view is attributed to, or null for the
+    ///     process's. A test host files under a scope of its own without installing one process-wide.
+    /// </param>
+    public HostedSceneView(ExtensionFaults? faults = null)
     {
+        _faults = faults;
         ClipToBounds = true;
         _host.TextEditRequested += (at, emPixels) => TextEditRequested?.Invoke(at, emPixels);
         LogicalChildren.Add(_host);
@@ -44,6 +50,10 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
 
     /// <summary>The scene host drawing the view.</summary>
     internal Scene2DHost Host => _host;
+
+    // Read per add, not cached: the desktop head installs the process's tracker before the first view is
+    // built, but a host built in a test or a designer may outlive one being installed.
+    private ExtensionFaults? Faults => _faults ?? ExtensionFaults.Current;
 
     /// <inheritdoc />
     public Control View => this;
@@ -69,7 +79,7 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
     public IReadOnlyList<LevelPane> Panes => _host.Panes;
 
     /// <inheritdoc />
-    public ToolKind ActiveTool => _host.Router.ActiveKind;
+    public string ActiveTool => _host.Router.ActiveToolId;
 
     /// <inheritdoc />
     public event Action<Point, double>? TextEditRequested;
@@ -82,17 +92,36 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
     }
 
     /// <inheritdoc />
-    public void SetLayer(string id, Func<ISceneLayer> layer) => _host.AddLayer(id, () => Build(id, layer));
+    public string AddLayer(string id, Func<ISceneLayer> layer)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        ArgumentNullException.ThrowIfNull(layer);
+        (string filed, Func<ISceneLayer> build) = ContributedSceneLayer.File(id, layer, "scene view layer factory", Faults);
+
+        // The host holds the registry and refuses a duplicate, so nothing is recorded before it has taken it.
+        _host.AddLayer(filed, build);
+        return filed;
+    }
 
     /// <inheritdoc />
     public void RemoveLayer(string id) => _host.RemoveLayer(id);
 
     /// <inheritdoc />
-    public void AddTool(IPointerTool tool)
+    public string AddTool(IPointerTool tool)
     {
-        IPointerTool guarded = Guard(tool);
-        _tools[tool] = guarded;
-        _host.AddTool(guarded);
+        // The same instance again answers with the id it already holds: building a second wrapper would
+        // compose the same id and the router would refuse it as a duplicate of the tool's own self.
+        if (_tools.TryGetValue(tool, out IPointerTool? already))
+        {
+            return already.Id;
+        }
+
+        IPointerTool filed = Guard(tool);
+
+        // Register first. A refused id must leave nothing recorded here either.
+        _host.AddTool(filed);
+        _tools[tool] = filed;
+        return filed.Id;
     }
 
     /// <inheritdoc />
@@ -105,7 +134,7 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
     }
 
     /// <inheritdoc />
-    public void SetActiveTool(ToolKind kind) => _host.SetActiveTool(kind);
+    public void SetActiveTool(string toolId) => _host.SetActiveTool(toolId);
 
     /// <inheritdoc />
     public void SetHoldPan(bool held) => _host.SetSpacePanHeld(held);
@@ -139,21 +168,11 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
         return finalSize;
     }
 
-    // An extension's layer or tool runs as the extension's; anything else runs as it is.
-    private static ISceneLayer Build(string id, Func<ISceneLayer> factory)
-    {
-        if (ExtensionFaults.Current is not { } faults || faults.Owner(factory) is not { } owner)
-        {
-            return factory();
-        }
-
-        ExtensionGuard guard = faults.GuardFor(owner);
-        ISceneLayer? built = guard.Run("scene view layer factory", factory, null);
-        return built is null ? new GuardedSceneLayer(id, EmptySceneLayer.Instance, guard) : new GuardedSceneLayer(id, built, guard);
-    }
-
-    private static IPointerTool Guard(IPointerTool tool) =>
-        ExtensionFaults.Current is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
+    // A tool from an extension assembly is filed under it, so it can take neither a scene tool's id nor
+    // another extension's. One from no loaded extension (a test, the capture tool) keeps its bare id, and a
+    // bare id that collides with a scene tool's is what the router's refusal is there to say out loud.
+    private IPointerTool Guard(IPointerTool tool) =>
+        Faults is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
             ? new GuardedPointerTool(tool, faults.GuardFor(owner))
             : tool;
 
@@ -353,14 +372,14 @@ internal sealed class GuardedTimelineTrack : ITimelineTrack
         _guard = guard;
         Id = guard.Run("timeline track", () => inner.Id, guard.Scope.Id + ".track");
         DisplayName = guard.Run("timeline track", () => inner.DisplayName, guard.Scope.Name);
-        guard.Run("timeline track", () => _inner.MarkersChanged += OnChanged);
+        guard.Run("timeline track", () => _inner.Changed += OnChanged);
     }
 
     public string Id { get; }
 
     public string DisplayName { get; }
 
-    public event Action? MarkersChanged;
+    public event Action? Changed;
 
     public bool IsAvailable(ITimelineData data) =>
         _guard.Run("timeline track", () => _inner.IsAvailable(data), false);
@@ -371,9 +390,9 @@ internal sealed class GuardedTimelineTrack : ITimelineTrack
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) =>
         _guard.Run("timeline track", () => _inner.BuildBands(data), []);
 
-    public void Detach() => _guard.Run("timeline track", () => _inner.MarkersChanged -= OnChanged);
+    public void Detach() => _guard.Run("timeline track", () => _inner.Changed -= OnChanged);
 
-    private void OnChanged() => UiThreadMarshal.Run(() => MarkersChanged?.Invoke());
+    private void OnChanged() => UiThreadMarshal.Run(() => Changed?.Invoke());
 }
 
 /// <summary>Installs the renderers the SDK's map, scene and timeline controls are built over.</summary>
@@ -385,8 +404,10 @@ internal static class SdkSceneHosts
     /// </summary>
     public static void Install()
     {
-        MapViewHost.Factory = static () => new HostedMapView();
-        SceneViewHost.Factory = static () => new HostedSceneView();
+        // null, not ExtensionFaults.Current: Faults reads Current per call, so capturing it here would
+        // pin whatever was installed the moment Install ran.
+        MapViewHost.Factory = static () => new HostedMapView(faults: null);
+        SceneViewHost.Factory = static () => new HostedSceneView(faults: null);
         TimelineHost.Factory = static () => new HostedTimeline();
     }
 }

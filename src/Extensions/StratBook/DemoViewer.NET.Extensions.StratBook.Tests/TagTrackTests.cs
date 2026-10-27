@@ -11,10 +11,9 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
-using DemoViewer.NET.Extensions.Sdk.Playback;
+using DemoViewer.NET.Playback2D.Timeline;
 using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -45,7 +44,8 @@ public class TagTrackTests
             return frame >= TotalFrames ? -1 : frame;
         }
 
-        public IReadOnlyList<TimelineEvent> EventsOfType(string eventName) => [];
+        public IReadOnlyList<int> FramesForEvent(string eventName) => [];
+        public IReadOnlyList<TimelineEventRecord> EventsOfType(string eventName) => [];
         public bool HasEvent(string eventName) => false;
     }
 
@@ -126,7 +126,7 @@ public class TagTrackTests
                 Instance("A split", 180, 260));
             using TagTrack track = Track(session);
 
-            IReadOnlyList<TimelineMark> markers = track.BuildMarks(new HalfTickData(1000));
+            IReadOnlyList<TimelineMarker> markers = track.BuildMarkers(new HalfTickData(1000));
 
             await Assert.That(markers.Count).IsEqualTo(3).Because("the merge must hide nothing");
             await Assert.That(markers.Select(m => m.FrameIndex)).IsEquivalentTo(MarkerFrames, CollectionOrdering.Matching);
@@ -154,7 +154,7 @@ public class TagTrackTests
             HalfTickData data = new(1000);
 
             IReadOnlyList<TimelineBand> bands = track.BuildBands(data);
-            IReadOnlyList<TimelineMark> markers = track.BuildMarks(data);
+            IReadOnlyList<TimelineMarker> markers = track.BuildMarkers(data);
 
             await Assert.That(track.IsAvailable(data)).IsTrue();
             await Assert.That(bands.Count).IsEqualTo(1);
@@ -180,7 +180,7 @@ public class TagTrackTests
 
             await Assert.That(track.IsAvailable(data)).IsFalse();
             await Assert.That(track.BuildBands(data)).IsEmpty();
-            await Assert.That(track.BuildMarks(data)).IsEmpty();
+            await Assert.That(track.BuildMarkers(data)).IsEmpty();
         });
     }
 
@@ -252,9 +252,9 @@ public class TagTrackTests
             data.EventFrames["round_freeze_end"] = [0, 500];
 
             using Playback2DTimelineViewModel timeline = new() { PixelWidth = 1000 };
+            SdkPlaybackSurface.CoreTrack filed = new(track, ExtensionGuard.Standalone(new StratBookPack()));
             timeline.RegisterTrack(new RoundTrack());
-            timeline.RegisterTrack(new SdkPlaybackSurface.CoreTrack(track, ExtensionGuard.Standalone(new StratBookPack())),
-                TimelineBandRow.Lane);
+            timeline.RegisterTrack(filed, TimelineBandRow.Lane);
             timeline.Rebuild(data);
             timeline.UpdatePlayhead(600, 1_200);
 
@@ -266,14 +266,14 @@ public class TagTrackTests
                 await Assert.That(timeline.HasLaneBands).IsTrue();
                 await Assert.That(timeline.CurrentRoundLabel).IsEqualTo("2")
                     .Because("a tag spanning the playhead must not become the round label");
-                await Assert.That(timeline.Markers.Count(m => m.TrackId == TagTrack.TrackId)).IsEqualTo(1);
+                await Assert.That(timeline.Markers.Count(m => m.TrackId == filed.Id)).IsEqualTo(1);
             }
 
             session.Apply(new TagDelta.Remove(session.Document!.Instances[0].Id));
 
             await Assert.That(timeline.LaneBands).IsEmpty();
             await Assert.That(timeline.HasLaneBands).IsFalse();
-            await Assert.That(timeline.Tracks.Single(t => t.Id == TagTrack.TrackId).IsAvailable).IsFalse();
+            await Assert.That(timeline.Tracks.Single(t => t.Id == filed.Id).IsAvailable).IsFalse();
         });
     }
 

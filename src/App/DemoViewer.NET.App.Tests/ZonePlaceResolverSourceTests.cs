@@ -2,8 +2,10 @@
 
 using System.Numerics;
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Services.Zones;
 using TUnit.Assertions.Enums;
@@ -30,7 +32,7 @@ public class ZonePlaceResolverSourceTests
     {
         string bundleDir = RequireBundle();
         using TempDir overlays = new();
-        AssetZonePlaceResolverSource source = new(MapAssetBundleReader.FindBundleDirectory, () => overlays.Path);
+        using AssetZonePlaceResolverSource source = new(Leases(MapAssetBundleReader.FindBundleDirectory, overlays.Path));
         PlaceResolver direct = ZoneAssetPipeline.TryLoad(bundleDir, null)!;
 
         IZonePlaceResolver? zones = source.TryGet(Map);
@@ -73,11 +75,11 @@ public class ZonePlaceResolverSourceTests
         RequireBundle();
         using TempDir noZones = new();
         File.WriteAllText(Path.Combine(noZones.Path, "bundle.json"), "{}");
-        AssetZonePlaceResolverSource source = new(
+        using AssetZonePlaceResolverSource source = new(Leases(
             map => string.Equals(map, Map, StringComparison.OrdinalIgnoreCase)
                 ? MapAssetBundleReader.FindBundleDirectory(map)
                 : noZones.Path,
-            () => null);
+            null));
 
         using (Assert.Multiple())
         {
@@ -86,8 +88,8 @@ public class ZonePlaceResolverSourceTests
             await Assert.That(source.TryGet(Map)).IsNotNull().Because("no overlay directory is the baked set");
         }
 
-        // The browser host: no bundle directory and no config root for any map.
-        AssetZonePlaceResolverSource browser = new(_ => null, () => null);
+        // The browser host: no art and no config root for any map.
+        using AssetZonePlaceResolverSource browser = new(_ => null);
         await Assert.That(browser.TryGet(Map)).IsNull();
 
         using ToleranceSliderHarness slider = new(source);
@@ -105,7 +107,7 @@ public class ZonePlaceResolverSourceTests
     {
         string bundleDir = RequireBundle();
         using TempDir overlays = new();
-        AssetZonePlaceResolverSource source = new(MapAssetBundleReader.FindBundleDirectory, () => overlays.Path);
+        using AssetZonePlaceResolverSource source = new(Leases(MapAssetBundleReader.FindBundleDirectory, overlays.Path));
         string baked = ZoneAssetPipeline.TryReadBaked(bundleDir)!.ZonesVersion;
 
         IZonePlaceResolver? before = source.TryGet(Map);
@@ -142,6 +144,16 @@ public class ZonePlaceResolverSourceTests
         using ToleranceSliderHarness slider = new(source);
         await Assert.That(slider.Vm.ToleranceTip).Contains($"zones:{after.ZonesVersion}");
     }
+
+    /// <summary>
+    ///     Holds the test owns, over bundles the test built: the source's one seam without the app's
+    ///     process-wide registry, so a test can name its own overlay folder and a saved edit here cannot
+    ///     move a map another test is holding.
+    /// </summary>
+    private static Func<string, IMapAssetLease?> Leases(Func<string, string?> bundleDirFor, string? overlayDir) =>
+        map => bundleDirFor(map) is { } dir && MapAssetPipeline.TryLoadFromDirectory(dir, overlayDir) is { } bundle
+            ? new TestMapAssetLease(bundle, map)
+            : null;
 
     private static string RequireBundle()
     {

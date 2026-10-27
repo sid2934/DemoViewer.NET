@@ -3,7 +3,7 @@
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SysAssembly = System.Reflection.Assembly;
 
@@ -40,18 +40,19 @@ public class BannedApiTests
 
     /// <summary>
     ///     The measurement harness. It exists to time the pipeline from OUTSIDE it, so a stopwatch and a
-    ///     timestamp are the deliverable, not a leak, which is why the exemption is scoped to its two
-    ///     namespaces rather than to the assembly.
+    ///     timestamp are the deliverable, not a leak, which is why the exemption is scoped as narrowly as
+    ///     it is rather than to the assembly.
     /// </summary>
-    private static readonly string[] _exemptNamespacePrefixes =
+    private static readonly string[] _exemptPrefixes =
     [
         "DemoViewer.NET.Playback2D.Pipeline.Benchmarking.",
 
-        // SceneExportSession's progress report carries elapsed time, throughput and an ETA. Those are
-        // wall-clock quantities by definition, a progress bar measuring scene time would be useless, and
-        // none of them reaches a layer: frames advance on the injected SceneTime, which is what
-        // ExportDeterminismTests pins.
-        "DemoViewer.NET.Playback2D.Pipeline.Export."
+        // The export progress report carries elapsed time, throughput and an ETA. Those are wall-clock
+        // quantities by definition, a progress bar measuring scene time would be useless, and none of
+        // them reaches a layer: frames advance on the injected SceneTime, which is what
+        // ExportDeterminismTests pins. Keyed on the clock itself, not on Pipeline.Export: that namespace
+        // also holds the export CONTRACT, which has no business reading a clock.
+        "DemoViewer.NET.Playback2D.Pipeline.Export.ExportClock"
     ];
 
     [Test]
@@ -68,7 +69,7 @@ public class BannedApiTests
     public async Task Pipeline_ContainsNo_DateTimeNow_Stopwatch_Or_Random()
     {
         List<string> offenders = ScanForBannedUses(typeof(SceneFrameBuilder).Assembly,
-            _exemptNamespacePrefixes);
+            _exemptPrefixes);
         Report(offenders);
         await Assert.That(offenders).IsEmpty();
     }
@@ -91,7 +92,7 @@ public class BannedApiTests
 
     private static bool IsExempt(string offender)
     {
-        foreach (string prefix in _exemptNamespacePrefixes)
+        foreach (string prefix in _exemptPrefixes)
         {
             if (offender.StartsWith(prefix, StringComparison.Ordinal))
             {

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Compositing;
+namespace DemoViewer.NET.Playback2D.Compositing;
 
 /// <summary>Which half of a layer's frame is being measured.</summary>
 internal enum LayerPhase

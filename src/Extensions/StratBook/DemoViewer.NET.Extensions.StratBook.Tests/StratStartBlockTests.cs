@@ -3,14 +3,14 @@
 using System.Text.Json;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
-using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.TestSupport;
 using SkiaSharp;
 using TUnit.Assertions.Enums;
@@ -51,9 +51,12 @@ public class StratStartBlockTests
     internal static StratDocument Legacy() =>
         JsonSerializer.Deserialize(LegacyText(), StratJsonContext.Default.StratDocument)!;
 
-    private static IZonePlaceResolver Dust2() =>
-        new AssetZonePlaceResolverSource(MapAssetBundleReader.FindBundleDirectory, () => null).TryGet("de_dust2")
-        ?? throw new SkipTestException("de_dust2's zones are not in assets/");
+    private static IZonePlaceResolver Dust2()
+    {
+        using AssetZonePlaceResolverSource source = new();
+        return source.TryGet("de_dust2")
+               ?? throw new SkipTestException("de_dust2's zones are not in assets/");
+    }
 
     private static StratSceneProjection Project(StratDocument document, IZonePlaceResolver? map) =>
         map is null

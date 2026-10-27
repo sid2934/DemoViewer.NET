@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
@@ -55,7 +56,7 @@ public class TagMatrixRealDemoTests
         RoundFactsRows rows = facts.TryGet(path) ?? throw new InvalidOperationException("the evaluator wrote no rows");
 
         ReviewQueue queue = new(null);
-        using TagMatrixTabViewModel matrix = new(tags, queue, cache.Library().FindBySha256, debounce: TimeSpan.Zero, isBrowser: false);
+        using TagMatrixTabViewModel matrix = new(tags, new ExtensionReviewQueue(queue), cache.Library().FindBySha256, debounce: TimeSpan.Zero, isBrowser: false);
         matrix.ColumnAxis = TagMatrixAxis.Label(LabelNamespace.Fact, "buy.t");
         await matrix.Pending;
 

@@ -2,7 +2,7 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Services.Facts;
@@ -508,8 +508,8 @@ public class SearchFiltersTests
             h.Teams.Rename(h.Teams.TeamOnSide(DemoA, 3)!.Id, "Falcons");
 
             h.Filters = new SearchFiltersViewModel(h.Cache.Library(), h.Teams, h.Provenance);
-            h.Canvas = new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null,
-                dispose => dispose(), h.Filters, action => action(), TimeSpan.Zero);
+            h.Canvas = new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(),
+                _ => null, h.Filters, action => action(), TimeSpan.Zero);
             return h;
         }
 

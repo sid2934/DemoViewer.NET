@@ -1746,6 +1746,14 @@ public class SettingsViewModelTests
                 }
 
                 ExtensionUpdateRow line = Row(first, StratBookPack.PackFeatureId).Update!;
+
+                // The record and the row are separate signals. The service writes its timestamp and the row
+                // takes the verdict independently, so the wait above does not mean Message has settled.
+                while ((line.IsChecking || !line.HasMessage) && DateTimeOffset.UtcNow < deadline)
+                {
+                    await Task.Delay(20);
+                }
+
                 using (Assert.Multiple())
                 {
                     await Assert.That(svc.Current.Extensions.LastUpdateCheckUtc).IsNotNull();

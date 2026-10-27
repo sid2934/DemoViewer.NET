@@ -2,7 +2,7 @@
 
 using System.Globalization;
 using System.Numerics;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 
 #endregion
 

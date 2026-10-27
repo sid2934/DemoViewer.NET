@@ -9,11 +9,11 @@ using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Timeline;
-using DemoViewer.NET.Playback2D.Core.Tools;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Tools;
+using DemoViewer.NET.Playback2D.Zones;
 
 #endregion
 
@@ -105,8 +105,10 @@ public interface IPlaybackSurface
     /// </summary>
     /// <param name="layerId">The id the layer is filed under; never one of the map's own.</param>
     /// <param name="layer">Builds the layer.</param>
+    /// <param name="displayName">The label on the layer's visibility row; null or blank labels it with the id.</param>
+    /// <param name="enabled">Whether the row starts on, for an id the user has not already switched this session.</param>
     /// <returns>Removes the layer.</returns>
-    IDisposable AddLayer(string layerId, Func<ISceneLayer> layer);
+    IDisposable AddLayer(string layerId, Func<ISceneLayer> layer, string? displayName = null, bool enabled = true);
 
     /// <summary>Repaints the map once, for a contributed layer whose own data changed off the playhead.</summary>
     void RequestRender();

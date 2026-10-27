@@ -8,8 +8,9 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
-using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
@@ -18,6 +19,8 @@ using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
+using SdkReview = DemoViewer.NET.Extensions.Sdk.Review;
+using PublishedQueue = DemoViewer.NET.Extensions.ExtensionReviewQueue;
 
 #endregion
 
@@ -154,8 +157,8 @@ public class ReviewQueueTests
     public async Task ATagRef_BecomesAClip_ThroughTheCacheIndex_OrNothingForAnUnknownHash()
     {
         TagInstanceRef instance = new("abc", Guid.NewGuid(), "exec-a", 2000, 2640, 7);
-        ReviewEntry? clip = TagClips.FromTag(instance, sha => sha == "abc" ? "/d/a.dem" : null, 64);
-        ReviewEntry? missing = TagClips.FromTag(instance with { Sha256 = "zzz" }, sha => sha == "abc" ? "/d/a.dem" : null);
+        SdkReview.ReviewClip? clip = TagClips.FromTag(instance, sha => sha == "abc" ? "/d/a.dem" : null, 64);
+        SdkReview.ReviewClip? missing = TagClips.FromTag(instance with { Sha256 = "zzz" }, sha => sha == "abc" ? "/d/a.dem" : null);
 
         using (Assert.Multiple())
         {
@@ -345,7 +348,7 @@ public class ReviewQueueTests
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         ReviewQueue queue = new(null);
         ResultCardsViewModel cards = new(cache.Library(), sidecars, sources, () => null, new SituationThumbnailCache(),
-            () => new SituationThumbnailRenderer(_ => null), action => action(), _ => null, review: queue);
+            () => new SituationThumbnailRenderer(_ => null), action => action(), _ => null, review: new PublishedQueue(queue));
         cache.Upsert(ParsedRecord("/d/a.dem"));
         Guid opponent = Guid.NewGuid();
         cards.SearchTeam = () => opponent;
@@ -458,7 +461,7 @@ public class ReviewQueueTests
         queue.Add(Enumerable.Range(0, ReviewQueueTabViewModel.CollapseAbove + 1)
             .Select(i => Clip($"/d/{i}.dem", i, i + 1, $"smoke {i}", ReviewSources.Lineup)), "Lineup clips, de_mirage");
         queue.Add([Clip("/d/x.dem", 1, 2, "a plant", ReviewSources.Dossier)], "Dossier");
-        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        using ReviewQueueTabViewModel tab = new(new PublishedQueue(queue), isBrowser: false);
 
         ReviewRowViewModel card = tab.Rows[0];
         using (Assert.Multiple())
@@ -492,7 +495,7 @@ public class ReviewQueueTests
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 1, 2), Clip("/d/b.dem", 1, 2)], "A");
-        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        using ReviewQueueTabViewModel tab = new(new PublishedQueue(queue), isBrowser: false);
         ReviewRowViewModel row = tab.Rows[1];
         int resets = 0;
         tab.Rows.CollectionChanged += (_, _) => resets++;

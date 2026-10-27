@@ -1,6 +1,5 @@
 #region
 
-using System.Reflection;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
@@ -13,35 +12,66 @@ using TUnit.Assertions.Enums;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     What keeps one extension out of another's stores and out of the host's: a context resolves only for its
-///     own code, Register cannot replace a registration it does not own, a declared store cannot name another
-///     owner's files, and a third-party build against the app's own assembly does not load.
+///     What keeps one extension out of another's stores and out of the host's: a context is keyed on the pack's
+///     own type, so naming another extension's would mean referencing that extension's assembly rather than
+///     passing a check, Register cannot replace a registration it does not own, a declared store cannot name
+///     another owner's files, and a third-party build against the app's own assembly does not load.
 /// </summary>
 public class ExtensionIsolationTests
 {
+    // The real container, not a hand-built one: both keys the host registers have to answer with the one
+    // context, and a type no pack in this container has must not resolve at all.
     [Test]
-    public async Task OneExtensionsCode_AskingForAnothersContext_IsRefused()
+    [NotInParallel]
+    public async Task InTheComposedContainer_APacksOwnType_ResolvesItsContext_AndAnothersDoesNot()
     {
-        StubExtension stub = new("pack.isolation");
-        StratBookPack stratBook = new();
-        ServiceCollection services = new();
-        IExtensionContext stubContext = DispatchProxy.Create<IExtensionContext, NullProxy>();
-        services.AddKeyedSingleton(ExtensionContextAccess.KeyFor(stub.Id), stubContext);
-        using ServiceProvider provider = services.BuildServiceProvider();
-        ExtensionContextAccess access = new(provider, [stub, stratBook]);
-
-        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() =>
-            access.Resolve(stub.Id, typeof(StratBookPack).Assembly));
-
-        using (Assert.Multiple())
+        // The temp config root is for ForHost: constructing a context reads AppPaths.ConfigRoot.
+        string root = Path.Combine(Path.GetTempPath(), "dv-ctxdoor-" + Guid.NewGuid().ToString("N"));
+        string? previous = Environment.GetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, root);
+        try
         {
-            await Assert.That(refused.Message).Contains(stratBook.Id);
-            await Assert.That(access.Resolve(stub.Id, typeof(StubExtension).Assembly)).IsSameReferenceAs(stubContext)
-                .Because("the extension's own code resolves its context");
-            await Assert.That(access.Resolve(stub.Id, typeof(App).Assembly)).IsSameReferenceAs(stubContext)
-                .Because("the app's own code is no extension");
-            await Assert.That(provider.GetKeyedService<IExtensionContext>(stub.Id)).IsNull()
-                .Because("a lookup by the plain id skips the owner check, so it finds nothing");
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                // The one pack lives in ThirdPartyFake; StratBookPack is loaded in this process but not
+                // composed here, so its type is the one that must find nothing.
+                ThirdPartyFake.FakeExtension pack = new();
+                ServiceCollection services = App.ComposeServices(new Services.DesktopWindowService(() => null), [pack]);
+                await using ServiceProvider provider = services.BuildServiceProvider();
+
+                IExtensionContext own = provider.GetExtensionContext<ThirdPartyFake.FakeExtension>();
+                Exception? another = Caught(() => provider.GetExtensionContext<StratBookPack>());
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(own).IsSameReferenceAs(ExtensionContextAccess.ForHost(provider, pack.Id))
+                        .Because("the pack's type key and the host's own door answer with one context, not two");
+                    await Assert.That(another).IsTypeOf<InvalidOperationException>();
+                    await Assert.That(another?.Message).Contains(typeof(StratBookPack).FullName!);
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, previous);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    // Captured, not asserted in place: each refusal has to be able to fail without aborting the others.
+    private static Exception? Caught(Action body)
+    {
+        try
+        {
+            body();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
         }
     }
 
@@ -231,10 +261,5 @@ public class ExtensionIsolationTests
         public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
-    }
-
-    public class NullProxy : DispatchProxy
-    {
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => null;
     }
 }

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Rendering;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering;
 
 /// <summary>
 ///     How a consumer wants its render backend chosen. This is a

@@ -9,7 +9,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.Sdk;
-using DemoViewer.NET.Extensions.Sdk.Playback;
+using DemoViewer.NET.Playback2D.Timeline;
 using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
@@ -40,7 +40,8 @@ public class SuggestedTagsQueueTests
             return frame >= TotalFrames ? -1 : frame;
         }
 
-        public IReadOnlyList<TimelineEvent> EventsOfType(string eventName) => [];
+        public IReadOnlyList<int> FramesForEvent(string eventName) => [];
+        public IReadOnlyList<TimelineEventRecord> EventsOfType(string eventName) => [];
         public bool HasEvent(string eventName) => false;
     }
 
@@ -119,7 +120,7 @@ public class SuggestedTagsQueueTests
                 await Assert.That(bands[0].StartFrameIndex).IsEqualTo(650);
                 await Assert.That(bands[0].EndFrameIndex).IsEqualTo(900);
                 await Assert.That(bands[1].Label).IsEqualTo("default").Because("no site: the code alone");
-                await Assert.That(((ITimelineTrack)track).BuildMarks(data)).IsEmpty();
+                await Assert.That(((ITimelineTrack)track).BuildMarkers(data)).IsEmpty();
                 await Assert.That(string.Join(' ', track.ProposalsInRun(data, 650))).IsEqualTo($"{Opener.Id} {Execute.Id}");
                 await Assert.That(track.ProposalsInRun(data, 660)).IsEmpty();
             }
@@ -491,7 +492,7 @@ public class SuggestedTagsQueueTests
                 await Assert.That(review.QueuePanel!.IsShown).IsTrue();
                 await Assert.That(vm.ExecuteAction(StratBookActions.SuggestionAccept)).IsFalse();
                 await Assert.That(vm.Surface.TryHandleKey(Key.J, KeyModifiers.None)).IsFalse();
-                await Assert.That(vm.Timeline.Tracks.Any(t => t.Id == ProposalTrack.TrackId)).IsTrue();
+                await Assert.That(vm.Timeline.Tracks.Any(t => t.Id == review.ProposalLane!.TrackId)).IsTrue();
             }
 
             ctx.Gate!.SetEnabled(SuggestedTagsService.FeatureId, false);

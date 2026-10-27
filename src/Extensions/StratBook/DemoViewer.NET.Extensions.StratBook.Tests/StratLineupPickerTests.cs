@@ -5,12 +5,14 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 using TUnit.Assertions.Enums;
 
 #endregion
@@ -38,8 +40,7 @@ public class StratLineupPickerTests
                 canvasMapLoader: defaultPicker ? null : _ => null,
                 lineupMap: defaultPicker
                     ? null
-                    : (map, asset) => new UtilityBookTabViewModel(Index, loadMapAsset: _ => asset, retire: a => a(), lockedMap: map,
-                        ownsMapAsset: false,
+                    : map => new UtilityBookTabViewModel(Index, loadMapAsset: _ => null, lockedMap: map,
                         background: queue is null ? null : QueueWork.Section(queue, "Lineup picker", "utility", "section:lineup-picker")));
             Tab.Session.AutoSaveDelay = TimeSpan.FromHours(1);
             Tab.Session.IdleCommitDelay = TimeSpan.FromHours(1);
@@ -389,10 +390,12 @@ public class StratLineupPickerTests
     }
 
     [Test]
-    public async Task TheDefaultPicker_DrawsTheCanvasBundle_AndLeavesItToTheCanvas()
+    public async Task TheDefaultPicker_DrawsTheCanvasDecode_AndLeavesTheCanvasHolding()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
+            // Deltas: the registry is process-wide and another test's tab may hold this map too.
+            int before = MapBundleLeases.HoldersOf(Map);
             using Harness h = new(defaultPicker: true);
             StratStepRow row = h.AddThrow();
 
@@ -404,13 +407,22 @@ public class StratLineupPickerTests
             {
                 await Assert.That(picker.Map.HasGroups).IsTrue();
                 await Assert.That(h.Tab.Canvas.MapAsset).IsNotNull().Because("the baked de_mirage bundle ships with the app");
-                await Assert.That(picker.Map.MapAsset).IsSameReferenceAs(h.Tab.Canvas.MapAsset);
+                await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(before + 2)
+                    .Because("the canvas and the picker each hold the one decode");
+                // The radar image is the decode: two holds, one SKImage.
+                await Assert.That(picker.Map.MapAsset!.DescribeRadars()[0].Image)
+                    .IsSameReferenceAs(h.Tab.Canvas.MapAsset!.DescribeRadars()[0].Image);
             }
 
-            IMapAsset shared = h.Tab.Canvas.MapAsset!;
+            IMapAssetLease canvas = h.Tab.Canvas.MapAsset!;
             picker.CancelCommand.Execute(null);
             h.Pump();
-            await Assert.That(h.Tab.Canvas.MapAsset).IsSameReferenceAs(shared).Because("the canvas still owns and draws it");
+            using (Assert.Multiple())
+            {
+                await Assert.That(h.Tab.Canvas.MapAsset).IsSameReferenceAs(canvas).Because("the canvas keeps its own hold");
+                await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(before + 1)
+                    .Because("only the picker's hold went back");
+            }
         });
     }
 
@@ -540,7 +552,7 @@ public class StratLineupPickerTests
         await HeadlessSession.RunOnUi(async () =>
         {
             using Harness h = new();
-            using UtilityBookTabViewModel tab = new(h.Index, loadMapAsset: _ => null, retire: a => a());
+            using UtilityBookTabViewModel tab = new(h.Index, loadMapAsset: _ => null);
             using (Assert.Multiple())
             {
                 await Assert.That(tab.SelectedMap).IsEqualTo(Map).Because("the tab still falls back to the first indexed map");
@@ -548,7 +560,7 @@ public class StratLineupPickerTests
                 await Assert.That(tab.HasGroups).IsTrue();
             }
 
-            using UtilityBookTabViewModel locked = new(h.Index, loadMapAsset: _ => null, retire: a => a(), lockedMap: "de_nuke");
+            using UtilityBookTabViewModel locked = new(h.Index, loadMapAsset: _ => null, lockedMap: "de_nuke");
             using (Assert.Multiple())
             {
                 await Assert.That(locked.SelectedMap).IsEqualTo("de_nuke").Because("the picker never shows another map");

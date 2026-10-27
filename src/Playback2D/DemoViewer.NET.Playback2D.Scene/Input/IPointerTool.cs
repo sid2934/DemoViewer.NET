@@ -1,14 +1,19 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Input;
+namespace DemoViewer.NET.Playback2D.Input;
 
-/// <summary>Which pointer tool owns the surface. Persisted by name in <c>Playback2DSettings.LastTool</c>.</summary>
+/// <summary>
+///     What kind of tool owns the surface: the first-party toolbar's own vocabulary, and the category a
+///     contributed tool says it behaves like. <b>Not an identity</b>, which is
+///     <see cref="IPointerTool.Id" />: the router keys on that, so a third party never has to be one of
+///     these. Persisted by name in <c>Playback2DSettings.LastTool</c>.
+/// </summary>
 public enum ToolKind
 {
     /// <summary>Drag to pan, wheel to zoom. The permanent fallback.</summary>
@@ -21,9 +26,10 @@ public enum ToolKind
     Erase,
 
     /// <summary>
-    ///     A tool written against the published <see cref="Tools.IMapTool" /> contract, registered through an
-    ///     adapter in the host: a map view's primary tool. Never selected by the playback toolbar, so
-    ///     <c>LastTool</c> never holds it.
+    ///     A tool that moves or places something of its own and writes no ink: what the adapter around a
+    ///     published <see cref="Tools.IMapTool" /> registers as, a map view's primary tool, and the category
+    ///     a contributed pointer tool takes unless it behaves like one of the drawing tools. Never selected
+    ///     by the playback toolbar, so <c>LastTool</c> never holds it.
     /// </summary>
     Map,
 
@@ -43,9 +49,10 @@ public enum ToolKind
     Text,
 
     /// <summary>
-    ///     The strat canvas's token tool: drags a token, or turns it by its heading stub. Registered on every
-    ///     host but does nothing without an <see cref="IToolServices.Tokens" /> editor, so on the 2D Playback
-    ///     tab a press with it falls through unhandled.
+    ///     A tool that drags a token, or turns it by its heading stub: the strat canvas's. Registered only on
+    ///     a host that asks for it, and a no-op without an <see cref="IToolServices.Tokens" /> editor, so the
+    ///     2D Playback tab has neither. A press under pan/zoom is offered to whichever registered tool
+    ///     declares this category, which is what lets a token be dragged without selecting its tool.
     /// </summary>
     Token
 }
@@ -143,7 +150,19 @@ public readonly record struct ToolWheelEvent(
 /// </summary>
 public interface IPointerTool
 {
-    /// <summary>Which tool this is.</summary>
+    /// <summary>
+    ///     What this tool is, and the only thing the router keys on: unique among the tools on one host, of
+    ///     letters, digits, '.', '-' and '_'. Name it for the tool, not for the extension. A contributed
+    ///     tool is filed under its own extension, so it can neither take a first-party tool's id nor collide
+    ///     with another extension's, and <c>SceneView.AddTool</c> reports the id it was filed under.
+    /// </summary>
+    string Id { get; }
+
+    /// <summary>
+    ///     Which first-party tool this one behaves like. A category, not an identity: it drives the toolbar's
+    ///     checked state, the ink session's mirrored selection and whether Space and Esc are tool-scoped. A
+    ///     contributed tool that writes no ink takes <see cref="ToolKind.Map" />.
+    /// </summary>
     ToolKind Kind { get; }
 
     /// <summary>Handles a press. Returns true when the tool took the gesture.</summary>

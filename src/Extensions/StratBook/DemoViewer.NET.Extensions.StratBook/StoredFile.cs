@@ -35,29 +35,33 @@ public sealed class StoredFile
     }
 
     /// <summary>
-    ///     The file at <paramref name="relativePath" /> under one of the extension's folders. When it does not
-    ///     exist yet and <paramref name="copyFrom" /> returns bytes, those are written there first and read back,
-    ///     so data an older build kept elsewhere moves once. The browser build keeps nothing.
+    ///     The file at <paramref name="relativePath" /> under one of the extension's own folders, or null when
+    ///     the host has no folders and handed one out. When the file does not exist yet and
+    ///     <paramref name="copyFrom" /> returns bytes, those are written there first and read back, so data an
+    ///     older build kept elsewhere moves once.
     /// </summary>
-    /// <param name="storage">The extension's files.</param>
-    /// <param name="root">Which of the extension's folders.</param>
+    /// <param name="folder">The extension's own folder, as <see cref="IExtensionStores.Own" /> returned it.</param>
     /// <param name="relativePath">The file under that folder.</param>
     /// <param name="copyFrom">Reads the file where an older build kept it; null when there is nothing to copy.</param>
-    public static StoredFile In(IExtensionStorage storage, StoreRoot root, string relativePath, Func<byte[]?>? copyFrom = null)
+    public static StoredFile? In(IExtensionFolder? folder, string relativePath, Func<byte[]?>? copyFrom = null)
     {
-        ArgumentNullException.ThrowIfNull(storage);
         ArgumentException.ThrowIfNullOrEmpty(relativePath);
+        if (folder is null)
+        {
+            return null;
+        }
+
         return new StoredFile(Path.GetFileName(relativePath), () =>
         {
-            byte[]? bytes = storage.ReadAsync(root, relativePath).GetAwaiter().GetResult();
+            byte[]? bytes = folder.Read(relativePath);
             if (bytes is not null || copyFrom?.Invoke() is not { } legacy)
             {
                 return bytes;
             }
 
-            storage.WriteAtomicAsync(root, relativePath, legacy).GetAwaiter().GetResult();
+            folder.WriteAtomic(relativePath, legacy);
             return legacy;
-        }, bytes => storage.WriteAtomicAsync(root, relativePath, bytes).GetAwaiter().GetResult());
+        }, bytes => folder.WriteAtomic(relativePath, bytes));
     }
 
     /// <summary>

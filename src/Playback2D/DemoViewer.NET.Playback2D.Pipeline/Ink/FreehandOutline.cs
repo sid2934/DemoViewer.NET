@@ -5,12 +5,12 @@
 
 #region
 
-using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Ink;
+namespace DemoViewer.NET.Playback2D.Pipeline.Ink;
 
 /// <summary>
 ///     The perfect-freehand stroke outliner, ported to C#.

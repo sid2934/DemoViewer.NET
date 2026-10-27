@@ -1,10 +1,12 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Input;
+namespace DemoViewer.NET.Playback2D.Pipeline.Input;
 
 /// <summary>
 ///     The stroke-level eraser. Press and every subsequent move hit-test the eraser disc against the
@@ -22,6 +24,9 @@ public sealed class EraseTool : IPointerTool
     private readonly List<Guid> _hits = new(16);
 
     private IDisposable? _gesture;
+
+    /// <inheritdoc />
+    public string Id => ToolIds.Of(ToolKind.Erase);
 
     /// <inheritdoc />
     public ToolKind Kind => ToolKind.Erase;

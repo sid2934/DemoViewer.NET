@@ -48,18 +48,23 @@ art and floors; `HasMap` is false where it has none, so say so beside the view. 
 
 ```csharp
 MapView map = new() { MapName = "de_nuke" };
-IDisposable heat = map.AddLayer("myext.heat", () => new HeatLayer(document));
+ILayerHandle heat = map.AddLayer("heat", () => new HeatLayer(document));
 PickTool pick = new(document);
 IDisposable tool = map.AddTool(pick);
 map.SetPrimaryTool(pick);
 ```
 
-A layer is an `ISceneLayer` (`DemoViewer.NET.Playback2D.Core.Compositing`) and a tool an `IMapTool`
-(`DemoViewer.NET.Playback2D.Core.Tools`), both in the `DemoViewer.NET.Playback2D.Scene` package. The primary
+A layer is an `ISceneLayer` (`DemoViewer.NET.Playback2D.Compositing`) and a tool an `IMapTool`
+(`DemoViewer.NET.Playback2D.Tools`), both in the `DemoViewer.NET.Playback2D.Scene` package. The primary
 tool gets every press the view does not pan; a left press it refuses pans the map, and Space, Control, the
 middle button and the wheel always pan and zoom. `EscapePressed` fires for Escape with no gesture to cancel.
 `PaneAt(point)`, `Panes` and `Space` give the panes and floors for a hit test of your own, and `Invalidate`
-repaints after something a layer draws changed. The radar's and the floor label's ids are the view's own.
+repaints after something a layer draws changed.
+
+The host files a layer under your extension as `ext.<your extension id>.<id>`, so the id is yours to choose
+from letters, digits, `.`, `-` and `_` and can take neither the view's own layers nor another extension's.
+`ILayerHandle.LayerId` reports the filed id, the built layer's own `Id` is not read, and an id a layer on the
+view already holds is refused rather than replaced. The radar's and the floor label's ids are the view's own.
 Layers and tools survive the view leaving and re-entering the tree; the factories run again when it rebuilds.
 
 ### SceneView and SceneTimeline
@@ -71,8 +76,9 @@ handed. `MapAsset` gives the floors and radar art (from `MapAssets.TryLoad`, or 
 an `AnnotationSession` the drawing tools edit; select a tool with `SetActiveTool` and drive hold-to-pan and
 cancel from your keys with `SetHoldPan` and `CancelGesture`. A press goes to `ISceneSource.OnPress` first and
 to the active tool only if you refuse it. The text tool raises `TextEditRequested`; show an editor there and
-hand the result to `CompleteTextEdit`. `AddLayer` and `AddTool` work as on `MapView`, and the scene's own
-layer ids are refused.
+hand the result to `CompleteTextEdit`. `AddLayer` works as on `MapView`, and `AddTool` files a pointer tool
+the same way: `IToolHandle.ToolId` is the id `SetActiveTool` and `ActiveTool` speak. The scene's own layer
+ids are refused.
 
 `SceneTimeline` is the model of a scrub bar, owned by the view model: register `ITimelineTrack`s, `Rebuild`
 with the clock's `ITimelineData`, move the playhead with `UpdatePlayhead` and seek when `SeekRequested` fires.
@@ -119,3 +125,13 @@ support the app's own suites use: a shared headless session (`HeadlessSession.Ru
 `IModuleContext` fake. Import its `DemoViewer.NET.Extensions.Testing.props` from a TUnit test project that
 references Avalonia.Headless and Avalonia.Skia, and name your app builder with
 `[assembly: AvaloniaTestApplication(typeof(TestAppBuilder))]`.
+
+## Compatibility
+
+This kit ships at the SDK's version and binds the same way: the assembly version is `Major.0.0.0`, so a
+view built against any 2.x kit loads on every 2.x host. The SDK package's own README carries the full list
+of what 2.0 changed. The breaks in this kit are `SceneView.ActiveTool`, `SceneView.SetActiveTool` and
+`SceneView.AddTool`, which work in tool ids rather than `ToolKind`; `SceneView.AddLayer` and
+`MapView.AddLayer`, which return an `ILayerHandle` and refuse a duplicate id; `MapAssets.RenderPng`, which
+takes layer factories in place of an overlay document; and `MapAssets.TryLoad`, which is now
+`MapAssets.Acquire` and returns a lease you dispose.

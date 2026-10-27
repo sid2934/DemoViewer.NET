@@ -4,7 +4,7 @@ using System.Numerics;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>Which step of the resolver's cascade answered.</summary>
 public enum PlaceHitKind
@@ -57,4 +57,4 @@ public sealed record PlaceOutline(
 /// <param name="Code">The stable code.</param>
 /// <param name="Message">What was written and what was expected.</param>
 /// <param name="Entry">The overlay entry involved (a zone name, a merge target), or null.</param>
-public sealed record ZoneDiagnostic(string Code, string Message, string? Entry = null);
+internal sealed record ZoneDiagnostic(string Code, string Message, string? Entry = null);

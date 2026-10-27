@@ -2,9 +2,18 @@
 # Nerdbank.GitVersioning computes from src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json and pushed
 # to nuget.org.
 #
-# Publishes only on a tag push matching sdk/v<version>, which must equal the computed version (create it with
-# `dotnet nbgv tag -p src/Sdk/DemoViewer.NET.Extensions.Sdk` on main, after scripts/ship-public-api.sh). A
-# workflow_dispatch run packs and reports without pushing. Needs the NUGET_API_KEY repository secret.
+# Publishes only on a tag push matching sdk/v<version>, or a workflow_dispatch run against that same
+# tag with dry_run=false. The tag must equal the computed version (create it with
+# `dotnet nbgv tag -p src/Sdk/DemoViewer.NET.Extensions.Sdk` on main, after scripts/ship-public-api.sh).
+# Every other trigger, any dispatch from a branch included, is a dry run. nuget.org auth is a
+# trusted-publishing policy (owner sid2934, repo sid2934/DemoViewer.NET, workflow release-sdk.yml):
+# the login step exchanges this workflow's OIDC token for a short-lived key, with no stored secret.
+# Same arrangement as CS2DemoKit's nuget.yml.
+#
+# A dry run covers: the verify-ci gate, the nbgv version, the tag against that version on a tag ref,
+# packing every project sdk-packages.sh names, and the artifact upload. It does NOT cover the
+# PublicAPI.Unshipped gate or the push: both live in the publish job and run nowhere else. A branch
+# legitimately has Unshipped entries, so gating a dry run on them would fail it where it is wanted.
 #
 # EVERY trigger, dispatch included, is gated on verify-ci: the head SHA must already have a completed,
 # successful ci run. Dispatching from a branch therefore fails at the gate until ci has run on that
@@ -15,6 +24,11 @@ on:
   push:
     tags: ['sdk/v*']
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pack, verify and upload only; do not push to nuget.org'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -53,10 +67,14 @@ jobs:
             *) echo "::error::'ci' did not succeed for $sha (conclusions: $runs). Refusing to release." >&2; exit 1 ;;
           esac
 
+  # Identical work in both modes: a dry run is this job and nothing else, so what it proves about a
+  # real release is exactly what it ran.
   pack:
     needs: verify-ci
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,6 +85,8 @@ jobs:
       - name: Restore CLI tools (nbgv)
         run: dotnet tool restore
 
+      # The tag/version check fires on any sdk/v* ref, a dry-run dispatch against a tag included:
+      # catching a tag that disagrees with version.json is most of what such a dry run is for.
       - name: Version
         id: version
         env:
@@ -80,25 +100,8 @@ jobs:
               echo "error: tag says ${BASH_REMATCH[1]}, the computed version is $VERSION" >&2
               exit 1
             fi
-            echo "publish=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=0" >> "$GITHUB_OUTPUT"
           fi
-
-      # A published API is a promise: it is listed as shipped before the tag, so removing any of it later
-      # fails the build. scripts/ship-public-api.sh moves the lists.
-      - name: Public API is shipped
-        if: steps.version.outputs.publish == '1'
-        run: |
-          set -euo pipefail
-          dirs=$(bash scripts/sdk-packages.sh)
-          for dir in $dirs; do
-            list="$dir/PublicAPI.Unshipped.txt"
-            if grep -qv '^#nullable' "$list"; then
-              echo "error: $list still has entries; run scripts/ship-public-api.sh and tag that commit" >&2
-              exit 1
-            fi
-          done
+          echo "computed version=$VERSION for ref=$REF"
 
       - name: Pack
         run: |
@@ -113,17 +116,73 @@ jobs:
         with:
           name: sdk-packages-${{ steps.version.outputs.version }}
           path: artifacts/sdk-packages
+          if-no-files-found: error   # publish downloads this across a job boundary
 
-      - name: Push to nuget.org
-        if: steps.version.outputs.publish == '1'
+      # Reports the inputs to the publish job's decision, it does not re-evaluate it. That job's `if:`
+      # is the only thing that decides, so there is no second predicate here to drift out of step.
+      - name: What happens next
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          echo "ref=$REF event=$EVENT_NAME dry_run=${INPUT_DRY_RUN:-<none>}"
+          echo "publish runs only for an sdk/v* ref, from a tag push or a dispatch with dry_run=false."
+          echo "Otherwise these packages are the uploaded artifact and nothing reaches nuget.org."
+
+  # The only job that mints a nuget.org key or runs a push, so a dry run cannot reach either: it shows
+  # as skipped. The condition reads the github context alone, never a flag an earlier job computed.
+  # github.event.inputs.dry_run is the string "true" or "false" on a dispatch and empty otherwise, so
+  # the compare is against 'false' rather than a boolean: an omitted input must not read as "publish".
+  publish:
+    needs: pack
+    if: startsWith(github.ref, 'refs/tags/sdk/v') && (github.event_name == 'push' || github.event.inputs.dry_run == 'false')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Trusted Publishing: without id-token GitHub never mints the OIDC token NuGet/login exchanges,
+      # and the login fails before any package is touched. No long-lived key exists in this repository.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4   # for scripts/sdk-packages.sh and the PublicAPI lists
+
+      - uses: ./.github/actions/dotnet-sdk
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-packages-${{ needs.pack.outputs.version }}
+          path: artifacts/sdk-packages
+
+      # A published API is a promise: it is listed as shipped before the tag, so removing any of it
+      # later fails the build. scripts/ship-public-api.sh moves the lists. In this job rather than in
+      # pack so that one condition decides what publishing means.
+      - name: Public API is shipped
         run: |
           set -euo pipefail
-          if [ -z "$NUGET_API_KEY" ]; then
-            echo "error: the NUGET_API_KEY secret is not set" >&2
-            exit 1
-          fi
+          dirs=$(bash scripts/sdk-packages.sh)
+          for dir in $dirs; do
+            list="$dir/PublicAPI.Unshipped.txt"
+            if grep -qv '^#nullable' "$list"; then
+              echo "error: $list still has entries; run scripts/ship-public-api.sh and tag that commit" >&2
+              exit 1
+            fi
+          done
+
+      # The key nuget.org mints here lives one hour, so this runs immediately before the push and not
+      # at the top of the job. The trust policy names this file, so renaming this workflow breaks it.
+      - name: Log in to nuget.org (trusted publishing)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: sid2934
+
+      - name: Push to nuget.org
+        run: |
+          set -euo pipefail
           for package in artifacts/sdk-packages/*.nupkg; do
-            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+            dotnet nuget push "$package" \
+              --source https://api.nuget.org/v3/index.json \
+              --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+              --skip-duplicate
           done

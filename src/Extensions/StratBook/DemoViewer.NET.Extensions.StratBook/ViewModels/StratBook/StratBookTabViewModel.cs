@@ -6,30 +6,24 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Avalonia;
 using Avalonia.Threading;
+using DemoViewer.NET.Extensions.Sdk.Export;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
-using DemoViewer.NET.Services.Export;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 using GrenadeKind = DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeKind;
-using DemoViewer.NET.ViewModels;
 
 #endregion
 
@@ -61,7 +55,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     private readonly CalloutResolverSource _calloutResolvers;
     private readonly GrenadeIndex? _grenades;
     private readonly LineupOriginSource? _lineupOrigins;
-    private readonly Func<string, IMapAsset?, UtilityBookTabViewModel>? _lineupMap;
+    private readonly Func<string, UtilityBookTabViewModel>? _lineupMap;
 
     // What the open lineup picker writes to; it closes when either goes away.
     private (Guid Strat, Guid Step)? _pickerTarget;
@@ -78,8 +72,11 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     private IModuleContext? _context;
     private bool _disposed;
 
-    // Built on the first Export and kept: its chip is mounted once, and a finished export's result stays on it.
-    private ExportJobService? _exportJob;
+    // The open pane, or null. The host owns it; closing it disposes this handle, not the running export.
+    private ISceneExportPane? _exportPane;
+
+    private readonly Func<IExtensionSceneExport?>? _sceneExport;
+
 
     // The shell's feature projection, captured at activation so deactivation unsubscribes the same instance.
     private IModuleFeatureGate? _features;
@@ -89,9 +86,12 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     [NotifyPropertyChangedFor(nameof(HasLineupPicker))]
     private LineupPickerViewModel? _lineupPicker;
 
-    /// <summary>The open export pane, or null. Non-null is what the view binds the pane's visibility to.</summary>
+    /// <summary>
+    ///     The open export pane's view model, or null. Non-null is what the view binds the pane's visibility
+    ///     to; the pane itself is the host's, so this is an <c>object</c> for the view locator to resolve.
+    /// </summary>
     [ObservableProperty]
-    private Playback2DExportDialogViewModel? _exportDialog;
+    private object? _exportDialog;
     private bool _refreshing;
 
     // What the callouts editor was last pointed at, so a RefreshList that changed nothing about the
@@ -158,16 +158,22 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     ///     <paramref name="canvasPlaces" /> / <paramref name="canvasRouting" /> are not supplied; null gives both
     ///     canvases nothing to fall back on.
     /// </param>
+    /// <param name="sceneExport">
+    ///     The host's scene export, resolved at click time, or null for a host that exports nothing and a tab
+    ///     with no Export button. Handed in rather than looked up by type: the export is built per extension
+    ///     and carries this one's id, feature switch and fault guard.
+    /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
-        CalloutResolverSource? calloutResolvers = null, Func<string?, IMapAsset?>? canvasMapLoader = null,
-        TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
+        CalloutResolverSource? calloutResolvers = null, Func<string?, IMapAssetLease?>? canvasMapLoader = null,
+        TagStore? tags = null, StratEvidenceService? evidence = null, IExtensionReviewQueue? review = null,
         Func<string, LibraryDemo?>? indexBySha = null, Func<string, bool>? selectTab = null,
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
-        StratBookLayout? layout = null, Func<string, IMapAsset?, UtilityBookTabViewModel>? lineupMap = null,
+        StratBookLayout? layout = null, Func<string, UtilityBookTabViewModel>? lineupMap = null,
         Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null, Func<bool>? canvasRouting = null,
-        StratCanvasServices? canvasServices = null)
+        StratCanvasServices? canvasServices = null, Func<IExtensionSceneExport?>? sceneExport = null)
     {
+        _sceneExport = sceneExport;
         _spawns = spawns;
         ArgumentNullException.ThrowIfNull(store);
         Layout = layout ?? new StratBookLayout();
@@ -181,7 +187,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         _lineupOrigins = grenades is null ? null : new LineupOriginSource(grenades, _post);
         _lineupMap = lineupMap ?? (grenades is null
             ? null
-            : (map, asset) => new UtilityBookTabViewModel(grenades, loadMapAsset: _ => asset, lockedMap: map, ownsMapAsset: false,
+            : map => new UtilityBookTabViewModel(grenades, lockedMap: map,
                 background: work => Task.Run(work), post: _post));
         // A new step carries a thrower at the origin the canvas shows, on the canvas's floors.
         Editor = new StratEditorViewModel(Session, _lineupOrigins is null ? null : new StratLineupCatalog(_lineupOrigins),
@@ -257,13 +263,17 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     ///     The sizes the strat export offers: the 640 square first, then the 2D tab's presets. Square
     ///     because a radar is, so the map fills the frame and the text arithmetic at 640 px holds.
     /// </summary>
-    public static IReadOnlyList<ExportSizeOption> ExportSizes { get; } =
-    [
-        new(string.Create(CultureInfo.InvariantCulture,
-            $"GIF square ({StratExportJob.DefaultWidth}×{StratExportJob.DefaultHeight})"),
-            StratExportJob.DefaultWidth, StratExportJob.DefaultHeight),
-        .. FirstPartySceneExport.SizePresets
-    ];
+    private static IReadOnlyList<SceneExportSize> ExportSizes(IExtensionSceneExport export)
+    {
+        ArgumentNullException.ThrowIfNull(export);
+        return
+        [
+            new SceneExportSize(string.Create(CultureInfo.InvariantCulture,
+                    $"GIF square ({StratExportJob.DefaultWidth}×{StratExportJob.DefaultHeight})"),
+                StratExportJob.DefaultWidth, StratExportJob.DefaultHeight),
+            .. export.SizePresets
+        ];
+    }
 
     /// <summary>The line the tab shows on the browser host.</summary>
     public static string BrowserNote => "session only: this browser tab forgets strats when it reloads";
@@ -336,8 +346,14 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     /// </summary>
     public bool CanExport =>
         _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
-        _context?.GetService<IStratExport>() is { NewJob: not null } &&
+        HasSceneExport &&
         HasOpenStrat;
+
+    /// <summary>
+    ///     True when the shell wired an export to open a pane on. Internal: the wiring is what a test pins,
+    ///     since a tab that cannot see the export offers no button and nothing else says so.
+    /// </summary>
+    internal bool HasSceneExport => _sceneExport?.Invoke() is not null;
 
     /// <summary>
     ///     What the Export button's slot says when the button cannot exist: on the browser, where there is no file
@@ -348,13 +364,6 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     /// <summary>Whether <see cref="ExportUnavailableNote" /> has something to say.</summary>
     public bool HasExportUnavailableNote => ExportUnavailableNote.Length > 0;
 
-    /// <summary>The export's chip, or null before the first Export. Internal so a test reaches it as the shell does.</summary>
-    internal Playback2DExportStatusViewModel? ExportStatus { get; private set; }
-
-    /// <summary>
-    ///     Makes the export job. The production job when unset; a test swaps in one with a fixed ffmpeg answer.
-    /// </summary>
-    internal Func<IStratExport, StratExportJob>? ExportJobFactory { get; set; }
 
     /// <inheritdoc />
     public void OnActivated(IModuleContext context)
@@ -454,8 +463,6 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         }
 
         CloseExport();
-        ExportStatus?.Dispose();
-        _exportJob?.Dispose();
         _store.Changed -= OnStoreChanged;
         Session.Changed -= OnSessionChanged;
         StepSelection.Dispose();
@@ -524,7 +531,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         using (JobScope.UserAction())
         {
             // The canvas holds this map's bundle already: the picker draws it rather than decoding another.
-            picker = new LineupPickerViewModel(_lineupMap(document.Map, Canvas.MapAsset), step?.Utility?.Kind ?? StratEditorViewModel.None, current,
+            picker = new LineupPickerViewModel(_lineupMap(document.Map), step?.Utility?.Kind ?? StratEditorViewModel.None, current,
                 step?.Utility?.Technique, pick =>
                 {
                     if (ReferenceEquals(LineupPicker, picker))
@@ -547,65 +554,50 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     private void CancelLineupPicker() => LineupPicker?.CancelCommand.Execute(null);
 
     /// <summary>
-    ///     Opens the export pane over the open strat: GIF at 20 fps, 640 square, the first
-    ///     step to the last plus 2 s. The job is the 2D export's service over a <see cref="StratExportJob" />, so
-    ///     the gate, the interlocks, the chip and cancel are the same ones.
+    ///     Opens the host's export pane over the open strat: GIF at 20 fps, 640 square, the first step to the
+    ///     last plus 2 s. The strat's half is the scene it hands over at Start; the ranges, the pane, the job,
+    ///     the gate, the interlocks, the chip, cancel and every pixel are the host's.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanExport))]
     private void OpenExport()
     {
-        if (!CanExport || _context?.GetService<IStratExport>() is not { } host
+        if (!CanExport || _sceneExport?.Invoke() is not { } export
                        || Canvas.Projection is not { } projection || Session.Document is not { } document)
         {
             return;
         }
 
-        if (_exportJob is null)
-        {
-            // Every seam named, the 2D tab's rule: an omitted optional is invisible at the call site.
-            StratExportJob job = ExportJobFactory?.Invoke(host) ?? new StratExportJob(
-                Canvas.MapLoader,
-                surfaces: RenderSurfaceProviderFactory.CreateCpu,
-                managedFfmpegDirectory: static () => FirstPartySceneExport.ManagedFfmpegDirectory,
-                log: AppendExportLog,
-                encoderProbe: EncoderProbeCache.Shared,
-                locateFfmpeg: null);
-            if (host.NewJob?.Invoke(job, AppendExportLog) is not { } exportJob)
-            {
-                return;
-            }
-
-            _exportJob = exportJob;
-            ExportStatus = new Playback2DExportStatusViewModel(_exportJob, host.OpenExportFolder);
-            host.MountStatusChip?.Invoke(ExportStatus);
-        }
-
-        // The strat's own defaults, not the 2D tab's saved ones: a strat is shared as a short GIF, and
+        // The strat's own starting choices, not the 2D tab's saved ones: a strat is shared as a short GIF, and
         // choosing here must not rewrite what the 2D tab opens with. Only the folder is shared.
         CloseExport();
-        ExportDialog = FirstPartySceneExport.NewDialog(
-            host.Exports,
-            new SceneExportDefaults(ExportFormats.Gif, StratExportJob.DefaultFps, StratExportJob.DefaultWidth,
-                StratExportJob.DefaultHeight, IncludeHud: true, IncludeHudClock: true, IncludeAnnotations: true,
-                IncludeVision: false),
-            StratExportJob.Ranges(projection),
-            _exportJob,
-            StratFrameSource.OutputFrameCount,
-            host.IsLiveSyncBusy,
-            CaptureExport,
-            new ExportDialogScene("Export strat", ExportFileStem(document.Name), ExportSizes, StratExportJob.LayerIds));
+        _exportPane = export.OpenPane(new SceneExportPaneRequest
+        {
+            Title = "Export strat",
+            FileStem = ExportFileStem(document.Name),
+            Ranges = StratExportJob.Ranges(projection),
+            Choices = new SceneExportChoices(SceneExportFormats.Gif, StratExportJob.DefaultFps,
+                StratExportJob.DefaultWidth, StratExportJob.DefaultHeight, IncludeHud: true,
+                IncludeHudClock: true, IncludeAnnotations: true, IncludeVision: false),
+            OutputFrameCount = StratFrameSource.OutputFrameCount,
+            Capture = CaptureExport,
+            Sizes = ExportSizes(export),
+            Layers = StratExportJob.LayerIds,
+            NothingToExport = StratExportJob.NoStratRefusal
+        });
 
-        ExportDialog.StartRequested += OnExportStarted;
+        _exportPane.Started += OnExportStarted;
+        ExportDialog = _exportPane.ViewModel;
     }
 
     /// <summary>Closes the export pane. A started export keeps running; its progress is on the chip.</summary>
     [RelayCommand]
     private void CloseExport()
     {
-        if (ExportDialog is { } dialog)
+        if (_exportPane is { } pane)
         {
-            dialog.StartRequested -= OnExportStarted;
-            dialog.Dispose();
+            pane.Started -= OnExportStarted;
+            pane.Dispose();
+            _exportPane = null;
         }
 
         ExportDialog = null;
@@ -613,13 +605,10 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
 
     private void OnExportStarted() => CloseExport();
 
-    // At Start, on the UI thread: the canvas's tracks and ink as they are now, keyed onto the ink session the
-    // request carries. Null with no strat open, which the job refuses.
-    private AnnotationSession? CaptureExport() =>
-        Canvas.CaptureForExport() is { } capture ? StratExportJob.Register(capture) : null;
-
-    // From the export's pool thread and ffmpeg's stderr pump; the chip marshals.
-    private void AppendExportLog(string line) => ExportStatus?.AppendLog(line);
+    // At Start, on the UI thread: the canvas's tracks and ink as they are now, and the frame source the host
+    // builds over them once its gate lets the run through. Null with no strat open, which the host refuses.
+    private SceneExportScene? CaptureExport() =>
+        Canvas.CaptureForExport() is { } capture ? StratExportJob.Scene(capture) : null;
 
     private void OnFeaturesChanged()
     {

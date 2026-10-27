@@ -1,16 +1,17 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Modules;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
 using Microsoft.Extensions.Logging;
@@ -39,7 +40,7 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
 {
     private readonly AnnotationStore? _annotations;
     private readonly Func<string, CancellationToken, Task<DemoLease>>? _lease;
-    private readonly Func<string, LoadedMapAsset?> _loadMap;
+    private readonly Func<string, IMapAssetLease?> _loadMap;
     private readonly Action<string>? _log;
     private readonly Func<string, ParsedDemo>? _parse;
     private readonly Func<IRenderSurfaceProvider> _surfaces;
@@ -48,18 +49,18 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
     /// <param name="lease">Joins a demo's visit and lends its parse until the lease is disposed.</param>
     /// <param name="annotations">Where each demo's ink is read from, or null to render without ink.</param>
     /// <param name="parse">A demo's parse without a visit; wins over <paramref name="lease" /> (tests).</param>
-    /// <param name="loadMap">Finds a map's baked bundle; the pipeline's loader when null.</param>
+    /// <param name="loadMap">Takes a hold on a map's baked bundle; the app's lease registry when null.</param>
     /// <param name="surfaces">Builds the render surface; the CPU rasteriser when null.</param>
     /// <param name="log">Line sink for a missing bundle or an unreadable sidecar.</param>
     public PackClipRenderer(Func<string, CancellationToken, Task<DemoLease>>? lease, AnnotationStore? annotations,
         Func<string, ParsedDemo>? parse = null,
-        Func<string, LoadedMapAsset?>? loadMap = null, Func<IRenderSurfaceProvider>? surfaces = null,
+        Func<string, IMapAssetLease?>? loadMap = null, Func<IRenderSurfaceProvider>? surfaces = null,
         Action<string>? log = null)
     {
         _lease = lease;
         _annotations = annotations;
         _parse = parse;
-        _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
+        _loadMap = loadMap ?? MapBundleLeases.Acquire;
         _surfaces = surfaces ?? RenderSurfaceProviderFactory.CreateCpu;
         _log = log;
     }
@@ -123,7 +124,7 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
             parsed = lease.Parsed;
         }
 
-        LoadedMapAsset? asset = null;
+        IMapAssetLease? asset = null;
         try
         {
             asset = string.IsNullOrEmpty(parsed.MapName) ? null : _loadMap(parsed.MapName);
@@ -168,7 +169,7 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
         return new AnnotationSession(document) { TicksPerSecond = clock.TickRate };
     }
 
-    private sealed record Loaded(string Path, ParsedDemo Parsed, LoadedMapAsset? Asset, AnnotationSession? Ink, DemoLease? Lease);
+    private sealed record Loaded(string Path, ParsedDemo Parsed, IMapAssetLease? Asset, AnnotationSession? Ink, DemoLease? Lease);
 }
 
 /// <summary>

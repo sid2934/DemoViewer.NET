@@ -1,6 +1,6 @@
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.Sdk.Export;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Extensions.Sdk;
 
 /// <summary>
 ///     The host as one extension sees it. Resolve it with
-///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" />; every member is safe to call from
+///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext{TPack}" />; every member is safe to call from
 ///     a factory registered in <see cref="IExtension.Register" />.
 /// </summary>
 public interface IExtensionContext
@@ -34,10 +34,7 @@ public interface IExtensionContext
     /// <summary>The open demo and the shell's navigation.</summary>
     IExtensionShell Shell { get; }
 
-    /// <summary>The extension's own files.</summary>
-    IExtensionStorage Storage { get; }
-
-    /// <summary>The stores the extension declared in <see cref="IExtension.Stores" />, as folders.</summary>
+    /// <summary>The stores the extension declared in <see cref="IExtension.Stores" />, and its own folders.</summary>
     IExtensionStores Stores { get; }
 
     /// <summary>The extension's own settings, which a <see cref="SettingsSchema" /> page edits.</summary>
@@ -57,6 +54,24 @@ public interface IExtensionContext
 
     /// <summary>The user's own accounts, read only.</summary>
     IExtensionIdentity Identity { get; }
+
+    /// <summary>
+    ///     The host's review queue: the clips every surface sends to one ordered list. UI thread only, and
+    ///     the first read waits for the host to finish reading the stored queue.
+    /// </summary>
+    IExtensionReviewQueue Review { get; }
+
+    /// <summary>
+    ///     The host's 2D scene export, or null where the host exports nothing (the browser build has no
+    ///     encoder and no files). Hide an export surface while it is null.
+    /// </summary>
+    IExtensionSceneExport? SceneExport => null;
+
+    /// <summary>
+    ///     The host's review pack export, or null where the host writes no files (the browser build). Hide a
+    ///     pack surface while it is null.
+    /// </summary>
+    IExtensionReviewPackExport? PackExport => null;
 
     /// <summary>A logger whose lines land in the app's diagnostics log, tagged with the extension.</summary>
     ILogger CreateLogger(string category);
@@ -141,78 +156,32 @@ public interface IExtensionShell
     void RevealInFileManager(string path);
 }
 
-/// <summary>
-///     Files of the extension's own, in two folders the host keeps for it: one for the user's work, one for
-///     what the extension can rebuild. The extension names a file by its path under the folder and never sees
-///     where the folder is. The browser build has no folders: writes keep nothing and reads find nothing.
-/// </summary>
-public interface IExtensionStorage
-{
-    /// <summary>
-    ///     Writes <paramref name="content" /> to a file under one of the extension's folders, whole or not at
-    ///     all: the bytes go to a temporary file beside the target, which then replaces it. A crash mid-write
-    ///     leaves the previous file. The safe way to write the extension's data.
-    /// </summary>
-    /// <param name="root">Which of the extension's folders.</param>
-    /// <param name="relativePath">The file under that folder, with '/' or '\' between folders. Missing folders are created.</param>
-    /// <param name="content">The file's new contents.</param>
-    /// <param name="cancellationToken">Stops the write before the file is replaced.</param>
-    /// <returns>False on the browser build, which has no folders; true once the file is replaced.</returns>
-    /// <exception cref="ArgumentException">
-    ///     <paramref name="relativePath" /> is empty, rooted, has a ".." segment, resolves outside the folder, or
-    ///     enters the cache folder's <c>demo-data</c> folder, which holds <see cref="IExtensionContext.Data" />.
-    /// </exception>
-    Task<bool> WriteAtomicAsync(StoreRoot root, string relativePath, ReadOnlyMemory<byte> content,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>Reads a file under one of the extension's folders, by the same path rule as <see cref="WriteAtomicAsync" />.</summary>
-    /// <param name="root">Which of the extension's folders.</param>
-    /// <param name="relativePath">The file under that folder.</param>
-    /// <param name="cancellationToken">Stops the read.</param>
-    /// <returns>The file's contents, or null when it does not exist or the build has no folders.</returns>
-    /// <exception cref="ArgumentException">
-    ///     <paramref name="relativePath" /> is empty, rooted, has a ".." segment, or resolves outside the folder.
-    /// </exception>
-    Task<byte[]?> ReadAsync(StoreRoot root, string relativePath, CancellationToken cancellationToken = default);
-}
-
 /// <summary>Resolves an extension's <see cref="IExtensionContext" />.</summary>
 public static class ExtensionServiceProviderExtensions
 {
     /// <summary>
-    ///     The context the host registered for <paramref name="extensionId" />. Only that extension's own code
-    ///     may resolve it: asking for another extension's context throws.
+    ///     The context the host registered for <typeparamref name="TPack" />. Name your own
+    ///     <see cref="IExtension" /> type: the context is keyed on the type, so reaching another extension's
+    ///     would mean referencing that extension's assembly at compile time.
     /// </summary>
     /// <param name="services">The host's services.</param>
-    /// <param name="extensionId">Your extension's id.</param>
-    /// <exception cref="InvalidOperationException">
-    ///     No extension has that id, or the calling code belongs to a different extension.
-    /// </exception>
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public static IExtensionContext GetExtensionContext(this IServiceProvider services, string extensionId)
+    /// <typeparam name="TPack">Your extension's entry type, the one the host constructed.</typeparam>
+    /// <exception cref="InvalidOperationException">The host has no extension of that type loaded.</exception>
+    public static IExtensionContext GetExtensionContext<TPack>(this IServiceProvider services)
+        where TPack : IExtension
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentException.ThrowIfNullOrEmpty(extensionId);
-        Assembly caller = Assembly.GetCallingAssembly();
-        return services.GetService<IExtensionContextAccess>() is { } access
-            ? access.Resolve(extensionId, caller)
-            : services.GetRequiredKeyedService<IExtensionContext>(new ExtensionContextKey(extensionId));
+        return services.GetKeyedService<IExtensionContext>(typeof(TPack))
+               ?? throw new InvalidOperationException(
+                   $"This host has no extension of type '{typeof(TPack).FullName}' loaded, so it has no "
+                   + "context. Name your own entry type here, from a factory the host resolves.");
     }
 }
 
 /// <summary>
-///     The key the host registers each context under. A lookup by the plain id string finds nothing, so
-///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" /> and its owner check are the only way in.
+///     The key the host registers each context under for its own lookups, beside the pack type that
+///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext{TPack}" /> keys on. Both keys answer
+///     with one context per extension.
 /// </summary>
 /// <param name="ExtensionId">The extension's id.</param>
 internal sealed record ExtensionContextKey(string ExtensionId);
-
-/// <summary>
-///     The host's check on <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" />: resolves the
-///     context only for code that belongs to that extension, or to no extension.
-/// </summary>
-internal interface IExtensionContextAccess
-{
-    /// <summary>The context of <paramref name="extensionId" />, asked for by code in <paramref name="caller" />.</summary>
-    IExtensionContext Resolve(string extensionId, Assembly caller);
-}

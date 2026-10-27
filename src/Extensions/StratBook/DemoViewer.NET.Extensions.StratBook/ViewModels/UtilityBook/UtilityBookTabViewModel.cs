@@ -3,16 +3,14 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using GrenadeKind = DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeKind;
-using GrenadeTrailPoint = DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint;
-using DemoViewer.NET.ViewModels;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using GrenadeTrailPoint = DemoViewer.NET.Playback2D.GrenadeTrailPoint;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
@@ -55,8 +53,7 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
 
     private readonly Func<string, DateTime?> _demoDate;
     private readonly GrenadeIndex _index;
-    private readonly Func<string, IMapAsset?> _loadMapAsset;
-    private readonly Action<Action> _retire;
+    private readonly Func<string, IMapAssetLease?> _loadMapAsset;
     private readonly ISituationPlayback? _playback;
     private readonly Dictionary<string, LandingGroup> _groups = new(StringComparer.Ordinal);
     private readonly Action<Action> _background;
@@ -102,7 +99,6 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
 
     private readonly string? _clipDirectory;
     private readonly string? _lockedMap;
-    private readonly bool _ownsMapAsset;
     private (Guid Id, string? Technique)? _pendingReveal;
     private IReadOnlySet<GrenadeKind>? _queryKinds;
     private string? _focusedId;
@@ -111,12 +107,8 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
     /// <param name="index">The grenade index.</param>
     /// <param name="playback">Opens a throw in 2D Playback; null when the host has no shell.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
-    /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader when null, a stub in a test.</param>
+    /// <param name="loadMapAsset">Takes a hold on a map's baked bundle; the app's lease registry when null, a stub in a test.</param>
     /// <param name="demoDate">A demo's date for the instance list; none shown when null.</param>
-    /// <param name="retire">
-    ///     Runs a replaced bundle's dispose after the host has rebound: a Background-priority dispatcher
-    ///     post in the app, inline in a test.
-    /// </param>
     /// <param name="clipDirectory">Where Lineup Clip Render writes its pairs; the card shows no clip when null.</param>
     /// <param name="background">Runs a refresh's index reads: the thread pool in the app, inline in a test.</param>
     /// <param name="post">Brings a refresh's result back: the UI dispatcher in the app, inline in a test.</param>
@@ -124,16 +116,11 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
     ///     Shows this map and no other, even when it has no grenades: the Strat Book's lineup picker. Null for the
     ///     tab, which falls back to the first indexed map.
     /// </param>
-    /// <param name="ownsMapAsset">
-    ///     False when <paramref name="loadMapAsset" /> hands out a bundle another owner holds (the picker shares
-    ///     the strat canvas's): it is then never disposed here.
-    /// </param>
     public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null,
-        Func<string, IMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
-        Action<Action>? retire = null, string? clipDirectory = null, Action<Action>? background = null,
-        Action<Action>? post = null, string? lockedMap = null, bool ownsMapAsset = true)
+        Func<string, IMapAssetLease?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
+        string? clipDirectory = null, Action<Action>? background = null,
+        Action<Action>? post = null, string? lockedMap = null)
     {
-        _ownsMapAsset = ownsMapAsset;
         _lockedMap = lockedMap;
         _selectedMap = lockedMap;
         _background = background ?? (work => work());
@@ -142,8 +129,7 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
         ArgumentNullException.ThrowIfNull(index);
         _index = index;
         _playback = playback;
-        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
-        _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
+        _loadMapAsset = loadMapAsset ?? MapAssets.Acquire;
         _demoDate = demoDate ?? (_ => null);
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         Kinds =
@@ -181,8 +167,8 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
     /// <summary>What the map draws; the host binds its layer to it.</summary>
     public UtilityMapDocument Document { get; } = new();
 
-    /// <summary>The selected map's baked bundle, or null when this host has none.</summary>
-    public IMapAsset? MapAsset { get; private set; }
+    /// <summary>The hold on the selected map's baked bundle, or null when this host has none.</summary>
+    public IMapAssetLease? MapAsset { get; private set; }
 
     /// <summary>The map the document lies on.</summary>
     public string MapName => SelectedMap ?? "";
@@ -266,13 +252,10 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
 
         _disposed = true;
         _index.Changed -= Refresh;
-        if (MapAsset is { } asset)
+        if (MapAsset is { } lease)
         {
             MapAsset = null;
-            if (_ownsMapAsset)
-            {
-                _retire(asset.Dispose);
-            }
+            lease.Dispose();
         }
     }
 
@@ -503,23 +486,24 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
             return;
         }
 
-        IMapAsset? asset = SelectedMap is { } map ? _loadMapAsset(map) : null;
+        IMapAssetLease? asset = SelectedMap is { } map ? _loadMapAsset(map) : null;
         if (sameMap && asset is null)
         {
             return;
         }
 
-        IMapAsset? previous = MapAsset;
+        IMapAssetLease? previous = MapAsset;
         MapAsset = asset;
         _boundMap = SelectedMap;
         OnPropertyChanged(nameof(MapAsset));
         OnPropertyChanged(nameof(HasNoMapArt));
         MapChanged?.Invoke();
 
-        // After the host rebound; the render thread may still hold a picture over the old images.
-        if (_ownsMapAsset && previous is not null && !ReferenceEquals(previous, asset))
+        // After the host rebound: the registry keeps the bundle while another view holds it and defers
+        // the release past the frame the render thread may still be replaying.
+        if (!ReferenceEquals(previous, asset))
         {
-            _retire(previous.Dispose);
+            previous?.Dispose();
         }
     }
 

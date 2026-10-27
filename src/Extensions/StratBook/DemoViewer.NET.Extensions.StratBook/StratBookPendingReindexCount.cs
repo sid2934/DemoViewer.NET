@@ -26,7 +26,7 @@ internal sealed class StratBookPendingReindexCount(IServiceProvider services) : 
     ///     every off-UI-thread job goes through the one queue, and user-triggered work jumps the line).
     /// </summary>
     public Task<int> CountAsync() =>
-        StratBookJobs.RunAsync(services.GetExtensionContext(StratBookPack.PackId).Jobs, "Settings: demos to re-index",
+        StratBookJobs.RunAsync(services.GetExtensionContext<StratBookPack>().Jobs, "Settings: demos to re-index",
             Compute, 0, new JobOptions(Priority: JobPriority.UserRequested));
 
     private int Compute()

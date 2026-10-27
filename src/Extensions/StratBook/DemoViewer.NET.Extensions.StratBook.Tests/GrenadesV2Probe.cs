@@ -8,7 +8,6 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 using DemoViewer.NET.Extensions.StratBook.Views.UtilityBook;
 using TUnit.Core.Exceptions;
@@ -47,7 +46,8 @@ public class GrenadesV2Probe
         await HeadlessSession.RunOnUi(() =>
         {
             DemoCacheStore cache = new(root);
-            using GrenadeIndex index = new(cache.Library(), new AssetZonePlaceResolverSource()) { Grouping = grouping };
+            using AssetZonePlaceResolverSource zones = new();
+            using GrenadeIndex index = new(cache.Library(), zones) { Grouping = grouping };
             long before = GC.GetTotalMemory(true);
             index.Load();
             long retained = GC.GetTotalMemory(true) - before;

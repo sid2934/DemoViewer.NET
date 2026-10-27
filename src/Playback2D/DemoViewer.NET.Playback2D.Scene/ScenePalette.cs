@@ -4,7 +4,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>
 ///     Stroke widths in device-independent pixels, carried alongside the palette because the pre-move

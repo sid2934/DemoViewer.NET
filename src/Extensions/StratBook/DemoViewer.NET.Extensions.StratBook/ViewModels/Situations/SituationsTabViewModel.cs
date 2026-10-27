@@ -7,11 +7,10 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.ViewModels;
 
 #endregion
 
@@ -118,7 +117,7 @@ public sealed partial class SituationsTabViewModel : ExtensionViewModel, IWorksp
         TeamIdentityService? teams = null,
         IDemoProvenanceSource? provenance = null,
         WatchedSituationsService? watched = null,
-        ReviewQueue? review = null,
+        IExtensionReviewQueue? review = null,
         CalloutResolverSource? callouts = null,
         Func<string, Func<Action, Task>>? run = null,
         IRoundFacts? roundFacts = null)

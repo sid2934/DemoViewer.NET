@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Hud;
+namespace DemoViewer.NET.Playback2D.Hud;
 
 /// <summary>
 ///     Round-level HUD state as a <b>pure function of tick</b>. No wall clock, no playback
@@ -72,7 +72,7 @@ public readonly record struct HudSnapshot(
 /// <param name="MarginPx">Inset from the pane edge.</param>
 /// <param name="TextArgb">Primary text colour.</param>
 /// <param name="PanelArgb">Backing-panel fill, drawn behind the text so a light radar cannot swallow it.</param>
-public sealed record HudStyle(
+internal sealed record HudStyle(
     float FontSizePx = 14f,
     float MarginPx = 12f,
     uint TextArgb = 0xFFF2F2F2u,

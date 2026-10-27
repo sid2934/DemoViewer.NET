@@ -1,13 +1,14 @@
 #region
 
-using System.Globalization;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Hud;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Hud;
+using DemoViewer.NET.Playback2D.Layers;
 using SkiaSharp;
+using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Playback2D.Pipeline.Layers;
 
 /// <summary>
 ///     The export HUD's player cards: T down one edge of the frame, CT down the other, each card carrying
@@ -68,7 +69,7 @@ public sealed class RosterLayer : ISceneLayer
     /// <param name="data">The tick → HUD state function.</param>
     /// <param name="style">Colours and metrics; the shipped look when null.</param>
     /// <param name="text">A shared blob cache; a private one when null, disposed with the layer.</param>
-    public RosterLayer(IHudDataSource data, HudStyle? style = null, TextBlobCache? text = null)
+    internal RosterLayer(IHudDataSource data, HudStyle? style = null, TextBlobCache? text = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         _data = data;

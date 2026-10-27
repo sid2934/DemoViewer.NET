@@ -123,7 +123,7 @@ public class RoundPositionsRealDemoTests
             throw new SkipTestException($"demo yields {hits.Count} sampled steps, fewer than forty");
         }
 
-        using SituationThumbnailRenderer renderer = new(map => MapAssetPipeline.TryLoad(map));
+        using SituationThumbnailRenderer renderer = new();
         string map = build.Index.Map;
         renderer.Render(map, positions, hits[0].Round, hits[0].Tick); // warm: the bundle load and the JIT
 

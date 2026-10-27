@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Annotations;
+namespace DemoViewer.NET.Playback2D.Annotations;
 
 /// <summary>
 ///     The annotation model for one demo: an ordered element list plus a delta-stack undo history.

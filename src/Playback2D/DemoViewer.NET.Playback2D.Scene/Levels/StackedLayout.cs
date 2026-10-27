@@ -1,12 +1,12 @@
 #region
 
 using System.Diagnostics.CodeAnalysis;
-using DemoViewer.NET.Playback2D.Core.Cameras;
+using DemoViewer.NET.Playback2D.Cameras;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>How the level set is laid out on the host surface.</summary>
 [SuppressMessage("Naming", "CA1720:Identifier contains type name",

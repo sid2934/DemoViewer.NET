@@ -8,11 +8,12 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Zones;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using SkiaSharp;
 
@@ -45,10 +46,11 @@ public class TokenToolHostTests
             fake.Publish(Frame(1, true, TenTokens()));
 
             (Window window, Scene2DHost host) = Mount(fake);
-            host.AddTool(new TokenTool());
+            TokenTool tool = new();
+            host.AddTool(tool);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
-            host.SetActiveTool(ToolKind.Token);
+            host.SetActiveTool(tool.Id);
             await Assert.That(host.Router.ActiveKind).IsEqualTo(ToolKind.Token)
                 .Because("the host registers the token tool, or selecting it would fall back to pan");
 
@@ -80,10 +82,11 @@ public class TokenToolHostTests
             fake.Publish(Frame(1, true, TenTokens()));
 
             (Window window, Scene2DHost host) = Mount(fake);
-            host.AddTool(new TokenTool());
+            TokenTool tool = new();
+            host.AddTool(tool);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
-            host.SetActiveTool(ToolKind.Token);
+            host.SetActiveTool(tool.Id);
 
             window.MouseDown(Playback2DTimelineHarness.ToWindow(host, window, 300, 300), MouseButton.Left);
             window.MouseMove(Playback2DTimelineHarness.ToWindow(host, window, 320, 300));

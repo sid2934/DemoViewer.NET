@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;

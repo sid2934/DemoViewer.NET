@@ -5,26 +5,25 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Services.Export.Pack;
-using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.ViewModels;
+using DemoViewer.NET.Extensions.Sdk.Export;
+using DemoViewer.NET.Extensions.Sdk.Review;
 
 #endregion
 
 namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 
 /// <summary>
-///     The Review tab: the <see cref="ReviewQueue" /> as a list a reviewer walks top to bottom. Title
+///     The Review tab: the host's review queue as a list a reviewer walks top to bottom. Title
 ///     cards open sections; each clip shows its demo, its range on the demo's clock, the note the
 ///     surface that queued it wrote, and the one-line question the reviewer answers. A click opens 2D
 ///     playback at the clip's first tick through the same seek seam Result Cards use.
 ///     <para>
 ///         <b>Rows are reconciled, not rebuilt.</b> Every edit in a row writes through to the queue,
-///         and the queue's <see cref="ReviewQueue.Changed" /> comes back here. When the ids are the
-///         same ones in the same order, each row takes its entry in place, so the text box being typed
-///         in keeps its focus and caret; only a structural change (an add, a remove, a move) rebuilds
-///         the list.
+///         and the queue's <c>Changed</c> comes back here. When the ids are the same ones in the same
+///         order, each row takes its entry in place, so the text box being typed in keeps its focus and
+///         caret; only a structural change (an add, a remove, a move) rebuilds the list. A row is taken
+///         in place when the clip is the same instance, which the host guarantees for a row it has not
+///         changed, so a queue change costs notifications only on the rows that moved.
 ///     </para>
 ///     <para>
 ///         <b>Thousands of rows.</b> Only the rows on screen get a row view model: a section over
@@ -40,7 +39,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 ///     <para>
 ///         <b>Export pack</b> renders the whole queue as one video (Pack Export): the sections become
 ///         title cards and the clips play in order from however many demos, each demo's saved ink burned
-///         in. The export is a delegate from the composition root; a host without one (the browser) hides
+///         in. The host owns the plan and the render; a host without a pack export (the browser) hides
 ///         the row.
 ///     </para>
 /// </summary>
@@ -73,7 +72,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     /// <summary>The team filter's value for a clip whose team Team Identity no longer has.</summary>
     public const string UnknownTeam = "unknown team";
 
-    private readonly Func<ReviewEntry, string?> _mapOf;
+    private readonly Func<ReviewClip, string?> _mapOf;
     private readonly Dictionary<string, string> _maps = new(StringComparer.OrdinalIgnoreCase);
     private readonly Func<Guid, string?> _teamName;
 
@@ -90,10 +89,9 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     private bool _queueChanged = true;
     private string _headerLine = "";
 
-    private readonly Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? _exportPack;
-    private readonly Func<string, bool> _fileExists;
+    private readonly IExtensionReviewPackExport? _packExport;
     private readonly Func<ISituationPlayback?> _playback;
-    private readonly ReviewQueue _queue;
+    private readonly IExtensionReviewQueue _queue;
 
     private IModuleContext? _context;
 
@@ -116,7 +114,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
 
     /// <summary>The pack's format: one of <see cref="PackFormats" />.</summary>
     [ObservableProperty]
-    private string _selectedPackFormat = ExportFormats.Mp4;
+    private string _selectedPackFormat = SceneExportFormats.Mp4;
 
     /// <summary>The inline guard on Clear: armed by the button, never a modal.</summary>
     [ObservableProperty]
@@ -161,28 +159,25 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     /// <param name="queue">The shared queue.</param>
     /// <param name="playback">The seek seam a clip opens through; null on a host with no 2D tab.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
-    /// <param name="exportPack">Renders a planned pack off the UI thread; null hides Export pack.</param>
-    /// <param name="packDirectory">The folder a new pack's path starts in; the user's videos folder when null.</param>
-    /// <param name="fileExists">The existence probe for a clip's demo; <see cref="File.Exists" /> when null.</param>
+    /// <param name="packExport">The host's pack export; null hides Export pack, as on the browser.</param>
     /// <param name="mapOf">A clip's map from the demo cache, by hash then path; no maps when null.</param>
     /// <param name="teamName">A team's name from Team Identity, or null when it has none; no names when null.</param>
-    public ReviewQueueTabViewModel(ReviewQueue queue, Func<ISituationPlayback?>? playback = null, bool? isBrowser = null,
-        Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null,
-        string? packDirectory = null, Func<string, bool>? fileExists = null, Func<ReviewEntry, string?>? mapOf = null,
-        Func<Guid, string?>? teamName = null)
+    public ReviewQueueTabViewModel(IExtensionReviewQueue queue, Func<ISituationPlayback?>? playback = null,
+        bool? isBrowser = null, IExtensionReviewPackExport? packExport = null,
+        Func<ReviewClip, string?>? mapOf = null, Func<Guid, string?>? teamName = null)
     {
         ArgumentNullException.ThrowIfNull(queue);
         _mapOf = mapOf ?? (static _ => null);
         _teamName = teamName ?? (static _ => null);
         _queue = queue;
         _playback = playback ?? (() => null);
-        _exportPack = exportPack;
-        _fileExists = fileExists ?? File.Exists;
+        _packExport = packExport;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
-        string directory = string.IsNullOrWhiteSpace(packDirectory)
-            ? Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
-            : packDirectory;
-        _packOutputPath = Path.Combine(directory, DefaultPackName(DateTime.Now, ExportFormats.Mp4));
+        PackFormats = packExport?.Formats ?? [];
+        string directory = packExport?.DefaultOutputDirectory is { Length: > 0 } saved
+            ? saved
+            : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+        _packOutputPath = Path.Combine(directory, DefaultPackName(DateTime.Now, SelectedPackFormat));
         _queue.Changed += OnQueueChanged;
         Reconcile();
     }
@@ -199,11 +194,11 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     /// <summary>"12 clips · 3 sections · 4 demos", or empty with nothing queued.</summary>
     public string HeaderLine => _headerLine;
 
-    /// <summary>The formats a pack can be written as. MP4 is the one every phone plays.</summary>
-    public IReadOnlyList<string> PackFormats { get; } = [ExportFormats.Mp4, ExportFormats.WebM, ExportFormats.Gif];
+    /// <summary>The formats a pack can be written as, the host's order; empty where it exports nothing.</summary>
+    public IReadOnlyList<string> PackFormats { get; }
 
     /// <summary>This host can export a pack.</summary>
-    public bool CanPack => _exportPack is not null;
+    public bool CanPack => _packExport is not null;
 
     /// <summary>
     ///     "3 clips from 3 demos · 2 title cards · 1:12", then the clips that will be left out and the GIF
@@ -213,30 +208,27 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     {
         get
         {
-            if (_queue.ClipCount == 0)
+            if (_queue.ClipCount == 0 || PlanPack() is not { } plan)
             {
                 return "";
             }
 
-            PackPlan plan = PlanPack();
-            int cards = plan.Segments.Count(s => s is PackTitleCard);
             int seconds = (int)Math.Round(plan.Seconds);
-            List<string> parts = [$"{Plural(plan.Clips.Count, "clip")} from {Plural(plan.DemoCount, "demo")}"];
-            if (cards > 0)
+            List<string> parts = [$"{Plural(plan.ClipCount, "clip")} from {Plural(plan.DemoCount, "demo")}"];
+            if (plan.TitleCardCount > 0)
             {
-                parts.Add(Plural(cards, "title card"));
+                parts.Add(Plural(plan.TitleCardCount, "title card"));
             }
 
             parts.Add(string.Create(CultureInfo.InvariantCulture, $"{seconds / 60}:{seconds % 60:D2}"));
-            if (plan.Skipped.Count > 0)
+            if (plan.SkippedCount > 0)
             {
-                parts.Add($"{plan.Skipped.Count} left out ({string.Join(", ", plan.Skipped.Select(k => k.Reason).Distinct())})");
+                parts.Add($"{plan.SkippedCount} left out ({string.Join(", ", plan.SkipReasons)})");
             }
 
-            int trimmed = plan.Clips.Count(c => c.Trimmed);
-            if (trimmed > 0)
+            if (plan.TrimmedCount > 0)
             {
-                parts.Add($"{Plural(trimmed, "clip")} cut at the GIF frame cap");
+                parts.Add($"{Plural(plan.TrimmedCount, "clip")} cut at the GIF frame cap");
             }
 
             return string.Join(" · ", parts);
@@ -249,14 +241,8 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     public static string DefaultPackName(DateTime now, string formatId) =>
         string.Create(CultureInfo.InvariantCulture, $"review-pack-{now:yyyyMMdd-HHmm}.{formatId}");
 
-    /// <summary>The pack the queue plans to right now, at the tab's format and path.</summary>
-    public PackPlan PlanPack()
-    {
-        // Thousands of clips share a few hundred demos; probe each path once per plan.
-        Dictionary<string, bool> probed = new(StringComparer.Ordinal);
-        return PackPlanner.Plan(_queue.Entries, PackSettings.For(PackOutputPath, SelectedPackFormat),
-            path => probed.TryGetValue(path, out bool exists) ? exists : probed[path] = _fileExists(path));
-    }
+    /// <summary>The pack the queue plans to right now, at the tab's format and path; null with no exporter.</summary>
+    public ReviewPackPlan? PlanPack() => _packExport?.Plan(PackOutputPath, SelectedPackFormat);
 
     /// <summary>Why the queue file was not read, or null; while set the file is left alone.</summary>
     public string? FileProblem => _queue.FileProblem;
@@ -334,7 +320,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     [RelayCommand]
     private void CollapseAll()
     {
-        _collapsed.UnionWith(_queue.Entries.Where(e => e.Kind == ReviewEntryKind.Section).Select(e => e.Id));
+        _collapsed.UnionWith(_queue.Entries.Where(e => e.Kind == ReviewClipKind.Section).Select(e => e.Id));
         Reconcile();
     }
 
@@ -349,7 +335,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     partial void OnSelectedTeamChanged(string value) => Reconcile();
 
     // One cache lookup per demo, not per clip per reconcile; forgotten when the queue changes.
-    private string MapOf(ReviewEntry clip)
+    private string MapOf(ReviewClip clip)
     {
         string key = clip.Sha256 ?? clip.DemoPath;
         if (!_maps.TryGetValue(key, out string? map))
@@ -360,7 +346,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
         return map;
     }
 
-    private string TeamOf(ReviewEntry clip) =>
+    private string TeamOf(ReviewClip clip) =>
         clip.TeamId is not { } id ? NoTeam : _teamName(id) is { Length: > 0 } name ? name : UnknownTeam;
 
     internal void ToggleReviewed(ReviewRowViewModel row)
@@ -372,11 +358,11 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
         }
 
         HashSet<Guid> scope = _inScope.TryGetValue(row.Entry.Id, out List<Guid>? ids) ? [.. ids] : [];
-        List<ReviewEntry> clips = [.. _queue.ClipsUnder(row.Entry.Id).Where(c => scope.Contains(c.Id))];
+        List<ReviewClip> clips = [.. _queue.ClipsUnder(row.Entry.Id).Where(c => scope.Contains(c.Id))];
         _queue.SetReviewed(clips.Select(c => c.Id), clips.Any(c => !c.Reviewed));
     }
 
-    internal void Move(ReviewRowViewModel row, int delta) => _queue.Move(row.Entry.Id, delta);
+    internal void Move(ReviewRowViewModel row, int delta) => _queue.MoveBy(row.Entry.Id, delta);
 
     internal void Remove(ReviewRowViewModel row) => _queue.Remove([row.Entry.Id]);
 
@@ -397,27 +383,27 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     }
 
     private bool CanExportPack() =>
-        _exportPack is not null && !IsPackRunning && _queue.ClipCount > 0 && !string.IsNullOrWhiteSpace(PackOutputPath);
+        _packExport is not null && !IsPackRunning && _queue.ClipCount > 0 && !string.IsNullOrWhiteSpace(PackOutputPath);
 
     /// <summary>Renders the queue as one pack; the status line follows it and names what was left out.</summary>
     [RelayCommand(CanExecute = nameof(CanExportPack))]
     private async Task ExportPack()
     {
-        if (_exportPack is null)
+        if (_packExport is null)
         {
             return;
         }
 
-        PackPlan plan = PlanPack();
-        if (PackPlanner.Validate(plan.Settings) is { } problem)
+        if (_packExport.Validate(PackOutputPath, SelectedPackFormat) is { } problem)
         {
             PackStatus = problem;
             return;
         }
 
-        if (plan.Clips.Count == 0)
+        ReviewPackPlan plan = _packExport.Plan(PackOutputPath, SelectedPackFormat);
+        if (plan.ClipCount == 0)
         {
-            PackStatus = "no queued clip can be rendered: " + string.Join(", ", plan.Skipped.Select(k => k.Reason).Distinct());
+            PackStatus = "no queued clip can be rendered: " + string.Join(", ", plan.SkipReasons);
             return;
         }
 
@@ -425,14 +411,13 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
         _packCts = cts;
         IsPackRunning = true;
         PackStatus = "starting";
-        Progress<PackProgress> progress = new(p => PackStatus = string.Create(CultureInfo.InvariantCulture,
+        Progress<ReviewPackProgress> progress = new(p => PackStatus = string.Create(CultureInfo.InvariantCulture,
             $"{p.Segment} of {p.SegmentCount}: {p.Label}"));
         try
         {
-            PackResult result = await _exportPack(plan, progress, cts.Token);
-            string where = plan.Settings.IsGif ? PackPlanner.GifFolder(plan.Settings.OutputPath) : plan.Settings.OutputPath;
-            List<string> leftOut = [.. plan.Skipped.Select(k => k.Reason).Concat(result.Failed.Select(f => f.Reason)).Distinct()];
-            string written = $"{Plural(result.ClipsRendered, "clip")} written to {where}";
+            ReviewPackResult result = await _packExport.RunAsync(plan, progress, cts.Token);
+            List<string> leftOut = [.. plan.SkipReasons.Concat(result.FailureReasons).Distinct(StringComparer.Ordinal)];
+            string written = $"{Plural(result.ClipsRendered, "clip")} written to {plan.OutputDescription}";
             PackStatus = leftOut.Count == 0
                 ? written
                 : $"{written}; left out: {string.Join("; ", leftOut)}";
@@ -487,7 +472,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
 
         int rate = context.TickRate > 0 ? context.TickRate : 64;
         int tick = context.CurrentTick;
-        ReviewEntry clip = ReviewEntry.Clip(path, tick - PickSeconds * rate, tick + PickSeconds * rate,
+        ReviewClip clip = ReviewClip.Clip(path, tick - PickSeconds * rate, tick + PickSeconds * rate,
             $"picked at {Clock(tick, rate)}", ReviewSources.Manual, rate, context.DemoSha256);
         StatusLine = _queue.Add([clip]) == 0 ? "that clip is already queued" : "";
     }
@@ -536,7 +521,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
         }
 
         _stale = false;
-        IReadOnlyList<ReviewEntry> entries = _queue.Entries;
+        IReadOnlyList<ReviewClip> entries = _queue.Entries;
         string search = SearchText.Trim();
         string? source = SelectedSource == AllSources ? null : SelectedSource;
         string? mapFilter = SelectedMap == AllMaps ? null : SelectedMap;
@@ -556,9 +541,9 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
         int i = 0;
         while (i < entries.Count)
         {
-            ReviewEntry? card = entries[i].Kind == ReviewEntryKind.Section ? entries[i++] : null;
+            ReviewClip? card = entries[i].Kind == ReviewClipKind.Section ? entries[i++] : null;
             int start = i;
-            while (i < entries.Count && entries[i].Kind == ReviewEntryKind.Clip)
+            while (i < entries.Count && entries[i].Kind == ReviewClipKind.Clip)
             {
                 i++;
             }
@@ -584,7 +569,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
             List<Guid> scope = [];
             for (int k = start; k < i; k++)
             {
-                ReviewEntry clip = entries[k];
+                ReviewClip clip = entries[k];
                 position++;
                 sources.Add(clip.Source);
                 demos.Add(clip.DemoPath);
@@ -695,7 +680,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
     private static bool Gone(string selected, IReadOnlyList<string> options, string all) =>
         !string.Equals(selected, all, StringComparison.Ordinal) && !options.Contains(selected, StringComparer.Ordinal);
 
-    private ReviewRowViewModel RowFor(ReviewEntry entry, Dictionary<Guid, ReviewRowViewModel> rows)
+    private ReviewRowViewModel RowFor(ReviewClip entry, Dictionary<Guid, ReviewRowViewModel> rows)
     {
         if (_rowsById.TryGetValue(entry.Id, out ReviewRowViewModel? row))
         {
@@ -713,7 +698,7 @@ public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorks
         return row;
     }
 
-    private static bool Matches(ReviewEntry clip, string? source, string search) =>
+    private static bool Matches(ReviewClip clip, string? source, string search) =>
         (source is null || string.Equals(clip.Source, source, StringComparison.Ordinal))
         && (search.Length == 0
             || clip.Note.Contains(search, StringComparison.OrdinalIgnoreCase)
@@ -755,7 +740,7 @@ public sealed partial class ReviewRowViewModel : ExtensionViewModel
 
     /// <param name="owner">The tab the row belongs to.</param>
     /// <param name="entry">The queue entry.</param>
-    public ReviewRowViewModel(ReviewQueueTabViewModel owner, ReviewEntry entry)
+    public ReviewRowViewModel(ReviewQueueTabViewModel owner, ReviewClip entry)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(entry);
@@ -765,11 +750,11 @@ public sealed partial class ReviewRowViewModel : ExtensionViewModel
     }
 
     /// <summary>The entry as the queue last had it.</summary>
-    public ReviewEntry Entry { get; private set; }
+    public ReviewClip Entry { get; private set; }
 
-    public bool IsClip => Entry.Kind == ReviewEntryKind.Clip;
+    public bool IsClip => Entry.Kind == ReviewClipKind.Clip;
 
-    public bool IsSection => Entry.Kind == ReviewEntryKind.Section;
+    public bool IsSection => Entry.Kind == ReviewClipKind.Section;
 
     /// <summary>The clip's number in the queue, one-based, counting clips only; 0 on a title card.</summary>
     public int Position { get; private set; }
@@ -808,7 +793,7 @@ public sealed partial class ReviewRowViewModel : ExtensionViewModel
     /// <summary>Where the clip came from, as a word.</summary>
     public string SourceText => Entry.Source;
 
-    internal void Apply(ReviewEntry entry)
+    internal void Apply(ReviewClip entry)
     {
         Entry = entry;
         _applying = true;

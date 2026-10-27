@@ -1,7 +1,7 @@
 #region
 
 using System.Text.Json;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using SkiaSharp;
 
 #endregion

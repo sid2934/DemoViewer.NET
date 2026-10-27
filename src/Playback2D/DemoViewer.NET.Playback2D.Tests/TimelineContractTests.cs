@@ -1,7 +1,7 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Timeline;
 using TUnit.Assertions.Enums;
 
 #endregion
@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     The timeline contract is published: its seven types live in the scene package, BCL only, under the
-///     <c>DemoViewer.NET.Playback2D.Core.Timeline</c> namespace, with their signatures unchanged.
+///     <c>DemoViewer.NET.Playback2D.Timeline</c> namespace, with their signatures unchanged.
 /// </summary>
 public class TimelineContractTests
 {
@@ -27,7 +27,7 @@ public class TimelineContractTests
                  ])
         {
             await Assert.That(t.Assembly.GetName().Name).IsEqualTo(scene);
-            await Assert.That(t.Namespace).IsEqualTo("DemoViewer.NET.Playback2D.Core.Timeline");
+            await Assert.That(t.Namespace).IsEqualTo("DemoViewer.NET.Playback2D.Timeline");
         }
     }
 
@@ -48,7 +48,7 @@ public class TimelineContractTests
 
         await Assert.That(declared).IsEquivalentTo(
         [
-            "BuildBands", "BuildMarkers", "DisplayName", "Id", "IsAvailable", "MarkersChanged"
+            "BuildBands", "BuildMarkers", "Changed", "DisplayName", "Id", "IsAvailable"
         ], CollectionOrdering.Matching);
     }
 

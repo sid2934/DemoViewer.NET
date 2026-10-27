@@ -5,8 +5,8 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion

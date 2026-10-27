@@ -3,7 +3,7 @@
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
@@ -86,7 +86,7 @@ public sealed class CalloutResolver
     ///     (<c>ZoneSet.Places</c>, custom zones included), else the embedded list.
     /// </summary>
     /// <param name="map">The map, in the parser's spelling.</param>
-    /// <param name="zones">The map's zones from <c>ZoneAssetPipeline</c>, or null.</param>
+    /// <param name="zones">The map's zones off its lease, or null.</param>
     /// <param name="table">The owner's aliases for the map.</param>
     public static CalloutResolver For(string map, ZoneSet? zones, CalloutTable? table)
     {

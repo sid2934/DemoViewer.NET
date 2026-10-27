@@ -1,10 +1,11 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Input;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Input;
+namespace DemoViewer.NET.Playback2D.Pipeline.Input;
 
 /// <summary>
 ///     The two-point shape tools: Line, Arrow, Rect and Ellipse, one class constructed per kind.
@@ -45,6 +46,9 @@ public sealed class ShapeTool : IPointerTool
         Kind = kind;
         _kind = shape;
     }
+
+    /// <inheritdoc />
+    public string Id => ToolIds.Of(Kind);
 
     /// <inheritdoc />
     public ToolKind Kind { get; }

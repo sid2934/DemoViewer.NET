@@ -2,8 +2,8 @@
 
 using System.Numerics;
 using System.Text;
-using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Zones;
+using DemoViewer.NET.Playback2D.Assets;
 using TUnit.Assertions.Enums;
 
 #endregion

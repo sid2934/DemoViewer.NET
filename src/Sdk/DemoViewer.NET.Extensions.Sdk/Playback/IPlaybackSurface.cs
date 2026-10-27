@@ -1,8 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Input;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Tools;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Tools;
 
 namespace DemoViewer.NET.Extensions.Sdk.Playback;
 
@@ -72,7 +73,23 @@ public interface IPlaybackSurface
     /// <param name="modifiers">The modifiers held.</param>
     string? ActionFor(string scope, Key key, KeyModifiers modifiers);
 
-    /// <summary>A lane under the rounds row, drawn from <paramref name="track" />'s bands.</summary>
+    /// <summary>
+    ///     A lane under the rounds row, drawn from <paramref name="track" />'s bands and markers. The track
+    ///     is a <see cref="ITimelineTrack" /> from <c>DemoViewer.NET.Playback2D.Scene</c>, the same contract
+    ///     the tab's own tracks and <c>SceneTimeline</c> use. The host files the lane as
+    ///     <c>ext.&lt;extension id&gt;.&lt;track id&gt;</c>, so it can never collide with the tab's own tracks or
+    ///     another extension's, and stamps that id on every band and mark the track builds:
+    ///     <see cref="TimelineBand.TrackId" /> and <see cref="TimelineMarker.TrackId" /> need not be set, and
+    ///     <see cref="ILaneHandle.TrackId" /> is the id they carry.
+    /// </summary>
+    /// <param name="track">
+    ///     The track. Its <see cref="ITimelineTrack.Id" /> is the lane's id within the extension: letters,
+    ///     digits, '.', '-' and '_'.
+    /// </param>
+    /// <param name="behaviour">What the lane does, or null for a display-only lane.</param>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="track" />'s id is empty or has a character outside that alphabet.
+    /// </exception>
     ILaneHandle AddLane(ITimelineTrack track, ILaneBehaviour? behaviour = null);
 
     /// <summary>Entries for the right-click menu of any timeline band.</summary>
@@ -122,7 +139,16 @@ public interface IPlaybackSurface
     ///     extension's; <see cref="ISceneLayer.Id" /> of the built layer is not used. Adding an id again replaces it.
     /// </param>
     /// <param name="layer">Builds the layer.</param>
-    IDisposable AddLayer(string id, Func<ISceneLayer> layer);
+    /// <param name="displayName">
+    ///     The label on the layer's own visibility row in the tab's overlay strip. Null or blank labels
+    ///     the row with the extension's name, so no contributed overlay is left unswitchable.
+    /// </param>
+    /// <param name="enabled">
+    ///     Whether the row starts on. The host's choice is session-only and keyed by the filed id: an
+    ///     extension that wants it remembered stores it through <c>IExtensionSettings</c> and passes the
+    ///     remembered value back here.
+    /// </param>
+    IDisposable AddLayer(string id, Func<ISceneLayer> layer, string? displayName = null, bool enabled = true);
 
     /// <summary>
     ///     Repaints the map once. A contributed layer calls this when its own data changes, which the
@@ -155,7 +181,10 @@ public interface IPlaybackSurface
 public sealed record PlaybackLevel(string Name, double ZMin, double ZMax);
 
 /// <summary>A band on the timeline.</summary>
-/// <param name="TrackId">The track that drew it. Round bands come from the <c>"round"</c> track.</param>
+/// <param name="TrackId">
+///     The track that drew it. Round bands come from the tab's own <c>"round"</c> track; an extension's lane
+///     carries the filed id <see cref="ILaneHandle.TrackId" /> reports, never the track's own.
+/// </param>
 /// <param name="StartFrameIndex">Its first frame.</param>
 /// <param name="EndFrameIndex">Its last frame.</param>
 /// <param name="Label">Its label; a round band's is the round number.</param>

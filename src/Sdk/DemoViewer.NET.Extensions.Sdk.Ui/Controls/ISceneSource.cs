@@ -2,10 +2,10 @@
 
 using Avalonia;
 using Avalonia.Input;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
@@ -25,7 +25,7 @@ public interface ISceneSource
     /// <summary>The frame to show.</summary>
     Scene2DFrame Frame { get; }
 
-    /// <summary>The map's bundle, from <see cref="MapAssets.TryLoad" />, for its floors and radar art. Null draws the grid.</summary>
+    /// <summary>The map's bundle, from <see cref="MapAssets.Acquire" />, for its floors and radar art. Null draws the grid.</summary>
     IMapAsset? MapAsset { get; }
 
     /// <summary>The ink drawn over the scene and edited by the drawing tools. Null mounts no ink and no drawing tools.</summary>

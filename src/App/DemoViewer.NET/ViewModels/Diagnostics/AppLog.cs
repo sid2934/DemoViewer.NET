@@ -153,6 +153,14 @@ internal static partial class AppLog
         Message = "Extension {extension}: {path} could not be written: {problem}")]
     public static partial void ExtensionStoreWriteFailed(ILogger logger, string extension, string path, string problem);
 
+    /// <summary>
+    ///     An entry an older build left in the extension's cache folder could not be moved into the folder the
+    ///     extension is handed now. It stays where it is and the extension reads it as absent until it moves.
+    /// </summary>
+    [LoggerMessage(EventId = 40, Level = LogLevel.Warning,
+        Message = "Extension {extension}: {entry} could not be moved into its cache folder: {problem}")]
+    public static partial void ExtensionCacheEntryNotMoved(ILogger logger, string extension, string entry, string problem);
+
     [LoggerMessage(EventId = 30, Level = LogLevel.Information,
         Message = "Library folder {folder}: {count} demo(s) listed in {elapsedMs} ms")]
     public static partial void LibraryFolderListed(ILogger logger, string folder, int count, long elapsedMs);

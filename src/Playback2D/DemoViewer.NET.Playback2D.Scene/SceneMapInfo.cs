@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>
 ///     The per-map, per-demo static facts a scene needs: identity, the networked and observed world

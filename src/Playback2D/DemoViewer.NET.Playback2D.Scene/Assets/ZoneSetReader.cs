@@ -3,11 +3,11 @@
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
+namespace DemoViewer.NET.Playback2D.Assets;
 
 /// <summary>
 ///     Parses the baker's <c>zones.json</c> into a <see cref="ZoneSet" />. Reflection-based

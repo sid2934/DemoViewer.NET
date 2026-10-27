@@ -2,16 +2,9 @@
 
 using System.Globalization;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Export;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Playback2D.Pipeline.Export;
-using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
-using DemoViewer.NET.Services.Export;
+using DemoViewer.NET.Playback2D;
 
 #endregion
 
@@ -1166,30 +1159,31 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
 }
 
 /// <summary>
-///     The production <see cref="ILineupClipRenderer" />: renders each clip of one demo, on the parse the demo's
-///     visit holds, through <see cref="SceneExportRunner" />, the 2D export's own runner and
-///     <c>SceneExportSession</c>, as a GIF (the managed encoder when no ffmpeg is installed). Its own map bundle,
-///     compositor and surface, as every export.
+///     The production <see cref="ILineupClipRenderer" />: renders each clip of one demo through the host's
+///     published scene export, on the parse the demo's visit holds, as a GIF. The host owns the map art, the
+///     compositor and the encoder, as it does for every export.
 /// </summary>
 public sealed class LineupClipRenderer : ILineupClipRenderer
 {
-    private readonly Func<string, LoadedMapAsset?> _loadMap;
+    /// <summary>The refusal when the host exports nothing: the browser head, which plans no clips either.</summary>
+    public const string NoExportRefusal = "This host does not export.";
+
     private readonly Action<string>? _log;
-    private readonly Func<Scene2DExportRequest, ExportSceneSetup, CancellationToken, Task> _render;
+    private readonly Func<SceneExportClip, CancellationToken, Task<SceneExportOutcome>> _render;
 
     /// <summary>Where a GIF is written until it is finished; the directory listing never sees it.</summary>
     public const string PartialDirectoryName = ".rendering";
 
-    /// <param name="loadMap">Finds a map's baked bundle; the pipeline's loader when null.</param>
-    /// <param name="log">Line sink for the encoder choice, ffmpeg's stderr and a failed clip.</param>
-    /// <param name="render">Renders one clip request; the 2D export's runner when null.</param>
-    public LineupClipRenderer(Func<string, LoadedMapAsset?>? loadMap = null, Action<string>? log = null,
-        Func<Scene2DExportRequest, ExportSceneSetup, CancellationToken, Task>? render = null)
+    /// <param name="export">The host's scene export; null renders nothing.</param>
+    /// <param name="log">Line sink for the encoder choice, its own output and a failed clip.</param>
+    /// <param name="render">Renders one clip; the host's export when null.</param>
+    public LineupClipRenderer(IExtensionSceneExport? export = null, Action<string>? log = null,
+        Func<SceneExportClip, CancellationToken, Task<SceneExportOutcome>>? render = null)
     {
-        _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
         _log = log;
-        _render = render ?? ((request, setup, ct) => new SceneExportRunner(_ => setup, RenderSurfaceProviderFactory.CreateCpu,
-            static () => FirstPartySceneExport.ManagedFfmpegDirectory, _log, EncoderProbeCache.Shared).RunAsync(request, NoProgress.Instance, ct));
+        _render = render ?? (export is null
+            ? (_, _) => Task.FromResult(new SceneExportOutcome(SceneExportRefusal.Refused, NoExportRefusal))
+            : export.RenderAsync);
     }
 
     /// <summary>The unfinished GIF's path for <paramref name="gifPath" />.</summary>
@@ -1212,27 +1206,38 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
             throw new InvalidOperationException("Lineup clips render on the parse of the demo's visit.");
         }
 
-        using LoadedMapAsset? asset = SafeLoad(jobs[0].Map);
+        // One scene for every clip of the demo: the frame list is immutable post-parse, so the host replays
+        // the same one per clip without a second read.
+        SceneExportScene scene = new()
+        {
+            Frames = demo.Frames,
+            TickRate = demo.TickRate,
+            MapName = jobs[0].Map,
+            Palette = ScenePalette.Dark
+        };
 
-        ExportSceneSetup setup = new(demo.Frames, demo.TickRate, jobs[0].Map, ScenePalette.Dark,
-            LevelDisplayMode.Stacked, null, null, asset);
         List<LineupClipJob> rendered = [];
         foreach (LineupClipJob job in jobs)
         {
             ct.ThrowIfCancellationRequested();
-            if (LineupClipPlanner.BuildRequest(job, demo.Frames, demo.TickRate) is not { } request)
-            {
-                _log?.Invoke($"lineup clips: {job.Key} lies outside {demoPath}");
-                continue;
-            }
 
             // Rendered aside and renamed on success: a GIF at GifPath is a finished one, which Plan relies on.
             string partial = PartialPathFor(job.GifPath);
             try
             {
-                SceneExportSession.Validate(request.Core);
                 Directory.CreateDirectory(Path.GetDirectoryName(partial)!);
-                await _render(request with { OutputPath = partial }, setup, ct).ConfigureAwait(false);
+                SceneExportClip clip = LineupClipPlanner.BuildClip(job, scene) with
+                {
+                    OutputPath = partial,
+                    Log = _log
+                };
+
+                if (await _render(clip, ct).ConfigureAwait(false) is { Completed: false } refused)
+                {
+                    _log?.Invoke($"lineup clips: {job.Key} in {demoPath}: {refused.Message}");
+                    continue;
+                }
+
                 File.Move(partial, job.GifPath, true);
                 rendered.Add(job);
             }
@@ -1261,25 +1266,4 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
         }
     }
 
-    private LoadedMapAsset? SafeLoad(string map)
-    {
-        try
-        {
-            return _loadMap(map);
-        }
-        catch (Exception)
-        {
-            return null; // the grid, as a strat export without a bundle
-        }
-    }
-
-    // Nobody watches a background clip's progress; Progress<T> would post each report to the pool for nothing.
-    private sealed class NoProgress : IProgress<ExportProgress>
-    {
-        public static readonly NoProgress Instance = new();
-
-        public void Report(ExportProgress value)
-        {
-        }
-    }
 }

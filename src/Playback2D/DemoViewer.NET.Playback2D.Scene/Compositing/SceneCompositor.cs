@@ -1,12 +1,12 @@
 #region
 
 using System.Diagnostics;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Compositing;
+namespace DemoViewer.NET.Playback2D.Compositing;
 
 /// <summary>
 ///     Owns the layer stack, its draw order, and the picture caches. Layers are kept sorted by
@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 ///         cannot diverge.
 ///     </para>
 /// </summary>
-public sealed class SceneCompositor : IDisposable
+internal sealed class SceneCompositor : IDisposable
 {
     // Generous world-space cull for Static recordings: CS2 maps live well inside ±32768 world units.
     private static readonly SKRect WorldCullRect = new(-32768, -32768, 32768, 32768);
@@ -76,7 +76,7 @@ public sealed class SceneCompositor : IDisposable
     ///     the CLI, tests); set by <c>Scene2DHost</c>, and then every cache mutation debug-asserts that
     ///     the caller holds it.
     /// </summary>
-    public SceneRenderGate? Gate { get; set; }
+    internal SceneRenderGate? Gate { get; set; }
 
     /// <summary>Counters from the last completed render. Diagnostics and the bench harness.</summary>
     internal SceneCompositorStats Stats { get; private set; }
@@ -290,7 +290,7 @@ public sealed class SceneCompositor : IDisposable
     /// </summary>
     /// <param name="canvas">The host canvas, in host coordinates.</param>
     /// <param name="submission">Everything captured on the UI thread for this frame.</param>
-    public void Render(SKCanvas canvas, in SceneSubmission submission)
+    internal void Render(SKCanvas canvas, in SceneSubmission submission)
     {
         ArgumentNullException.ThrowIfNull(canvas);
 

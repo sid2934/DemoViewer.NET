@@ -1,11 +1,11 @@
 #region
 
 using System.Collections.Immutable;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Export;
+namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>
 ///     How the camera behaves for the whole export:

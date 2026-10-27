@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.Sdk;
-using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 
 #endregion
 
@@ -41,6 +41,6 @@ public static class RoundFactsClocks
     public static ClockIdentity ClockIdentity(this RoundFactsRows rows)
     {
         ArgumentNullException.ThrowIfNull(rows);
-        return rows.Clock?.ToIdentity() ?? Playback2D.Pipeline.Annotations.ClockIdentity.Unknown;
+        return rows.Clock?.ToIdentity() ?? Playback2D.Annotations.ClockIdentity.Unknown;
     }
 }

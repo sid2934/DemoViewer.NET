@@ -6,9 +6,7 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
@@ -17,13 +15,9 @@ using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Modules.Teams;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services;
-using DemoViewer.NET.Modules.Highlights;
-using DemoViewer.NET.Services.Export.Pack;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
-using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
@@ -66,8 +60,11 @@ public sealed class StratBookPack : IExtension
     /// <summary>The pack id. A persisted key (<c>DemoCacheRecord.Packs</c>, <c>SessionPayload.Packs</c>).</summary>
     public const string PackId = "net.demoviewer.pack.stratbook";
 
-    /// <summary>The Strat Export chip's id on the status strip.</summary>
-    public const string ExportChipId = "stratbook.export";
+    /// <summary>
+    ///     The Strat Export chip's id on the status strip. The host files an extension's export chip under the
+    ///     extension, so this is the name it gets rather than one the pack chooses.
+    /// </summary>
+    public const string ExportChipId = "ext." + PackId + ".export";
 
     /// <inheritdoc />
     public string Id => PackId;
@@ -225,8 +222,7 @@ public sealed class StratBookPack : IExtension
         // without a zones file, and every map on the browser host, answers "no zones" and the empirical
         // graph applies. Zone Baking itself (Services/Zones) is core; this adapter over it is the pack's,
         // since only the Round Index and the Strat Book read place graphs.
-        services.AddSingleton<IZonePlaceResolverSource>(sp =>
-            new AssetZonePlaceResolverSource(MapAssetBundleReader.FindBundleDirectory, () => Paths(sp).ZonesDirectory));
+        services.AddSingleton<IZonePlaceResolverSource>(_ => new AssetZonePlaceResolverSource());
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
@@ -315,7 +311,7 @@ public sealed class StratBookPack : IExtension
             // first-run wizard has not asked yet.
             TeamIdentityService teams = new(
                 new TeamIdentityFiles(StoredFile.In(StoresOf(sp).OpenFile(StratBookStores.Teams)),
-                    StoredFile.In(Host(sp).Storage, StoreRoot.Cache, TeamIdentityService.IndexFileName)),
+                    StoredFile.In(StoresOf(sp).Own(StoreRoot.Cache), TeamIdentityService.IndexFileName)),
                 Library(sp),
                 RoundFactsOf(sp),
                 Host(sp).Post,
@@ -383,7 +379,7 @@ public sealed class StratBookPack : IExtension
                 teams: sp.GetRequiredService<TeamIdentityService>(),
                 provenance: sp.GetRequiredService<IDemoProvenanceSource>(),
                 watched: sp.GetRequiredService<WatchedSituationsService>(),
-                review: sp.GetRequiredService<ReviewQueue>(),
+                review: Host(sp).Review,
                 // The canvas shows the "us" team's callouts (Callout Aliases) over
                 // the stored canonical place names; no team marked falls back to the me book, same as the
                 // Strat Book's own default.
@@ -403,10 +399,9 @@ public sealed class StratBookPack : IExtension
             IExtensionLibrary library = Library(sp);
             TeamIdentityService teams = sp.GetRequiredService<TeamIdentityService>();
             return new ReviewQueueTabViewModel(
-                sp.GetRequiredService<ReviewQueue>(),
+                Host(sp).Review,
                 () => sp.GetService<ISituationPlayback>(),
-                exportPack: sp.GetService<FirstPartyExports>()?.PackExport,
-                packDirectory: sp.GetService<FirstPartyExports>()?.ExportOutputDirectory,
+                packExport: Host(sp).PackExport,
                 mapOf: clip => (clip.Sha256 is { } sha ? library.FindBySha256(sha) : null)?.MapName
                                ?? library.Find(clip.DemoPath)?.MapName,
                 teamName: id => teams.AllTeams.FirstOrDefault(t => t.Id == id || t.MergedFrom.Contains(id))?.Name);
@@ -448,7 +443,7 @@ public sealed class StratBookPack : IExtension
             IExtensionLibrary library = Library(sp);
             return new TagMatrixTabViewModel(
                 sp.GetRequiredService<TagStore>(),
-                sp.GetRequiredService<ReviewQueue>(),
+                Host(sp).Review,
                 library.FindBySha256,
                 sp.GetRequiredService<TeamIdentityService>(),
                 tabId => Host(sp).Shell.SelectTab(tabId),
@@ -510,8 +505,7 @@ public sealed class StratBookPack : IExtension
         // Callout Aliases: one resolver builder over the store's tables and the map's
         // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
         // a nav place.
-        services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>(), MapAssetBundleReader.FindBundleDirectory,
-            () => Paths(sp).ZonesDirectory));
+        services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>()));
         // Strat Record Panel: the evidence rule over the Tag Store and Demo
         // Provenance Labels, one instance so the panel's live rebuild and any other future reader of a
         // strat's record agree on what "run / won / aborted" means.
@@ -566,16 +560,19 @@ public sealed class StratBookPack : IExtension
                 calloutResolvers: sp.GetRequiredService<CalloutResolverSource>(),
                 tags: sp.GetRequiredService<TagStore>(),
                 evidence: sp.GetRequiredService<StratEvidenceService>(),
-                review: sp.GetRequiredService<ReviewQueue>(),
+                review: Host(sp).Review,
                 indexBySha: library.FindBySha256,
                 selectTab: tabId => Host(sp).Shell.SelectTab(tabId),
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 mining: sp.GetRequiredService<StratMiningService>(),
                 playback: () => sp.GetService<ISituationPlayback>(),
-                spawns: new StratSpawnSource(map => StratSpawnSource.LoadShipped(map, Paths(sp).ZonesDirectory)),
+                spawns: new StratSpawnSource(),
                 layout: sp.GetRequiredService<StratBookLayout>(),
-                lineupMap: (map, asset) => UtilityBookFor(sp, map, asset),
-                canvasServices: canvasServices);
+                lineupMap: map => UtilityBookFor(sp, map),
+                canvasServices: canvasServices,
+                // Resolved at click time, so switching the pack off hides the button: null on the browser
+                // head, which exports nothing.
+                sceneExport: () => Host(sp).Features.IsEnabled(PackFeatureId) ? Host(sp).SceneExport : null);
         });
 
         // Create Strat From Round. Transient: the gate is read fresh on every
@@ -597,27 +594,6 @@ public sealed class StratBookPack : IExtension
                     Host(sp).Shell.SelectTab(StratBookModule.BrowserTabId);
                     sp.GetRequiredService<StratBookTabViewModel>().OpenStrat(id);
                 });
-        });
-
-        // Strat Export. No export on the browser: no ffmpeg, no files.
-        services.AddTransient<IStratExport>(sp =>
-        {
-            if (!Host(sp).Features.IsEnabled(PackFeatureId) || OperatingSystem.IsBrowser())
-            {
-                return null!;
-            }
-
-            IFirstPartyShellState shell = sp.GetRequiredService<IFirstPartyShellState>();
-            Func<bool> liveSyncBusy = () => shell.IsLiveSyncSessionActive;
-            Func<bool> reelRunning = () => shell.IsReelJobRunning;
-            FirstPartyExports? exports = sp.GetService<FirstPartyExports>();
-            return new StratExportHost(
-                exports is null ? null : (runner, log) => exports.NewJob(runner, liveSyncBusy, reelRunning, log),
-                liveSyncBusy,
-                reelRunning,
-                exports,
-                status => sp.GetRequiredService<IFirstPartyExportChips>().Mount(ExportChipId, PackFeatureId, status),
-                path => Host(sp).Shell.RevealInFileManager(path));
         });
 
         // J / K in 2D playback walk the Situations result set: the same lazy resolution as Find Rounds
@@ -666,14 +642,14 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 sp.GetRequiredService<GrenadeIndexEvaluator>(),
                 Host(sp).Post,
-                lineups: GrenadeLineupStore.In(Host(sp).Storage,
+                lineups: GrenadeLineupStore.In(StoresOf(sp).Own(StoreRoot.Cache),
                     () => StoresOf(sp).OpenFile(StratBookStores.GrenadeLineups)?.Read()),
                 scheduleSave: drain => Job(sp, "Save: grenade lineups", drain,
                     new JobOptions(BuiltInJobKinds.Save, Key: "save:grenade-lineups")));
             sp.GetRequiredService<StratBookPackInstances>().Record(index);
             return index;
         });
-        services.AddSingleton(sp => UtilityBookFor(sp, null, null));
+        services.AddSingleton(sp => UtilityBookFor(sp, null));
 
         // The Opponent Dossier's veto history: manual entry only, beside teams.json. No file (the
         // browser) keeps entries in memory for the session.
@@ -700,7 +676,7 @@ public sealed class StratBookPack : IExtension
                     RoundFactsOf(sp),
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
-                review: sp.GetRequiredService<ReviewQueue>(),
+                review: Host(sp).Review,
                 selectTab: tabId => Host(sp).Shell.SelectTab(tabId),
                 openings: new OpeningTendenciesService(
                     sp.GetRequiredService<TeamIdentityService>(),
@@ -738,7 +714,7 @@ public sealed class StratBookPack : IExtension
                 () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
                 StoresOf(sp).Open(StratBookStores.LineupClips)?.Path,
                 () => settings.RenderLineupClips,
-                new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
+                new LineupClipRenderer(Host(sp).SceneExport, line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
                 complete: () => index.IsReady,
                 maxBytes: () => settings.LineupClipsMaxMegabytes * 1024L * 1024L,
@@ -762,10 +738,7 @@ public sealed class StratBookPack : IExtension
         load => Job(sp, title, load, new JobOptions(BuiltInJobKinds.Load, JobPriority.UserRequested));
 
     // The pack's host context: the SDK's way into the shell, the gate, the queue and the UI thread.
-    private static IExtensionContext Host(IServiceProvider sp) => sp.GetExtensionContext(PackId);
-
-    // The app's zones overlay folder, the one thing the pack reads of the app that is not a store of its own.
-    private static FirstPartyHost Paths(IServiceProvider sp) => sp.GetRequiredService<FirstPartyHost>();
+    private static IExtensionContext Host(IServiceProvider sp) => sp.GetExtensionContext<StratBookPack>();
 
     // The pack's declared stores: where the user's own work already lives, from before extensions had
     // folders of their own, each handed out by the host as a folder or a file. Null (the browser) keeps a
@@ -797,12 +770,12 @@ public sealed class StratBookPack : IExtension
     // user's dismissed and promoted patterns are copied once from where an older build kept them.
     private static StratMiningFiles MiningFiles(IServiceProvider sp)
     {
-        IExtensionStorage storage = Host(sp).Storage;
+        IExtensionStores stores = StoresOf(sp);
         return new StratMiningFiles(
-            StoredFile.In(storage, StoreRoot.Cache, StratMiningFiles.DetectedPath),
-            StoredFile.In(storage, StoreRoot.Cache, StratMiningFiles.SignaturesPath),
-            StoredFile.In(storage, StoreRoot.Config, StratMiningFiles.StatePath,
-                () => StoresOf(sp).OpenFile(StratBookStores.StratMiningState)?.Read()));
+            StoredFile.In(stores.Own(StoreRoot.Cache), StratMiningFiles.DetectedPath),
+            StoredFile.In(stores.Own(StoreRoot.Cache), StratMiningFiles.SignaturesPath),
+            StoredFile.In(stores.Own(StoreRoot.Config), StratMiningFiles.StatePath,
+                () => stores.OpenFile(StratBookStores.StratMiningState)?.Read()));
     }
 
     // The demo library, read only.
@@ -987,7 +960,7 @@ public sealed class StratBookPack : IExtension
         bool reviewOn = reviewGate.IsEnabled(ReviewQueueModule.TabFeatureId);
         contributions.Tabs(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
             () => reviewGate.IsEnabled(ReviewQueueModule.TabFeatureId),
-            reviewOn ? sp.GetRequiredService<ReviewQueue>() : null,
+            reviewOn ? Host(sp).Review : null,
             reviewGate));
 
         // The Suggested section. The badge reads the demo index, so it counts before the section opens.
@@ -1013,9 +986,9 @@ public sealed class StratBookPack : IExtension
     }
 
     // The Utility Book tab, and the Strat Book's lineup picker (locked to the strat's map): the same index,
-    // clip directory and queue section, so the picker shows what the tab shows. The picker draws the strat
-    // canvas's bundle instead of decoding its own; the canvas keeps it.
-    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap, IMapAsset? sharedAsset)
+    // clip directory and queue section, so the picker shows what the tab shows. The picker takes its own
+    // hold on the map bundle, which is the canvas's decode.
+    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap)
     {
         IExtensionLibrary library = Library(sp);
         return new UtilityBookTabViewModel(
@@ -1026,9 +999,7 @@ public sealed class StratBookPack : IExtension
             background: work => _ = Job(sp, lockedMap is null ? "Utility Book" : "Lineup picker", work,
                 new JobOptions(Key: lockedMap is null ? "section:utility" : "section:lineup-picker", Preemptible: true)),
             post: Host(sp).Post,
-            lockedMap: lockedMap,
-            loadMapAsset: lockedMap is null ? null : _ => sharedAsset,
-            ownsMapAsset: lockedMap is null);
+            lockedMap: lockedMap);
     }
 
 }

@@ -1,8 +1,8 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Vision;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Pipeline.Layers;
+using DemoViewer.NET.Playback2D.Vision;
 
 #endregion
 

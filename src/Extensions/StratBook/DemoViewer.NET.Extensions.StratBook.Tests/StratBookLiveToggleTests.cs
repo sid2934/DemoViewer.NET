@@ -10,7 +10,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -351,7 +351,8 @@ public class StratBookLiveToggleTests
             }
 
             // Still live: the lineups the reload minted (their save item is held) reach disk at shutdown.
-            string lineups = Path.Combine(AppPaths.DemoCacheDir!, ExtensionFolders.DataDirectoryName, StratBookPack.PackId, GrenadeLineupStore.FileName);
+            string lineups = Path.Combine(AppPaths.DemoCacheDir!, ExtensionFolders.DataDirectoryName, StratBookPack.PackId,
+                ExtensionFolders.OwnCacheDirectoryName, GrenadeLineupStore.FileName);
             await Assert.That(File.Exists(lineups)).IsFalse().Because("every save item is held; only a flush writes");
             provider.GetRequiredKeyedService<IExtensionLifecycle>(Pack.Id).OnShutdown(TimeSpan.FromSeconds(5));
             await Assert.That(File.Exists(lineups)).IsTrue().Because("shutdown flushed a live index, not a released one");
@@ -452,7 +453,8 @@ public class StratBookLiveToggleTests
             await packs.Pending;
             GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
             IExtensionLifecycle lifecycle = provider.GetRequiredKeyedService<IExtensionLifecycle>(Pack.Id);
-            string lineups = Path.Combine(AppPaths.DemoCacheDir!, ExtensionFolders.DataDirectoryName, StratBookPack.PackId, GrenadeLineupStore.FileName);
+            string lineups = Path.Combine(AppPaths.DemoCacheDir!, ExtensionFolders.DataDirectoryName, StratBookPack.PackId,
+                ExtensionFolders.OwnCacheDirectoryName, GrenadeLineupStore.FileName);
 
             // The user quits right after switching off: the cancel ran, the release is still queued.
             queue.Defer = true;

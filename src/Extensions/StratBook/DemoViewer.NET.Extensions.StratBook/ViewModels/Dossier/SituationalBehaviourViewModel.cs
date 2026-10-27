@@ -4,7 +4,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
@@ -27,7 +27,7 @@ public sealed partial class SituationalBehaviourSectionViewModel : ObservableObj
 {
     private readonly Func<Action, Task> _run;
     private readonly Action<Action> _post;
-    private readonly ReviewQueue? _review;
+    private readonly IExtensionReviewQueue? _review;
     private readonly Func<string, bool>? _selectTab;
     private readonly SituationalBehaviourService? _service;
 
@@ -53,7 +53,7 @@ public sealed partial class SituationalBehaviourSectionViewModel : ObservableObj
     /// <param name="selectTab">Shows a tab by id, for the Review tab after a send; null stays on the Dossier.</param>
     /// <param name="post">UI-thread marshal for the worker's result.</param>
     /// <param name="run">Runs the build: a processing-queue item in the app, the pool when null.</param>
-    public SituationalBehaviourSectionViewModel(SituationalBehaviourService? service, ReviewQueue? review,
+    public SituationalBehaviourSectionViewModel(SituationalBehaviourService? service, IExtensionReviewQueue? review,
         Func<string, bool>? selectTab, Action<Action> post, Func<Action, Task>? run = null)
     {
         ArgumentNullException.ThrowIfNull(post);

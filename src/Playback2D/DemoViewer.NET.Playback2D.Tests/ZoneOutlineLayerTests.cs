@@ -3,11 +3,12 @@
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Pipeline.Layers;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Zones;
 using SkiaSharp;
 using TUnit.Assertions.Enums;
 

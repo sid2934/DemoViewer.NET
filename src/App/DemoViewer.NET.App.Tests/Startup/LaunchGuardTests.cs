@@ -92,12 +92,14 @@ public class LaunchGuardTests
         {
             System.Reflection.Assembly entry = context.LoadFromAssemblyPath(Path.Combine(bin, "DemoViewer.NET.Extensions.StratBook.dll"));
             System.Reflection.Assembly dependency = context.LoadFromAssemblyPath(Path.Combine(bin, "DemoViewer.NET.Extensions.Sdk.dll"));
+            // Closed over the pack type from the same load context, so the SDK copy there is the one that throws.
             System.Reflection.MethodInfo throws = dependency.GetType("DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions")!
-                .GetMethod("GetExtensionContext")!;
+                .GetMethod("GetExtensionContext")!
+                .MakeGenericMethod(entry.GetType("DemoViewer.NET.Extensions.StratBook.StratBookPack")!);
             Exception thrown;
             try
             {
-                throws.Invoke(null, [null, "x"]);
+                throws.Invoke(null, [null]);
                 throw new InvalidOperationException("expected a throw");
             }
             catch (System.Reflection.TargetInvocationException ex)

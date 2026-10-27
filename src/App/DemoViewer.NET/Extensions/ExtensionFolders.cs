@@ -7,6 +7,13 @@ internal static class ExtensionFolders
     public const string DataDirectoryName = "extension-data";
 
     /// <summary>
+    ///     The subfolder of an extension's cache folder that <see cref="IExtensionStores.Own" /> hands out. The
+    ///     cache folder itself also holds <see cref="ExtensionDemoDataStore.DirectoryName" />, which is the
+    ///     host's, so the extension is given a sibling of it rather than the folder they share.
+    /// </summary>
+    public const string OwnCacheDirectoryName = "files";
+
+    /// <summary>
     ///     <paramref name="name" /> when it is safe as one path segment: letters, digits, '.', '-' and '_', at
     ///     most 128 characters, and not made of dots alone. Anything else throws, so no extension id or
     ///     facet name can climb out of the folder it names.

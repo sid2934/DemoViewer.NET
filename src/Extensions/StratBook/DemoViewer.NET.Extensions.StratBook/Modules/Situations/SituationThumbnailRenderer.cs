@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using SkiaSharp;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 ///         placeholder, and the only demo open in the Situations tab is the one the user clicked.
 ///     </para>
 ///     <para>
-///         One instance serves one batch: map bundles are loaded once per map and held until
+///         One instance serves one batch: one hold per map is taken and given back at
 ///         <see cref="Dispose" />, since forty hits are typically ten to twenty demos on a handful of
 ///         maps. Not thread-safe; the cards VM drives it from one worker.
 ///     </para>
@@ -33,13 +33,13 @@ public sealed class SituationThumbnailRenderer : IDisposable
     /// <summary>The thumbnail size: sixteen by nine at a card's width. The golden is named for it.</summary>
     public static readonly SKSizeI Size = new(320, 180);
 
-    private readonly Dictionary<string, IMapAsset?> _assets = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<string, IMapAsset?> _loadMapAsset;
+    private readonly Dictionary<string, IMapAssetLease?> _assets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<string, IMapAssetLease?> _loadMapAsset;
     private bool _disposed;
 
-    /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader in the app, a stub in a test.</param>
-    public SituationThumbnailRenderer(Func<string, IMapAsset?>? loadMapAsset = null) =>
-        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
+    /// <param name="loadMapAsset">Takes a hold on a map's baked bundle; the app's lease registry, a stub in a test.</param>
+    public SituationThumbnailRenderer(Func<string, IMapAssetLease?>? loadMapAsset = null) =>
+        _loadMapAsset = loadMapAsset ?? MapAssets.Acquire;
 
     /// <inheritdoc />
     public void Dispose()
@@ -50,9 +50,9 @@ public sealed class SituationThumbnailRenderer : IDisposable
         }
 
         _disposed = true;
-        foreach (IMapAsset? asset in _assets.Values)
+        foreach (IMapAssetLease? lease in _assets.Values)
         {
-            asset?.Dispose();
+            lease?.Dispose();
         }
 
         _assets.Clear();
@@ -173,9 +173,9 @@ public sealed class SituationThumbnailRenderer : IDisposable
         };
     }
 
-    private IMapAsset? AssetFor(string map)
+    private IMapAssetLease? AssetFor(string map)
     {
-        if (!_assets.TryGetValue(map, out IMapAsset? asset))
+        if (!_assets.TryGetValue(map, out IMapAssetLease? asset))
         {
             asset = _loadMapAsset(map);
             _assets[map] = asset;

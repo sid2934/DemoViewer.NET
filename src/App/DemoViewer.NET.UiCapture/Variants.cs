@@ -1549,7 +1549,7 @@ public static partial class Variants
 
         public ExtensionManifest Manifest => new(
             Id, "Future Book", new SemVersion(1, 2, 0), "DemoViewer.NET.Extensions.FutureBook.dll",
-            "DemoViewer.NET.Extensions.FutureBook.FutureBookPack", VersionRange.Parse("^2.0"), VersionRange.Any);
+            "DemoViewer.NET.Extensions.FutureBook.FutureBookPack", VersionRange.Parse("^3.0"), VersionRange.Any);
 
         public IEnumerable<ExtensionFeature> Features => [];
 

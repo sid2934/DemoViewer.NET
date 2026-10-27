@@ -3,8 +3,8 @@
 using System.Globalization;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 #endregion

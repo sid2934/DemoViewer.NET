@@ -10,9 +10,9 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Layers;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Layers;
 
 #endregion
 
@@ -31,6 +31,10 @@ public partial class StratCanvasView : UserControl
     private readonly Border? _dragLabel;
     private readonly Canvas? _textEditorLayer;
     private readonly TextBox? _textEditor;
+
+    // The id the host filed our token tool under. The tool row names ToolKind.Token, which reaches the
+    // scene's own tools only, so this is what a token selection has to be turned into.
+    private readonly string? _tokenToolId;
 
     private StratCanvasViewModel? _bound;
     private bool _editingText;
@@ -58,7 +62,7 @@ public partial class StratCanvasView : UserControl
         // The strat canvas's own tool and layer: the guides are read off whichever canvas is bound at the time.
         if (_scene is not null)
         {
-            _scene.AddTool(new TokenTool());
+            _tokenToolId = _scene.AddTool(new TokenTool()).ToolId;
             _scene.AddLayer(SceneLayerIds.Guides, () => new GuideLayer(() => _bound?.Guides ?? SceneGuides.None));
         }
 
@@ -127,7 +131,8 @@ public partial class StratCanvasView : UserControl
 
     private void OnKeymapChanged() => _bound?.RefreshKeymap();
 
-    private void OnToolSelected(ToolKind kind) => _scene?.SetActiveTool(kind);
+    private void OnToolSelected(ToolKind kind) =>
+        _scene?.SetActiveTool(kind == ToolKind.Token ? _tokenToolId ?? "" : ToolIds.Of(kind));
 
     private void OnFitClick(object? sender, RoutedEventArgs e) => _scene?.Fit();
 

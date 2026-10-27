@@ -1,8 +1,10 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
@@ -220,7 +222,7 @@ public class StratRecordPanelTests
             Cache = new DemoCacheStore(null);
             Queue = new ReviewQueue(null);
             StratEvidenceService evidence = new(Tags, new FixedProvenance(Provenance));
-            Panel = new StratRecordPanelViewModel(evidence, Tags, Queue, Cache.Library().FindBySha256,
+            Panel = new StratRecordPanelViewModel(evidence, Tags, new ExtensionReviewQueue(Queue), Cache.Library().FindBySha256,
                 tab =>
                 {
                     SelectedTabs.Add(tab);

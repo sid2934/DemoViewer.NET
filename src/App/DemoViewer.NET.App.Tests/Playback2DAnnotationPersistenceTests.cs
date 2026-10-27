@@ -3,7 +3,7 @@
 using System.Runtime.CompilerServices;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
-using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 #endregion

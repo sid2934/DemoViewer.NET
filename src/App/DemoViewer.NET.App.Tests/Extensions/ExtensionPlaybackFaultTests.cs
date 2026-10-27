@@ -7,7 +7,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Timeline;
 using Sdk = DemoViewer.NET.Extensions.Sdk.Playback;
 using TUnit.Assertions.Enums;
 
@@ -106,7 +106,7 @@ public class ExtensionPlaybackFaultTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(lanes).Contains("pack.fake.track").Because("a throwing Id reads as the extension's fallback id");
+            await Assert.That(lanes).Contains("ext.pack.fake.track").Because("a throwing Id reads as the extension's fallback id");
             await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsGreaterThanOrEqualTo(1);
         }
 
@@ -162,7 +162,7 @@ public class ExtensionPlaybackFaultTests
         }
     }
 
-    private sealed class ThrowingTrack : Sdk.ITimelineTrack
+    private sealed class ThrowingTrack : ITimelineTrack
     {
         public string Id => throw new InvalidOperationException("id");
         public string DisplayName => "Throwing";
@@ -173,9 +173,11 @@ public class ExtensionPlaybackFaultTests
             remove { }
         }
 
-        public bool IsAvailable(Sdk.ITimelineData data) => true;
+        public bool IsAvailable(ITimelineData data) => true;
 
-        public IReadOnlyList<Sdk.TimelineBand> BuildBands(Sdk.ITimelineData data) => throw new InvalidOperationException("bands");
+        public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => throw new InvalidOperationException("markers");
+
+        public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => throw new InvalidOperationException("bands");
     }
 
     private sealed class ThrowingLane : Sdk.ILaneBehaviour

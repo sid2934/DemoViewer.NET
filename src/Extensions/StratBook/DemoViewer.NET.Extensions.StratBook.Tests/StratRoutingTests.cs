@@ -5,12 +5,11 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
-using DemoViewer.NET.Services.Zones;
 using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
@@ -34,9 +33,11 @@ public class StratRoutingTests
     private static readonly Lazy<ZonePlaceResolverAdapter?> Dust2 = new(() => Load("de_dust2"));
     private static readonly Lazy<ZonePlaceResolverAdapter?> Nuke = new(() => Load("de_nuke"));
 
-    internal static ZonePlaceResolverAdapter? Load(string map) => new AssetZonePlaceResolverSource(MapAssetBundleDir, () => null).TryGet(map) as ZonePlaceResolverAdapter;
-
-    private static string? MapAssetBundleDir(string map) => MapAssetBundleReader.FindBundleDirectory(map);
+    internal static ZonePlaceResolverAdapter? Load(string map)
+    {
+        using AssetZonePlaceResolverSource source = new();
+        return source.TryGet(map) as ZonePlaceResolverAdapter;
+    }
 
     private static ZonePlaceResolverAdapter Map(Lazy<ZonePlaceResolverAdapter?> map) =>
         map.Value ?? throw new SkipTestException("no committed zones for this map in this checkout");

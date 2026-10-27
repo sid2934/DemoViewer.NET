@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>
 ///     Per-slice camera state for the 2D viewport (#1/#2). One of these exists per rendered floor slice, so

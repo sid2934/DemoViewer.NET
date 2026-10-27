@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>
 ///     A level's stable identity, minted from its quantized lower Z (<see cref="MapSpace.QuantizeZ" />)

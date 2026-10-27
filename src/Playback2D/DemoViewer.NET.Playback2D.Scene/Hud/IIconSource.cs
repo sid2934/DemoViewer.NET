@@ -4,7 +4,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Hud;
+namespace DemoViewer.NET.Playback2D.Hud;
 
 /// <summary>
 ///     Supplies rasterised icon artwork to HUD layers.

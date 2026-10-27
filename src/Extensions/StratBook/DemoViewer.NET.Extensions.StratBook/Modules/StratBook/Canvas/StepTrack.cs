@@ -3,7 +3,7 @@
 using System.Globalization;
 using System.Text;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
@@ -34,7 +34,7 @@ public sealed class StepTrack : ITimelineTrack
     public string DisplayName => "Steps";
 
     /// <inheritdoc />
-    public event Action? MarkersChanged;
+    public event Action? Changed;
 
     /// <inheritdoc />
     public bool IsAvailable(ITimelineData data) => _markers.Count > 0;
@@ -45,7 +45,7 @@ public sealed class StepTrack : ITimelineTrack
     /// <inheritdoc />
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => _bands;
 
-    /// <summary>Re-reads a projection: one marker and one band per path step. Raises <see cref="MarkersChanged" />.</summary>
+    /// <summary>Re-reads a projection: one marker and one band per path step. Raises <see cref="Changed" />.</summary>
     /// <param name="projection">The canvas's projection, or null for no strat.</param>
     /// <param name="document">The open strat, whose branches put forks on the steps.</param>
     /// <param name="callouts">The owner's words for the map's places, for the tooltips.</param>
@@ -84,6 +84,6 @@ public sealed class StepTrack : ITimelineTrack
 
         _markers = markers;
         _bands = bands;
-        MarkersChanged?.Invoke();
+        Changed?.Invoke();
     }
 }

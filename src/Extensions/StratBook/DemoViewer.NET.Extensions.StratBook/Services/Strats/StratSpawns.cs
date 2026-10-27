@@ -1,9 +1,8 @@
 #region
 
-using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Zones;
 
 #endregion
 
@@ -157,9 +156,9 @@ public sealed class StratSpawnSource
     private readonly Lock _gate = new();
     private readonly Dictionary<string, Task<StratSpawns?>> _maps = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Reads the shipped bundle's zones with no user overlay, keyed on the bundle's floors.</summary>
+    /// <summary>Reads the shipped bundle's zones through the app's map art, keyed on the bundle's floors.</summary>
     public StratSpawnSource()
-        : this(map => LoadShipped(map, null))
+        : this(map => LoadShipped(map))
     {
     }
 
@@ -198,19 +197,18 @@ public sealed class StratSpawnSource
         }
     }
 
-    /// <summary>A map's spawns from its bundle directory, levels keyed the way the strat canvas draws them.</summary>
+    /// <summary>A map's spawns from its shipped art, levels keyed the way the strat canvas draws them.</summary>
     /// <param name="map">The map.</param>
-    /// <param name="overlayDirectory">The user's zones overlay folder, or null for none.</param>
-    public static StratSpawns? LoadShipped(string map, string? overlayDirectory)
+    /// <param name="acquire">Takes a hold on the map's art; null uses the app's own registry.</param>
+    public static StratSpawns? LoadShipped(string map, Func<string, IMapAssetLease?>? acquire = null)
     {
-        string? dir = MapAssetBundleReader.FindBundleDirectory(map);
-        if (ZoneAssetPipeline.Load(dir, overlayDirectory).Resolver?.Zones is not { } zones)
+        using IMapAssetLease? lease = (acquire ?? MapAssets.Acquire)(map);
+        if (lease?.RefreshZones()?.Zones is not { } zones)
         {
             return null;
         }
 
-        IEnumerable<FloorSlice>? floors = dir is null ? null : MapAssetBundleReader.TryRead(dir)?.Floors?.Select(f => new FloorSlice(f.MinZ, f.MaxZ));
-        return StratSpawns.From(zones, StratFromRound.FloorLevelKeys(floors));
+        return StratSpawns.From(zones, StratFromRound.FloorLevelKeys(lease.Floors));
     }
 
     /// <summary>Starts a map's load without waiting.</summary>

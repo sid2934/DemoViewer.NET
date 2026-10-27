@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Cameras;
+using DemoViewer.NET.Playback2D.Cameras;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>
 ///     One pane covering the whole host, showing exactly one level.
@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 ///         view's "highest floor on top" reading order rather than silently showing a basement.
 ///     </para>
 /// </summary>
-public sealed class SingleLayout : ILevelLayoutPolicy
+internal sealed class SingleLayout : ILevelLayoutPolicy
 {
     private readonly List<LevelPane> _arranged = [];
     private MapLevelId _activeLevelId = MapLevelId.None;

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Compositing;
+namespace DemoViewer.NET.Playback2D.Compositing;
 
 /// <summary>
 ///     Serializes the UI thread's advance-and-submit against the render thread's draw op.
@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Playback2D.Core.Compositing;
 ///         <see cref="SceneCompositor.Gate" /> null: single-threaded callers have nothing to serialize.
 ///     </para>
 /// </summary>
-public sealed class SceneRenderGate
+internal sealed class SceneRenderGate
 {
     private readonly Lock _lock = new();
 

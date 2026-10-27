@@ -6,9 +6,8 @@ using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
@@ -300,8 +299,7 @@ public class WatchedSituationsTests
         using Harness h = new();
         // The real clock here: a demo indexed before the watch is seen, one indexed after it is new.
         using WatchedSituationsService service = new(null, h.Index, h.Cache.Library());
-        using QueryCanvasViewModel canvas = new(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null,
-            dispose => dispose());
+        using QueryCanvasViewModel canvas = new(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null);
         using WatchedSituationsViewModel list = new(service, canvas);
         List<SituationHit> searched = [];
         canvas.Searched += searched.AddRange;

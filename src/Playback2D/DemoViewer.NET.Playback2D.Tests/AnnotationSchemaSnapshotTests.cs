@@ -2,7 +2,7 @@
 
 using System.Text;
 using System.Text.Json;
-using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;

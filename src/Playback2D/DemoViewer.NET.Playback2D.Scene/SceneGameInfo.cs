@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>
 ///     Round-level state read once per frame off <c>CCSGameRulesProxy</c> plus the two playing

@@ -5,7 +5,7 @@
       in the host goes through the interfaces here, which the app implements. Of Playback2D it references only
       the published scene contract, which a playback contribution draws and points with.
       Its public API is pinned by PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt, and the assembly version
-      is Major.0.0.0 (version.json), so an extension built against any 1.x binds to every 1.x host.
+      is Major.0.0.0 (version.json), so an extension built against any 2.x binds to every 2.x host.
     -->
     <PropertyGroup>
         <RootNamespace>DemoViewer.NET.Extensions.Sdk</RootNamespace>
@@ -30,6 +30,8 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="DemoViewer.NET"/>
+        <!-- The projected ReviewClip and ReviewPackPlan are set host-side; their tests live there. -->
+        <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
     </ItemGroup>
 
     <ItemGroup>

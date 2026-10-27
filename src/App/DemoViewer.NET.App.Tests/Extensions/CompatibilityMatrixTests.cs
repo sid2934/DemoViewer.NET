@@ -159,8 +159,9 @@ public class CompatibilityMatrixTests
 
         using (Assert.Multiple())
         {
-            // The derivation did not silently come back empty or miss a whole family.
-            await Assert.That(verified.Select(r => r.Name!)).Contains("DemoViewer.NET");
+            // The derivation did not silently come back empty or miss a whole family. The canary is the
+            // SDK, not DemoViewer.NET: the pack stopped referencing the app assembly, which is the point.
+            await Assert.That(verified.Select(r => r.Name!)).Contains("DemoViewer.NET.Extensions.Sdk");
             await Assert.That(verified.Select(r => r.Name!)).Contains("CommunityToolkit.Mvvm");
             await Assert.That(verified.Any(r => r.Name!.StartsWith("CS2DemoKit.", StringComparison.Ordinal))).IsTrue();
             await Assert.That(verified.Any(r => r.Name!.StartsWith("Avalonia", StringComparison.Ordinal))).IsTrue();

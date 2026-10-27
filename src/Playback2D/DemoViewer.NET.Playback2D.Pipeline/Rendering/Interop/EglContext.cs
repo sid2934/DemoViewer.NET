@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Rendering.Interop;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering.Interop;
 
 /// <summary>
 ///     One live, current EGL context and the 1×1 pbuffer it draws nothing into.

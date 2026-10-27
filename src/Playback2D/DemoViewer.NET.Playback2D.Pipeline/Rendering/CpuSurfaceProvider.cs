@@ -4,7 +4,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Rendering;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering;
 
 /// <summary>
 ///     Software-raster surfaces. Always available, no native dependency beyond SkiaSharp itself, and it

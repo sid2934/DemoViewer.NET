@@ -4,8 +4,8 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DemoViewer.NET.Playback2D.Core.Overlay;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Overlay;
+using DemoViewer.NET.Playback2D.Query;
 
 #endregion
 

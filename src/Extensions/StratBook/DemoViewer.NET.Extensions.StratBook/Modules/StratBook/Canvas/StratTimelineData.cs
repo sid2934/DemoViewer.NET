@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Timeline;
 
 #endregion
 

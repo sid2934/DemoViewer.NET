@@ -1,11 +1,12 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Input;
+namespace DemoViewer.NET.Playback2D.Pipeline.Input;
 
 /// <summary>
 ///     Freehand ink. Press opens an undo mark, moves accumulate raw samples into the session's wet
@@ -26,6 +27,9 @@ public sealed class DrawTool : IPointerTool
     // batch is spread across. It lives on the tool rather than on the wet stroke because it tracks
     // EVENTS, and the wet stroke only ever sees the samples the spacing filter kept.
     private long _lastEventMs;
+
+    /// <inheritdoc />
+    public string Id => ToolIds.Of(ToolKind.Draw);
 
     /// <inheritdoc />
     public ToolKind Kind => ToolKind.Draw;

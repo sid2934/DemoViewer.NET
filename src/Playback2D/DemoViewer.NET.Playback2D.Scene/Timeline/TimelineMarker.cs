@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Timeline;
+namespace DemoViewer.NET.Playback2D.Timeline;
 
 /// <summary>
 ///     A point event on the timeline. ARGB 0 = "use the track/kind default" (the host themes it): a track
@@ -27,4 +27,13 @@ public readonly record struct TimelineBand(
     int EndFrameIndex,
     string Label,
     string Tooltip,
-    uint Argb);
+    uint Argb)
+{
+    /// <summary>
+    ///     Which sub-lane of the track's row the band belongs in, 0 for the track's own. For a track that
+    ///     wants per-category lanes, the Tag Store one per code, instead of merging overlapping spans into
+    ///     one run. No renderer stacks lanes yet, so a non-zero value draws in the track's row like any
+    ///     other band and overlapping bands overdraw: keep the merge until one does.
+    /// </summary>
+    public int Lane { get; init; }
+}

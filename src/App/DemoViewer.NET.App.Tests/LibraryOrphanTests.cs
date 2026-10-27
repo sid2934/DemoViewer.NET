@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Services.DemoCache;
 using static DemoViewer.NET.AppTests.DemoLibraryScanTests;
 using static DemoViewer.NET.AppTests.LibraryFingerprintTests;
@@ -150,9 +150,9 @@ public class LibraryOrphanTests
 
             await svc.AddFoldersAsync([keep, away]);
             await svc.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
-            await WaitForAsync(() => library.Store.TryGetByContentId(sha) is not null && svc.Tier2Backlog().Count == 0
-                                                                                     && svc.Entries.Count == 2,
-                "both demos indexed");
+            await library.Queue.IdleAsync("both demos indexed",
+                () => library.Store.TryGetByContentId(sha) is not null && svc.Tier2Backlog().Count == 0
+                                                                      && svc.Entries.Count == 2, 30000);
             await svc.RemoveFolderAsync(away);
             await WaitForAsync(() => svc.Entries.Count == 1, "the folder's card gone");
 
@@ -162,8 +162,10 @@ public class LibraryOrphanTests
             await Assert.That(library.Store.HoldsContent(sha)).IsFalse();
 
             await svc.AddFoldersAsync([away]);
-            await WaitForAsync(() => library.Parses.GetValueOrDefault(demo) == 2 && svc.Tier2Backlog().Count == 0,
-                "the demo parsed again");
+            // The re-parse and the backlog drain are both the queue's work, so wait on the queue going idle
+            // with the condition true rather than on a wall-clock deadline over background work.
+            await library.Queue.IdleAsync("the demo parsed again",
+                () => library.Parses.GetValueOrDefault(demo) == 2 && svc.Tier2Backlog().Count == 0, 30000);
             await Assert.That(library.Store.TryGetByContentId(sha)).IsNotNull();
         }
         finally

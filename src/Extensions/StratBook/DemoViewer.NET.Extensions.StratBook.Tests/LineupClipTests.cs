@@ -3,13 +3,12 @@
 using CS2DemoKit.Parser;
 using CS2OpenSchema.Protos;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Export;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using TUnit.Assertions.Enums;
 
@@ -393,45 +392,56 @@ public class LineupClipTests
     }
 
     [Test]
-    public async Task BuildRequest_IsAValidGif_OverTheResolvedFrames_FollowingTheThrower()
+    public async Task BuildClip_IsAValidGif_OverTheResolvedFrames_FollowingTheThrower()
     {
         LineupClipJob job = LineupClipPlanner.PlanAll([TwoLineups()], Directory, _ => false)[0];
-        DemoFrame[] frames = Frames(0, 2000);
+        SceneExportClip clip = LineupClipPlanner.BuildClip(job, Scene(Frames(0, 2000)));
 
-        Scene2DExportRequest? request = LineupClipPlanner.BuildRequest(job, frames, 64);
+        await Assert.That(clip.OutputPath).IsEqualTo(job.GifPath);
+        await Assert.That(clip.DemoPath).IsEqualTo(job.DemoPath);
+        await Assert.That(clip.FormatId).IsEqualTo(ExportFormats.Gif);
+        await Assert.That(clip.Fps).IsEqualTo(LineupClipPlanner.Fps);
+        await Assert.That(clip.Width).IsEqualTo(LineupClipPlanner.Side);
+        await Assert.That(clip.Height).IsEqualTo(LineupClipPlanner.Side);
+        await Assert.That(clip.FollowSteamId).IsEqualTo(76561198000000001UL);
 
+        // The host resolves the tick range against the demo's own frames.
+        Scene2DExportRequest? request = SceneExportScenes.Resolve(clip, clip.Scene.Frames);
         await Assert.That(request).IsNotNull();
-        await Assert.That(request!.OutputPath).IsEqualTo(job.GifPath);
-        await Assert.That(request.DemoPath).IsEqualTo(job.DemoPath);
-        await Assert.That(request.DemoStartFrame).IsEqualTo(936);
+        await Assert.That(request!.DemoStartFrame).IsEqualTo(936);
         await Assert.That(request.DemoEndFrame).IsEqualTo(1196);
-        await Assert.That(request.Core.FormatId).IsEqualTo(ExportFormats.Gif);
-        await Assert.That(request.Core.Fps).IsEqualTo(LineupClipPlanner.Fps);
-        await Assert.That(request.Core.Size.Width).IsEqualTo(LineupClipPlanner.Side);
-        await Assert.That(request.Core.Size.Height).IsEqualTo(LineupClipPlanner.Side);
 
         // 260 ticks at 3.2 ticks per output frame: the source's own arithmetic, 82 frames.
         await Assert.That(request.Core.FrameCount).IsEqualTo(82);
         await Assert.That(request.Core.Camera).IsEqualTo(new CameraScript.FollowPlayer(76561198000000001UL));
+
+        // Empty, not null: the runner reads empty as the default scene with nothing opt-in.
+        await Assert.That(request.Core.LayerIds).IsEmpty();
         SceneExportSession.Validate(request.Core);
     }
 
     [Test]
-    public async Task BuildRequest_ClampsToTheDemo_AndRefusesARangeOutsideIt()
+    public async Task TheHost_ClampsTheClipToTheDemo_AndRefusesARangeOutsideIt()
     {
         LineupClipJob job = LineupClipPlanner.PlanAll([TwoLineups()], Directory, _ => false)[0];
 
-        Scene2DExportRequest? clipped = LineupClipPlanner.BuildRequest(job, Frames(1000, 1150), 64);
+        DemoFrame[] inside = Frames(1000, 1150);
+        Scene2DExportRequest? clipped = SceneExportScenes.Resolve(LineupClipPlanner.BuildClip(job, Scene(inside)), inside);
         await Assert.That(clipped!.DemoStartFrame).IsEqualTo(0);
         await Assert.That(clipped.DemoEndFrame).IsEqualTo(150);
 
-        await Assert.That(LineupClipPlanner.BuildRequest(job, Frames(5000, 6000), 64)).IsNull();
-        await Assert.That(LineupClipPlanner.BuildRequest(job, [], 64)).IsNull();
+        DemoFrame[] after = Frames(5000, 6000);
+        await Assert.That(SceneExportScenes.Resolve(LineupClipPlanner.BuildClip(job, Scene(after)), after)).IsNull();
+        await Assert.That(SceneExportScenes.Resolve(LineupClipPlanner.BuildClip(job, Scene([])), [])).IsNull();
 
         LineupClipJob anonymous = job with { ThrowerSteamId = null };
-        await Assert.That(LineupClipPlanner.BuildRequest(anonymous, Frames(0, 2000), 64)!.Core.Camera)
+        DemoFrame[] all = Frames(0, 2000);
+        await Assert.That(SceneExportScenes.Resolve(LineupClipPlanner.BuildClip(anonymous, Scene(all)), all)!.Core.Camera)
             .IsTypeOf<CameraScript.Fixed>();
     }
+
+    private static SceneExportScene Scene(IReadOnlyList<DemoFrame> frames) =>
+        new() { Frames = frames, TickRate = 64, MapName = Mirage, Palette = Playback2D.ScenePalette.Dark };
 
     [Test]
     public async Task Service_ProducesThePairs_WithNoUserInput()
@@ -962,12 +972,13 @@ public class LineupClipTests
             ParsedDemo demo = SyntheticParsedDemo.Create(Frames(0, 2000));
             string? seenOutput = null;
 
-            LineupClipRenderer Renderer(Func<CancellationToken, Task> after) => new(_ => null,
-                render: async (request, _, ct) =>
+            LineupClipRenderer Renderer(Func<CancellationToken, Task> after) => new(
+                render: async (clip, ct) =>
                 {
-                    seenOutput = request.OutputPath;
-                    await File.WriteAllBytesAsync(request.OutputPath, new byte[64], CancellationToken.None);
+                    seenOutput = clip.OutputPath;
+                    await File.WriteAllBytesAsync(clip.OutputPath, new byte[64], CancellationToken.None);
                     await after(ct);
+                    return new SceneExportOutcome(SceneExportRefusal.None, null, clip.OutputPath);
                 });
 
             using CancellationTokenSource cts = new();

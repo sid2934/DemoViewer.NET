@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Rendering.Interop;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering.Interop;
 
 /// <summary>
 ///     The EGL/GLES entry points this phase binds, as delegates.

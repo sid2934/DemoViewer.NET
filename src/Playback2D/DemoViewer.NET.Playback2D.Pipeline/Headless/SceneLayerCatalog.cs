@@ -1,14 +1,15 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Hud;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Overlay;
-using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Playback2D.Core.Vision;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Hud;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Pipeline.Layers;
+using DemoViewer.NET.Playback2D.Overlay;
+using DemoViewer.NET.Playback2D.Query;
+using DemoViewer.NET.Playback2D.Vision;
+using DemoViewer.NET.Playback2D.Zones;
 
 #endregion
 
@@ -115,7 +116,7 @@ public static class SceneLayerCatalog
     ///     outlines and boxes still draw. Used by the golden gates, which judge text under its own ink.
     /// </summary>
     /// <param name="compositor">The stack to switch; the change is not undone.</param>
-    public static void SilenceText(SceneCompositor compositor)
+    internal static void SilenceText(SceneCompositor compositor)
     {
         ArgumentNullException.ThrowIfNull(compositor);
         if (compositor.Find(SceneLayerIds.Markers) is MarkerLayer markers)
@@ -189,7 +190,7 @@ public static class SceneLayerCatalog
     ///     over the live document and never comes through here.
     /// </param>
     /// <exception cref="ArgumentException">An id is not in <see cref="SceneStackIds" />.</exception>
-    public static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
+    internal static SceneCompositor CreateSceneStack(IReadOnlyList<string>? include = null,
         IReadOnlyList<string>? exclude = null, IVisionSolver? vision = null, IHudDataSource? hud = null,
         AnnotationSession? annotations = null, MarkerSmoother? smoother = null,
         IIconSource? icons = null, PlaceResolver? zones = null, QueryCanvasDocument? query = null,

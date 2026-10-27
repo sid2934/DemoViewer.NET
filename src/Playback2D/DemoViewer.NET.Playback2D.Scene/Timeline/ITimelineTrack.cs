@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Timeline;
+namespace DemoViewer.NET.Playback2D.Timeline;
 
 /// <summary>
 ///     What a <see cref="TimelineMarker" /> represents. The host maps a kind to a theme token, so a track
@@ -34,7 +34,11 @@ public enum TimelineMarkerKind
 /// </summary>
 public interface ITimelineTrack
 {
-    /// <summary>Stable key: feature gates, settings, track toggles. Never renamed once shipped.</summary>
+    /// <summary>
+    ///     The key the track's toggle is kept under, unique among the tracks the host has registered. A host
+    ///     may file a contributed track under an id of its own making, which is then the id the track's bands
+    ///     and marks carry. Never renamed once shipped.
+    /// </summary>
     string Id { get; }
 
     /// <summary>Human-readable name for the track-toggle chrome.</summary>
@@ -49,6 +53,6 @@ public interface ITimelineTrack
     /// <summary>Range bands, ascending and non-overlapping. Empty for point-only tracks.</summary>
     IReadOnlyList<TimelineBand> BuildBands(ITimelineData data);
 
-    /// <summary>Raised when the track's content changed and the host must re-query it.</summary>
-    event Action? MarkersChanged;
+    /// <summary>Raised when the track's markers OR bands changed and the host must re-query both.</summary>
+    event Action? Changed;
 }

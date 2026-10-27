@@ -1,23 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      The scene contract of the 2D map: the frame, the layer interface and compositor, floors and panes,
-      places, the viewport transform, cameras and the palette, plus the annotation, timeline, tool and HUD
-      contracts, the query and overlay layers an extension draws with, the zone loaders and the demo
-      content key. SkiaSharp and the BCL only, enforced by ArchitectureTests, which also pins its public types
+      The scene contract of the 2D map: the frame, the frames an export caller supplies, the layer
+      interface, floors and panes, places, the viewport transform, cameras and the palette, plus the
+      annotation, timeline, tool and HUD contracts, the query and overlay layers an extension draws with,
+      and the demo content key. The zone loaders are first-party: an extension reads places off a map lease. The stack that draws a layer is the host's, and internal. SkiaSharp and the BCL only, enforced by ArchitectureTests, which also pins its public types
       to an allow-list.
-      The types keep the namespaces they had in Core and Pipeline; the app's own layers, the drawing tools,
-      export and the rendering backends stay in DemoViewer.NET.Playback2D.Pipeline, which is not
-      published.
+      Every type sits under DemoViewer.NET.Playback2D; the app's own layers, the drawing tools, export
+      and the rendering backends stay under DemoViewer.NET.Playback2D.Pipeline, which is not published.
     -->
     <PropertyGroup>
-        <RootNamespace>DemoViewer.NET.Playback2D.Core</RootNamespace>
+        <RootNamespace>DemoViewer.NET.Playback2D</RootNamespace>
         <!-- Published with the extension SDK at the SDK's version: the SDK's version.json path filters
              include this project. Its public API is pinned by the PublicAPI files. -->
         <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
         <IsPackable>true</IsPackable>
         <PackageId>DemoViewer.NET.Playback2D.Scene</PackageId>
-        <Description>The 2D map scene of DemoViewer.NET: the frame, the layer contract and compositor, floors and panes, place lookup, the viewport transform and the palette. SkiaSharp only.</Description>
+        <Description>The 2D map scene of DemoViewer.NET: the frame, the layer contract, floors and panes, place lookup, the viewport transform and the palette. SkiaSharp only.</Description>
         <PackageTags>demoviewer;cs2;counter-strike;demo;extension;sdk;skiasharp;map</PackageTags>
         <!-- Every public member is documented: this package is read by people who cannot see the app. -->
         <NoWarn>$(NoWarn.Replace('CS1591', ''))</NoWarn>
@@ -42,7 +41,7 @@
           THIRD-PARTY-NOTICES.md §d (SIL OFL 1.1).
         -->
         <EmbeddedResource Include="Assets\Inter-Regular.ttf"
-                          LogicalName="DemoViewer.NET.Playback2D.Core.Assets.Inter-Regular.ttf"/>
+                          LogicalName="DemoViewer.NET.Playback2D.Assets.Inter-Regular.ttf"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -56,6 +55,11 @@
              Pipeline, and the app rebases it across a level-set rebuild. An extension gets the committed
              document, never the stroke under the pointer. -->
         <InternalsVisibleTo Include="DemoViewer.NET"/>
+        <!-- The compositor is internal, and these two build a stack to render a fixture through: dv2d's
+             own suite white-box-tests the headless renderer and the review regression, and the pack's
+             test project holds the strat goldens, which render outside the export runner. -->
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Cli.Tests"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.Extensions.StratBook.Tests"/>
     </ItemGroup>
 
 </Project>

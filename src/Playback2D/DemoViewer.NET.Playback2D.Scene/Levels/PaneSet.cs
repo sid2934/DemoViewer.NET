@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Cameras;
+using DemoViewer.NET.Playback2D.Cameras;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>
 ///     The single owner of pane lifetime and camera identity. A "level pane store" is added behaviour on

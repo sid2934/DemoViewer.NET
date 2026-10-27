@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>
 ///     The injected clock for one rendered scene. Every motion in the pipeline,

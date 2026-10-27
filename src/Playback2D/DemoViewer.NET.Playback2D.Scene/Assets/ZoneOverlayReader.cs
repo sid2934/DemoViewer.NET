@@ -1,11 +1,11 @@
 #region
 
 using System.Text.Json;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Zones;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
+namespace DemoViewer.NET.Playback2D.Assets;
 
 /// <summary>
 ///     Parses a user overlay (<c>&lt;map&gt;.zones.json</c>) into a <see cref="ZoneOverlayDocument" />.

@@ -119,7 +119,11 @@ public class DemoLibraryCacheRepairTests
         svc.Scheduler = coord;
 
         await svc.RescanAsync();
-        await WaitForAsync(() => svc.Tier2Backlog().Count == 0, "tier-2 backlog drained");
+
+        // An empty backlog only means the work was dequeued. The parse and the row it records run on the
+        // queue's workers after that, so a launch that returns on the backlog alone can leave the row
+        // unwritten and the next launch re-queues.
+        await queue.IdleAsync("tier-2 backlog drained", () => svc.Tier2Backlog().Count == 0, 30000);
 
         // Settle: gives a WRONGLY-submitted parse time to land and be counted, so a "0 parses" assertion is
         // evidence rather than a race the test happened to win.

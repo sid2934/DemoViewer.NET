@@ -4,7 +4,6 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services;
-using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using TUnit.Assertions.Enums;
 
@@ -157,15 +156,15 @@ public class StratBookCompositionRootTests
             }
 
             await Assert.That(provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator>().Passes)
-                .IsSameReferenceAs(provider.GetExtensionContext(StratBookPack.PackId).Passes);
+                .IsSameReferenceAs(ExtensionContextAccess.ForHost(provider, StratBookPack.PackId).Passes);
             await Assert.That(provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService>().Passes)
-                .IsSameReferenceAs(provider.GetExtensionContext(StratBookPack.PackId).Passes);
+                .IsSameReferenceAs(ExtensionContextAccess.ForHost(provider, StratBookPack.PackId).Passes);
             await Assert.That(provider.GetRequiredService<Services.Facts.IRoundFactsSource>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.ISituationIndex>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.Provenance.IDemoProvenanceSource>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.Tags.TagFactsRefresher>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator>().Passes)
-                .IsSameReferenceAs(provider.GetExtensionContext(StratBookPack.PackId).Passes);
+                .IsSameReferenceAs(ExtensionContextAccess.ForHost(provider, StratBookPack.PackId).Passes);
         });
     }
 

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Rendering;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering;
 
 /// <summary>
 ///     Which Skia backend an <see cref="IRenderSurfaceProvider" /> hands out surfaces from.

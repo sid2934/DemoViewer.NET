@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Pipeline;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>
 ///     The one demo content key: lowercase-hex SHA-256 of the <c>.dem</c> bytes.

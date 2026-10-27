@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Rendering.Interop;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering.Interop;
 
 /// <summary>
 ///     A hand-bound EGL, ~15 entry points wide.

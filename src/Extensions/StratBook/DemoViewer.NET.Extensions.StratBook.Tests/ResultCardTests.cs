@@ -2,9 +2,9 @@
 
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
@@ -401,8 +401,7 @@ public class ResultCardTests
         h.Index.Load();
         RoundIndexEvaluator evaluator = new(h.Cache.Library(), h.Cache.RoundFacts(), h.Sidecars, h.Sources, () => true, walk: _ => []);
         using SituationsTabViewModel tab = new(h.Index, evaluator, h.Cache.Library(), h.Sources, () => RoundIndexTokenSource.Pawn,
-            false, new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null,
-                dispose => dispose()), h.Vm);
+            false, new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null), h.Vm);
 
         tab.Canvas.Map = "de_nuke";
         tab.Canvas.SearchCommand.Execute(null);

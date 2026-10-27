@@ -11,7 +11,6 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using TUnit.Core.Exceptions;
-using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
@@ -38,7 +37,7 @@ public class StratMiningCalibration
         string cache = Path.Combine(root, "cache");
         DemoCacheStore demoCache = new(cache);
         RoundIndexStore positions = new(demoCache.DiskData(cache));
-        AssetZonePlaceResolverSource zones = new();
+        using AssetZonePlaceResolverSource zones = new();
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
         using GrenadeIndex grenades = new(demoCache.Library(), zones);
         grenades.Load();
@@ -98,7 +97,7 @@ public class StratMiningCalibration
         string cache = Path.Combine(root, "cache");
         DemoCacheStore demoCache = new(cache);
         RoundIndexStore positions = new(demoCache.DiskData(cache));
-        AssetZonePlaceResolverSource zones = new();
+        using AssetZonePlaceResolverSource zones = new();
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
         using GrenadeIndex grenades = new(demoCache.Library(), zones);
         grenades.Load();

@@ -4,7 +4,7 @@ using System.Collections;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Vision;
+namespace DemoViewer.NET.Playback2D.Vision;
 
 /// <summary>
 ///     Tuning for the line-of-sight overlay, shared by the layer and the Pipeline solver so the drawn

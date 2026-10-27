@@ -2,12 +2,12 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using DemoViewer.NET.Playback2D.Core.Rendering.Interop;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering.Interop;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Rendering;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering;
 
 /// <summary>
 ///     Windowless GPU-backed surfaces over an EGL context: ANGLE/D3D11 on Windows, EGL surfaceless on

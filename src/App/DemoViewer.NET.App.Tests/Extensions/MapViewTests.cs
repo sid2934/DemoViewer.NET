@@ -6,11 +6,12 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Tools;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Tools;
 using SkiaSharp;
 using TUnit.Assertions.Enums;
 
@@ -27,6 +28,9 @@ namespace DemoViewer.NET.AppTests.Extensions;
 public class MapViewTests
 {
     private const string Map = "de_mirage";
+
+    // A map no other test in this assembly takes a hold on, so the registry's decode count is readable.
+    private const string Shared = "de_train";
 
     [Test]
     public async Task AMapByName_BindsTheBundle_AndArrangesItsFloors()
@@ -91,6 +95,87 @@ public class MapViewTests
         });
     }
 
+    /// <summary>
+    ///     An extension's layer is filed under it and the handle reports that id, and the layer the host
+    ///     built under that id is the one drawing.
+    /// </summary>
+    [Test]
+    public async Task AnExtensionsLayer_IsFiledUnderIt_AndTheHandleReportsThatId()
+    {
+        FaultRig rig = new("pack.a");
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                // Inside the session: App.Initialize installs the renderers, so a factory set before the
+                // first RunOnUi is replaced. This view's own tracker rather than the process's, since
+                // installing one process-wide would file every other test's layer factory under it too,
+                // this assembly being what the rig's scope owns.
+                MapViewHost.Factory = () => new HostedMapView(rig.Faults);
+                (Window window, MapView view) = Mount();
+                view.MapName = Map;
+                CountingLayer? built = null;
+                ILayerHandle layer = view.AddLayer("heat", () => built = new CountingLayer("mine"));
+                Playback2DTimelineHarness.Pump();
+                window.CaptureRenderedFrame();
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(layer.LayerId).IsEqualTo("ext.pack.a.heat");
+                    await Assert.That(built!.Renders).IsGreaterThan(0).Because("the filed layer is the one in the stack");
+                }
+
+                layer.Dispose();
+                int before = built.Renders;
+                view.Invalidate();
+                Playback2DTimelineHarness.Pump();
+                window.CaptureRenderedFrame();
+                await Assert.That(built.Renders).IsEqualTo(before).Because("the handle removes it by the filed id");
+                window.Close();
+            });
+        }
+        finally
+        {
+            SdkSceneHosts.Install();
+        }
+    }
+
+    /// <summary>
+    ///     A second layer under one id is refused rather than replacing the first. A replacement left the
+    ///     first owner holding a handle that removed nothing.
+    /// </summary>
+    [Test]
+    public async Task AddLayer_RefusesAnIdTheViewAlreadyHolds()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Window window, MapView view) = Mount();
+            view.MapName = Map;
+            CountingLayer? first = null;
+            IDisposable added = view.AddLayer("sample.dots", () => first = new CountingLayer("sample.dots"));
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame();
+
+            Assert.Throws<ArgumentException>(() => view.AddLayer("sample.dots", () => new CountingLayer("sample.dots")));
+
+            int before = first!.Renders;
+            view.Invalidate();
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame();
+            await Assert.That(first.Renders).IsGreaterThan(before).Because("the refused add left the first layer drawing");
+
+            // The refused add must leave the first handle in charge of the id: a factory it had recorded
+            // over the first one would make this dispose a no-op and the layer would never leave.
+            added.Dispose();
+            before = first.Renders;
+            view.Invalidate();
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame();
+            await Assert.That(first.Renders).IsEqualTo(before);
+            window.Close();
+        });
+    }
+
     // A data source rather than [Arguments]: the ids are static readonly, so an attribute argument
     // cannot take them, and a literal here would stop referencing the type this test is about.
     public static IEnumerable<string> ViewOwnLayerIds()
@@ -149,17 +234,112 @@ public class MapViewTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
+            // Deltas, not absolutes: the registry is process-wide and a tab elsewhere in the suite may
+            // hold this map too.
+            int before = MapBundleLeases.HoldersOf(Map);
             MapView first = new() { MapName = Map };
             MapView second = new() { MapName = Map };
             Window window = new() { Width = 800, Height = 600, Content = new StackPanel { Children = { first, second } } };
             window.Show();
             Playback2DTimelineHarness.Pump();
 
-            await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(2);
+            await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(before + 2);
             window.Content = null;
             Playback2DTimelineHarness.Pump();
-            await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(0);
+            await Assert.That(MapBundleLeases.HoldersOf(Map)).IsEqualTo(before);
             window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     What the registry is for: a 2D Playback tab, a <see cref="MapView" /> an extension embeds, and an
+    ///     extension's own hold taken off the UI thread are three holders of ONE decode, reading one bundle.
+    ///     On de_train, which no other test in this assembly holds, so the decode count means something.
+    /// </summary>
+    [Test]
+    public async Task ATabAndTwoExtensionHolders_ShareOneDecode()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(0)
+                .Because("the decode count only means something while nobody else holds the map");
+            int decodes = MapBundleLeases.Decodes;
+            int radarDecodes = MapAssetPipeline.RadarDecodes;
+
+            Playback2DFakeContext ctx = new()
+            {
+                MapName = Shared,
+                Gate = new FakeModuleFeatureGate()
+            };
+            ctx.AddPlayer(0, "Alpha", 2);
+            Playback2DTabViewModel tab = new();
+            tab.OnActivated(ctx);
+
+            MapView view = new() { MapName = Shared };
+            Window window = new() { Width = 800, Height = 600, Content = view };
+            window.Show();
+            Playback2DTimelineHarness.Pump();
+
+            // The third holder off the UI thread, the way a thumbnail batch on a worker takes one.
+            IMapAssetLease? offThread = null;
+            Thread worker = new(() => offThread = MapAssets.Acquire(Shared));
+            worker.Start();
+            worker.Join();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(offThread).IsNotNull();
+                await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(3);
+                await Assert.That(MapBundleLeases.Decodes - decodes).IsEqualTo(1)
+                    .Because("three holders of one map decode it once");
+                await Assert.That(MapAssetPipeline.RadarDecodes - radarDecodes).IsEqualTo(1)
+                    .Because("and the two of them that draw share one radar decode");
+                await Assert.That(tab.MapAsset).IsSameReferenceAs(((MapBundleLease)offThread!).Bundle)
+                    .Because("the tab and the extension read the same decode");
+            }
+
+            offThread!.Dispose();
+            window.Content = null;
+            Playback2DTimelineHarness.Pump();
+            tab.Dispose();
+
+            await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(0)
+                .Because("the last hold given back drops the entry");
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     What the lazy radar decode is for: a holder that only wants floors, bounds or places opens the
+    ///     bundle and decodes no pixels. The zone sources hold one lease per cached map and never draw.
+    /// </summary>
+    [Test]
+    public async Task AHolderThatDrawsNothing_OpensTheBundle_AndDecodesNoRadarArt()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            await Assert.That(MapBundleLeases.HoldersOf(Shared)).IsEqualTo(0)
+                .Because("the decode counts only mean something while nobody else holds the map");
+            int decodes = MapBundleLeases.Decodes;
+            int radarDecodes = MapAssetPipeline.RadarDecodes;
+
+            using IMapAssetLease? lease = MapAssets.Acquire(Shared);
+            await Assert.That(lease).IsNotNull();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(lease!.Floors.Count).IsGreaterThanOrEqualTo(1);
+                await Assert.That(lease.RadarBounds.MaxX).IsGreaterThan(lease.RadarBounds.MinX);
+                await Assert.That(lease.Zones).IsNotNull();
+                await Assert.That(MapBundleLeases.Decodes - decodes).IsEqualTo(1)
+                    .Because("the bundle manifest was read");
+                await Assert.That(MapAssetPipeline.RadarDecodes - radarDecodes).IsEqualTo(0)
+                    .Because("floors, bounds and places are all in the manifest and the zones file");
+            }
+
+            lease.DescribeRadars();
+            await Assert.That(MapAssetPipeline.RadarDecodes - radarDecodes).IsEqualTo(1)
+                .Because("asking for the art is what decodes it");
         });
     }
 

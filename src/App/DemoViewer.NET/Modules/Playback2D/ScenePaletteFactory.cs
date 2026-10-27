@@ -2,7 +2,7 @@
 
 using Avalonia.Media;
 using Avalonia.Styling;
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Theming;
 using SkiaSharp;
 

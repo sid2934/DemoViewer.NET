@@ -1,7 +1,7 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Timeline;
 
 #endregion
 
@@ -74,9 +74,9 @@ public sealed class KillTrack : ITimelineTrack
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => Array.Empty<TimelineBand>();
 
     /// <inheritdoc />
-    // Never raised; see RoundTrack.MarkersChanged.
+    // Never raised; see RoundTrack.Changed.
 #pragma warning disable CS0067
-    public event Action? MarkersChanged;
+    public event Action? Changed;
 #pragma warning restore CS0067
 
     // Colours the marker by WHO GOT THE KILL, so a run of one colour reads as a side winning fights.

@@ -1,9 +1,10 @@
 #region
 
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Assets;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Zones;
 using SkiaSharp;
 
 #endregion
@@ -20,19 +21,39 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 ///         needs <c>Bitmap.DecodeToWidth</c>'s downscale-on-decode and has no <c>SKImage</c> analogue.
 ///     </para>
 /// </summary>
-public sealed class LoadedMapAsset : IMapAsset
+public sealed class LoadedMapAsset : IMapAsset, IDisposable
 {
     private readonly Lock _zoneLock = new();
     private bool _disposed;
     private IReadOnlyList<FloorSlice>? _floors;
-    private string? _zoneOverlayDirectory;
+    private Lazy<IReadOnlyDictionary<string, SKImage>> _radarImages;
+    private OverlayStamp _zoneStamp;
     private ZoneLoadResult? _zones;
+
+    /// <summary>Creates an undecoded bundle; the radar art is decoded on the first read.</summary>
+    public LoadedMapAsset() =>
+        // A method group, not a lambda over Bundle and BakedDir: those are init-only and still unset
+        // here, and the factory only reads them once something forces it.
+        _radarImages = new Lazy<IReadOnlyDictionary<string, SKImage>>(
+            DecodeOwnRadars, LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>The parsed bundle manifest.</summary>
     public required MapAssetBundle Bundle { get; init; }
 
-    /// <summary>Decoded radar images by file name (best-effort, empty when nothing decoded).</summary>
-    public required IReadOnlyDictionary<string, SKImage> RadarImages { get; init; }
+    /// <summary>
+    ///     Decoded radar images by file name (best-effort, empty when nothing decoded).
+    ///     <para>
+    ///         <b>Decoded on the first read</b>, which is the first draw: a radar is 1024x1024 RGBA and a
+    ///         holder that only wants floors, bounds or places (the zone sources, a thumbnail index) would
+    ///         otherwise pin megabytes of unmanaged pixels per map it touched. Setting it pre-seeds the
+    ///         decode instead, for a test that builds a bundle by hand.
+    ///     </para>
+    /// </summary>
+    public IReadOnlyDictionary<string, SKImage> RadarImages
+    {
+        get => _radarImages.Value;
+        init => _radarImages = new Lazy<IReadOnlyDictionary<string, SKImage>>(value);
+    }
 
     /// <summary>The directory the bundle was loaded from (holds sibling artifacts like <c>collision.tris</c>).</summary>
     public required string BakedDir { get; init; }
@@ -46,7 +67,7 @@ public sealed class LoadedMapAsset : IMapAsset
     ///     </para>
     /// </summary>
     public IReadOnlyList<FloorSlice> Floors =>
-        _floors ??= BuildFloors(Bundle);
+        _floors ??= MapAssetPipeline.BuildFloors(Bundle);
 
     /// <summary>Absolute path to the baked collision blob, or null when the bundle has no mesh.</summary>
     public string? CollisionTrisPath =>
@@ -54,44 +75,29 @@ public sealed class LoadedMapAsset : IMapAsset
 
     /// <summary>
     ///     The user's <c>zones/</c> directory the overlay is read from, or null for the baked set alone.
-    ///     The App sets it from <c>AppPaths.ZonesDirectory</c> right after loading; Pipeline cannot know
-    ///     the config root. Changing it forgets any zones already loaded.
+    ///     Set at decode time by whoever knows the config root; Pipeline cannot. Init-only: the zones read
+    ///     is lazy, so a later write would let one acquirer cache a baked-only resolver and its version
+    ///     while another reads the overlay set.
     /// </summary>
-    public string? ZoneOverlayDirectory
-    {
-        get => _zoneOverlayDirectory;
-        set
-        {
-            if (string.Equals(_zoneOverlayDirectory, value, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _zoneOverlayDirectory = value;
-            lock (_zoneLock)
-            {
-                _zones = null;
-            }
-        }
-    }
+    public string? ZoneOverlayDirectory { get; init; }
 
     /// <summary>
     ///     The place resolver over this map's <c>zones.json</c> plus the user overlay, or null when the
     ///     bundle directory has no zones file. <b>Lazy</b>: the file is parsed and the grid built on the
     ///     first read, so <c>EnsureMapAsset</c> needs no new wiring and a map whose zones nobody asks
-    ///     for costs nothing. Consumers outside playback call <see cref="ZoneAssetPipeline.TryLoad" />
-    ///     directly.
+    ///     for costs nothing. Consumers outside playback read it off the lease they hold, through
+    ///     <see cref="RefreshZones" />.
     /// </summary>
     public PlaceResolver? Zones => ZoneLoad.Resolver;
 
     /// <summary>The last zones load in full: resolver, baked set, overlay path and diagnostics.</summary>
-    public ZoneLoadResult ZoneLoad
+    internal ZoneLoadResult ZoneLoad
     {
         get
         {
             lock (_zoneLock)
             {
-                return _zones ??= ZoneAssetPipeline.Load(BakedDir, _zoneOverlayDirectory);
+                return _zones ??= LoadZones();
             }
         }
     }
@@ -109,19 +115,36 @@ public sealed class LoadedMapAsset : IMapAsset
     }
 
     /// <summary>
-    ///     Re-reads <c>zones.json</c> and the overlay: the "Reload zones" command, so an author sees an
-    ///     edited overlay without a map reload. The previous resolver stays valid for anyone still
-    ///     holding it; a fresh one is built and returned.
+    ///     Re-reads <c>zones.json</c> and the overlay unconditionally: the "Reload zones" command, so an
+    ///     author sees an edited overlay without a map reload. The previous resolver stays valid for anyone
+    ///     still holding it; a fresh one is built and returned.
     /// </summary>
-    public ZoneLoadResult ReloadZones()
+    internal ZoneLoadResult ReloadZones()
     {
-        ZoneLoadResult fresh = ZoneAssetPipeline.Load(BakedDir, _zoneOverlayDirectory);
         lock (_zoneLock)
         {
-            _zones = fresh;
+            return _zones = LoadZones();
         }
+    }
 
-        return fresh;
+    /// <summary>
+    ///     The map's places, re-read only when the overlay file's stamp has moved since the last read.
+    ///     Unchanged means the <b>same instance</b>, which is what lets a caller cache the graph it folded
+    ///     out of a resolver and compare by reference instead of by zones version.
+    /// </summary>
+    public PlaceResolver? RefreshZones()
+    {
+        lock (_zoneLock)
+        {
+            OverlayStamp stamp = OverlayStamp.Of(OverlayPath());
+            if (_zones is { } current && stamp == _zoneStamp)
+            {
+                return current.Resolver;
+            }
+
+            _zones = LoadZones(stamp);
+            return _zones.Resolver;
+        }
     }
 
     /// <summary>
@@ -141,7 +164,12 @@ public sealed class LoadedMapAsset : IMapAsset
         }
 
         _disposed = true;
-        foreach (SKImage image in RadarImages.Values)
+        if (!_radarImages.IsValueCreated)
+        {
+            return; // nothing drew this bundle, so there are no pixels to release
+        }
+
+        foreach (SKImage image in _radarImages.Value.Values)
         {
             image.Dispose();
         }
@@ -156,20 +184,40 @@ public sealed class LoadedMapAsset : IMapAsset
     /// <inheritdoc />
     ILevelRadarBinder IMapAsset.CreateRadarBinder() => new MapRadarBinder(this);
 
-    private static FloorSlice[] BuildFloors(MapAssetBundle bundle)
+    private IReadOnlyDictionary<string, SKImage> DecodeOwnRadars() => MapAssetPipeline.DecodeRadars(BakedDir, Bundle);
+
+    // Caller holds _zoneLock. The stamp is taken BEFORE the read, so a save that lands during it is
+    // seen by the next refresh instead of being folded into this result's stamp.
+    private ZoneLoadResult LoadZones(OverlayStamp? stamp = null)
     {
-        if (bundle.Floors is not { Count: > 0 } floors)
-        {
-            return [];
-        }
+        _zoneStamp = stamp ?? OverlayStamp.Of(OverlayPath());
+        return ZoneAssetPipeline.Load(BakedDir, ZoneOverlayDirectory);
+    }
 
-        FloorSlice[] slices = new FloorSlice[floors.Count];
-        for (int i = 0; i < floors.Count; i++)
-        {
-            slices[i] = new FloorSlice(floors[i].MinZ, floors[i].MaxZ);
-        }
+    // The manifest's map name, not the zones file's: this has to resolve without reading anything.
+    private string? OverlayPath() => ZoneAssetPipeline.OverlayPathFor(ZoneOverlayDirectory, Bundle.MapName);
 
-        return slices;
+    // Existence, length and write time: enough to see a save, and one stat per refresh rather than per
+    // read, because Zones is read per frame and RefreshZones is called once per unit of work.
+    private readonly record struct OverlayStamp(bool Exists, long Length, DateTime WrittenUtc)
+    {
+        public static OverlayStamp Of(string? path)
+        {
+            if (path is null)
+            {
+                return default;
+            }
+
+            try
+            {
+                FileInfo file = new(path);
+                return file.Exists ? new OverlayStamp(true, file.Length, file.LastWriteTimeUtc) : default;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                return default;
+            }
+        }
     }
 }
 
@@ -181,6 +229,8 @@ public sealed class LoadedMapAsset : IMapAsset
 /// </summary>
 public static class MapAssetPipeline
 {
+    private static int _radarDecodes;
+
     /// <summary>Loads the bundle for a map name, or null when there is none.</summary>
     /// <param name="mapName">e.g. <c>de_nuke</c>.</param>
     public static LoadedMapAsset? TryLoad(string? mapName)
@@ -208,6 +258,23 @@ public static class MapAssetPipeline
         }
 
         return TryLoadFromDirectory(Path.Combine(assetsRoot, mapName));
+    }
+
+    /// <summary>
+    ///     The bundle's extent and floor bands straight from the manifest, with no image decode: the same
+    ///     numbers a loaded bundle answers with, for a caller that draws nothing. Null when there is no
+    ///     readable bundle.
+    /// </summary>
+    /// <param name="mapName">e.g. <c>de_nuke</c>.</param>
+    public static (WorldBounds Bounds, IReadOnlyList<FloorSlice> Floors)? TryDescribe(string? mapName)
+    {
+        string? dir = MapAssetBundleReader.FindBundleDirectory(mapName);
+        if (dir is null || MapAssetBundleReader.TryRead(dir) is not { } bundle)
+        {
+            return null;
+        }
+
+        return (BoundsOf(bundle), BuildFloors(bundle));
     }
 
     /// <summary>
@@ -248,15 +315,32 @@ public static class MapAssetPipeline
 
     /// <summary>Loads a bundle from an explicit directory. Null-graceful.</summary>
     /// <param name="dir">The bundle directory.</param>
-    public static LoadedMapAsset? TryLoadFromDirectory(string dir)
+    /// <param name="zoneOverlayDirectory">
+    ///     The user's <c>zones/</c> directory, or null for the baked set alone. Passed at decode time
+    ///     because <see cref="LoadedMapAsset.Zones" /> is read lazily and possibly off-thread.
+    /// </param>
+    public static LoadedMapAsset? TryLoadFromDirectory(string dir, string? zoneOverlayDirectory = null)
     {
         if (MapAssetBundleReader.TryRead(dir) is not { } bundle)
         {
             return null;
         }
 
-        // Best-effort per image: a decode failure still yields the floor metadata and the transform,
-        // which is what the level split actually needs.
+        return new LoadedMapAsset
+        {
+            Bundle = bundle,
+            BakedDir = dir,
+            ZoneOverlayDirectory = zoneOverlayDirectory
+        };
+    }
+
+    /// <summary>Radar decodes since the process started. For tests: the count "one decode per map" means.</summary>
+    internal static int RadarDecodes => Volatile.Read(ref _radarDecodes);
+
+    // One bundle's radar art. Best-effort per image: a decode failure still yields the floor metadata
+    // and the transform, which is what the level split actually needs.
+    internal static IReadOnlyDictionary<string, SKImage> DecodeRadars(string dir, MapAssetBundle bundle)
+    {
         Dictionary<string, SKImage> images = new(StringComparer.Ordinal);
         foreach (string name in bundle.RadarImages)
         {
@@ -280,12 +364,8 @@ public static class MapAssetPipeline
             }
         }
 
-        return new LoadedMapAsset
-        {
-            Bundle = bundle,
-            RadarImages = images,
-            BakedDir = dir
-        };
+        Interlocked.Increment(ref _radarDecodes);
+        return images;
     }
 
     /// <summary>
@@ -346,8 +426,30 @@ public static class MapAssetPipeline
     public static WorldBounds RadarBounds(LoadedMapAsset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        // Fully qualified: the fixture serializer declares its own WorldBoundsDto in this assembly.
-        CS2DemoKit.Analysis.Visibility.WorldBoundsDto b = asset.Bundle.Bounds;
+        return BoundsOf(asset.Bundle);
+    }
+
+    // Shared by the loaded bundle and by TryDescribe, so a description cannot drift from a decode.
+    internal static FloorSlice[] BuildFloors(MapAssetBundle bundle)
+    {
+        if (bundle.Floors is not { Count: > 0 } floors)
+        {
+            return [];
+        }
+
+        FloorSlice[] slices = new FloorSlice[floors.Count];
+        for (int i = 0; i < floors.Count; i++)
+        {
+            slices[i] = new FloorSlice(floors[i].MinZ, floors[i].MaxZ);
+        }
+
+        return slices;
+    }
+
+    // Fully qualified: the fixture serializer declares its own WorldBoundsDto in this assembly.
+    private static WorldBounds BoundsOf(MapAssetBundle bundle)
+    {
+        CS2DemoKit.Analysis.Visibility.WorldBoundsDto b = bundle.Bounds;
         return new WorldBounds(b.MinX, b.MinY, b.MaxX, b.MaxY);
     }
 }

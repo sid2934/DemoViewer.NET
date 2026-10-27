@@ -4,12 +4,13 @@ using System.Buffers;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Pipeline.Layers;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
@@ -56,7 +57,7 @@ public sealed class SceneExportSession
 
     /// <summary>Creates a session over a layer stack.</summary>
     /// <param name="compositor">The layers to draw. Owned by the caller; never disposed here.</param>
-    public SceneExportSession(SceneCompositor compositor)
+    internal SceneExportSession(SceneCompositor compositor)
     {
         ArgumentNullException.ThrowIfNull(compositor);
         _compositor = compositor;

@@ -4,14 +4,15 @@ using System.Security.Cryptography;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
 using DemoViewer.NET.Services.Export.Pack;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Playback2D.Pipeline.Review;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -114,7 +115,8 @@ public class ClipReplayPlanRealDemoTests
         }
 
         IReadOnlyList<LineupClipJob> rendered =
-            await new LineupClipRenderer().RenderAsync(path, (parse ?? ParseForReplay)(path), jobs, CancellationToken.None);
+            await new LineupClipRenderer(ExtensionSceneExport.Headless()).RenderAsync(path,
+                (parse ?? ParseForReplay)(path), jobs, CancellationToken.None);
         return [.. rendered.Select(j => j.GifPath)];
     }
 

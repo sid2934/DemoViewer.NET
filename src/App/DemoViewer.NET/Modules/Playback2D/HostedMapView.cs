@@ -9,13 +9,13 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Tools;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Pipeline.Input;
+using DemoViewer.NET.Playback2D.Pipeline.Layers;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Tools;
 using SkiaSharp;
 
 #endregion
@@ -47,7 +47,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     private readonly Dictionary<string, Func<ISceneLayer>> _layers = new(StringComparer.Ordinal);
     private MapToolAdapter? _primary;
     private string? _mapName;
-    private LoadedMapAsset? _lease;
+    private MapBundleLease? _lease;
     private bool _attached;
 
     private readonly SceneRenderGate _gate = new();
@@ -57,7 +57,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     private readonly Lock _submissionLock = new();
     private readonly HostToolServices _toolServices;
 
-    private LoadedMapAsset? _boundAsset;
+    private MapBundleLease? _boundAsset;
     private string _boundMap = "";
     private SceneCompositor _compositor;
     private WriteableBitmap? _fallbackBitmap;
@@ -70,9 +70,16 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     private long _submissionId;
     private TextBlobCache _text;
 
+    private readonly ExtensionFaults? _faults;
+
     /// <summary>Creates the host and its base layer stack.</summary>
-    public HostedMapView()
+    /// <param name="faults">
+    ///     The tracker a contributed layer or tool of this view is attributed to, or null for the
+    ///     process's. A test host files under a scope of its own without installing one process-wide.
+    /// </param>
+    public HostedMapView(ExtensionFaults? faults = null)
     {
+        _faults = faults;
         Focusable = true;
         ClipToBounds = true;
 
@@ -90,6 +97,10 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
 
     // The tool a plain left press goes to.
     private ToolKind PrimaryKind => _primary is null ? ToolKind.PanZoom : ToolKind.Map;
+
+    // Read per add, not cached: the desktop head installs the process's tracker before the first view is
+    // built, but a host built in a test or a designer may outlive one being installed.
+    private ExtensionFaults? Faults => _faults ?? ExtensionFaults.Current;
 
     /// <inheritdoc />
     public Control View => this;
@@ -136,23 +147,29 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     }
 
     /// <inheritdoc />
-    public void SetLayer(string id, Func<ISceneLayer> layer)
+    public string AddLayer(string id, Func<ISceneLayer> layer)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(layer);
-        _layers[id] = layer;
+        (string filed, Func<ISceneLayer> build) = ContributedSceneLayer.File(id, layer, "map view layer factory", Faults);
+        if (!_layers.TryAdd(filed, build))
+        {
+            throw new ArgumentException($"A layer is already registered as '{filed}'.", nameof(id));
+        }
+
         if (_released)
         {
-            return;
+            return filed;
         }
 
         using (_gate.Enter())
         {
-            _compositor.Remove(id);
-            _compositor.Add(Build(id, layer));
+            _compositor.Remove(filed);
+            _compositor.Add(build());
         }
 
         InvalidateVisual();
+        return filed;
     }
 
     /// <inheritdoc />
@@ -181,6 +198,14 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
 
         Router.CancelActive();
         _panFallback = false;
+
+        // Every adapter files under the same id, there being one primary tool, so the one leaving has to be
+        // unregistered before the one arriving is offered.
+        if (_primary is { } previous)
+        {
+            Router.Unregister(previous);
+        }
+
         if (tool is null)
         {
             _primary = null;
@@ -501,9 +526,9 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
         };
         _compositor.Add(_radarLayer);
         _compositor.Add(new FloorLabelLayer(_text));
-        foreach ((string id, Func<ISceneLayer> layer) in _layers)
+        foreach (Func<ISceneLayer> layer in _layers.Values)
         {
-            _compositor.Add(Build(id, layer));
+            _compositor.Add(layer());
         }
 
         _boundAsset = null;
@@ -553,14 +578,10 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
             return;
         }
 
-        LoadedMapAsset? previous = _lease;
-        string previousMap = _boundMap;
+        MapBundleLease? previous = _lease;
         _lease = map.Length == 0 ? null : MapBundleLeases.Acquire(map);
         BindMap(map, _lease);
-        if (previous is not null)
-        {
-            MapBundleLeases.Release(previousMap, previous);
-        }
+        previous?.Dispose();
 
         MapBound?.Invoke();
     }
@@ -570,27 +591,15 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
         if (_lease is { } lease)
         {
             _lease = null;
-            MapBundleLeases.Release(_boundMap, lease);
+            lease.Dispose();
         }
 
         _boundAsset = null;
     }
 
-    // An extension's layer or tool runs as the extension's; anything else runs as it is.
-    private static ISceneLayer Build(string id, Func<ISceneLayer> factory)
-    {
-        if (ExtensionFaults.Current is not { } faults || faults.Owner(factory) is not { } owner)
-        {
-            return factory();
-        }
-
-        ExtensionGuard guard = faults.GuardFor(owner);
-        ISceneLayer? built = guard.Run("map view layer factory", factory, null);
-        return built is null ? new GuardedSceneLayer(id, EmptySceneLayer.Instance, guard) : new GuardedSceneLayer(id, built, guard);
-    }
-
-    private static IMapTool Guard(IMapTool tool) =>
-        ExtensionFaults.Current is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
+    // An extension's tool runs as the extension's; anything else runs as it is.
+    private IMapTool Guard(IMapTool tool) =>
+        Faults is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
             ? new GuardedMapTool(tool, faults.GuardFor(owner))
             : tool;
 
@@ -603,7 +612,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     /// </summary>
     /// <param name="map">The map name.</param>
     /// <param name="asset">The map's baked bundle, or null when this host has none.</param>
-    private void BindMap(string map, LoadedMapAsset? asset)
+    private void BindMap(string map, MapBundleLease? asset)
     {
         if (ReferenceEquals(asset, _boundAsset) && string.Equals(_boundMap, map, StringComparison.Ordinal)
             && _frame.Map.MapName == map)
@@ -623,8 +632,8 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
         }
 
         _levels.SetAuthoritativeFloors(asset?.Floors);
-        _levels.RadarBinder = asset is null ? null : new MapRadarBinder(asset);
-        _radarLayer.RadarBoundsOverride = asset is null ? null : MapAssetPipeline.RadarBounds(asset);
+        _levels.RadarBinder = asset?.CreateRadarBinder();
+        _radarLayer.RadarBoundsOverride = asset?.RadarBounds;
         _frame = FrameFor(map, asset);
         InvalidateVisual();
     }
@@ -632,7 +641,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     // The one frame this host ever draws: the map, its radar layers and its playable extent, and no
     // players. Without a bundle there is nothing to derive a level from, so no pane is arranged and the
     // view says so beside the canvas.
-    private static Scene2DFrame FrameFor(string map, LoadedMapAsset? asset)
+    private static Scene2DFrame FrameFor(string map, MapBundleLease? asset)
     {
         if (asset is null)
         {
@@ -645,7 +654,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
             };
         }
 
-        WorldBounds bounds = MapAssetPipeline.RadarBounds(asset);
+        WorldBounds bounds = asset.RadarBounds;
         return new Scene2DFrame
         {
             Map = new SceneMapInfo
@@ -653,7 +662,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
                 MapName = map,
                 NetworkedBounds = bounds,
                 ObservedBounds = bounds,
-                Radars = MapAssetPipeline.DescribeRadars(asset)
+                Radars = asset.DescribeRadars()
             }
         };
     }

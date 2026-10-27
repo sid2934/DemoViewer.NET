@@ -224,12 +224,12 @@ public interface IModuleContext
     }
 
     /// <summary>
-    ///     Typed lookup for a first-party capability not on this interface: a host or service an
-    ///     extension pack wires in (Create Strat From Round's capture host, a strat export host), or a
-    ///     core host the concrete context registers under its own type (a video export host). Beyond
-    ///     those, it answers only for a type of an extension's own assembly, and only while that
-    ///     extension is on; any other type, the host's services included, is null. Default null for
-    ///     hosts / doubles that wire nothing.
+    ///     Typed lookup for a capability not on this interface: a host or service an extension pack wires
+    ///     in (Create Strat From Round's capture host, a strat export host), a core host the concrete
+    ///     context registers under its own type (a video export host), or anything the host offers under
+    ///     a public type of the extension SDK. Beyond those it answers only for a type of an extension's
+    ///     own assembly, and only while that extension is on; any other type, the host's unpublished
+    ///     services included, is null. Default null for hosts / doubles that wire nothing.
     /// </summary>
     T? GetService<T>() where T : class => null;
 }

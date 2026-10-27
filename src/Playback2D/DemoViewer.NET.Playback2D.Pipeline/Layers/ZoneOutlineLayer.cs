@@ -1,14 +1,15 @@
 #region
 
-using System.Numerics;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Zones;
 using SkiaSharp;
+using System.Numerics;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Playback2D.Pipeline.Layers;
 
 /// <summary>
 ///     Draws, per pane, the boundary edges of every place on that pane's floor and a label at each

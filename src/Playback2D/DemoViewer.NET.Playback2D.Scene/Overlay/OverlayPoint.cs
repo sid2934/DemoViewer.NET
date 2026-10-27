@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Query;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Overlay;
+namespace DemoViewer.NET.Playback2D.Overlay;
 
 /// <summary>
 ///     One alive player at one matched state: a world position and the side it was on. What the

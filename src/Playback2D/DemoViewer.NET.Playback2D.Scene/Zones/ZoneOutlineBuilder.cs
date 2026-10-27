@@ -4,7 +4,7 @@ using System.Numerics;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>
 ///     Turns one floor of a <see cref="ZoneSet" /> into <see cref="PlaceOutline" />s. An edge of an

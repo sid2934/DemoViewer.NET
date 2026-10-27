@@ -5,7 +5,6 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
-using DemoViewer.NET.ViewModels;
 
 #endregion
 

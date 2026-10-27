@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Tools;
+namespace DemoViewer.NET.Playback2D.Tools;
 
 /// <summary>
 ///     A pointer tool on a 2D map. A press it accepts makes it the owner of the gesture: it then sees every

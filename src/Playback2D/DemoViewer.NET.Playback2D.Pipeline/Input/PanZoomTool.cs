@@ -1,4 +1,10 @@
-namespace DemoViewer.NET.Playback2D.Core.Input;
+#region
+
+using DemoViewer.NET.Playback2D.Input;
+
+#endregion
+
+namespace DemoViewer.NET.Playback2D.Pipeline.Input;
 
 /// <summary>
 ///     Drag-to-pan / wheel-to-zoom as an <see cref="IPointerTool" />. A thin wrapper over
@@ -15,6 +21,9 @@ public sealed class PanZoomTool : IPointerTool
 
     /// <summary>Whether a pan drag is in progress.</summary>
     public bool IsDragging => _gesture.IsDragging;
+
+    /// <inheritdoc />
+    public string Id => ToolIds.Of(ToolKind.PanZoom);
 
     /// <inheritdoc />
     public ToolKind Kind => ToolKind.PanZoom;

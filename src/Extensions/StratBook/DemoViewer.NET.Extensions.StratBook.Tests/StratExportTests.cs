@@ -1,22 +1,30 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Export;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
+using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.TestSupport;
+using Microsoft.Extensions.DependencyInjection;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
@@ -52,11 +60,12 @@ public class StratExportTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (StratBookTabViewModel vm, List<Playback2DExportStatusViewModel> chips) = OpenFiveSteps();
+            (StratBookTabViewModel vm, List<Playback2DExportStatusViewModel> chips, ExtensionSceneExport export) = OpenFiveSteps();
+            using (export)
             using (vm)
             {
                 vm.OpenExportCommand.Execute(null);
-                Playback2DExportDialogViewModel dialog = vm.ExportDialog!;
+                Playback2DExportDialogViewModel dialog = (Playback2DExportDialogViewModel)vm.ExportDialog!;
                 ExportRequest request = dialog.BuildRequest(dialog.SelectedRange!);
 
                 using (Assert.Multiple())
@@ -77,9 +86,8 @@ public class StratExportTests
                     await Assert.That(request.LayerIds.Count).IsEqualTo(9);
                     await Assert.That(request.LayerIds).DoesNotContain(SceneLayerIds.HudKillFeed);
 
-                    // The chip is mounted through the host, once, on the first Export.
+                    // The chip is the host's, mounted once, on the first Export.
                     await Assert.That(chips.Count).IsEqualTo(1);
-                    await Assert.That(vm.ExportStatus).IsSameReferenceAs(chips[0]);
                 }
             }
         });
@@ -95,36 +103,27 @@ public class StratExportTests
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            (StratBookTabViewModel vm, _) = OpenFiveSteps();
+            (StratBookTabViewModel vm, _, ExtensionSceneExport export) = OpenFiveSteps();
             string dir = Path.Combine(Path.GetTempPath(), "dv-strat-export-" + Guid.NewGuid().ToString("N"));
             string output = Path.Combine(dir, "five-steps.gif");
             string silencedOutput = Path.Combine(dir, "five-steps-silenced.gif");
             try
             {
+                using (export)
                 using (vm)
                 {
                     vm.OpenExportCommand.Execute(null);
-                    Playback2DExportDialogViewModel dialog = vm.ExportDialog!;
+                    Playback2DExportDialogViewModel dialog = (Playback2DExportDialogViewModel)vm.ExportDialog!;
                     ExportRangeOption range = dialog.SelectedRange!;
 
-                    // What the dialog's Start hands the job: its request, the range in strat ticks, and the capture
-                    // riding the ink session.
-                    Scene2DExportRequest request = new(dialog.BuildRequest(range), output, string.Empty,
-                        range.StartFrame, range.EndFrame, dialog.SelectedEncoder, dialog.SelectedQuality,
-                        StratExportJob.Register(vm.Canvas.CaptureForExport()!));
-
-                    await NoFfmpegJob(vm).RunAsync(request, new Progress<ExportProgress>(), CancellationToken.None);
+                    // What the pane's Start hands the host: its request and the range in strat ticks, over the
+                    // scene the tab captures. On the managed GIF floor, so the bytes do not depend on which
+                    // ffmpeg this machine has, and with no map art, as the canvas has none here.
+                    await RenderAsync(vm, dialog, range, output, null);
 
                     // The same export with every text layer silenced: the pixels that differ between the two
                     // frames are the glyph mask the golden is judged under.
-                    Scene2DExportRequest silencedRequest = new(dialog.BuildRequest(range), silencedOutput, string.Empty,
-                        range.StartFrame, range.EndFrame, dialog.SelectedEncoder, dialog.SelectedQuality,
-                        StratExportJob.Register(vm.Canvas.CaptureForExport()!));
-                    StratExportJob silencedJob = new(vm.Canvas.MapLoader, locateFfmpeg: _ => FfmpegLocation.NotFound)
-                    {
-                        ConfigureLayers = SceneLayerCatalog.SilenceText
-                    };
-                    await silencedJob.RunAsync(silencedRequest, new Progress<ExportProgress>(), CancellationToken.None);
+                    await RenderAsync(vm, dialog, range, silencedOutput, SceneLayerCatalog.SilenceText);
                 }
 
                 byte[] gif = await File.ReadAllBytesAsync(output);
@@ -179,28 +178,93 @@ public class StratExportTests
         });
     }
 
+    /// <summary>
+    ///     The host's own Start-to-setup round trip, the half the pane's capture callback reaches: the scene
+    ///     the tab captures rides the request's ink session and comes back as the run's setup, and a request
+    ///     carrying no capture is refused with the copy the pane named rather than the host's own.
+    /// </summary>
     [Test]
-    public async Task TheJob_RefusesARequestWithNoCapture()
+    public async Task TheHost_ReadsTheCaptureBackOffTheRequest_AndRefusesARunWithout()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            StratExportJob job = new(_ => null, locateFfmpeg: _ => FfmpegLocation.NotFound);
-            ExportRequest core = new(0, 0, 20, new SKSizeI(64, 64), 1.0, ExportFormats.Gif,
-                StratExportJob.LayerIds(false, false), new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>()));
-
-            ExportRefusedException? refused = null;
-            try
+            (StratBookTabViewModel vm, _, ExtensionSceneExport export) = OpenFiveSteps();
+            using (export)
+            using (vm)
             {
-                await job.RunAsync(new Scene2DExportRequest(core, "unused.gif", string.Empty), new Progress<ExportProgress>(),
-                    CancellationToken.None);
-            }
-            catch (ExportRefusedException ex)
-            {
-                refused = ex;
-            }
+                vm.OpenExportCommand.Execute(null);
+                Playback2DExportDialogViewModel dialog = (Playback2DExportDialogViewModel)vm.ExportDialog!;
+                ExportRangeOption range = dialog.SelectedRange!;
 
-            await Assert.That(refused?.Message).IsEqualTo(StratExportJob.NoStratRefusal);
+                SceneExportScene scene = StratExportJob.Scene(vm.Canvas.CaptureForExport()!);
+                AnnotationSession key = export.Key(scene)!;
+                ExportSceneSetup setup = export.Setup(new Scene2DExportRequest(dialog.BuildRequest(range),
+                    "unused.gif", string.Empty, range.StartFrame, range.EndFrame, Ink: key));
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(key).IsSameReferenceAs(scene.Ink);
+                    await Assert.That(setup.Annotations).IsSameReferenceAs(scene.Ink);
+                    await Assert.That(setup.Source).IsNotNull().Because("a strat has no demo behind it");
+                    await Assert.That(setup.Frames).IsEmpty();
+                    await Assert.That(setup.DisplayMode).IsEqualTo(LevelDisplayMode.Stacked);
+                    await Assert.That(setup.Palette).IsEqualTo(ScenePalette.Dark).Because("the request named none");
+                }
+
+                setup.Owned?.Dispose();
+
+                ExportRefusedException? refused = null;
+                try
+                {
+                    export.Setup(new Scene2DExportRequest(dialog.BuildRequest(range), "unused.gif", string.Empty));
+                }
+                catch (ExportRefusedException ex)
+                {
+                    refused = ex;
+                }
+
+                await Assert.That(refused?.Message).IsEqualTo(StratExportJob.NoStratRefusal);
+            }
         });
+    }
+
+    /// <summary>
+    ///     The shell's own wiring, through the real container. The tab reads the export off a resolver the
+    ///     pack hands it: the export is built per extension, carrying that extension's id, feature switch
+    ///     and fault guard, so it is handed over rather than registered in the one root container for every
+    ///     pack to resolve. Nothing but this says the wiring is there at all.
+    /// </summary>
+    [Test]
+    [Category("Integration")]
+    public async Task TheShell_WiresTheExport_SoTheTabCanOpenAPane()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dv-strat-export-wiring-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        string? previous = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                try
+                {
+                    await Assert.That(provider.GetRequiredService<StratBookTabViewModel>().HasSceneExport).IsTrue();
+                }
+                finally
+                {
+                    provider.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, previous);
+            if (Directory.Exists(dir))
+            {
+                Directory.Delete(dir, true);
+            }
+        }
     }
 
     /// <summary>
@@ -233,7 +297,7 @@ public class StratExportTests
                 new Playback2DSettings { ExportFormatId = ExportFormats.Gif, ExportFps = 20, ExportWidth = 640, ExportHeight = 640 },
                 outputFrameCount: StratFrameSource.OutputFrameCount,
                 fileExists: _ => false,
-                scene: new ExportDialogScene("Export strat", "strat", StratBookTabViewModel.ExportSizes,
+                scene: new ExportDialogScene("Export strat", "strat", FirstPartySceneExport.SizePresets,
                     StratExportJob.LayerIds));
 
             await Assert.That(dialog.EstimatedFrameCount).IsEqualTo(2301);
@@ -304,7 +368,14 @@ public class StratExportTests
 
     // A Strat Book tab with the five-step strat open, activated on a real ModuleContext carrying a strat export host
     // whose job never finds ffmpeg; the list collects the chips the host is asked to mount.
-    private static (StratBookTabViewModel Vm, List<Playback2DExportStatusViewModel> Chips) OpenFiveSteps()
+    // The gate and the queue are the machine's, one per process: nothing here starts an export, and a fresh
+    // pair per test would leave a queue running for every case in the suite.
+    private static readonly HeavyJobGate _gate = new();
+
+    private static readonly FirstPartyExports _exports = new(_gate, new DemoProcessingQueue(_gate, a => a()));
+
+    private static (StratBookTabViewModel Vm, List<Playback2DExportStatusViewModel> Chips, ExtensionSceneExport Export)
+        OpenFiveSteps()
     {
         StratStore store = new(null);
         StratDocument document = FiveSteps();
@@ -314,22 +385,59 @@ public class StratExportTests
             throw new InvalidOperationException(saved.Reason);
         }
 
-        StratBookTabViewModel vm = new(store, null, null, false, canvasMapLoader: _ => null);
+        List<Playback2DExportStatusViewModel> chips = [];
+        ExtensionSceneExport export = new(StratBookPack.PackId, StratBookPack.PackFeatureId, _exports, null,
+            new ChipCollector(chips), ExtensionGuard.Standalone(new StratBookPack()), null);
+
+        StratBookTabViewModel vm = new(store, null, null, false, canvasMapLoader: _ => null,
+            sceneExport: () => export);
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
-        vm.ExportJobFactory = _ => NoFfmpegJob(vm);
 
-        List<Playback2DExportStatusViewModel> chips = [];
         ModuleContext context = new(new PlaybackController(), () => null);
-        context.RegisterService<IStratExport>(() => new StratExportHost(
-            (runner, log) => new ExportJobService(runner, null, null, null, log), null, null, null, chips.Add, null));
         vm.OnActivated(context);
         vm.Session.Open(document.Id);
-        return (vm, chips);
+        return (vm, chips, export);
     }
 
-    private static StratExportJob NoFfmpegJob(StratBookTabViewModel vm) =>
-        new(vm.Canvas.MapLoader, locateFfmpeg: _ => FfmpegLocation.NotFound);
+    // The scene the pane's Start would hand over, as the host builds it: the tab's capture, no map art (the
+    // canvas has none here, and the golden is recorded on the grid), and the range in strat ticks.
+    private static ExportSceneSetup? Capture(StratBookTabViewModel vm, Playback2DExportDialogViewModel dialog,
+        ExportRangeOption range)
+    {
+        if (vm.Canvas.CaptureForExport() is not { } capture)
+        {
+            throw new ExportRefusedException(StratExportJob.NoStratRefusal);
+        }
+
+        // Dark, not the session's theme: the pane resolves the theme at Start and puts it on the request,
+        // and a request with no palette falls back to Dark, which is what the golden was recorded under.
+        return SceneExportScenes.ToSetup(StratExportJob.Scene(capture), ScenePalette.Dark,
+            new SceneFramesRequest(null, range.StartFrame, range.EndFrame, dialog.SelectedFps, 1.0), null);
+    }
+
+    // One strat export on the managed GIF floor, through the one runner, with the text layers optionally
+    // silenced. locateFfmpeg is pinned so the bytes do not depend on which ffmpeg this machine has.
+    private static async Task RenderAsync(StratBookTabViewModel vm, Playback2DExportDialogViewModel dialog,
+        ExportRangeOption range, string output, Action<SceneCompositor>? configureLayers)
+    {
+        ExportSceneSetup setup = Capture(vm, dialog, range)! with { ConfigureLayers = configureLayers };
+        Scene2DExportRequest request = new(dialog.BuildRequest(range), output, string.Empty,
+            range.StartFrame, range.EndFrame, dialog.SelectedEncoder, dialog.SelectedQuality,
+            setup.Annotations);
+
+        // Every seam named, the 2D tab's rule: an omitted optional is invisible at the call site.
+        SceneExportRunner job = new(_ => setup, surfaces: RenderSurfaceProviderFactory.CreateCpu,
+            managedFfmpegDirectory: static () => null, log: null, encoderProbe: EncoderProbeCache.Shared,
+            locateFfmpeg: _ => FfmpegLocation.NotFound, noSetupRefusal: StratExportJob.NoStratRefusal);
+        await job.RunAsync(request, new Progress<ExportProgress>(), CancellationToken.None);
+    }
+
+    private sealed class ChipCollector(List<Playback2DExportStatusViewModel> chips) : IFirstPartyExportChips
+    {
+        public void Mount(string chipId, string featureId, Playback2DExportStatusViewModel status) =>
+            chips.Add(status);
+    }
 
     private static ExportRequest Request(int frames, string format, int fps = 20) =>
         new(0, frames - 1, fps, new SKSizeI(640, 640), 1.0, format, StratExportJob.LayerIds(true, true),

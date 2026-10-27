@@ -1,7 +1,9 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
@@ -182,7 +184,7 @@ public class SituationalBehaviourTests
         List<string> shown = [];
         QueuedPost posted = new();
         using DossierTabViewModel vm = new(h.Teams, h.Cache.Library(), new VetoHistoryStore(null), false,
-            review: queue,
+            review: new ExtensionReviewQueue(queue),
             selectTab: id =>
             {
                 shown.Add(id);

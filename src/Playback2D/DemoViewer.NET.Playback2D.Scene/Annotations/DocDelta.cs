@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Annotations;
+namespace DemoViewer.NET.Playback2D.Annotations;
 
 /// <summary>
 ///     One invertible mutation of an <see cref="AnnotationDocument" />. Deliberately minimal and

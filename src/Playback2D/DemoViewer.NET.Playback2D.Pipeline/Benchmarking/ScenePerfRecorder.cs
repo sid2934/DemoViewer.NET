@@ -1,7 +1,7 @@
 #region
 
 using System.Diagnostics;
-using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Compositing;
 
 #endregion
 

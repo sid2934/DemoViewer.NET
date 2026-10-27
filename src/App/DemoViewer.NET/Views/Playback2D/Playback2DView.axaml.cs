@@ -10,7 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.Playback2D.Input;
 using DemoViewer.NET.ViewModels.PlayerOverview;
 
 #endregion

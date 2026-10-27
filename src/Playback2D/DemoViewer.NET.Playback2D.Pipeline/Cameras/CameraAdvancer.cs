@@ -1,10 +1,11 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Cameras;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Cameras;
+namespace DemoViewer.NET.Playback2D.Pipeline.Cameras;
 
 /// <summary>
 ///     Steps every pane's camera toward its rig's target once per rendered frame. Port of

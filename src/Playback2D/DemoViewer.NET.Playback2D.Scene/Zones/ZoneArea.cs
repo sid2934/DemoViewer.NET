@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>
 ///     One nav area with the place the bake (or the overlay) assigned it. Corners are flat world XY,

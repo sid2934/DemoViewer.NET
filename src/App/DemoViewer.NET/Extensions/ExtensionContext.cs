@@ -6,6 +6,8 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.Sdk.Export;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
@@ -14,6 +16,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Players;
+using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
@@ -102,6 +105,10 @@ internal sealed class ExtensionContext : IExtensionContext
 {
     private readonly Lazy<IExtensionDemoData> _data;
     private readonly Lazy<IExtensionLibrary> _library;
+    private readonly Lazy<IExtensionReviewPackExport?> _packExport;
+    private readonly Lazy<IExtensionReviewQueue> _review;
+    private readonly Lazy<ReviewQueue> _reviewQueue;
+    private readonly Lazy<IExtensionSceneExport?> _sceneExport;
     private readonly ExtensionGuard _guard;
     private readonly HostKeymap _keymap;
     private readonly string _logPrefix;
@@ -119,7 +126,6 @@ internal sealed class ExtensionContext : IExtensionContext
             () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default, _guard, Post, Dispatcher.UIThread.CheckAccess);
         Passes = new ExtensionPasses(extension.Id, () => services.GetService<DemoScheduler>(), Post);
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
-        Storage = new StorageView(extension.Id);
         Stores = new ExtensionStores(extension.Id, AppPaths.ConfigRoot, AppPaths.DemoCacheDir, PackContributions.AcceptedStores(extension, _guard));
         Settings = new ExtensionSettingsStore(extension.Id, AppPaths.ConfigRoot, Post);
         Notifications = services.GetService<NotificationCenter>()?.For(_guard, CreateLogger("Notifications"))
@@ -139,6 +145,25 @@ internal sealed class ExtensionContext : IExtensionContext
                         _ => load(), DemoJobPriority.UserRequested, "extension-data-load:" + extension.Id)
                     : null)
             : UnavailableDemoData.Instance);
+        // Lazy all the way to the resolve: constructing the ReviewQueue is what schedules the queue's
+        // startup read, so an eager resolve here queued one on every launch whether or not anything looked.
+        _reviewQueue = new Lazy<ReviewQueue>(() => services.GetService<ReviewQueue>() ?? new ReviewQueue(null));
+        _review = new Lazy<IExtensionReviewQueue>(() =>
+            new ExtensionReviewQueue(_reviewQueue.Value, _guard, Dispatcher.UIThread.CheckAccess));
+        _packExport = new Lazy<IExtensionReviewPackExport?>(() =>
+            services.GetService<FirstPartyExports>()?.PackExport is { } run
+                ? new ExtensionReviewPackExport(run, _reviewQueue.Value,
+                    services.GetService<FirstPartyExports>()?.ExportOutputDirectory,
+                    onUiThread: Dispatcher.UIThread.CheckAccess)
+                : null);
+        // Lazy, and one per extension: the chip is filed under the extension and the job is single-flight
+        // across every pane the extension opens.
+        _sceneExport = new Lazy<IExtensionSceneExport?>(() =>
+            !OperatingSystem.IsBrowser() && services.GetService<FirstPartyExports>() is { } exports
+                ? new ExtensionSceneExport(extension.Id, extension.FeatureId, exports,
+                    services.GetService<ExtensionShellHub>(), services.GetService<ExtensionShellHub>(), _guard,
+                    Shell.RevealInFileManager)
+                : null);
         _library = new Lazy<IExtensionLibrary>(() => new ExtensionLibraryView(
             HostLibrary.For(services.GetRequiredService<DemoCacheStore>(), services.GetService<IDemoProcessingQueue>(),
                 () => services.GetService<AnalysisFacts>() ?? (IAnalysisFacts)NoFacts.Instance), _guard,
@@ -162,8 +187,6 @@ internal sealed class ExtensionContext : IExtensionContext
 
     public IExtensionShell Shell { get; }
 
-    public IExtensionStorage Storage { get; }
-
     public IExtensionStores Stores { get; }
 
     public IExtensionSettings Settings { get; }
@@ -177,6 +200,12 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionKeymap Keymap => _keymap;
 
     public IExtensionIdentity Identity { get; }
+
+    public IExtensionReviewQueue Review => _review.Value;
+
+    public IExtensionSceneExport? SceneExport => _sceneExport.Value;
+
+    public IExtensionReviewPackExport? PackExport => _packExport.Value;
 
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 
@@ -302,63 +331,6 @@ internal sealed class ExtensionContext : IExtensionContext
         {
             ArgumentException.ThrowIfNullOrEmpty(path);
             _hub.Shell?.OpenOutputFolder(path);
-        }
-    }
-
-    internal sealed class StorageView(string extensionId, string? configRoot = null, string? cacheRoot = null) : IExtensionStorage
-    {
-        private readonly string? _configRoot = configRoot ?? AppPaths.ConfigRoot;
-        private readonly string? _cacheRoot = cacheRoot ?? AppPaths.DemoCacheDir;
-
-        private string? ConfigFolder => _configRoot is { } root
-            ? Path.Combine(root, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extensionId))
-            : null;
-
-        private string? CacheFolder => _cacheRoot is { } cache
-            ? Path.Combine(cache, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extensionId))
-            : null;
-
-        public async Task<bool> WriteAtomicAsync(StoreRoot root, string relativePath, ReadOnlyMemory<byte> content,
-            CancellationToken cancellationToken = default)
-        {
-            if (Resolve(root, relativePath) is not { } target)
-            {
-                return false;
-            }
-
-            await AtomicFile.WriteAllBytesAsync(target, content, cancellationToken).ConfigureAwait(false);
-            return true;
-        }
-
-        public async Task<byte[]?> ReadAsync(StoreRoot root, string relativePath, CancellationToken cancellationToken = default)
-        {
-            if (Resolve(root, relativePath) is not { } target || !File.Exists(target))
-            {
-                return null;
-            }
-
-            return await File.ReadAllBytesAsync(target, cancellationToken).ConfigureAwait(false);
-        }
-
-        // Null when the build has no folders; throws for a path that would leave the extension's folder.
-        private string? Resolve(StoreRoot root, string relativePath)
-        {
-            ArgumentNullException.ThrowIfNull(relativePath);
-            if ((root == StoreRoot.Config ? ConfigFolder : CacheFolder) is not { } folder)
-            {
-                return null;
-            }
-
-            string target = PackDataRemover.ResolveSafe(folder, relativePath)
-                            ?? throw new ArgumentException($"'{relativePath}' is not a file inside the extension's folder.", nameof(relativePath));
-            string host = Path.Combine(folder, ExtensionDemoDataStore.DirectoryName);
-            if (root == StoreRoot.Cache && (string.Equals(target, host, StringComparison.OrdinalIgnoreCase)
-                                            || target.StartsWith(host + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new ArgumentException($"'{relativePath}' is inside the per-demo data the host keeps.", nameof(relativePath));
-            }
-
-            return target;
         }
     }
 }

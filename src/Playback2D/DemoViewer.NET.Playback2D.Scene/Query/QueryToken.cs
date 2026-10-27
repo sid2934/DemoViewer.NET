@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Query;
+namespace DemoViewer.NET.Playback2D.Query;
 
 /// <summary>Which side of the rail a token belongs to. The value is the side's row on the rail, never a CS2 team number.</summary>
 public enum QuerySide

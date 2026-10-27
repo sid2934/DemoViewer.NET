@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Compositing;
+namespace DemoViewer.NET.Playback2D.Compositing;
 
 /// <summary>
 ///     The whole of the <see cref="LayerCacheHint" /> mechanism: recorded <see cref="SKPicture" />s,

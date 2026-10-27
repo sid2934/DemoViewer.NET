@@ -7,7 +7,6 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook;
 using TUnit.Assertions.Enums;
@@ -282,7 +281,7 @@ public class TagLabelModeTests
             session.Apply(new TagDelta.Add(early));
             session.Apply(new TagDelta.Add(apart));
             using TagTrack track = new(session, static action => action());
-            SdkTimeline data = new(new FakeTimelineData(1_000));
+            FakeTimelineData data = new(1_000);
 
             using (Assert.Multiple())
             {

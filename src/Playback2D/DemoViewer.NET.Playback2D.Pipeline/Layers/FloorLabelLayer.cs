@@ -1,13 +1,14 @@
 #region
 
-using System.Globalization;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Levels;
 using SkiaSharp;
+using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Playback2D.Pipeline.Layers;
 
 /// <summary>
 ///     The per-band caption (<c>floor 1  z[-352..-128]</c>) in the pane's top-left corner.

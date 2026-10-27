@@ -1,11 +1,11 @@
 #region
 
 using System.Diagnostics;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 
 #endregion
@@ -39,7 +39,7 @@ public sealed class ScenePipelineBenchmark
     /// <param name="surfaces">Surface backend. Not owned.</param>
     /// <param name="layout">Pane layout policy.</param>
     /// <param name="palette">Resolved colours.</param>
-    public ScenePipelineBenchmark(SceneCompositor compositor, IRenderSurfaceProvider surfaces,
+    internal ScenePipelineBenchmark(SceneCompositor compositor, IRenderSurfaceProvider surfaces,
         ILevelLayoutPolicy layout, ScenePalette palette)
     {
         ArgumentNullException.ThrowIfNull(compositor);

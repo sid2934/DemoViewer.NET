@@ -10,7 +10,7 @@ Views that should look like the app take `DemoViewer.NET.Extensions.Sdk.Ui` as w
 the palette token and style class names, and the view-model base the host resolves views for.
 
 The 2D map's scene types come with the `DemoViewer.NET.Playback2D.Scene` package, under the
-`DemoViewer.NET.Playback2D.Core` namespaces (`.Compositing`, `.Levels`, `.Tools` and others): the frame, the
+`DemoViewer.NET.Playback2D` namespaces (`.Compositing`, `.Levels`, `.Tools` and others): the frame, the
 layer contract, floors, places and the world-to-screen transform, over SkiaSharp.
 
 ## Project
@@ -22,7 +22,7 @@ layer contract, floors, places and the world-to-screen transform, over SkiaSharp
     <Version>1.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.2.*" />
+    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="2.0.*" />
     <PackageReference Include="Avalonia" Version="12.1.4" />
   </ItemGroup>
 </Project>
@@ -38,7 +38,7 @@ package version, embed the result in the assembly and copy it beside the DLL:
   "version": "{version}",
   "assembly": "MyExtension.dll",
   "entryType": "MyExtension.MyExtension",
-  "requiresHost": "^1.2",
+  "requiresHost": "^2.0",
   "requiresCs2DemoKit": "*"
 }
 ```
@@ -66,7 +66,7 @@ public sealed class MyExtension : IExtension
     ];
 
     public void Register(IServiceCollection services) =>
-        services.AddSingleton(sp => new MyTabViewModel(sp.GetExtensionContext(Id)));
+        services.AddSingleton(sp => new MyTabViewModel(sp.GetExtensionContext<MyExtension>()));
 
     public void Contribute(IExtensionContributions contributions, IServiceProvider services) =>
         contributions.Tabs(new MyModule(services.GetRequiredService<MyTabViewModel>));
@@ -143,26 +143,68 @@ gives the same answer for the point pressed. `PlacesVersion` changes when the us
 it beside a place you store to know when to look the place up again.
 
 A toolbar item's `PlaybackMoment` and a pointer handler's `PlaybackPointer` carry the frame on screen
-(`Frame`, a `DemoViewer.NET.Playback2D.Core.Scene2DFrame`): the players' markers, grenades and clock.
+(`Frame`, a `DemoViewer.NET.Playback2D.Scene2DFrame`): the players' markers, grenades and clock.
 It is valid only during the call; the tab refills it for the next frame.
 
-`AddLayer(id, factory)` draws an `ISceneLayer` on the tab's map among its own layers. The host files it as
-`ext.<your extension id>.<id>`, so it can never take one of the tab's layers or another extension's, and the
-built layer's own `Id` is not used. The factory runs again whenever the map rebuilds its scene. The layer sees
+`AddLayer(id, factory, displayName, enabled)` draws an `ISceneLayer` on the tab's map among its own layers. The host files it
+as `ext.<your extension id>.<id>`, so it can never take one of the tab's layers or another extension's, and
+the built layer's own `Id` is not used. `displayName` labels the layer's own visibility row in the tab's overlay
+strip, and a null or blank one labels it with your extension's name; `enabled` is where that row starts. The
+host keeps the user's choice for the session only, so pass back what you stored through `IExtensionSettings`
+if you want it remembered. The factory runs again whenever the map rebuilds its scene. The layer sees
 only what it is handed: the frame in `Advance`, the canvas and the `SceneRenderContext` in `Render`, which
 runs on the render thread. The canvas is restored after each call, and a layer that throws stops drawing for
 the session. `AddTool(tool)` adds an `IMapTool` that is offered every primary press the tab does not pan
 (Space, Control and the middle button pan), after the pointer handlers; the tool that takes a press owns the
 gesture until the release.
 
-A lane's track can draw marks as well as bands: implement `ITimelineTrack.BuildMarks` to put a glyph on the
-timeline at a frame.
+A lane's track is an `ITimelineTrack` from `DemoViewer.NET.Playback2D.Scene`, the same contract the tab's own
+tracks use. It can draw marks as well as bands: `BuildMarkers` puts a glyph on the timeline at a frame, and
+the `TimelineMarkerKind` it asks for is what the host themes the glyph by. The host files every band and mark
+under the lane's id, so there is no point setting `TrackId` yourself.
 
-For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`).
+For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`), which takes
+an `IMapTool` through its own `AddTool`. For frames of your own, `SceneView` draws them the way the tab
+draws a demo: set `Source` to an `ISceneSource` that publishes a frame on every change, add layers by id,
+and add `IPointerTool`s that `SetActiveTool` selects by their `ToolKind`.
+
+## Exporting a scene
+
+`IExtensionContext.SceneExport` is the host's 2D export. It is null where the host exports nothing, which is
+the browser build: hide your export surface while it is.
+
+There are two ways in. `OpenPane` opens the host's export pane over your scene and gives you back an
+`ISceneExportPane`: put its `ViewModel` in a `ContentControl` in your own view, subscribe `Started` if you
+want to close the pane when the user starts, and dispose the handle to close it. An export that has started
+keeps running, and its progress stays on a status chip the host files under your extension. `RenderAsync`
+renders one `SceneExportClip` with no pane and no chip, for a caller already inside its own job.
+
+Either way you describe the scene with a `SceneExportScene`, and its frames come from one of two places. Set
+`Frames` and `TickRate` and the host replays a parsed demo through its own private tracker. Set `Source` and
+the host asks your `SceneFramesFactory` for an `ISceneFrames` instead, once the render's own thread has the
+map's art and the range, rate and speed the user chose. That second path is for a scene that never had a demo
+behind it. `MapName` is what the host looks the map's art up by, and it holds that art for the whole run, so
+dropping your own hold mid-render cannot take it out from under the render.
+
+The pane's request carries what only you know: the `Ranges` offered in your own units, the
+`SceneExportChoices` it opens on, the `OutputFrameCount` that sizes a range, the `Layers` built from its ink
+and clock toggles, and a `Capture` the host calls on the UI thread at Start. Return null from `Capture` and
+the run is refused with your `NothingToExport` copy, so a scene the user closed while the pane was open can
+never be rendered from a stale capture. Leave `LayerIds` or `Layers` unset and you get the default scene with
+no opt-in layer: no ink, no HUD and no telestration is ever burned in without being named.
+
+A render that does not produce a file answers with a `SceneExportOutcome` rather than throwing, and
+`Message` is the only part of it to put in front of a user. `SupportedFps(formatId)` lists the rates a format
+takes, which are shorter for GIF than for video, and `SizePresets` the sizes the host's own export offers.
+Every `formatId` here is one of `SceneExportFormats.WebM`, `.Mp4` or `.Gif`. They are persisted keys, so name
+them through that class rather than writing the string.
 
 ## The host
 
-`services.GetExtensionContext(Id)` returns the extension's `IExtensionContext`:
+`services.GetExtensionContext<MyExtension>()` names your own entry type, the one the host constructed. Each
+context is keyed on that type, so another extension's is not something you can ask for without referencing
+its assembly, and a copied sample keys on its own type rather than the one it was copied from. A type this
+host has not loaded throws. It returns your extension's `IExtensionContext`:
 
 - `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files, and opening a player in the
   Player Overview tab (`OpenPlayerOverview`, false when the tab is off or the host has none). `CurrentDemo` is the open
@@ -183,17 +225,17 @@ For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extens
   thread. The browser build keeps them for the session.
 - `Data`: per-demo data the host keeps for you. See below.
 - `Library`: the demo library, read only. See "Reading the library".
-- `Storage`: files of your own in two folders the host keeps for you, one for the user's work and one for what
-  you can rebuild. You name a file by its path under the folder (`StoreRoot.Config` or `StoreRoot.Cache`) and
-  never see where the folder is. Write with `WriteAtomicAsync` and read with `ReadAsync`: the path must stay
-  inside the folder, and a crash mid-write leaves the previous file instead of a torn one. The browser build
-  has no folders.
-- `Stores`: the stores your entry type declares in `IExtension.Stores`, which is where data lives that a user
-  is meant to find, or that an older build left where the user has it. `Open(storeId)` hands a store that
-  declares one folder back as an `IExtensionFolder`: list, read, write whole, append, move and delete under
+- `Stores`: every folder of yours on disk. `Open(storeId)` hands a store your entry type declared in
+  `IExtension.Stores` back as an `IExtensionFolder`: list, read, write whole, append, move and delete under
   it by relative path, or take its `Path` for a process or the file manager. `OpenFile(storeId)` hands a
-  store that declares one file back as an `IExtensionFile`. The host resolves both from the descriptor, so
-  the same rule that bounds "Delete extension data" bounds what you can open. Null on the browser build.
+  store that declares one file back as an `IExtensionFile`. A declared store is where data lives that a user
+  is meant to find, or that an older build left where the user has it; the host resolves it from the
+  descriptor, so the same rule that bounds "Delete extension data" bounds what you can open. `Own(root)`
+  hands back a folder of your own for everything else, one per root (`StoreRoot.Config` for the user's work,
+  `StoreRoot.Cache` for what you can rebuild), with the same `IExtensionFolder` on it. Every write replaces
+  the file whole or leaves the previous one, so a crash mid-write never leaves a torn file; `Append` is the
+  one in-place write, and it reaches the disk before it returns. All three are null on the browser build,
+  which has no folders, and a path that would leave the folder it is relative to is refused.
 - `Notifications`: short messages to the user, drawn as a small stack above the status strip. See below.
 - `Keymap`: the app's one keymap, read only. `Bindings` is every default binding with its scope, and
   `ShellReserved` and `BrowserReserved` the gestures the shell and the browser take first; check a key your
@@ -201,6 +243,7 @@ For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extens
   `GestureText` read the user's keymap with their rebinds applied, for a surface of your own that resolves
   keys itself, and `Changed` fires on the UI thread after a rebind. `KeyGestureText.Format` writes a gesture
   the way the rest of the app does.
+- `SceneExport`: the host's 2D scene export, or null where it exports nothing. See "Exporting a scene".
 - `Identity`: the user's own accounts from Settings, Identity, read only. `Accounts` lists every SteamID64 the
   user marked as theirs and `ActiveAccount` the one their own stats are about; `IsMine` checks one id, and
   `Changed` fires on the UI thread after the user edits the list. Read `Accounts` to find the user's side of a
@@ -577,9 +620,35 @@ them did not load.
 ## Compatibility
 
 The SDK follows semantic versioning, and the app never makes a breaking change to it outside a new major
-version of the app. The assembly version is `Major.0.0.0`, so an extension built against any 1.x SDK binds to
-every 1.x host. The SDK starts at 1.1 because 1.0.0 is what the app reported for its earlier, internal
+version of the app. The assembly version is `Major.0.0.0`, so an extension built against any 2.x SDK binds to
+every 2.x host. The SDK starts at 1.1 because 1.0.0 is what the app reported for its earlier, internal
 extension contract; `^1.1` keeps those builds from loading SDK extensions. 1.2 adds `IExtensionContext.Identity`:
 an extension that reads it states `^1.2`, since a 1.1 host has no such member. 1.2 also adds
 `IExtensionLibrary.Players` and `IExtensionShell.OpenPlayerOverview` with default bodies, so a host or a test
 double written before them answers no accounts and opens nothing.
+
+2.0 is a wide break. A pack built against 1.x needs its `using` directives changed and a recompile, not
+just a new pin, and it states `^2.0`. The Playback2D namespaces were flattened to one per assembly, so
+`DemoViewer.NET.Playback2D.Core.*` is now `DemoViewer.NET.Playback2D.*`, and every signature naming a
+scene type moved with it. The scene contract also publishes less: 150 types became 130. Beyond the
+namespace, these shapes changed:
+
+- The SDK no longer declares its own timeline types. `ITimelineTrack`, `ITimelineData`, `TimelineBand`,
+  `TimelineMark` and `TimelineEvent` come from `DemoViewer.NET.Playback2D.Scene`, so one contract serves
+  a timeline lane and a scene.
+- `IExtensionContext.Storage` is `IExtensionContext.Stores`, and `IExtensionStorage` with its
+  `StoreRoot`-keyed `ReadAsync`/`WriteAtomicAsync` is `IExtensionFolder`. One storage model, not two.
+- `GetExtensionContext` is keyed on your pack type: `services.GetExtensionContext<MyPack>()`. The string
+  overload is gone, because two extensions could pass each other's id.
+- `IPlaybackSurface.AddLayer` takes a display name and a starting state for the layer's own visibility
+  row.
+- `SceneView.AddTool` returns an `IToolHandle`, and `IPointerTool` carries an `Id`. `SetActiveTool` and
+  `ActiveTool` are that id rather than a `ToolKind`, which is now the first-party category a tool
+  declares. Name a local id and the host files it under your extension.
+- `SceneView.AddLayer` and `MapView.AddLayer` return an `ILayerHandle` reporting the id the host filed
+  your layer under, and a second layer under an id a view already holds is refused instead of replacing
+  the first.
+- `MapAssets.RenderPng` takes layer factories of your own in place of an overlay document.
+- `MapAssets.TryLoad` is `MapAssets.Acquire`, and it hands back an `IMapAssetLease` you dispose. One
+  decode is shared by every holder, so the images it carries are the host's: draw them, do not dispose
+  them.

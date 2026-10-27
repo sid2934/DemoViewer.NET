@@ -19,17 +19,18 @@ public class StoredFileTests
         string root = Path.Combine(Path.GetTempPath(), $"dv-stored-file-{Guid.NewGuid():N}");
         try
         {
-            ExtensionContext.StorageView storage = new("dev.example.stored", Path.Combine(root, "config"), Path.Combine(root, "cache"));
+            ExtensionStores stores = new("dev.example.stored", Path.Combine(root, "config"), Path.Combine(root, "cache"), []);
+            IExtensionFolder folder = stores.Own(StoreRoot.Config)!;
             int legacyReads = 0;
             byte[] legacy = Encoding.UTF8.GetBytes("{\"Dismissed\":[\"k\"]}");
-            StoredFile file = StoredFile.In(storage, StoreRoot.Config, StratMiningFiles.StatePath, () =>
+            StoredFile file = StoredFile.In(folder, StratMiningFiles.StatePath, () =>
             {
                 legacyReads++;
                 return legacy;
-            });
+            })!;
 
             byte[]? first = file.Read();
-            byte[]? copied = await storage.ReadAsync(StoreRoot.Config, StratMiningFiles.StatePath);
+            byte[]? copied = folder.Read(StratMiningFiles.StatePath);
             file.Write(Encoding.UTF8.GetBytes("{}"));
             byte[]? afterWrite = file.Read();
             using (Assert.Multiple())
@@ -85,10 +86,15 @@ public class StoredFileTests
         string root = Path.Combine(Path.GetTempPath(), $"dv-stored-file-{Guid.NewGuid():N}");
         try
         {
-            ExtensionContext.StorageView storage = new("dev.example.stored", Path.Combine(root, "config"), Path.Combine(root, "cache"));
-            StoredFile file = StoredFile.In(storage, StoreRoot.Cache, StratMiningFiles.DetectedPath, () => null);
-            await Assert.That(file.Read()).IsNull();
-            await Assert.That(Directory.Exists(root)).IsFalse();
+            ExtensionStores stores = new("dev.example.stored", Path.Combine(root, "config"), Path.Combine(root, "cache"), []);
+            StoredFile file = StoredFile.In(stores.Own(StoreRoot.Cache), StratMiningFiles.DetectedPath, () => null)!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(file.Read()).IsNull();
+                await Assert.That(Directory.Exists(root)).IsFalse();
+                await Assert.That(StoredFile.In(null, StratMiningFiles.DetectedPath)).IsNull()
+                    .Because("no folder (the browser) is a session-only file");
+            }
         }
         finally
         {

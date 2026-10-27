@@ -2,7 +2,7 @@
 
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
@@ -44,7 +44,7 @@ public class ToleranceSliderRealDemoTests
         RoundIndexRun run = document.Rounds.SelectMany(r => r.Runs).First(r => r.Ct.Length > 0 && !r.Ct.Contains('?'));
 
         using QueryCanvasViewModel canvas = new(index, new QueryPlaceResolver(index), cache.Library(), _ => null,
-            dispose => dispose(), post: action => action(), countDelay: TimeSpan.Zero);
+            post: action => action(), countDelay: TimeSpan.Zero);
         canvas.Map = document.Map;
         int slot = 0;
         foreach ((string place, int count) in PlaceCountToken.Decode(run.Ct))

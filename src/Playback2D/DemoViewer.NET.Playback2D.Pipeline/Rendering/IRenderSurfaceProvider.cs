@@ -4,7 +4,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Rendering;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering;
 
 /// <summary>
 ///     The seam that makes Core a runtime rather than a library. Every offscreen

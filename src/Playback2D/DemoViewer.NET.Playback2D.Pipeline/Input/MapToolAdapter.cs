@@ -1,12 +1,13 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Tools;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Tools;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Input;
+namespace DemoViewer.NET.Playback2D.Pipeline.Input;
 
 /// <summary>
 ///     Runs a published <see cref="IMapTool" /> as one of the router's tools, under <see cref="ToolKind.Map" />.
@@ -22,6 +23,9 @@ public sealed class MapToolAdapter : IPointerTool
 
     /// <summary>The wrapped tool.</summary>
     public IMapTool Tool { get; }
+
+    /// <inheritdoc />
+    public string Id => ToolIds.Of(ToolKind.Map);
 
     /// <inheritdoc />
     public ToolKind Kind => ToolKind.Map;

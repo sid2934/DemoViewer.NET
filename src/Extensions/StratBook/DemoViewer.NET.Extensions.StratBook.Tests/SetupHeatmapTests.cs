@@ -1,10 +1,12 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
-using DemoViewer.NET.Playback2D.Core.Overlay;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Overlay;
+using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
@@ -235,7 +237,7 @@ public class SetupHeatmapTests
         ReviewQueue queue = new(null);
         List<string> shown = [];
         using DossierTabViewModel vm = new(h.Teams, h.Cache.Library(), new VetoHistoryStore(null), false,
-            h.Service, queue, id =>
+            h.Service, new ExtensionReviewQueue(queue), id =>
             {
                 shown.Add(id);
                 return true;

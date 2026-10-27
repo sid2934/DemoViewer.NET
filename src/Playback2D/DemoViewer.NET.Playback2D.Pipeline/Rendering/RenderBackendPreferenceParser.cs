@@ -1,6 +1,6 @@
 using System.Security;
 
-namespace DemoViewer.NET.Playback2D.Core.Rendering;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering;
 
 /// <summary>
 ///     Turns the strings the outside world speaks, a CLI flag, an environment variable, a persisted

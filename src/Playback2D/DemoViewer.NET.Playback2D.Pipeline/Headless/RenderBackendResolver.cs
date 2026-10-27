@@ -1,7 +1,7 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 
 #endregion
 

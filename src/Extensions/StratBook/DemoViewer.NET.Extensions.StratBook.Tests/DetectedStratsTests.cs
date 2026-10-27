@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using System.Text.RegularExpressions;
@@ -9,7 +10,6 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
@@ -186,7 +186,7 @@ public class DetectedStratsTests
             using Library library = Library.Create();
             using StratMiningService mining = library.Service();
             ReviewQueue review = new(null);
-            using StratBookTabViewModel vm = new(library.Strats, null, null, false, review: review, tags: library.Tags, mining: mining);
+            using StratBookTabViewModel vm = new(library.Strats, null, null, false, review: new ExtensionReviewQueue(review), tags: library.Tags, mining: mining);
             DetectedRowViewModel row = SelectAExecute(vm);
 
             int writes = 0;

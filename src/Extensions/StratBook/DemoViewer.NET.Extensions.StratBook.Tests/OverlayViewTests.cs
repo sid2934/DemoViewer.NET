@@ -3,8 +3,8 @@
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
-using DemoViewer.NET.Playback2D.Core.Overlay;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Overlay;
+using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
@@ -190,7 +190,7 @@ public class OverlayViewTests
         using SituationIndex index = new(cache.Library(), sidecars, sources);
         index.Load();
         using QueryCanvasViewModel canvas = new(index, new QueryPlaceResolver(index, sources.Zones), cache.Library(),
-            _ => null, dispose => dispose(), post: action => action(), countDelay: TimeSpan.Zero);
+            _ => null, post: action => action(), countDelay: TimeSpan.Zero);
         using SituationsTabViewModel tab = new(index, null, cache.Library(), sources, () => RoundIndexTokenSource.Pawn, false,
             canvas, sidecars: sidecars);
 

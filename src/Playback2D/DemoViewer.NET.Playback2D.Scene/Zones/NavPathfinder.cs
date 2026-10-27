@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>One point of a walked route: world XY and the floor key from this point on.</summary>
 /// <param name="X">World X.</param>

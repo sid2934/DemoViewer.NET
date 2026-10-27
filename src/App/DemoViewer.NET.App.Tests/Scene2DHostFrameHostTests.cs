@@ -10,14 +10,16 @@ using Avalonia.Platform;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Tools;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Pipeline.Layers;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Tools;
+using DemoViewer.NET.Playback2D.Zones;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using TUnit.Assertions.Enums;
@@ -168,6 +170,48 @@ public class Scene2DHostFrameHostTests
             host.SetActiveTool(ToolKind.Token);
             await Assert.That(host.Router.ActiveKind).IsEqualTo(ToolKind.PanZoom)
                 .Because("nothing registered a tool under Token on this host");
+
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     A contributed tool survives a session rebind, though the session only ever carried its category.
+    ///     The router mirrors the active tool's <see cref="ToolKind" /> onto the session and the rebind
+    ///     re-selects from that mirror, which reaches a first-party tool alone: a contributed tool would be
+    ///     swapped for the built-in of its category, and one whose category has no built-in dropped to pan.
+    /// </summary>
+    [Test]
+    public async Task AContributedTool_SurvivesASessionRebind_ThoughTheMirrorCarriesOnlyItsCategory()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            HostLibraryTests.LibraryTestExtension extension = new();
+            GuardedPointerTool contributed =
+                new(new InertPointerTool("pin", ToolKind.Draw), ExtensionGuard.Standalone(extension));
+            FakeSceneFrameHost first = new() { AnnotationSession = new AnnotationSession(new AnnotationDocument()) };
+            (Window window, Scene2DHost host) = Mount(first);
+
+            host.AddTool(contributed);
+            host.SetActiveTool(contributed.Id);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(contributed.Id).IsEqualTo("ext.test.library.pin");
+                await Assert.That(host.Router.ActiveToolId).IsEqualTo(contributed.Id);
+                await Assert.That(first.AnnotationSession!.ActiveTool).IsEqualTo(ToolKind.Draw)
+                    .Because("the mirror carries the category, which is the pen's here");
+            }
+
+            FakeSceneFrameHost second = new()
+            {
+                AnnotationSession = new AnnotationSession(new AnnotationDocument()) { ActiveTool = ToolKind.Draw }
+            };
+            host.DataContext = second;
+            Playback2DTimelineHarness.Pump();
+
+            await Assert.That(host.Router.ActiveToolId).IsEqualTo(contributed.Id)
+                .Because("a category the active tool already reports is already selected");
 
             window.Close();
         });
@@ -605,6 +649,28 @@ public class Scene2DHostFrameHostTests
         public void OnReleased(in MapToolEvent e, IMapToolContext context) => Calls.Add("release");
 
         public void OnCancelled(IMapToolContext context) => Calls.Add("cancel");
+    }
+
+    // A contributed tool: an id and a category of its own, and no behaviour at all.
+    private sealed class InertPointerTool(string id, ToolKind kind) : IPointerTool
+    {
+        public string Id => id;
+
+        public ToolKind Kind => kind;
+
+        public bool OnPressed(in ToolPointerEvent e, IToolServices s) => false;
+
+        public void OnMoved(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnReleased(in ToolPointerEvent e, IToolServices s)
+        {
+        }
+
+        public void OnCancelled(IToolServices s)
+        {
+        }
     }
 
     private sealed class FakeSceneFrameHost : ISceneFrameHost

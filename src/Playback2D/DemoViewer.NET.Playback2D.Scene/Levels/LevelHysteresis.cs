@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>
 ///     The four constants that decide when a level switch is real. All four live here so retuning is a
@@ -33,7 +33,7 @@ namespace DemoViewer.NET.Playback2D.Core.Levels;
 ///     <see cref="Default" /> is a cached single instance, so the per-frame
 ///     <see cref="LevelHysteresis.SpatialBand" /> call still allocates nothing.
 /// </remarks>
-public sealed record LevelHysteresisOptions(
+internal sealed record LevelHysteresisOptions(
     double MinBand = 32.0,
     double MaxBand = 128.0,
     double BandFractionOfSpan = 0.25,
@@ -53,7 +53,7 @@ public sealed record LevelHysteresisOptions(
 ///         on every scrub.
 ///     </para>
 /// </summary>
-public sealed class LevelHysteresis
+internal sealed class LevelHysteresis
 {
     /// <summary>Creates a chooser.</summary>
     /// <param name="options">Tuning; <see cref="LevelHysteresisOptions.Default" /> when null.</param>

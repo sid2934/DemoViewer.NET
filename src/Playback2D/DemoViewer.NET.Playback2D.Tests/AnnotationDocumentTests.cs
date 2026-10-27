@@ -1,7 +1,7 @@
 #region
 
 using System.Reflection;
-using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 
 #endregion
 

@@ -61,7 +61,7 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
     public Task OnEnabledAsync(ExtensionStartReason reason, CancellationToken ct)
     {
         int epoch = Interlocked.Increment(ref _epoch);
-        IExtensionJobs jobs = _sp.GetExtensionContext(StratBookPack.PackId).Jobs;
+        IExtensionJobs jobs = _sp.GetExtensionContext<StratBookPack>().Jobs;
 
         // A release still queued from the switch-off this enable follows goes now; one already running
         // finishes first (the serial) and the jobs below rebuild after it; one this cancel missed sees the
@@ -125,7 +125,7 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
     public Task OnDisabledAsync()
     {
         int epoch = Interlocked.Increment(ref _epoch);
-        IExtensionJobs jobs = _sp.GetExtensionContext(StratBookPack.PackId).Jobs;
+        IExtensionJobs jobs = _sp.GetExtensionContext<StratBookPack>().Jobs;
         IJobHandle release = jobs.Enqueue(new JobRequest(ReleaseTitle, _ =>
         {
             if (Volatile.Read(ref _epoch) == epoch)
@@ -144,7 +144,7 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
     {
         try
         {
-            return _sp.GetExtensionContext(StratBookPack.PackId).CreateLogger("Lifecycle");
+            return _sp.GetExtensionContext<StratBookPack>().CreateLogger("Lifecycle");
         }
         catch (InvalidOperationException)
         {

@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Compositing;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Playback2D.Pipeline.Layers;
 
 /// <summary>
 ///     A trivial smoke layer: a world-space grid plus one filled disc per marker, proving the render

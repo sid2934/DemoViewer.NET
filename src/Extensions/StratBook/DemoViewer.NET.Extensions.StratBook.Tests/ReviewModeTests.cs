@@ -10,8 +10,6 @@ using DemoViewer.NET.AppTests.Extensions.StratBook;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
-using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
-using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Views.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
@@ -38,6 +36,8 @@ public class ReviewModeTests
         {
             (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
             ModeToggle mode = review.ReviewMode!;
+            string tagId = review.TagLane!.TrackId;
+            string proposalId = review.ProposalLane!.TrackId;
 
             using (Assert.Multiple())
             {
@@ -52,8 +52,8 @@ public class ReviewModeTests
                 await Assert.That(review.IsPaletteFocused).IsFalse();
                 await Assert.That(Press(vm, Key.N)).IsFalse().Because("N must not reject a suggestion no one can see");
                 await Assert.That(Press(vm, Key.Y, KeyModifiers.Control)).IsFalse();
-                await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsTrue();
-                await Assert.That(vm.Timeline.IsTrackSuppressed(ProposalTrack.TrackId)).IsTrue();
+                await Assert.That(vm.Timeline.IsTrackSuppressed(tagId)).IsTrue();
+                await Assert.That(vm.Timeline.IsTrackSuppressed(proposalId)).IsTrue();
             }
 
             await Assert.That(Press(vm, Key.R, KeyModifiers.Shift)).IsTrue();
@@ -63,8 +63,8 @@ public class ReviewModeTests
                 await Assert.That(review.PalettePanel.IsShown).IsTrue();
                 await Assert.That(review.QueuePanel.IsShown).IsTrue();
                 await Assert.That(vm.IsCardStrip).IsTrue();
-                await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsFalse();
-                await Assert.That(vm.Timeline.IsTrackSuppressed(ProposalTrack.TrackId)).IsFalse();
+                await Assert.That(vm.Timeline.IsTrackSuppressed(tagId)).IsFalse();
+                await Assert.That(vm.Timeline.IsTrackSuppressed(proposalId)).IsFalse();
             }
 
             await Assert.That(Press(vm, Key.R, KeyModifiers.Shift)).IsTrue();
@@ -83,7 +83,10 @@ public class ReviewModeTests
                 await Assert.That(vm.IsReviewAvailable).IsFalse();
                 await Assert.That(vm.Surface.Panels).IsEmpty();
                 await Assert.That(vm.Surface.ModeToggles).IsEmpty();
-                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).DoesNotContain(TagTrack.TrackId);
+                await Assert.That(vm.Timeline.Lanes).IsEmpty();
+                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)
+                        .Where(id => id.StartsWith(ExtensionLayerIds.Root, StringComparison.Ordinal)))
+                    .IsEmpty().Because("no pack filed a track here");
                 await Assert.That(Press(vm, Key.R, KeyModifiers.Shift)).IsFalse().Because("nothing contributed a mode");
                 await Assert.That(vm.IsCardStrip).IsFalse();
             }
@@ -96,7 +99,8 @@ public class ReviewModeTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab();
-            bool before = vm.Timeline.Tracks.Single(t => t.Id == TagTrack.TrackId).IsEnabled;
+            string tagId = review.TagLane!.TrackId;
+            bool before = vm.Timeline.Tracks.Single(t => t.Id == tagId).IsEnabled;
             int saves = 0;
             vm.Timeline.TrackVisibilityChanged += () => saves++;
 
@@ -105,7 +109,7 @@ public class ReviewModeTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Timeline.Tracks.Single(t => t.Id == TagTrack.TrackId).IsEnabled).IsEqualTo(before);
+                await Assert.That(vm.Timeline.Tracks.Single(t => t.Id == tagId).IsEnabled).IsEqualTo(before);
                 await Assert.That(saves).IsEqualTo(0).Because("the per-track setting is the user's, not the mode's");
             }
 

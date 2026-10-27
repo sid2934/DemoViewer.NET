@@ -2,15 +2,14 @@
 
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Hud;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
 using TUnit.Assertions.Enums;
@@ -362,8 +361,10 @@ public class StratFrameSourceTests
             ExportFormats.Gif, new HashSet<string>(layers, StringComparer.Ordinal),
             new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>()));
 
+        // The session drives Pipeline's own source contract; a strat supplies the published ISceneFrames,
+        // which the adapter is for.
         await new SceneExportSession(compositor).RunAsync(
-            request, source, sink, surfaces, null, CancellationToken.None);
+            request, new SceneFramesSource(source), sink, surfaces, null, CancellationToken.None);
 
         return sink.FrameHashes;
     }

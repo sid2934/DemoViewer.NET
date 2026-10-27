@@ -7,12 +7,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Timeline;
-using DemoViewer.NET.Playback2D.Core.Tools;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Tools;
+using DemoViewer.NET.Playback2D.Zones;
+using SkiaSharp;
 using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
 using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
@@ -45,6 +46,7 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     private readonly List<Action<int>> _playheadHandlers = [];
     private readonly List<Func<ScenePointer, bool>> _pointerPreHandlers = [];
     private readonly List<KeyValuePair<string, Func<ISceneLayer>>> _layers = [];
+    private readonly Dictionary<string, bool> _layerChoices = new(StringComparer.Ordinal);
     private readonly List<IMapTool> _tools = [];
     private readonly Playback2DTimelineViewModel _timeline;
     private PaneHandle? _openSide;
@@ -101,6 +103,12 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
 
     /// <summary>The mode toggles added, in order. The toolbar's ItemsSource.</summary>
     public ObservableCollection<ModeToggle> ModeToggles { get; } = [];
+
+    /// <summary>A visibility row per contributed layer, in the order added. The overlay strip's ItemsSource.</summary>
+    public ObservableCollection<ContributedLayerToggle> ContributedLayers { get; } = [];
+
+    /// <summary>A contributed layer has a row: the strip's contributed section has something to show.</summary>
+    public bool HasContributedLayers => ContributedLayers.Count > 0;
 
     /// <summary>The toolbar items added, ordered by <see cref="ToolbarItem.Order" />. The toolbar's and the overflow menu's ItemsSource.</summary>
     public ObservableCollection<ToolbarItem> ToolbarItems { get; } = [];
@@ -242,21 +250,61 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     }
 
     /// <inheritdoc />
-    public IDisposable AddLayer(string layerId, Func<ISceneLayer> layer)
+    public IDisposable AddLayer(string layerId, Func<ISceneLayer> layer, string? displayName = null, bool enabled = true)
     {
         ArgumentException.ThrowIfNullOrEmpty(layerId);
         ArgumentNullException.ThrowIfNull(layer);
         _layers.RemoveAll(l => string.Equals(l.Key, layerId, StringComparison.Ordinal));
-        KeyValuePair<string, Func<ISceneLayer>> entry = new(layerId, layer);
+        foreach (ContributedLayerToggle stale in
+                 ContributedLayers.Where(t => string.Equals(t.Id, layerId, StringComparison.Ordinal)).ToArray())
+        {
+            DropRow(stale);
+        }
+
+        // _layerChoices outlives every registration, so re-adding an id, or a gate cycle that disposes
+        // and re-attaches the whole contribution, keeps what the user picked this session.
+        ContributedLayerToggle toggle =
+            new(layerId, displayName, _layerChoices.TryGetValue(layerId, out bool chosen) ? chosen : enabled);
+        toggle.PropertyChanged += OnContributedLayerToggled;
+        ContributedLayers.Add(toggle);
+        OnPropertyChanged(nameof(HasContributedLayers));
+
+        KeyValuePair<string, Func<ISceneLayer>> entry = new(layerId, () => new ToggledSceneLayer(layer(), toggle));
         _layers.Add(entry);
         LayersChanged?.Invoke();
         return new Removal(() =>
         {
             if (_layers.Remove(entry))
             {
+                // Inside the branch, and by instance: two owners can compose the same filed id
+                // ("a.b" + "c" and "a" + "b.c"), and the loser must not delete the winner's row.
+                DropRow(toggle);
                 LayersChanged?.Invoke();
             }
         });
+    }
+
+    private void DropRow(ContributedLayerToggle toggle)
+    {
+        toggle.PropertyChanged -= OnContributedLayerToggled;
+        if (ContributedLayers.Remove(toggle))
+        {
+            OnPropertyChanged(nameof(HasContributedLayers));
+        }
+    }
+
+    // A repaint, never LayersChanged: that one reaches the host's rebuild of every contributed layer,
+    // and the gate is read live in the compositor's Advance and Render loops.
+    private void OnContributedLayerToggled(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not ContributedLayerToggle toggle
+            || e.PropertyName != nameof(ContributedLayerToggle.IsEnabled))
+        {
+            return;
+        }
+
+        _layerChoices[toggle.Id] = toggle.IsEnabled;
+        RenderRequested?.Invoke();
     }
 
     /// <inheritdoc />
@@ -674,4 +722,80 @@ public sealed class Playback2DPanel : ObservableObject, IPanelHandle
         OnPropertyChanged(nameof(IsShown));
         ShownChanged?.Invoke();
     }
+}
+
+/// <summary>
+///     One contributed scene layer's row in the overlay strip: what to call it, and the user's on/off
+///     choice. The choice is session-only; an extension that wants it remembered passes the value it
+///     stored as <c>enabled</c>.
+/// </summary>
+public sealed class ContributedLayerToggle : ObservableObject
+{
+    // Written on the UI thread, read on the render thread through ToggledSceneLayer.IsEnabled.
+    private volatile bool _isEnabled;
+
+    internal ContributedLayerToggle(string id, string? displayName, bool enabled)
+    {
+        Id = id;
+        DisplayName = string.IsNullOrWhiteSpace(displayName) ? id : displayName;
+        Tooltip = string.Equals(DisplayName, id, StringComparison.Ordinal) ? id : DisplayName + " (" + id + ")";
+        _isEnabled = enabled;
+    }
+
+    /// <summary>The id the layer is filed under: <c>ext.&lt;extension id&gt;.&lt;local id&gt;</c>.</summary>
+    public string Id { get; }
+
+    /// <summary>The row's label: the extension's name when it named no layer.</summary>
+    public string DisplayName { get; }
+
+    /// <summary>The label with the filed id, so two layers from one extension are told apart on hover.</summary>
+    public string Tooltip { get; }
+
+    /// <summary>The user's choice. The layer draws only while this and the layer's own flag are both on.</summary>
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        set
+        {
+            if (_isEnabled == value)
+            {
+                return;
+            }
+
+            _isEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+}
+
+/// <summary>
+///     A contributed layer behind the user's own row. The row is the HOST's flag: assigning it onto the
+///     layer would overwrite <see cref="ISceneLayer.IsEnabled" />, which stays the extension's to set and
+///     which <c>GuardedSceneLayer</c> honours. Read first, so nothing of the extension's runs while off.
+///     <see cref="Slot" />, <see cref="Order" /> and <see cref="Cache" /> forward to values the guard read
+///     once, so the compositor's per-frame sort stays a field read.
+/// </summary>
+internal sealed class ToggledSceneLayer(ISceneLayer inner, ContributedLayerToggle toggle) : ISceneLayer
+{
+    public string Id => inner.Id;
+
+    public LayerSlot Slot => inner.Slot;
+
+    public int Order => inner.Order;
+
+    public LayerCacheHint Cache => inner.Cache;
+
+    public bool IsEnabled
+    {
+        get => toggle.IsEnabled && inner.IsEnabled;
+        set => inner.IsEnabled = value;
+    }
+
+    public int ContentVersion => inner.ContentVersion;
+
+    public bool Advance(in SceneTime time, Scene2DFrame frame) => inner.Advance(in time, frame);
+
+    public void Render(SKCanvas canvas, SceneRenderContext ctx) => inner.Render(canvas, ctx);
+
+    public void Dispose() => inner.Dispose();
 }

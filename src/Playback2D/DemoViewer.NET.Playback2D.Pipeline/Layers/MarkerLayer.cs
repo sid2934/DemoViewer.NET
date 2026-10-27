@@ -1,11 +1,12 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Layers;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Playback2D.Pipeline.Layers;
 
 /// <summary>
 ///     One team-coloured disc per player, with a yaw stub, an event-driven ring and an initials label.
@@ -88,7 +89,7 @@ public sealed class MarkerLayer : ISceneLayer
 
     /// <summary>
     ///     Whether each live marker draws a view cone along its yaw: the strat canvas's editing affordance, whose
-    ///     drag turns the token (<see cref="Input.TokenHitTest" />). Off for replays and exports.
+    ///     drag turns the token (<see cref="DemoViewer.NET.Playback2D.Input.TokenHitTest" />). Off for replays and exports.
     /// </summary>
     public bool DrawViewCones { get; set; }
 

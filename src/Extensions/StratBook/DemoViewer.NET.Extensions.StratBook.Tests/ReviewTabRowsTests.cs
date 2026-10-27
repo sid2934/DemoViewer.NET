@@ -6,12 +6,13 @@ using Avalonia.Headless;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
+using DemoViewer.NET.Playback2D.Pipeline.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.Views.Review;
 using TUnit.Assertions.Enums;
+using DemoViewer.NET.Extensions;
 
 #endregion
 
@@ -53,7 +54,7 @@ public class ReviewTabRowsTests
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 100, "one"), Clip("/d/b.dem", 100, "two")], "Situations");
-        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        using ReviewQueueTabViewModel tab = new(new ExtensionReviewQueue(queue), isBrowser: false);
         ReviewRowViewModel edited = tab.Rows[2];
         List<NotifyCollectionChangedEventArgs> events = [];
         tab.Rows.CollectionChanged += (_, args) => events.Add(args);
@@ -75,11 +76,32 @@ public class ReviewTabRowsTests
     }
 
     [Test]
+    public async Task AnUnrelatedSend_NotifiesNothingOnTheRowsItDidNotTouch()
+    {
+        ReviewQueue queue = new(null);
+        queue.Add([Clip("/d/a.dem", 100, "one"), Clip("/d/b.dem", 100, "two")], "Situations");
+        using ReviewQueueTabViewModel tab = new(new ExtensionReviewQueue(queue), isBrowser: false);
+        ReviewRowViewModel untouched = tab.Rows[1];
+        List<string?> notified = [];
+        untouched.PropertyChanged += (_, args) => notified.Add(args.PropertyName);
+
+        queue.Add([Clip("/d/c.dem", 100, "three")], "Dossier");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(tab.Rows.Count).IsEqualTo(5);
+            await Assert.That(tab.Rows[1]).IsSameReferenceAs(untouched);
+            await Assert.That(notified).IsEmpty()
+                .Because("a clip the send did not touch comes back as the same instance, so its row is never re-applied");
+        }
+    }
+
+    [Test]
     public async Task APickedSource_FallsBackToAll_WhenItsLastClipGoes()
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 100), Clip("/d/b.dem", 100, source: ReviewSources.Dossier)]);
-        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        using ReviewQueueTabViewModel tab = new(new ExtensionReviewQueue(queue), isBrowser: false);
         tab.SelectedSource = ReviewSources.Dossier;
 
         queue.Remove([queue.Clips[1].Id]);
@@ -130,8 +152,8 @@ public class ReviewTabRowsTests
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 100, "one"), Clip("/d/b.dem", 100, "two"), Clip("/d/c.dem", 100, "three")], "S");
-        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
-        WorkspaceTabDescriptor badge = new ReviewQueueModule(() => tab, () => true, queue).CreateTabs(null!).Single();
+        using ReviewQueueTabViewModel tab = new(new ExtensionReviewQueue(queue), isBrowser: false);
+        WorkspaceTabDescriptor badge = new ReviewQueueModule(() => tab, () => true, new ExtensionReviewQueue(queue)).CreateTabs(null!).Single();
 
         tab.Rows[1].ToggleReviewedCommand.Execute(null);
         using (Assert.Multiple())
@@ -165,7 +187,7 @@ public class ReviewTabRowsTests
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 100, "one", ReviewSources.Dossier), Clip("/d/b.dem", 100, "two", ReviewSources.Dossier),
             Clip("/d/c.dem", 100, "three")], "S");
-        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+        using ReviewQueueTabViewModel tab = new(new ExtensionReviewQueue(queue), isBrowser: false);
         tab.SelectedSource = ReviewSources.Dossier;
         await Assert.That(tab.Rows[0].ReviewText).IsEqualTo("Mark 2 shown reviewed");
 
@@ -197,7 +219,7 @@ public class ReviewTabRowsTests
             Clip("/d/unknown.dem", 100, "no demo")
         ], "S");
         int lookups = 0;
-        using ReviewQueueTabViewModel tab = new(queue, isBrowser: false,
+        using ReviewQueueTabViewModel tab = new(new ExtensionReviewQueue(queue), isBrowser: false,
             mapOf: c =>
             {
                 lookups++;
@@ -236,7 +258,7 @@ public class ReviewTabRowsTests
         {
             ReviewQueue queue = new(null);
             queue.Add([Clip("/d/a.dem", 100, "one"), Clip("/d/b.dem", 100, "two")], "Situations");
-            using ReviewQueueTabViewModel tab = new(queue, isBrowser: false);
+            using ReviewQueueTabViewModel tab = new(new ExtensionReviewQueue(queue), isBrowser: false);
             ReviewQueueTabView view = new() { DataContext = tab };
             Window window = new() { Width = 1000, Height = 700, Content = view };
             window.Show();

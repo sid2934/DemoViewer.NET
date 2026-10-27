@@ -1332,18 +1332,16 @@ public class App : Application
         // The queue and every extension's job view read one registry.
         services.AddSingleton(_ => JobKindRegistry.Build(packs));
 
-        // Each extension's host context, keyed by its id, and the hub that hands them the shell once built.
+        // Each extension's host context, keyed by its id and by its own type, and the hub that hands them
+        // the shell once built.
         services.AddSingleton<ExtensionShellHub>();
         services.AddSingleton<IFirstPartyShellState>(sp => sp.GetRequiredService<ExtensionShellHub>());
         services.AddSingleton<IFirstPartyExportChips>(sp => sp.GetRequiredService<ExtensionShellHub>());
         services.AddSingleton(sp => new NotificationCenter(static a => Dispatcher.UIThread.Post(a), sp.GetService<IFeatureGate>()));
         foreach (IExtension pack in packs)
         {
-            IExtension owner = pack;
-            services.AddKeyedSingleton<IExtensionContext>(ExtensionContextAccess.KeyFor(owner.Id),
-                (sp, _) => new ExtensionContext(owner, sp));
+            ExtensionContextAccess.Register(services, pack);
         }
-        services.AddSingleton<IExtensionContextAccess>(sp => new ExtensionContextAccess(sp, packs));
 
         // Each pack's own registrations, unconditional: factories are lazy, and the gate decides what runs,
         // not what is registered. Each runs into a scratch copy of the container first, so a Register that
@@ -1485,8 +1483,9 @@ public class App : Application
                 // The Player Overview's rank rows, read from the records.
                 sp.GetRequiredService<PlayerRankCache>());
 
-            // GetService<T> falls back to this container for a pack's by-type registrations. Wired here,
-            // not in OnFrameworkInitializationCompleted, so a caller that never runs that path still gets it.
+            // GetService<T> falls back to this container for a pack's by-type registrations and for anything
+            // registered under a public SDK type. Wired here, not in OnFrameworkInitializationCompleted, so
+            // a caller that never runs that path still gets it.
             if (shell.ModuleContext is ModuleContext moduleContext)
             {
                 moduleContext.SetServices(sp);

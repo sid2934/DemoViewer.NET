@@ -1,8 +1,7 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 
 #endregion
@@ -18,7 +17,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 ///         <b>Pure in the tick.</b> <see cref="FrameAt" /> samples afresh on every call and keeps no
 ///         history, so a rewind costs nothing, two runs hash identically, and a 50 fps export shows the same
 ///         world as a 20 fps one wherever their ticks meet. Nothing to warm up either, so this is not an
-///         <see cref="IPreparableFrameSource" />.
+///         <c>IPreparableFrameSource</c>.
 ///     </para>
 ///     <para>
 ///         <b>Lifetime.</b> Two frames with pooled lists, alternated, as <c>SceneFrameBuilder</c> does: a
@@ -26,7 +25,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 ///         previous frame while the next is built.
 ///     </para>
 /// </summary>
-public sealed class StratFrameSource : ISceneFrameSource
+public sealed class StratFrameSource : ISceneFrames
 {
     /// <summary>How long a smoke stays up: the nominal CS2 duration.</summary>
     public const double SmokeSeconds = 18;

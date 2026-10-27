@@ -3,19 +3,17 @@
 using System.Globalization;
 using System.Text;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Playback2D.Pipeline.Review;
 using SkiaSharp;
 
 #endregion
 
-// In Pipeline, namespace kept as DemoViewer.NET.Services.Export.Pack: see the note on PackExporter.cs.
-namespace DemoViewer.NET.Services.Export.Pack;
+namespace DemoViewer.NET.Playback2D.Pipeline.Export.Pack;
 
 /// <summary>
 ///     What a pack is rendered as: one file for the video formats, one GIF per clip for GIF.

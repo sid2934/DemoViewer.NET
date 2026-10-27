@@ -9,81 +9,32 @@ using DemoViewer.NET.Extensions.StratBook;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     The pack draws through the published scene package. What it still binds in the unpublished Playback2D
-///     assembly, and in the app itself, is read from its metadata, not its source: the scene package and
-///     Pipeline declare the same namespaces, so only the assembly reference tells the two apart.
+///     The pack draws through the published scene package and reaches the host's services through the SDK.
+///     What it still binds in the unpublished Playback2D assembly, and in the app itself, is read from its
+///     metadata, not its source: the scene package and Pipeline declare the same namespaces, so only the
+///     assembly reference tells the two apart.
+///     <para>
+///         Both lists being empty does not say the pack compiles without those references. A const is
+///         invisible here, because its value is inlined at the call site and no type reference is emitted,
+///         so a const-only class never shows up however heavily it is read. The <c>ProjectReference</c>
+///         being gone from the pack's csproj is what proves that, and this reads what is left.
+///     </para>
 /// </summary>
 public class PackPlayback2DBindingTests
 {
-    private const string Export = "video and clip export stays first-party";
-    private const string ReviewQueue = "the review queue stays first-party";
-    private const string ShellState = "Live Sync and reel state, which an export must not start beside";
-    private const string UserFolders = "the app's zones overlay folder, read only (FirstPartyHostSurfaceTests pins it)";
-
     private static readonly string[] UnpublishedAssemblies = ["DemoViewer.NET.Playback2D.Pipeline"];
 
-    /// <summary>Every app type the pack may bind, with the reason. Anything else of the app goes through the SDK.</summary>
-    private static readonly (string Type, string Reason)[] AllowedApp =
-    [
-        ("DemoViewer.NET.Extensions.FirstPartyExports", Export),
-        ("DemoViewer.NET.Extensions.FirstPartyHost", UserFolders),
-        ("DemoViewer.NET.Extensions.FirstPartySceneExport", Export),
-        ("DemoViewer.NET.Extensions.IFirstPartyExportChips", Export),
-        ("DemoViewer.NET.Extensions.IFirstPartyShellState", ShellState),
-        ("DemoViewer.NET.Extensions.SceneExportDefaults", Export),
-        ("DemoViewer.NET.Services.Export.ExportEncoding", Export),
-        ("DemoViewer.NET.Services.Export.ExportJobService", Export),
-        ("DemoViewer.NET.Services.Export.ExportRefusedException", Export),
-        ("DemoViewer.NET.Services.Export.ExportSceneSetup", Export),
-        ("DemoViewer.NET.Services.Export.IExportJobService", Export),
-        ("DemoViewer.NET.Services.Export.IExportRunner", Export),
-        ("DemoViewer.NET.Services.Export.SceneExportRunner", Export),
-        ("DemoViewer.NET.Services.Review.ReviewQueue", ReviewQueue),
-        ("DemoViewer.NET.ViewModels.Playback2D.ExportDialogScene", Export),
-        ("DemoViewer.NET.ViewModels.Playback2D.ExportRangeOption", Export),
-        ("DemoViewer.NET.ViewModels.Playback2D.ExportSizeOption", Export),
-        ("DemoViewer.NET.ViewModels.Playback2D.Playback2DExportDialogViewModel", Export),
-        ("DemoViewer.NET.ViewModels.Playback2D.Playback2DExportStatusViewModel", Export),
-    ];
+    /// <summary>
+    ///     Every app type the pack may bind, with the reason: none. Everything it reaches in the host goes
+    ///     through the SDK, and the pack no longer references the app assembly at all.
+    /// </summary>
+    private static readonly (string Type, string Reason)[] AllowedApp = [];
 
-    /// <summary>Every type the pack may bind in the unpublished Playback2D assembly, with the reason.</summary>
-    private static readonly (string Assembly, string Type, string Reason)[] Allowed =
-    [
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.CameraScript", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.CameraScript+Fixed", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.CameraScript+FollowPlayer", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.ExportProgress", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.ExportRequest", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.IFrameSink", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Export.ISceneFrameSource", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Rendering.CpuSurfaceProvider", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Rendering.IRenderSurfaceProvider", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Core.Rendering.RenderSurfaceProviderFactory", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Assets.LoadedMapAsset", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Assets.MapAssetPipeline", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.SceneExportSession", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.EncoderProbeCache", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.EncoderSelection", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.EncoderSelector", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.FfmpegLocation", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.FfmpegLocator", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.IEncoderProbe", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Frames.TrackerFrameSource", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Headless.SceneLayerCatalog", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackClip", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackPlan", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackPlanner", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackProgress", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackResult", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackSegment", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackSettings", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackSkip", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackTitleCard", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Scene2DExportRequest", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Review.ReviewEntry", ReviewQueue),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Review.ReviewEntryKind", ReviewQueue),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Review.ReviewHighlightRef", ReviewQueue),
-    ];
+    /// <summary>
+    ///     What the pack may bind in the unpublished Playback2D assembly: nothing. Video and clip export,
+    ///     the review queue and the pack export all go through the SDK.
+    /// </summary>
+    private static readonly (string Assembly, string Type, string Reason)[] Allowed = [];
 
     [Test]
     public async Task ThePack_BindsOnlyTheAllowedTypes_InTheApp()

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+namespace DemoViewer.NET.Playback2D.Levels;
 
 /// <summary>One detected floor slice: a contiguous Z band players are assigned to.</summary>
 public readonly record struct FloorSlice(double MinZ, double MaxZ)

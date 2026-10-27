@@ -4,7 +4,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Compositing;
+namespace DemoViewer.NET.Playback2D.Compositing;
 
 /// <summary>
 ///     One drawable band of the scene (plus <see cref="ContentVersion" />).

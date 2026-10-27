@@ -1,4 +1,10 @@
-namespace DemoViewer.NET.Playback2D.Core.Levels;
+#region
+
+using DemoViewer.NET.Playback2D.Levels;
+
+#endregion
+
+namespace DemoViewer.NET.Playback2D.Pipeline.Levels;
 
 /// <summary>How the active level is being chosen.</summary>
 public enum LevelSelectionMode
@@ -29,10 +35,14 @@ public sealed class LevelSelection
     private readonly MapSpace _space;
     private MapLevelId _active = MapLevelId.None;
 
-    /// <summary>Creates a selection over a level set.</summary>
+    /// <summary>Creates a selection over a level set, with the default hysteresis tuning.</summary>
     /// <param name="space">The level set. Not owned.</param>
-    /// <param name="options">Hysteresis tuning; the defaults when null.</param>
-    public LevelSelection(MapSpace space, LevelHysteresisOptions? options = null)
+    public LevelSelection(MapSpace space) : this(space, null)
+    {
+    }
+
+    // The tuning type is behind the scene fence, so the overload that names it cannot be public.
+    internal LevelSelection(MapSpace space, LevelHysteresisOptions? options)
     {
         ArgumentNullException.ThrowIfNull(space);
         _space = space;
@@ -49,7 +59,7 @@ public sealed class LevelSelection
     public int? FollowedSlot { get; set; }
 
     /// <summary>The hysteresis driving AutoFollow. Exposed for diagnostics and tests.</summary>
-    public LevelHysteresis Hysteresis { get; }
+    internal LevelHysteresis Hysteresis { get; }
 
     /// <summary>Raised whenever <see cref="ActiveLevelId" /> changes.</summary>
     public event Action? ActiveLevelChanged;

@@ -25,7 +25,8 @@ public static partial class Variants
     // Execute B on dust2, paused at a round clock time: tokens on their routes, each with its way ahead.
     private static HubTabView StratRoutingExecuteB(double atSeconds)
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
         HubTabView view = StratEditor(true, true, true, vm =>
         {
@@ -44,7 +45,8 @@ public static partial class Variants
     // canvas the route through mid, mid-run.
     private static HubTabView StratRoutingVia()
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
         HubTabView view = StratEditor(true, true, true, vm =>
         {

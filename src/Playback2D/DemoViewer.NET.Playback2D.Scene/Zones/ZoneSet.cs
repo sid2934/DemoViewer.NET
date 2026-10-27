@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Zones;
+namespace DemoViewer.NET.Playback2D.Zones;
 
 /// <summary>Where a place in the effective vocabulary came from.</summary>
 public enum PlaceOrigin

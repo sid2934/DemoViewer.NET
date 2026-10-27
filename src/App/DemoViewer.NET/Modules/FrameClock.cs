@@ -3,7 +3,7 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 

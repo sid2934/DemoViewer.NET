@@ -1,11 +1,11 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Timeline;
+namespace DemoViewer.NET.Playback2D.Timeline;
 
 /// <summary>
 ///     Puts one timeline marker on the scrub bar per time-anchored annotation, so a telestration made at
@@ -61,7 +61,7 @@ public sealed class AnnotationTrack : ITimelineTrack, IDisposable
     public string DisplayName => "Annotations";
 
     /// <inheritdoc />
-    public event Action? MarkersChanged;
+    public event Action? Changed;
 
     /// <inheritdoc />
     public bool IsAvailable(ITimelineData data)
@@ -111,7 +111,7 @@ public sealed class AnnotationTrack : ITimelineTrack, IDisposable
     /// <inheritdoc />
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => _noBands;
 
-    private void OnDocumentChanged() => MarkersChanged?.Invoke();
+    private void OnDocumentChanged() => Changed?.Invoke();
 
     private static string Tooltip(AnnotationElement element)
     {

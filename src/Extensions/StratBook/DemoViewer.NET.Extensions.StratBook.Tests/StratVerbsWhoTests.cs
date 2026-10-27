@@ -1,11 +1,12 @@
 #region
 
 using System.Text.Json;
+using DemoViewer.NET.Extensions.Sdk.Export;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Zones;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
@@ -760,13 +761,13 @@ public class StratVerbsWhoTests
             await Assert.That(canvas.Transport.Tick).IsEqualTo(arrive);
 
             StratExportCapture capture = canvas.CaptureForExport()!;
-            ExportRangeOption range = StratExportJob.Ranges(capture.Projection)[0];
-            StratFrameSource source = new(StratExportJob.BuildSpec(capture, null, range.StartFrame, range.EndFrame, 64, 1.0));
+            SceneExportRange range = StratExportJob.Ranges(capture.Projection)[0];
+            StratFrameSource source = new(StratExportJob.BuildSpec(capture, null, range.Start, range.End, 64, 1.0));
             int frame = Enumerable.Range(0, source.FrameCount).First(i => source.TickAt(i) == arrive);
             PlayerMarker e = source.FrameAt(frame).Markers.Single(m => m.Slot == TokenSlots.OrderOf("E"));
             using (Assert.Multiple())
             {
-                await Assert.That(range.EndFrame).IsEqualTo(arrive + StratExportJob.TailTicks);
+                await Assert.That(range.End).IsEqualTo(arrive + StratExportJob.TailTicks);
                 await Assert.That(e.WorldX).IsEqualTo(150f).Within(0.01f).Because("the export shows the lurker at Ramp");
             }
         });

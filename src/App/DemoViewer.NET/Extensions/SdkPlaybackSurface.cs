@@ -5,12 +5,12 @@ using Avalonia.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Tools;
-using DemoViewer.NET.Playback2D.Core.Zones;
-using Core = DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Tools;
+using DemoViewer.NET.Playback2D.Zones;
+using Core = DemoViewer.NET.Playback2D.Timeline;
 using SdkP = DemoViewer.NET.Extensions.Sdk.Playback;
 
 #endregion
@@ -112,7 +112,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
             ? actionId
             : null;
 
-    public SdkP.ILaneHandle AddLane(SdkP.ITimelineTrack track, SdkP.ILaneBehaviour? behaviour = null)
+    public SdkP.ILaneHandle AddLane(Core.ITimelineTrack track, SdkP.ILaneBehaviour? behaviour = null)
     {
         ArgumentNullException.ThrowIfNull(track);
         CoreTrack core = new(track, _guard);
@@ -205,13 +205,16 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         return panel;
     }
 
-    public IDisposable AddLayer(string id, Func<ISceneLayer> layer)
+    // The name is normalized here, outside the guard: a string handed to the host cannot throw, and
+    // an unnamed layer still gets a row, labelled with the extension's name.
+    public IDisposable AddLayer(string id, Func<ISceneLayer> layer, string? displayName = null, bool enabled = true)
     {
         ArgumentNullException.ThrowIfNull(layer);
         string filed = ExtensionLayerIds.Compose(_guard.Scope.Id, id);
+        string name = string.IsNullOrWhiteSpace(displayName) ? _guard.Scope.Name : displayName;
         ISceneLayer Build() =>
             new GuardedSceneLayer(filed, _guard.Run<ISceneLayer>("scene layer factory", layer, EmptySceneLayer.Instance), _guard);
-        return Own(_surface.AddLayer(filed, Build));
+        return Own(_surface.AddLayer(filed, Build, name, enabled));
     }
 
     public void RequestRender() => _surface.RequestRender();
@@ -313,32 +316,20 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
     }
 
-    private sealed class TimelineData(Core.ITimelineData data) : SdkP.ITimelineData
-    {
-        public int TotalFrames => data.TotalFrames;
-
-        public int TickRate => data.TickRate;
-
-        public int FrameIndexAtTick(int tick) => data.FrameIndexAtTick(tick);
-
-        public IReadOnlyList<SdkP.TimelineEvent> EventsOfType(string eventName) =>
-            [.. data.EventsOfType(eventName).Select(e => new SdkP.TimelineEvent(e.Tick, e.FrameIndex, e.Fields))];
-
-        public bool HasEvent(string eventName) => data.HasEvent(eventName);
-    }
-
-    /// <summary>An SDK track as the timeline reads it, every call into it guarded.</summary>
+    /// <summary>An extension's lane track as the timeline reads it, every call into it guarded.</summary>
     internal sealed class CoreTrack : Core.ITimelineTrack
     {
-        private readonly SdkP.ITimelineTrack _track;
+        private readonly Core.ITimelineTrack _track;
         private readonly ExtensionGuard _guard;
 
-        // The id and name are read once: the timeline reads them on every rebuild.
-        public CoreTrack(SdkP.ITimelineTrack track, ExtensionGuard guard)
+        // The id and name are read once: the timeline reads them on every rebuild. Composing OUTSIDE the
+        // guard is deliberate: a bad local id must throw out of AddLane the way AddLayer's does, not be
+        // swallowed as a fault and leave two of the extension's lanes sharing the fallback id.
+        public CoreTrack(Core.ITimelineTrack track, ExtensionGuard guard)
         {
             _track = track;
             _guard = guard;
-            Id = guard.Run("timeline track", () => track.Id, guard.Scope.Id + ".track");
+            Id = ExtensionLayerIds.Compose(guard.Scope.Id, guard.Run("timeline track", () => track.Id, "track"));
             DisplayName = guard.Run("timeline track", () => track.DisplayName, guard.Scope.Name);
             guard.Run("timeline track", () => _track.Changed += OnChanged);
         }
@@ -347,29 +338,23 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
 
         public string DisplayName { get; }
 
-        public event Action? MarkersChanged;
+        public event Action? Changed;
 
         public bool IsAvailable(Core.ITimelineData data) =>
-            _guard.Run("timeline track", () => _track.IsAvailable(new TimelineData(data)), false);
+            _guard.Run("timeline track", () => _track.IsAvailable(data), false);
 
+        // Bands and marks carry the filed id, never the track's own: IsRound and lane dispatch match on it.
         public IReadOnlyList<Core.TimelineMarker> BuildMarkers(Core.ITimelineData data) =>
-            _guard.Run<IReadOnlyList<Core.TimelineMarker>>("timeline track", () =>
-            [
-                .. _track.BuildMarks(new TimelineData(data))
-                    .Select(m => new Core.TimelineMarker(Id, m.FrameIndex, m.Tick, Core.TimelineMarkerKind.Custom, m.Glyph,
-                        m.Tooltip, m.Argb))
-            ], []);
+            _guard.Run<IReadOnlyList<Core.TimelineMarker>>("timeline track",
+                () => [.. _track.BuildMarkers(data).Select(m => m with { TrackId = Id })], []);
 
         public IReadOnlyList<Core.TimelineBand> BuildBands(Core.ITimelineData data) =>
-            _guard.Run<IReadOnlyList<Core.TimelineBand>>("timeline track", () =>
-            [
-                .. _track.BuildBands(new TimelineData(data))
-                    .Select(b => new Core.TimelineBand(Id, b.StartFrameIndex, b.EndFrameIndex, b.Label, b.Tooltip, b.Argb))
-            ], []);
+            _guard.Run<IReadOnlyList<Core.TimelineBand>>("timeline track",
+                () => [.. _track.BuildBands(data).Select(b => b with { TrackId = Id })], []);
 
         public void Detach() => _guard.Run("timeline track", () => _track.Changed -= OnChanged);
 
-        private void OnChanged() => MarkersChanged?.Invoke();
+        private void OnChanged() => Changed?.Invoke();
     }
 
     private sealed class LaneBehaviour(SdkP.ILaneBehaviour inner, ExtensionGuard guard) : IHostLaneBehaviour
@@ -386,9 +371,11 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
             guard.Run("lane drag", () => inner.OnEditSpanDragged(startFrame, endFrame), FaultKind.Recurring);
     }
 
-    private sealed class LaneHandle(SdkP.ITimelineTrack track, CoreTrack core, IHostLaneHandle handle) : SdkP.ILaneHandle
+    private sealed class LaneHandle(Core.ITimelineTrack track, CoreTrack core, IHostLaneHandle handle) : SdkP.ILaneHandle
     {
-        public SdkP.ITimelineTrack Track => track;
+        public Core.ITimelineTrack Track => track;
+
+        public string TrackId => core.Id;
 
         public bool IsSuppressed
         {

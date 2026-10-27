@@ -121,7 +121,8 @@ public static partial class Variants
     // Each token stands at its line's place and turns to what it watches.
     private static void AddLinesStep(StratBookTabViewModel vm)
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_mirage");
         (double X, double Y) Near(string place, double dx, double dy) =>
             zones?.PlaceCentre(place, 0) is { } c ? (Math.Round(c.X + dx), Math.Round(c.Y + dy)) : (dx, dy);
 
@@ -206,7 +207,8 @@ public static partial class Variants
     // throws left them. The zones are read before the view is up, so the capture has the arrivals.
     private static HubTabView StratEditorExecuteMotion(double atSeconds = 48)
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_mirage");
         StratBookTabViewModel? strats = null;
         HubTabView view = StratEditor(true, true, true, vm => strats = vm, zones, "execute-a");
         view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
@@ -220,7 +222,8 @@ public static partial class Variants
     // The A execute's throws landed on places, mid-execute: the Jungle smoke bloomed, the Connector smoke in flight.
     private static HubTabView StratEditorExecuteThrows()
     {
-        IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
+        using AssetZonePlaceResolverSource zoneSource = new();
+        IZonePlaceResolver? zones = zoneSource.TryGet("de_mirage");
         StratBookTabViewModel? strats = null;
         string[] landings = ["Jungle", "Connector", "BombsiteA", "BombsiteA"];
         HubTabView view = StratEditor(true, true, true, vm =>
@@ -383,7 +386,12 @@ public static partial class Variants
         StratBookTabViewModel vm = new(store, null, null, false, layout: layout, spawns: spawns,
             canvasPlaces: places is not null
                 ? _ => Task.FromResult<IZonePlaceResolver?>(places)
-                : map => Task.Run(() => new AssetZonePlaceResolverSource().TryGet(map)),
+                : map => Task.Run<IZonePlaceResolver?>(() =>
+                {
+                    // Disposed per call: the hold is on a process-wide registry and the capture is one shot.
+                    using AssetZonePlaceResolverSource source = new();
+                    return source.TryGet(map);
+                }),
             canvasRouting: () => true);
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);

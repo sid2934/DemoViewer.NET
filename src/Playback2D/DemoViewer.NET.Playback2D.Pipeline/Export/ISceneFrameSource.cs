@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Export;
+namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>
 ///     A finite sequence of frames to render.
@@ -24,6 +24,21 @@ public interface ISceneFrameSource
     /// <summary>The world state for a frame.</summary>
     /// <param name="frameIndex">Index into this source, 0-based.</param>
     Scene2DFrame FrameAt(int frameIndex);
+}
+
+/// <summary>
+///     A caller's own <see cref="ISceneFrames" /> as a source the session can drive. The published
+///     contract is deliberately the smaller one: a caller supplies frames and nothing else, so the
+///     preparation probe, the request and the session stay unpublished.
+/// </summary>
+/// <param name="frames">The frames to render. Not owned.</param>
+internal sealed class SceneFramesSource(ISceneFrames frames) : ISceneFrameSource
+{
+    public int FrameCount => frames.FrameCount;
+
+    public SceneTime TimeAt(int frameIndex) => frames.TimeAt(frameIndex);
+
+    public Scene2DFrame FrameAt(int frameIndex) => frames.FrameAt(frameIndex);
 }
 
 /// <summary>

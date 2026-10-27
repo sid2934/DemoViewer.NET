@@ -1,8 +1,8 @@
 #region
 
 using DemoViewer.NET.Features;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Timeline;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

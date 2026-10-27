@@ -4,8 +4,8 @@ using System.Globalization;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Extensions.Sdk;
 
 #endregion

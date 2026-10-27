@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Cameras;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Rendering;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Pipeline.Cameras;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Rendering;
 using SkiaSharp;
 
 #endregion
@@ -45,7 +45,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// <param name="surfaces">Where surfaces come from. Not owned.</param>
     /// <param name="layout">Pane layout policy.</param>
     /// <param name="palette">Resolved colours.</param>
-    public HeadlessSceneRenderer(SceneCompositor compositor, IRenderSurfaceProvider surfaces,
+    internal HeadlessSceneRenderer(SceneCompositor compositor, IRenderSurfaceProvider surfaces,
         ILevelLayoutPolicy layout, ScenePalette palette)
     {
         ArgumentNullException.ThrowIfNull(compositor);
@@ -64,7 +64,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     /// </summary>
     /// <param name="surfaces">Where surfaces come from. Not owned.</param>
     /// <param name="compositor">The layer stack. Not owned.</param>
-    public HeadlessSceneRenderer(IRenderSurfaceProvider surfaces, SceneCompositor compositor)
+    internal HeadlessSceneRenderer(IRenderSurfaceProvider surfaces, SceneCompositor compositor)
         : this(compositor, surfaces, new StackedLayout(), ScenePalette.Dark)
     {
     }
@@ -73,7 +73,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     public MapSpaceFactory Levels { get; } = new();
 
     /// <summary>The layer stack being drawn. Not owned.</summary>
-    public SceneCompositor Compositor { get; }
+    internal SceneCompositor Compositor { get; }
 
     /// <summary>The backend the underlying provider hands out.</summary>
     public RenderBackend Backend => _surfaces.Backend;
@@ -173,7 +173,7 @@ public sealed class HeadlessSceneRenderer : IDisposable
     }
 
     /// <summary>The submission built by the last <see cref="Advance" />.</summary>
-    public SceneSubmission LastSubmission { get; private set; }
+    internal SceneSubmission LastSubmission { get; private set; }
 
     /// <summary>Releases the cached surface. The compositor and provider belong to the caller.</summary>
     public void Dispose()

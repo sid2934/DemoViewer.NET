@@ -5,7 +5,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
@@ -28,7 +28,7 @@ public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject
 {
     private readonly Func<Action, Task> _run;
     private readonly Action<Action> _post;
-    private readonly ReviewQueue? _review;
+    private readonly IExtensionReviewQueue? _review;
     private readonly Func<string, bool>? _selectTab;
     private readonly OpeningTendenciesService? _service;
 
@@ -54,7 +54,7 @@ public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject
     /// <param name="selectTab">Shows a tab by id, for the Review tab after a send; null stays on the Dossier.</param>
     /// <param name="post">UI-thread marshal for the worker's result.</param>
     /// <param name="run">Runs the build: a processing-queue item in the app, the pool when null.</param>
-    public OpeningTendenciesSectionViewModel(OpeningTendenciesService? service, ReviewQueue? review,
+    public OpeningTendenciesSectionViewModel(OpeningTendenciesService? service, IExtensionReviewQueue? review,
         Func<string, bool>? selectTab, Action<Action> post, Func<Action, Task>? run = null)
     {
         ArgumentNullException.ThrowIfNull(post);
@@ -135,13 +135,12 @@ public sealed partial class OpeningTendenciesSectionViewModel : ObservableObject
     /// <param name="link">The number.</param>
     /// <param name="round">One of its rounds.</param>
     /// <param name="teamId">The dossier's team.</param>
-    public static ReviewEntry ReviewClipFor(TendencyLinkViewModel link, TendencyRound round, Guid? teamId = null)
+    public static ReviewClip ReviewClipFor(TendencyLinkViewModel link, TendencyRound round, Guid? teamId = null)
     {
         ArgumentNullException.ThrowIfNull(link);
         ArgumentNullException.ThrowIfNull(round);
-        return ReviewEntry.Clip(round.DemoPath, round.FromTick, round.ToTick,
-            $"{link.Title} · round {round.RoundNumber}", ReviewSources.Dossier, round.TickRate, round.Sha256)
-            with { TeamId = teamId };
+        return ReviewClip.Clip(round.DemoPath, round.FromTick, round.ToTick,
+            $"{link.Title} · round {round.RoundNumber}", ReviewSources.Dossier, round.TickRate, round.Sha256, teamId);
     }
 
     /// <summary>

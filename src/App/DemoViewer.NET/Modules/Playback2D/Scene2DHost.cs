@@ -12,16 +12,22 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Cameras;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Tools;
-using DemoViewer.NET.Playback2D.Core.Zones;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Annotations;
+using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Playback2D.Cameras;
+using DemoViewer.NET.Playback2D.Pipeline.Cameras;
+using DemoViewer.NET.Playback2D.Compositing;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
+using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Pipeline.Input;
+using DemoViewer.NET.Playback2D.Layers;
+using DemoViewer.NET.Playback2D.Pipeline.Layers;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Levels;
+using DemoViewer.NET.Playback2D.Tools;
+using DemoViewer.NET.Playback2D.Zones;
+using DemoViewer.NET.Playback2D.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Vision;
 using SkiaSharp;
@@ -167,7 +173,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     internal ZoneOutlineLayer? ZoneLayerForTest => _zoneLayer;
 
     /// <summary>The layer stack other scene layers register themselves on.</summary>
-    public SceneCompositor Compositor => _compositor;
+    internal SceneCompositor Compositor => _compositor;
 
     /// <summary>
     ///     Registers a pointer tool on this host only: the strat canvas's token tool, never the
@@ -175,6 +181,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     ///     view model leaves the tool in place but inert, exactly as an unregistered tool would be.
     /// </summary>
     /// <param name="tool">The tool.</param>
+    /// <exception cref="ArgumentException">Another tool already holds <see cref="IPointerTool.Id" />.</exception>
     public void AddTool(IPointerTool tool) => Router.Register(tool);
 
     /// <summary>Drops a tool added with <see cref="AddTool" />; the router pans if it was active.</summary>
@@ -187,12 +194,16 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     /// <summary>
     ///     Registers a scene layer on this host only, built fresh by <paramref name="layer" /> now and
     ///     again every time a release rebuilds the compositor. <paramref name="layerId" /> must match
-    ///     <see cref="ISceneLayer.Id" />; registering the same id again replaces it. Refuses an id this
-    ///     host already manages itself (<see cref="OwnLayerIds" />).
+    ///     <see cref="ISceneLayer.Id" />. Refuses an id this host already manages itself
+    ///     (<see cref="OwnLayerIds" />) and one it already holds a layer under.
     /// </summary>
     /// <param name="layerId">The layer's id.</param>
     /// <param name="layer">Builds a fresh layer instance.</param>
-    /// <exception cref="ArgumentException"><paramref name="layerId" /> names one of this host's own layers.</exception>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="layerId" /> names one of this host's own layers, or one it already holds. Taking
+    ///     the second silently is what let one caller's layer leave another holding a handle that removed
+    ///     nothing.
+    /// </exception>
     public void AddLayer(string layerId, Func<ISceneLayer> layer)
     {
         ArgumentNullException.ThrowIfNull(layerId);
@@ -203,7 +214,11 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             throw new ArgumentException($"'{layerId}' is one of this host's own layers.", nameof(layerId));
         }
 
-        _extraLayers[layerId] = layer;
+        if (!_extraLayers.TryAdd(layerId, layer))
+        {
+            throw new ArgumentException($"A layer is already registered as '{layerId}'.", nameof(layerId));
+        }
+
         if (_released)
         {
             return;
@@ -453,6 +468,17 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     {
         _textTool.CompleteEdit(_toolServices, null);
         Router.SetActive(kind);
+    }
+
+    /// <summary>
+    ///     Selects the active pointer tool by id, closing an open label as <see cref="SetActiveTool(ToolKind)" />
+    ///     does. The only way to a contributed tool, whose id no <see cref="ToolKind" /> names.
+    /// </summary>
+    /// <param name="toolId">The tool's id.</param>
+    internal void SetActiveTool(string toolId)
+    {
+        _textTool.CompleteEdit(_toolServices, null);
+        Router.SetActive(toolId);
     }
 
     /// <summary>
@@ -1346,7 +1372,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         }
 
         _toolServices.Session = session;
-        Router.SetActive(session.ActiveTool);
+
+        // Only when the category actually differs. The router mirrors the active tool's CATEGORY onto the
+        // session, so re-selecting from that mirror by kind reaches a first-party tool only: a contributed
+        // tool would be swapped for the built-in of its category, or dropped to pan where there is none.
+        if (Router.ActiveKind != session.ActiveTool)
+        {
+            Router.SetActive(session.ActiveTool);
+        }
     }
 
     // Mounts, re-points or drops the zone outline layer. Under the render gate for the same reason

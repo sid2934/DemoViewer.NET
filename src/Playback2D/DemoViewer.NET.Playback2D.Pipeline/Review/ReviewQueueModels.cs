@@ -2,14 +2,13 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 
 #endregion
 
-// In Pipeline, namespace kept as DemoViewer.NET.Services.Review, so every App using stays valid.
 // Only the plain schema is here: ReviewQueue itself (the mutable, app-config-rooted store) stays
-// in the App.
-namespace DemoViewer.NET.Services.Review;
+// in the App, under DemoViewer.NET.Services.Review.
+namespace DemoViewer.NET.Playback2D.Pipeline.Review;
 
 /// <summary>What a queue entry is: a clip to watch, or the title card that opens a section.</summary>
 public enum ReviewEntryKind

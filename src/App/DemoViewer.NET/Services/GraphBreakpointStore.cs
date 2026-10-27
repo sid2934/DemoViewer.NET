@@ -3,7 +3,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DemoViewer.NET.Debugging;
-using DemoViewer.NET.Playback2D.Pipeline;
+using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.ViewModels;
 
 #endregion

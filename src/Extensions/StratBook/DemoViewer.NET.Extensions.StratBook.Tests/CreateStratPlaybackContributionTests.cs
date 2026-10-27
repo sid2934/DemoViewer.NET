@@ -8,13 +8,17 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
-using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using TUnit.Assertions.Enums;
+using ILaneBehaviour = DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour;
+using ILaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle;
+using PlaybackBand = DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand;
+using SdkMenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 
 #endregion
 
@@ -71,6 +75,58 @@ public class CreateStratPlaybackContributionTests
 
             ctx.HasDemo = false;
             await Assert.That(vm.Timeline.MenuFor(round)).IsEmpty();
+
+            vm.Dispose();
+        });
+    }
+
+    /// <summary>
+    ///     A contributed lane whose track calls itself <c>"round"</c>: it draws its own band, that band is no
+    ///     round to <c>PlaybackBand.IsRound</c> or the host's <c>IsRoundBand</c>, suppressing it leaves the
+    ///     tab's round track alone, and a round band's menu stays the pack's entry alone.
+    /// </summary>
+    [Test]
+    public async Task AContributedLaneCallingItselfRound_TakesNothingOfTheRoundsRow()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            StratBookPack pack = new();
+            PlaybackContributionHost host =
+                new([(pack, [new SdkPlaybackContribution(new CreateStratPlaybackContribution(), ExtensionGuard.Standalone(pack))])], null);
+            (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab(1000, host,
+                c => c.SetService<IStratCapture>(HostWithADemo()));
+
+            using SdkPlaybackSurface foreign = new(vm.Surface, ExtensionGuard.Standalone(new ForeignPack()));
+            ILaneHandle lane = foreign.AddLane(new RoundClaimingTrack(), new ForeignLane());
+            TimelineBandViewModel? band = vm.Timeline.LaneBands.SingleOrDefault(b => b.TrackId == lane.TrackId);
+            TimelineBandViewModel round = vm.Timeline.Bands.First(Playback2DTimelineViewModel.IsRoundBand);
+
+            lane.IsSuppressed = true;
+
+            // The rounds row first: these are what the bare id took over.
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Timeline.Bands.Any(Playback2DTimelineViewModel.IsRoundBand)).IsTrue()
+                    .Because("suppressing a contributed lane must not hide the tab's round track");
+                await Assert.That(vm.Timeline.MenuFor(round).Select(m => m.Header))
+                    .IsEquivalentTo([CreateStratPlaybackContribution.Label], CollectionOrdering.Matching)
+                    .Because("a round band's menu is the pack's entry alone, never the foreign lane's");
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(lane.TrackId).IsEqualTo("ext.net.demoviewer.pack.foreign.round");
+                await Assert.That(band).IsNotNull().Because("filed, the lane's track registers rather than being dropped as a duplicate");
+                await Assert.That(band!.Label).IsEqualTo("7").Because("the band the track built is the one on screen");
+                await Assert.That(SdkPlaybackSurface.Band(band).IsRound).IsFalse();
+                await Assert.That(Playback2DTimelineViewModel.IsRoundBand(band)).IsFalse();
+                await Assert.That(vm.Timeline.MenuFor(band).Select(m => m.Header))
+                    .IsEquivalentTo([ForeignLane.Entry], CollectionOrdering.Matching)
+                    .Because("its own band is its own lane's, and no round, so the pack's entry stays out");
+            }
+
+            lane.Dispose();
+            await Assert.That(vm.Timeline.Lanes).IsEmpty().Because("a filed lane's track is registered, so unregistering it takes the lane");
 
             vm.Dispose();
         });
@@ -163,6 +219,53 @@ public class CreateStratPlaybackContributionTests
 
             vm.Dispose();
         });
+    }
+
+    // Calls itself "round" and labels a band with a number, which is exactly what PlaybackBand.IsRound
+    // and Playback2DTimelineViewModel.IsRoundBand match on.
+    private sealed class RoundClaimingTrack : ITimelineTrack
+    {
+        public string Id => "round";
+
+        public string DisplayName => "Foreign";
+
+        public event Action? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public bool IsAvailable(ITimelineData data) => true;
+
+        public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => [new TimelineBand("round", 10, 20, "7", "", 0)];
+
+        public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => [];
+    }
+
+    // An entry of its own, so a band's menu shows whether dispatch reached the wrong lane.
+    private sealed class ForeignLane : ILaneBehaviour
+    {
+        public const string Entry = "Foreign lane entry";
+
+        public IEnumerable<SdkMenuEntry> MenuFor(PlaybackBand band) => [new SdkMenuEntry(Entry, () => { })];
+    }
+
+    // A second pack, so the lane is filed under an owner that is not the Strat Book's.
+    private sealed class ForeignPack : IExtension
+    {
+        public string Id => "net.demoviewer.pack.foreign";
+
+        public string FeatureId => "pack.foreign";
+
+        public IEnumerable<ExtensionFeature> Features => [];
+
+        public void Register(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
     }
 
     private sealed class FakeGate : IFeatureGate

@@ -11,12 +11,12 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
-using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 using DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
@@ -91,6 +91,12 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
 
     /// <summary>The tag lane's track while attached. For tests.</summary>
     public TagTrack? Tags => _tagTrack;
+
+    /// <summary>The tag lane while attached, whose TrackId is the id its bands carry. For tests.</summary>
+    internal ILaneHandle? TagLane => _tagLane;
+
+    /// <summary>The suggestion lane while attached. For tests.</summary>
+    internal ILaneHandle? ProposalLane => _proposalLane;
 
     /// <summary>The open demo's tag session while attached.</summary>
     public TagSession? Session => _session;

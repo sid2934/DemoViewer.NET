@@ -26,7 +26,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 public class ExtensionLoaderTests
 {
     private const string FakeId = "net.demoviewer.pack.fake";
-    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0"));
+    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("2.0.0"), null, SemVersion.Parse("0.14.0"));
     private static readonly ITrustPolicy TrustAll = new AllTrust();
 
     // ── Discover ─────────────────────────────────────────────────────────────────────────────────
@@ -167,7 +167,7 @@ public class ExtensionLoaderTests
     {
         ExtensionCandidate[] candidates =
         [
-            Candidate("1.3.0", requiresHost: "^2.0"),
+            Candidate("1.3.0", requiresHost: "^3.0"),
             Candidate("1.2.0"),
             Candidate("1.1.0"),
             Candidate("1.4.0", id: "net.demoviewer.pack.other")
@@ -179,7 +179,7 @@ public class ExtensionLoaderTests
         {
             await Assert.That(selection.Chosen?.Manifest.Version.ToString()).IsEqualTo("1.2.0");
             await Assert.That(selection.Rejected.Select(o => (o.Version!.ToString(), o.Failure))).IsEquivalentTo([("1.3.0", LoadFailure.Incompatible)], CollectionOrdering.Matching);
-            await Assert.That(selection.Rejected[0].UserMessage).IsEqualTo("Update 1.3.0 was not loaded: Fake 1.3.0 needs app contract ^2.0; this app provides 1.2.0");
+            await Assert.That(selection.Rejected[0].UserMessage).IsEqualTo("Update 1.3.0 was not loaded: Fake 1.3.0 needs app contract ^3.0; this app provides 2.0.0");
         }
     }
 
@@ -622,12 +622,12 @@ public class ExtensionLoaderTests
     {
         ExtensionCandidate candidate = Candidate("1.3.0");
         LoadOutcome? outcome = ExtensionLoader.CheckReferences(candidate, typeof(StratBookPack).Assembly,
-            name => name == "DemoViewer.NET" ? new Version(9, 9, 0, 0) : null);
+            name => name == "DemoViewer.NET.Extensions.Sdk" ? new Version(9, 9, 0, 0) : null);
 
         using (Assert.Multiple())
         {
             await Assert.That(outcome?.Failure).IsEqualTo(LoadFailure.ReferenceMismatch);
-            await Assert.That(outcome!.UserMessage).StartsWith("Update 1.3.0 was not loaded: it was built against DemoViewer.NET ")
+            await Assert.That(outcome!.UserMessage).StartsWith("Update 1.3.0 was not loaded: it was built against DemoViewer.NET.Extensions.Sdk ")
                 .And.EndsWith("; this app ships 9.9.0.0");
             await Assert.That(ExtensionLoader.RunningVersion("DemoViewer.NET")).IsEqualTo(typeof(DemoViewer.NET.Extensions.ExtensionHost).Assembly.GetName().Version);
             await Assert.That(ExtensionLoader.RunningVersion("No.Such.Assembly")).IsNull();
@@ -759,7 +759,7 @@ public class ExtensionLoaderTests
         return dir;
     }
 
-    private static string ManifestJson(string id, string version, string requiresHost = "^1.1", string requiresCs2DemoKit = "*") =>
+    private static string ManifestJson(string id, string version, string requiresHost = "^2.0", string requiresCs2DemoKit = "*") =>
         $$"""
           {
             "id": "{{id}}",
@@ -772,7 +772,7 @@ public class ExtensionLoaderTests
           }
           """;
 
-    private static ExtensionCandidate Candidate(string version, string id = FakeId, string requiresHost = "^1.1", string requiresCs2DemoKit = "*") =>
+    private static ExtensionCandidate Candidate(string version, string id = FakeId, string requiresHost = "^2.0", string requiresCs2DemoKit = "*") =>
         new(Path.Combine("/extensions", id, version), FakeManifests.For(id, "Fake", version, requiresHost, requiresCs2DemoKit));
 
     // The real extension's version is stamped at build from its version.json, so fakes that must sort

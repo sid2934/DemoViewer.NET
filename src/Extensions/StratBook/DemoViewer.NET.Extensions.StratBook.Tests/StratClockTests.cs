@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion

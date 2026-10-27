@@ -4,7 +4,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core;
+namespace DemoViewer.NET.Playback2D;
 
 /// <summary>
 ///     Shaped, measured, reusable text. The pre-v2 control built one Avalonia <c>FormattedText</c> per
@@ -29,7 +29,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 public sealed class TextBlobCache : IDisposable
 {
     /// <summary>The manifest name of the embedded face. Public so a test can assert it is present.</summary>
-    public const string TypefaceResourceName = "DemoViewer.NET.Playback2D.Core.Assets.Inter-Regular.ttf";
+    public const string TypefaceResourceName = "DemoViewer.NET.Playback2D.Assets.Inter-Regular.ttf";
 
     /// <summary>Default LRU capacity: far above the ~12 live strings a scene actually draws.</summary>
     public const int DefaultCapacity = 512;

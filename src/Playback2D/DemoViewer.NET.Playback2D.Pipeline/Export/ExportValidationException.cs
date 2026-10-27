@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Export;
+namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 
 /// <summary>
 ///     A request the session refuses <b>before rendering anything</b>: odd dimensions on a

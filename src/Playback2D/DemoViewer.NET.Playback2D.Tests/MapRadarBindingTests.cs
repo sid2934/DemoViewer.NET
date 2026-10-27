@@ -1,7 +1,7 @@
 #region
 
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using SkiaSharp;
 

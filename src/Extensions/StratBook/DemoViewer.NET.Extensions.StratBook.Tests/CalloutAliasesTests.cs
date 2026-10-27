@@ -1,8 +1,9 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
-using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Levels;
+using DemoViewer.NET.Playback2D.Pipeline.Levels;
+using DemoViewer.NET.Playback2D.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
@@ -26,7 +27,7 @@ namespace DemoViewer.NET.AppTests;
 [NotInParallel]
 public class CalloutAliasesTests
 {
-    private static CalloutResolverSource NoZones(StratStore store) => new(store, _ => null, () => null);
+    private static CalloutResolverSource NoZones(StratStore store) => new(store, _ => null);
 
     [Test]
     public async Task FilterFor_ResolvesATeamsWord_IntoAPositionPredicate_ThatTagQueryMatchesOn()
@@ -192,7 +193,7 @@ public class CalloutAliasesTests
         using SituationIndex index = new(cache.Library(), sidecars, sources);
 
         using QueryCanvasViewModel vm = new(index, new QueryPlaceResolver(index, sources.Zones), cache.Library(), _ => null,
-            dispose => dispose(), calloutResolverFor: _ => resolver);
+            calloutResolverFor: _ => resolver);
         vm.Map = "de_nuke";
 
         // Bypassing the pointer tool: what a resolved drop leaves behind is a placed token, which is

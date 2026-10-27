@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Query;
+namespace DemoViewer.NET.Playback2D.Query;
 
 /// <summary>
 ///     The Query Canvas's ten slots: five per side, each empty or holding one <see cref="QueryToken" />.

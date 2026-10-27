@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Cameras;
+namespace DemoViewer.NET.Playback2D.Cameras;
 
 /// <summary>
 ///     One camera behaviour: given a pane and the frame, where should that pane's camera be heading?

@@ -189,8 +189,7 @@ public class StratEditorRoomTests
         (GrenadeIndex index, GrenadeLineup lineup) = StratThrowOriginTests.Indexed();
         StratBookTabViewModel vm = new(new StratStore(null), null, a => Dispatcher.UIThread.Post(a), false, grenades: index,
             layout: layout,
-            lineupMap: (map, asset) => new UtilityBookTabViewModel(index, loadMapAsset: _ => asset, retire: a => a(), lockedMap: map,
-                ownsMapAsset: false));
+            lineupMap: map => new UtilityBookTabViewModel(index, lockedMap: map));
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
         vm.SelectedMap = "de_mirage";

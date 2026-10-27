@@ -9,7 +9,7 @@ using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;

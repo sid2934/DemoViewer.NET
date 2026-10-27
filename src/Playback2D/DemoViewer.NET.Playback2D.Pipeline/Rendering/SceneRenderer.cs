@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Compositing;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Rendering;
+namespace DemoViewer.NET.Playback2D.Pipeline.Rendering;
 
 /// <summary>
 ///     Drives one offscreen render: obtain a surface, advance the compositor, draw it, flush, snapshot.
@@ -34,7 +34,7 @@ public sealed class SceneRenderer
     /// <param name="time">The frame's injected clock, passed to <c>Advance</c>.</param>
     /// <param name="ctx">The pane's render context. Its <c>Frame</c>/<c>Time</c> should match the arguments.</param>
     /// <param name="size">Pixel size of the output.</param>
-    public SKImage Render(SceneCompositor compositor, Scene2DFrame frame, in SceneTime time,
+    internal SKImage Render(SceneCompositor compositor, Scene2DFrame frame, in SceneTime time,
         in SceneRenderContext ctx, SKSizeI size)
     {
         ArgumentNullException.ThrowIfNull(compositor);

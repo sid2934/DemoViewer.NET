@@ -2,8 +2,8 @@
 
 using System.Globalization;
 using System.Security.Cryptography;
-using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D;
+using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SkiaSharp;
 

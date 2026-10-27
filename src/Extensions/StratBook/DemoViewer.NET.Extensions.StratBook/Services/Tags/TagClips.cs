@@ -1,7 +1,7 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Extensions.Sdk.Review;
 
 #endregion
 
@@ -19,7 +19,7 @@ public static class TagClips
     /// <param name="instance">The located instance.</param>
     /// <param name="pathForSha256">Hash to path, the cache's <c>TryGetByContentId</c>.</param>
     /// <param name="tickRate">The demo's tick rate when the caller knows it, else 0.</param>
-    public static ReviewEntry? FromTag(TagInstanceRef instance, Func<string, string?> pathForSha256, int tickRate = 0)
+    public static ReviewClip? FromTag(TagInstanceRef instance, Func<string, string?> pathForSha256, int tickRate = 0)
     {
         ArgumentNullException.ThrowIfNull(instance);
         ArgumentNullException.ThrowIfNull(pathForSha256);
@@ -31,7 +31,7 @@ public static class TagClips
         string note = instance.Round is int round
             ? string.Create(CultureInfo.InvariantCulture, $"{instance.Code} · round {round}")
             : instance.Code;
-        return ReviewEntry.Clip(path, instance.FromTick, instance.ToTick, note, ReviewSources.Tag, tickRate,
+        return ReviewClip.Clip(path, instance.FromTick, instance.ToTick, note, ReviewSources.Tag, tickRate,
             instance.Sha256);
     }
 }
