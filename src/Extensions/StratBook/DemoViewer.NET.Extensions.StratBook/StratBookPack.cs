@@ -448,7 +448,7 @@ public sealed class StratBookPack : IExtension
         // the open demo, resolved at call time, is always built. Null roots (the
         // browser) keep all of it for the session.
         services.AddSingleton(sp => new ProposalStore(Data(sp)));
-        services.AddSingleton(sp => new SiteRegionStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)?.Path));
+        services.AddSingleton(sp => new SiteRegionStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)));
         // The parameter profile: <config>/suggested-tags/profile.json, seeded with the shipped default
         // on first read the way a theme drop-in folder is. A singleton so the evaluator's Func
         // and the tuning view's save reach the same in-memory Current.

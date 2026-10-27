@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.SuggestedTagsTestData;
@@ -161,7 +162,7 @@ public class SuggestedTagsSiteRegionTests
     }
 
     [Test]
-    public async Task TheStore_KeepsTablesInMemory_WithNoDirectory()
+    public async Task TheStore_KeepsTablesInMemory_WithNoFolder()
     {
         SiteRegionStore store = new(null);
 
@@ -173,27 +174,28 @@ public class SuggestedTagsSiteRegionTests
     [Test]
     public async Task TheStore_WritesOneFilePerMap_BesideTheProfile()
     {
-        string directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dv-st-" + Guid.NewGuid().ToString("N"));
+        string root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dv-st-" + Guid.NewGuid().ToString("N"));
         try
         {
-            SiteRegionStore store = new(directory);
+            IExtensionFolder folder = PackStores.Folder(root, StratBookStores.SuggestedTags);
+            SiteRegionStore store = new(folder);
             store.Save(Table);
             store.Save(Table);
 
-            string file = System.IO.Path.Combine(directory, "site-regions.de_test.json");
+            string file = System.IO.Path.Combine(folder.Path, "site-regions.de_test.json");
             using (Assert.Multiple())
             {
                 await Assert.That(File.Exists(file)).IsTrue();
-                await Assert.That(Directory.GetFiles(directory).Length).IsEqualTo(1).Because("the atomic write leaves no temp file");
-                await Assert.That(new SiteRegionStore(directory).TryLoad(Map)!.ToJson()).IsEqualTo(Table.ToJson());
+                await Assert.That(Directory.GetFiles(folder.Path).Length).IsEqualTo(1).Because("the atomic write leaves no temp file");
+                await Assert.That(new SiteRegionStore(folder).TryLoad(Map)!.ToJson()).IsEqualTo(Table.ToJson());
                 Assert.Throws<ArgumentException>(() => SiteRegionStore.FileNameFor("../x"));
             }
         }
         finally
         {
-            if (Directory.Exists(directory))
+            if (Directory.Exists(root))
             {
-                Directory.Delete(directory, true);
+                Directory.Delete(root, true);
             }
         }
     }
