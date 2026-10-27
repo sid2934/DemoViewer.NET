@@ -169,6 +169,38 @@ public class Playback2DLaneHostingTests
         vm.Dispose();
     }
 
+    /// <summary>
+    ///     A lane's edit span belongs to the demo it was set against. ILaneHandle.EditSpan takes a raw range
+    ///     and IPlaybackSurface publishes no frame count, so an extension cannot clamp it itself: the host
+    ///     clamps on set, and again when a shorter demo arrives, which is the case that used to leave a span
+    ///     drawn past the end.
+    /// </summary>
+    [Test]
+    public async Task AnEditSpan_IsClampedToTheDemo_OnSetAndWhenAShorterOneArrives()
+    {
+        (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+        IHostLaneHandle lane = vm.Surface.AddLane(new FakeLaneTrack("lane-a"), TimelineBandRow.Lane, new FakeBehaviour("a"));
+
+        lane.EditSpan = (900, 1500);
+        await Assert.That(lane.EditSpan).IsEqualTo((900, 999))
+            .Because("the harness demo is 1000 frames, so the last is 999");
+
+        lane.EditSpan = (-20, 40);
+        await Assert.That(lane.EditSpan).IsEqualTo((0, 40)).Because("the near end clamps too");
+
+        lane.EditSpan = (100, 200);
+        vm.Timeline.Rebuild(new FakeTimelineData(50));
+        await Assert.That(lane.EditSpan).IsEqualTo((49, 49))
+            .Because("a shorter demo pulls a span that no longer fits back inside it");
+
+        vm.Timeline.Rebuild(null);
+        await Assert.That(lane.EditSpan).IsEqualTo((49, 49))
+            .Because("no demo is no range to clamp to, so the span is left alone rather than zeroed");
+
+        lane.Dispose();
+        vm.Dispose();
+    }
+
     [Test]
     public async Task Suppression_HidesTheLaneForAMode_AndNeverTouchesTheUsersToggle()
     {

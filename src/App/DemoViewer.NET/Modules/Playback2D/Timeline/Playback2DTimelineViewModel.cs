@@ -294,7 +294,33 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
             }
         }
 
+        bool moved = false;
+        foreach (TimelineLane lane in _lanes)
+        {
+            moved |= lane.ReclampToDemo();
+        }
+
+        if (moved)
+        {
+            RaiseEditSpan();
+        }
+
         Recombine();
+    }
+
+    // A lane's edit span belongs to the demo it was set against. ILaneHandle.EditSpan takes a raw range
+    // and IPlaybackSurface publishes no frame count, so an extension cannot clamp it itself; the host can,
+    // and does, both when it is set and when a shorter demo arrives. Endpoint order is left alone: a
+    // reversed span is the caller's business and the row already renders it at a floor width.
+    private (int Start, int End)? ClampToDemo((int Start, int End)? span)
+    {
+        if (span is not { } range || TotalFrames <= 0)
+        {
+            return span;
+        }
+
+        int last = TotalFrames - 1;
+        return (Math.Clamp(range.Start, 0, last), Math.Clamp(range.End, 0, last));
     }
 
     // One track's availability and content, into that track's own slice. The ONE place a track is
@@ -637,14 +663,29 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
             get => _editSpan;
             set
             {
-                if (_editSpan == value)
+                (int Start, int End)? clamped = owner.ClampToDemo(value);
+                if (_editSpan == clamped)
                 {
                     return;
                 }
 
-                _editSpan = value;
+                _editSpan = clamped;
                 owner.RaiseEditSpan();
             }
+        }
+
+        // Re-clamped rather than re-set, so a demo change cannot raise the event for a span that did not
+        // actually move.
+        internal bool ReclampToDemo()
+        {
+            (int Start, int End)? clamped = owner.ClampToDemo(_editSpan);
+            if (_editSpan == clamped)
+            {
+                return false;
+            }
+
+            _editSpan = clamped;
+            return true;
         }
 
         public void Dispose() => owner.UnregisterTrack(track);
