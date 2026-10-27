@@ -184,16 +184,54 @@ public class MapViewTests
         yield return SceneLayerIds.FloorLabel;
     }
 
+    /// <summary>
+    ///     An UNOWNED caller's id is not composed, so it reaches the host as it was written and may collide.
+    ///     The host refuses it. The refusal moved here from the SDK side, which used to check the LOCAL id
+    ///     and so reserved these names for owned callers too; Install is what guarantees a host to refuse,
+    ///     since the backend is built in the view's constructor from the static factory.
+    /// </summary>
     [Test]
     [MethodDataSource(nameof(ViewOwnLayerIds))]
-    public async Task AddLayer_RefusesTheViewsOwnLayers(string id)
+    public async Task AddLayer_RefusesTheViewsOwnLayers_ForAnUnownedCaller(string id)
     {
-        await HeadlessSession.RunOnUi(() =>
+        await HeadlessSession.RunOnUi(async () =>
         {
+            SdkSceneHosts.Install();
             MapView view = new();
-            Assert.Throws<ArgumentException>(() => view.AddLayer(id, () => new CountingLayer(id)));
-            return Task.CompletedTask;
+            ArgumentException refused = Assert.Throws<ArgumentException>(
+                () => view.AddLayer(id, () => new CountingLayer(id)))!;
+            await Assert.That(refused.ParamName).IsEqualTo("id");
         });
+    }
+
+    /// <summary>
+    ///     And an OWNED caller may take one of those names locally, which is the point of moving the
+    ///     refusal: ext.pack.a.playback2d.radar cannot collide with playback2d.radar, so there was never
+    ///     anything to protect. The host's own radar keeps drawing.
+    /// </summary>
+    [Test]
+    public async Task AnExtensionsLayer_MayUseAHostLayersNameLocally()
+    {
+        FaultRig rig = new("pack.a");
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                MapViewHost.Factory = () => new HostedMapView(rig.Faults);
+                (Window window, MapView view) = Mount();
+                view.MapName = Map;
+
+                ILayerHandle layer = view.AddLayer(SceneLayerIds.Radar, () => new CountingLayer("mine"));
+                await Assert.That(layer.LayerId).IsEqualTo("ext.pack.a." + SceneLayerIds.Radar);
+
+                layer.Dispose();
+                window.Close();
+            });
+        }
+        finally
+        {
+            SdkSceneHosts.Install();
+        }
     }
 
     [Test]

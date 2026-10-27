@@ -62,7 +62,9 @@ middle button and the wheel always pan and zoom. `EscapePressed` fires for Escap
 repaints after something a layer draws changed.
 
 The host files a layer under your extension as `ext.<your extension id>.<id>`, so the id is yours to choose
-from letters, digits, `.`, `-` and `_` and can take neither the view's own layers nor another extension's.
+from letters, digits, `.`, `-` and `_`. It is yours alone: the host files it under your extension, and
+the filed form cannot collide with the view's own layers or with another extension's, so even the
+radar's own id is yours to take locally.
 `ILayerHandle.LayerId` reports the filed id, the built layer's own `Id` is not read, and an id a layer on the
 view already holds is refused rather than replaced. The radar's and the floor label's ids are the view's own.
 Layers and tools survive the view leaving and re-entering the tree; the factories run again when it rebuilds.

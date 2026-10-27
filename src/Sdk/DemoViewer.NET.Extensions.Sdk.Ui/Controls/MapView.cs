@@ -81,29 +81,23 @@ public sealed class MapView : Control
     /// <summary>
     ///     A layer drawn over the radar, ordered by <see cref="ISceneLayer.Slot" /> and
     ///     <see cref="ISceneLayer.Order" />. The host files it under your extension, so
-    ///     <paramref name="id" /> is yours to choose and can take neither the view's own layers nor another
-    ///     extension's; the handle reports the id it was filed under, and the built layer's own
+    ///     <paramref name="id" /> is yours to choose: the filed form cannot collide with the view's own
+    ///     layers or with another extension's, so even the radar's own id is yours to take locally. The
+    ///     handle reports the id it was filed under, and the built layer's own
     ///     <see cref="ISceneLayer.Id" /> is not read.
     /// </summary>
-    /// <param name="id">
-    ///     The layer's id within your extension: letters, digits, '.', '-' and '_'. The radar's and the
-    ///     floor label's ids are the view's own and are refused.
-    /// </param>
+    /// <param name="id">The layer's id within your extension: letters, digits, '.', '-' and '_'.</param>
     /// <param name="layer">Builds a fresh layer; called now and whenever the map rebuilds its scene.</param>
     /// <returns>The id it was filed under, and removes the layer.</returns>
     /// <exception cref="ArgumentException">
-    ///     <paramref name="id" /> is one of the view's own layers, has a character outside letters, digits,
-    ///     '.', '-' and '_', or is one a layer on this view already holds.
+    ///     <paramref name="id" /> has a character outside letters, digits, '.', '-' and '_', or its filed
+    ///     form is one this view or its host already holds. Host code, which has no extension to be filed
+    ///     under, is refused the radar's and the floor label's ids as well.
     /// </exception>
     public ILayerHandle AddLayer(string id, Func<ISceneLayer> layer)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(layer);
-        if (MapViewHost.OwnLayerIds.Contains(id))
-        {
-            throw new ArgumentException($"'{id}' is one of the map view's own layers.", nameof(id));
-        }
-
         // The host first: it composes the id and refuses a duplicate, so a refused add must leave nothing
         // recorded here either. With no host to file it, the id is its own and this map is the only
         // registry there is.
@@ -278,10 +272,6 @@ internal interface IMapViewBackend
 /// <summary>Where the app installs the map renderer every <see cref="MapView" /> is built over.</summary>
 internal static class MapViewHost
 {
-    /// <summary>The view's own layer ids, which <see cref="MapView.AddLayer" /> refuses.</summary>
-    internal static readonly IReadOnlySet<string> OwnLayerIds =
-        new HashSet<string>(StringComparer.Ordinal) { SceneLayerIds.Radar, SceneLayerIds.FloorLabel };
-
     /// <summary>Builds a renderer; null before the app installs one.</summary>
     internal static Func<IMapViewBackend>? Factory { get; set; }
 

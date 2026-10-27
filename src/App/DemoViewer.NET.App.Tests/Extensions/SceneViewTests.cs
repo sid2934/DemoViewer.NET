@@ -207,15 +207,22 @@ public class SceneViewTests
         yield return SceneLayerIds.Annotations;
     }
 
+    /// <summary>
+    ///     An unowned caller's id is not composed, so Scene2DHost refuses it. The SDK side used to refuse
+    ///     the LOCAL id, which reserved these names for owned callers as well; Install is what guarantees a
+    ///     host to do the refusing, since the backend is built in the view's constructor.
+    /// </summary>
     [Test]
     [MethodDataSource(nameof(SceneOwnLayerIds))]
-    public async Task AddLayer_RefusesTheScenesOwnLayers(string id)
+    public async Task AddLayer_RefusesTheScenesOwnLayers_ForAnUnownedCaller(string id)
     {
-        await HeadlessSession.RunOnUi(() =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            SceneView view = new();
-            Assert.Throws<ArgumentException>(() => view.AddLayer(id, () => new InertLayer(id)));
-            return Task.CompletedTask;
+            SdkSceneHosts.Install();
+            SceneView view = new() { Source = new FakeSource() };
+            ArgumentException refused = Assert.Throws<ArgumentException>(
+                () => view.AddLayer(id, () => new InertLayer(id)))!;
+            await Assert.That(refused.ParamName).IsEqualTo("id");
         });
     }
 
