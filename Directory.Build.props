@@ -59,6 +59,16 @@
         <WarningsAsErrors>$(WarningsAsErrors);NU1608;NU1605</WarningsAsErrors>
 
         <!--
+            The PublicAPI gate, named for the same reason: nothing else in the repo mentions it, so a
+            NoWarn, AnalysisMode or AnalysisLevel change would un-gate every PublicAPI file silently.
+            RS0016 fires on a public member missing from the lists, RS0017 on a list entry whose member
+            is gone, which is what makes deleting a shipped member a build error now that the four
+            packages are published. Both confirmed by making them fire. RS0037 is deliberately not here:
+            dropping #nullable enable from a list emits nothing.
+        -->
+        <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017</WarningsAsErrors>
+
+        <!--
             Nothing in this repo is published to NuGet unless it opts in. Only the four
             SDK library projects set IsPackable=true (see Directory.Build.targets for the
             metadata they then inherit); the app, tools, tests and sample heads stay unpackable so
