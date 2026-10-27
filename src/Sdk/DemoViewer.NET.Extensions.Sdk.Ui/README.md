@@ -79,8 +79,12 @@ an `AnnotationSession` the drawing tools edit; select a tool with `SetActiveTool
 cancel from your keys with `SetHoldPan` and `CancelGesture`. A press goes to `ISceneSource.OnPress` first and
 to the active tool only if you refuse it. The text tool raises `TextEditRequested`; show an editor there and
 hand the result to `CompleteTextEdit`. `AddLayer` works as on `MapView`, and `AddTool` files a pointer tool
-the same way: `IToolHandle.ToolId` is the id `SetActiveTool` and `ActiveTool` speak. The scene's own layer
-ids are refused.
+the same way: `IToolHandle.ToolId` is the id `SetActiveTool` and `ActiveTool` speak.
+
+`AddTool` takes an `IPointerTool`, while `MapView` and `IPlaybackSurface.AddTool` take an `IMapTool`. To put
+a map tool on a scene, wrap it: `view.AddTool(new MapToolAdapter(tool))`. One per view, because `IMapTool`
+carries no id of its own and the adapter answers with the first-party map tool's, so a second is refused as
+a duplicate; implement `IPointerTool` directly if you need more than one.
 
 `SceneTimeline` is the model of a scrub bar, owned by the view model: register `ITimelineTrack`s, `Rebuild`
 with the clock's `ITimelineData`, move the playhead with `UpdatePlayhead` and seek when `SeekRequested` fires.

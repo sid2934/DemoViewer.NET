@@ -12,6 +12,7 @@ using DemoViewer.NET.Playback2D;
 using DemoViewer.NET.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Compositing;
 using DemoViewer.NET.Playback2D.Input;
+using DemoViewer.NET.Playback2D.Tools;
 using DemoViewer.NET.Playback2D.Pipeline.Input;
 using DemoViewer.NET.Playback2D.Layers;
 using DemoViewer.NET.Playback2D.Levels;
@@ -226,6 +227,58 @@ public class SceneViewTests
 
             window.Close();
         });
+    }
+
+    /// <summary>
+    ///     The bridge between the two tool contracts. MapView and IPlaybackSurface take an IMapTool;
+    ///     SceneView takes an IPointerTool, so a map tool could not go on a scene at all while the adapter
+    ///     sat in the unpublished Pipeline assembly. Wrapping it is now the published route.
+    /// </summary>
+    [Test]
+    public async Task AMapTool_GoesOnAScene_ThroughThePublishedAdapter()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            SdkSceneHosts.Install();
+            FakeSource source = new();
+            source.Publish(Frame(1));
+            (Window window, SceneView view) = Mount(source);
+
+            RecordingMapTool tool = new();
+            MapToolAdapter bridged = new(tool);
+            IToolHandle handle = view.AddTool(bridged);
+            view.SetActiveTool(handle.ToolId);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(bridged.Tool).IsSameReferenceAs(tool);
+                await Assert.That(handle.ToolId).IsEqualTo(ToolIds.Of(ToolKind.Map))
+                    .Because("no loaded extension owns this test's tool, so the id is not filed under one");
+                await Assert.That(view.ActiveTool).IsEqualTo(handle.ToolId);
+            }
+
+            handle.Dispose();
+            await Assert.That(view.ActiveTool).IsEqualTo(ToolIds.Of(ToolKind.PanZoom))
+                .Because("removing the active tool pans");
+            window.Close();
+        });
+    }
+
+    private sealed class RecordingMapTool : IMapTool
+    {
+        public bool OnPressed(in MapToolEvent e, IMapToolContext context) => true;
+
+        public void OnMoved(in MapToolEvent e, IMapToolContext context)
+        {
+        }
+
+        public void OnReleased(in MapToolEvent e, IMapToolContext context)
+        {
+        }
+
+        public void OnCancelled(IMapToolContext context)
+        {
+        }
     }
 
     // A data source rather than [Arguments], for the reason in MapViewTests.ViewOwnLayerIds.
