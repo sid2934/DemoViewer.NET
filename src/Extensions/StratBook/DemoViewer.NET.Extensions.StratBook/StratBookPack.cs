@@ -452,7 +452,7 @@ public sealed class StratBookPack : IExtension
         // The parameter profile: <config>/suggested-tags/profile.json, seeded with the shipped default
         // on first read the way a theme drop-in folder is. A singleton so the evaluator's Func
         // and the tuning view's save reach the same in-memory Current.
-        services.AddSingleton(sp => new ProfileStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)?.Path));
+        services.AddSingleton(sp => new ProfileStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)));
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();

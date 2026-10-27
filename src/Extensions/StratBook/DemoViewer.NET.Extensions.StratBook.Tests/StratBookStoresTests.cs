@@ -109,7 +109,7 @@ public class StratBookStoresTests
         File.WriteAllText(Path.Combine(configRoot, "palettes", "custom" + TagPaletteStore.FileExtension), "{}");
 
         // suggested-tags/: real API (the tuned detector profile).
-        new ProfileStore(Path.Combine(configRoot, "suggested-tags")).Save(DetectorProfile.Default);
+        new ProfileStore(PackStores.Folder(configRoot, StratBookStores.SuggestedTags)).Save(DetectorProfile.Default);
 
         // lineup-clips/: LineupClipService needs a built GrenadeIndex to render anything; one placed file
         // is enough to prove the directory name.

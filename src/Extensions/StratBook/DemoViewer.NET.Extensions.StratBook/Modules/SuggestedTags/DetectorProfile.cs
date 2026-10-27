@@ -339,7 +339,7 @@ public sealed class DetectorProfile
 ///     The profile on disk: <c>&lt;config&gt;/suggested-tags/profile.json</c>, beside the learned site
 ///     region tables. "The shipped default is embedded and written out on
 ///     first run, the way themes are": <see cref="Current" /> is that first read, and it writes the
-///     shipped profile back out the first time there is nothing to read. A null directory (the
+///     shipped profile back out the first time there is nothing to read. A null folder (the
 ///     browser, tests) keeps the profile in memory only: no tuning view there, and the
 ///     embedded default is what every build runs with.
 /// </summary>
@@ -347,19 +347,19 @@ public sealed class ProfileStore
 {
     private const string FileName = "profile.json";
 
-    private readonly string? _directory;
+    private readonly IExtensionFolder? _folder;
     private readonly Lock _gate = new();
     private DetectorProfile? _current;
     private string? _memory;
 
-    /// <param name="directory">The suggested-tags config directory, or null for a session-only store.</param>
-    public ProfileStore(string? directory)
+    /// <param name="folder">The suggested-tags store, as the host opened it, or null for a session-only store.</param>
+    public ProfileStore(IExtensionFolder? folder)
     {
-        _directory = directory;
+        _folder = folder;
     }
 
     /// <summary>Whether a save outlives the process.</summary>
-    public bool IsPersistent => _directory is not null;
+    public bool IsPersistent => _folder is not null;
 
     /// <summary>
     ///     The profile in force: read once, cached, and reread only after a <see cref="Save" />. The
@@ -392,14 +392,13 @@ public sealed class ProfileStore
         string json = profile.ToJson();
         lock (_gate)
         {
-            if (_directory is null)
+            if (_folder is null)
             {
                 _memory = json;
             }
             else
             {
-                Directory.CreateDirectory(_directory);
-                AtomicFile.WriteAllText(Path.Combine(_directory, FileName), json + "\n");
+                FolderText.Write(_folder, FileName, json + "\n");
             }
 
             _current = profile;
@@ -446,16 +445,15 @@ public sealed class ProfileStore
     {
         lock (_gate)
         {
-            if (_directory is null)
+            if (_folder is null)
             {
                 return _memory;
             }
         }
 
-        string path = Path.Combine(_directory!, FileName);
         try
         {
-            return File.Exists(path) ? File.ReadAllText(path) : null;
+            return FolderText.Read(_folder, FileName);
         }
         catch (IOException)
         {
@@ -471,7 +469,7 @@ public sealed class ProfileStore
     {
         lock (_gate)
         {
-            if (_directory is null)
+            if (_folder is null)
             {
                 _memory = json;
                 return;
@@ -480,8 +478,7 @@ public sealed class ProfileStore
 
         try
         {
-            Directory.CreateDirectory(_directory);
-            AtomicFile.WriteAllText(Path.Combine(_directory, FileName), json + "\n");
+            FolderText.Write(_folder, FileName, json + "\n");
         }
         catch (IOException)
         {
