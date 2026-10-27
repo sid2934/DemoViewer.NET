@@ -592,6 +592,25 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
         lane.Behaviour?.OnEditSpanDragged(next.Start, next.End);
     }
 
+    // One row serves every lane, so one lane takes its label presses: the first registered that takes
+    // edits and has a behaviour to tell. Both the dispatch below and IHostLaneHandle.OwnsLabelPresses
+    // read it here, so a lane is never told it owns a press it would not get.
+    private TimelineLane? LabelLane
+    {
+        get
+        {
+            foreach (TimelineLane lane in _lanes)
+            {
+                if (lane is { IsEditable: true, Behaviour: not null })
+                {
+                    return lane;
+                }
+            }
+
+            return null;
+        }
+    }
+
     /// <summary>A click on the lane where no band is: asks the editable lane for a new label starting there.</summary>
     /// <param name="x">The click's x on the lane, px.</param>
     public void RequestLaneLabel(double x)
@@ -601,13 +620,9 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
             return;
         }
 
-        foreach (TimelineLane lane in _lanes)
+        if (LabelLane is { Behaviour: { } behaviour })
         {
-            if (lane is { IsEditable: true, Behaviour: { } behaviour })
-            {
-                behaviour.OnLabelRequested(FrameIndexAt(x));
-                return;
-            }
+            behaviour.OnLabelRequested(FrameIndexAt(x));
         }
     }
 
@@ -657,6 +672,8 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
                 owner.RaiseLaneEditing();
             }
         }
+
+        public bool OwnsLabelPresses => ReferenceEquals(owner.LabelLane, this);
 
         public (int Start, int End)? EditSpan
         {

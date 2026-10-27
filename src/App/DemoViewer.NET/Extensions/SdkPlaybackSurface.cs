@@ -393,6 +393,8 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
             set => handle.IsEditable = value;
         }
 
+        public bool OwnsLabelPresses => handle.OwnsLabelPresses;
+
         public (int Start, int End)? EditSpan
         {
             get => handle.EditSpan;

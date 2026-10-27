@@ -54,6 +54,12 @@ public interface IHostLaneHandle : IDisposable
     /// <summary>Takes edits: the lane row shows even with nothing on it, and a click on empty lane asks for a label.</summary>
     bool IsEditable { get; set; }
 
+    /// <summary>
+    ///     True while a label request goes to this lane: the first registered lane that takes edits and has
+    ///     a behaviour. The row is one row for every lane, so the rest are told nothing.
+    /// </summary>
+    bool OwnsLabelPresses { get; }
+
     /// <summary>The span drawn over the lane with its two handles, as frames, or null for none. One lane's span shows at a time.</summary>
     (int Start, int End)? EditSpan { get; set; }
 }
