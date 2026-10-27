@@ -63,7 +63,8 @@ public class PackThroughTheSdkTests
         await Assert.That(root.GetProperty("id").GetString()).IsEqualTo(PackId);
         await Assert.That(root.GetProperty("assembly").GetString())
             .IsEqualTo("DemoViewer.NET.Extensions.StratBook.dll");
-        await Assert.That(root.GetProperty("requiresHost").GetString()).IsEqualTo("^2.0");
+        await Assert.That(root.GetProperty("requiresHost").GetString()).IsEqualTo("^2.1")
+            .Because("the pack calls IExtensionFolder.DirectoryExists and SetLastWriteTimeUtc, which 2.0 hosts lack");
         // The template's literal placeholder: an unstamped manifest fails to parse host-side on purpose.
         await Assert.That(root.GetProperty("version").GetString()).IsNotEqualTo("{version}");
 

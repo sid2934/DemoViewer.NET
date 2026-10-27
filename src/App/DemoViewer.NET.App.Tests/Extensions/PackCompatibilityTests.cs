@@ -46,6 +46,26 @@ public class PackCompatibilityTests
         }
     }
 
+    // The only thing keeping a pack off a host that lacks a member it calls. assemblyVersion precision is
+    // major, so a 2.1 kit binds and loads on a 2.0 host, and the call then throws MissingMethodException.
+    [Test]
+    public async Task HostContractMismatch_WhenTheRangeNeedsAMinorThisAppLacks()
+    {
+        ExtensionHostInfo host = new(SemVersion.Parse("2.0.2"), SemVersion.Parse("0.6.2"), SemVersion.Parse("0.14.0"));
+        ExtensionManifest needsMinor = FakeManifests.For("net.demoviewer.pack.x", "Strat Book", "1.2.0", "^2.1", "*");
+        ExtensionManifest needsMajor = FakeManifests.For("net.demoviewer.pack.x", "Strat Book", "1.2.0", "^2.0", "*");
+        using (Assert.Multiple())
+        {
+            await Assert.That(PackCompatibility.Check(needsMinor, host) is PackCompatibility.HostContractMismatch).IsTrue();
+            await Assert.That(PackCompatibility.Check(needsMinor, host).Describe(needsMinor, "x"))
+                .IsEqualTo("Strat Book 1.2.0 needs app contract ^2.1; this app provides 2.0.2");
+            await Assert.That(PackCompatibility.Check(needsMajor, host).IsCompatible).IsTrue()
+                .Because("a pack that calls nothing newer than 2.0 still runs on this host");
+            await Assert.That(PackCompatibility.Check(needsMinor, host with { ContractVersion = SemVersion.Parse("2.1.0") }).IsCompatible)
+                .IsTrue();
+        }
+    }
+
     [Test]
     public async Task Cs2DemoKitMismatch_WhenTheKitRangeExcludesThisBuild()
     {
