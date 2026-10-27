@@ -154,6 +154,7 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Fit() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Invalidate() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.PaneAt(Avalonia.Point point) -> DemoViewer.NET.Playback2D.Levels.LevelPane?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Panes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Levels.LevelPane!>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.PanesArranged -> System.EventHandler?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SceneView() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SetActiveTool(string! toolId) -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SetHoldPan(bool held) -> void

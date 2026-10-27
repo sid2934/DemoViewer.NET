@@ -11,7 +11,15 @@
     "/src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui",
     "/src/App/DemoViewer.NET.Modules.Abstractions",
     "/src/Playback2D/DemoViewer.NET.Playback2D.Scene",
-    "/src/App/DemoViewer.NET/Styles"
+    "/src/App/DemoViewer.NET/Styles",
+    ":!/src/Sdk/DemoViewer.NET.Extensions.Sdk/PublicAPI.Shipped.txt",
+    ":!/src/Sdk/DemoViewer.NET.Extensions.Sdk/PublicAPI.Unshipped.txt",
+    ":!/src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/PublicAPI.Shipped.txt",
+    ":!/src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/PublicAPI.Unshipped.txt",
+    ":!/src/App/DemoViewer.NET.Modules.Abstractions/PublicAPI.Shipped.txt",
+    ":!/src/App/DemoViewer.NET.Modules.Abstractions/PublicAPI.Unshipped.txt",
+    ":!/src/Playback2D/DemoViewer.NET.Playback2D.Scene/PublicAPI.Shipped.txt",
+    ":!/src/Playback2D/DemoViewer.NET.Playback2D.Scene/PublicAPI.Unshipped.txt"
   ],
   "publicReleaseRefSpec": [
     "^refs/heads/main$",
