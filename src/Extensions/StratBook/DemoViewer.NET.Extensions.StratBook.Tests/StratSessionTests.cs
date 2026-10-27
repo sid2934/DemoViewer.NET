@@ -27,7 +27,7 @@ public class StratSessionTests
 
     private static (StratStore Store, StratDocument Committed) Stored(string? root = null)
     {
-        StratStore store = new(root, utcNow: SteppingClock(Created));
+        StratStore store = new(root is null ? null : PackStores.At(root), utcNow: SteppingClock(Created));
         StratDocument document = Minimal();
         StratSaveResult saved = store.Save(document, [], "created");
         if (!saved.Saved)
@@ -337,7 +337,7 @@ public class StratSessionTests
             await crashed.FlushAsync();
 
             // A crash: no commit, no close. A new process reads the folder.
-            StratStore reopened = new(root);
+            StratStore reopened = new(PackStores.At(root));
             using StratSession session = Session(reopened);
             session.Open(committed.Id);
 
@@ -387,7 +387,7 @@ public class StratSessionTests
             session.Dispose();
             File.WriteAllText(file, workingCopy);
 
-            StratDocument reopened = new StratStore(root).TryLoad(committed.Id)!;
+            StratDocument reopened = new StratStore(PackStores.At(root)).TryLoad(committed.Id)!;
             using (Assert.Multiple())
             {
                 await Assert.That(reopened.Revision).IsEqualTo(2);

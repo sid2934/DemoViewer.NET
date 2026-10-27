@@ -84,21 +84,24 @@ public sealed class StratStore
     // Serializes every read-modify-write: a commit, a status change, a delete, a reconcile.
     private readonly Lock _rmwGate = new();
 
-    private readonly string? _root;
+    private readonly IExtensionFolder? _folder;
 
-    /// <param name="stratsRoot"><c>&lt;config&gt;/strats</c>, or null for an in-memory store (the browser host, tests).</param>
+    /// <param name="strats">
+    ///     The <c>&lt;config&gt;/strats</c> store as the host opened it, or null for an in-memory store (the
+    ///     browser host, tests).
+    /// </param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
     /// <param name="utcNow">The clock commits are stamped with; tests pin it so the goldens are byte-stable.</param>
-    public StratStore(string? stratsRoot, Action<Action>? post = null, Func<DateTime>? utcNow = null)
+    public StratStore(IExtensionFolder? strats, Action<Action>? post = null, Func<DateTime>? utcNow = null)
     {
-        _root = string.IsNullOrWhiteSpace(stratsRoot) ? null : stratsRoot;
+        _folder = strats;
         _post = post ?? (action => action());
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
         LoadIndex();
     }
 
-    /// <summary>False on the browser host and in tests without a root: nothing survives the process.</summary>
-    public bool IsPersistent => _root is not null;
+    /// <summary>False on the browser host and in tests without a folder: nothing survives the process.</summary>
+    public bool IsPersistent => _folder is not null;
 
     /// <summary>A point-in-time snapshot of every index row, safe to enumerate off-lock.</summary>
     public IReadOnlyList<StratIndexEntry> Index
@@ -112,7 +115,8 @@ public sealed class StratStore
         }
     }
 
-    private string? IndexPath => _root is null ? null : Path.Combine(_root, "index.json");
+    // Relative to the store folder, which is the only thing the host resolves paths against.
+    private const string IndexFileName = "index.json";
 
     /// <summary>Raised through the post delegate after a commit or a delete with the strat's id, or null after a rebuild.</summary>
     public event Action<Guid?>? Changed;
@@ -152,13 +156,15 @@ public sealed class StratStore
             string? json = ReadStratText(id, out string? path, out bool ioFailed);
             if (json is null)
             {
-                return ioFailed ? StratLoadResult.Unreadable(id, path) : new StratLoadResult(null, path, false, []);
+                return ioFailed
+                    ? StratLoadResult.Unreadable(id, Absolute(path))
+                    : new StratLoadResult(null, Absolute(path), false, []);
             }
 
             StratDocument? document = Parse(json);
             if (document is null || document.Id != id)
             {
-                return StratLoadResult.Unreadable(id, path);
+                return StratLoadResult.Unreadable(id, Absolute(path));
             }
 
             document = Reconcile(document, path);
@@ -169,7 +175,8 @@ public sealed class StratStore
                 note = _notes.GetValueOrDefault(id);
             }
 
-            return new StratLoadResult(document, path, false, StratValidator.Validate(document, index: Index)) { Note = note };
+            return new StratLoadResult(document, Absolute(path), false, StratValidator.Validate(document, index: Index))
+                { Note = note };
         }
     }
 
@@ -273,7 +280,7 @@ public sealed class StratStore
                 Ops = known is null ? [PatchOp.AddOp("", StratHistory.ToNode(committed))] : [.. ops.Select(o => o.Clone())]
             };
 
-            string? newPath = _root is null ? null : StratPath(committed);
+            string? newPath = _folder is null ? null : StratPath(committed);
             string? moveFailure = MoveIfRelocated(document.Id, oldPath, newPath);
             if (moveFailure is not null)
             {
@@ -396,18 +403,18 @@ public sealed class StratStore
                 string stamp = _utcNow().ToString("yyyyMMddTHHmmssZ", System.Globalization.CultureInfo.InvariantCulture);
                 try
                 {
-                    Directory.CreateDirectory(trash);
-                    foreach (string file in new[] { path, HistoryPathBeside(path) }.Where(File.Exists).Concat(SetAsideBeside(path)))
+                    foreach (string file in new[] { path, HistoryPathBeside(path) }.Where(_folder!.FileExists)
+                                 .Concat(SetAsideBeside(path)))
                     {
                         string target = Path.Combine(trash, Path.GetFileName(file));
 
                         // A strat deleted twice (restored by hand, deleted again) keeps both copies.
-                        if (File.Exists(target))
+                        if (_folder.FileExists(target))
                         {
                             target = Path.Combine(trash, stamp + "." + Path.GetFileName(file));
                         }
 
-                        File.Move(file, target);
+                        _folder.Move(file, target, false);
                     }
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -483,7 +490,7 @@ public sealed class StratStore
 
             int last = LogHead(document.Id, path).Last;
             copy.Revision = unresolved ? document.Revision : last > 0 ? last : known.Revision;
-            if (!WriteStrat(copy, _root is null ? null : path ?? StratPath(copy)))
+            if (!WriteStrat(copy, _folder is null ? null : path ?? StratPath(copy)))
             {
                 return false;
             }
@@ -640,7 +647,7 @@ public sealed class StratStore
             lines = _memoryHistory.TryGetValue(id, out List<string>? memory) ? [.. memory] : [];
         }
 
-        if (_root is not null)
+        if (_folder is not null)
         {
             if (path is null)
             {
@@ -649,8 +656,7 @@ public sealed class StratStore
 
             try
             {
-                string historyPath = HistoryPathBeside(path);
-                lines = File.Exists(historyPath) ? [.. File.ReadAllLines(historyPath)] : [];
+                lines = [.. FolderText.ReadLines(_folder, HistoryPathBeside(path))];
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
@@ -671,7 +677,8 @@ public sealed class StratStore
     public StratBook LoadBook(StratOwner owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
-        string? json = ReadSmallFile(owner.FolderName, _root is null ? null : Path.Combine(_root, owner.FolderName, BookFileName), _memoryBooks);
+        string? json = ReadSmallFile(owner.FolderName,
+            _folder is null ? null : Path.Combine(owner.FolderName, BookFileName), _memoryBooks);
         StratBook? book = null;
         try
         {
@@ -696,8 +703,8 @@ public sealed class StratStore
         }
 
         string json = JsonSerializer.Serialize(book, StratJsonContext.Default.StratBook);
-        return WriteSmallFile(book.Owner.FolderName, _root is null ? null : Path.Combine(_root, book.Owner.FolderName, BookFileName),
-            json, _memoryBooks);
+        return WriteSmallFile(book.Owner.FolderName,
+            _folder is null ? null : Path.Combine(book.Owner.FolderName, BookFileName), json, _memoryBooks);
     }
 
     /// <summary>An owner's callouts for a map, or an empty table when none is stored or it cannot be read.</summary>
@@ -708,7 +715,8 @@ public sealed class StratStore
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentException.ThrowIfNullOrEmpty(map);
         string key = owner.FolderName + "/" + map.ToLowerInvariant();
-        string? json = ReadSmallFile(key, _root is null ? null : Path.Combine(FolderFor(_root, owner, map), CalloutsFileName), _memoryCallouts);
+        string? json = ReadSmallFile(key, _folder is null ? null : Path.Combine(FolderIn(owner, map), CalloutsFileName),
+            _memoryCallouts);
         CalloutTable? table = null;
         try
         {
@@ -742,7 +750,7 @@ public sealed class StratStore
         table.Map = table.Map.ToLowerInvariant();
         string key = owner.FolderName + "/" + table.Map;
         string json = JsonSerializer.Serialize(table, StratJsonContext.Default.CalloutTable);
-        return WriteSmallFile(key, _root is null ? null : Path.Combine(FolderFor(_root, owner, table.Map), CalloutsFileName), json,
+        return WriteSmallFile(key, _folder is null ? null : Path.Combine(FolderIn(owner, table.Map), CalloutsFileName), json,
             _memoryCallouts);
     }
 
@@ -759,8 +767,7 @@ public sealed class StratStore
     /// <summary>Persists <c>index.json</c>. Deferred like <c>DemoCacheStore.SaveIndex</c>; silent on failure because it is derived.</summary>
     public void SaveIndex()
     {
-        string? indexPath = IndexPath;
-        if (indexPath is null)
+        if (_folder is null)
         {
             return;
         }
@@ -768,7 +775,7 @@ public sealed class StratStore
         StratIndexFile file = new() { Entries = [.. Index] };
         try
         {
-            AtomicFile.WriteAllText(indexPath, JsonSerializer.Serialize(file, StratJsonContext.Default.StratIndexFile));
+            FolderText.Write(_folder, IndexFileName, JsonSerializer.Serialize(file, StratJsonContext.Default.StratIndexFile));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -779,7 +786,7 @@ public sealed class StratStore
     /// <summary>Re-reads every strat under the owner folders into the index: the recovery for a lost index.</summary>
     public void RebuildIndexFromDisk()
     {
-        if (_root is null)
+        if (_folder is null)
         {
             return;
         }
@@ -793,7 +800,10 @@ public sealed class StratStore
                 _logHeads.Clear();
             }
 
-            if (!Directory.Exists(_root))
+            // Nothing has ever been saved: the SaveIndex below would create the strats folder on every
+            // first run for an index with no reader. The contract answers for a file or a subfolder of the
+            // store, not for the store folder itself, so this asks about the folder's own path.
+            if (!Directory.Exists(_folder.Path))
             {
                 return;
             }
@@ -1058,11 +1068,11 @@ public sealed class StratStore
 
     private static string SetAsidePrefix(string stratPath) => stratPath[..^StratExtension.Length] + ".working-r";
 
-    private static string[] SetAsideBeside(string stratPath)
+    // Materialized here: the listing is lazy, and the callers move or rename what it names.
+    private List<string> SetAsideBeside(string stratPath)
     {
-        string folder = Path.GetDirectoryName(stratPath)!;
         string prefix = Path.GetFileName(SetAsidePrefix(stratPath));
-        return Directory.Exists(folder) ? Directory.GetFiles(folder, prefix + "*.json") : [];
+        return [.. _folder!.EnumerateFiles(Path.GetDirectoryName(stratPath)!, prefix + "*.json")];
     }
 
     // Beside the strat, under a name the listing never matches and no earlier copy holds. Null with no disk
@@ -1079,12 +1089,12 @@ public sealed class StratStore
         try
         {
             string target = stem + ".json";
-            for (int n = 2; File.Exists(target); n++)
+            for (int n = 2; _folder!.FileExists(target); n++)
             {
                 target = stem + "-" + n.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".json";
             }
 
-            AtomicFile.WriteAllText(target, Serialize(document));
+            FolderText.Write(_folder, target, Serialize(document));
             return Path.GetFileName(target);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -1112,15 +1122,14 @@ public sealed class StratStore
                 return cached;
             }
 
-            lines = _root is null && _memoryHistory.TryGetValue(id, out List<string>? memory) ? [.. memory] : [];
+            lines = _folder is null && _memoryHistory.TryGetValue(id, out List<string>? memory) ? [.. memory] : [];
         }
 
-        if (_root is not null)
+        if (_folder is not null)
         {
-            string? log = stratPath is null ? null : HistoryPathBeside(stratPath);
             try
             {
-                lines = log is not null && File.Exists(log) ? File.ReadAllLines(log) : [];
+                lines = stratPath is null ? [] : [.. FolderText.ReadLines(_folder, HistoryPathBeside(stratPath))];
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
@@ -1187,7 +1196,7 @@ public sealed class StratStore
         {
             string name = Path.GetFileName(log);
             if (!Guid.TryParse(name[..^HistoryExtension.Length], out Guid id)
-                || File.Exists(Path.Combine(Path.GetDirectoryName(log)!, id.ToString("D") + StratExtension)))
+                || _folder!.FileExists(Path.Combine(Path.GetDirectoryName(log)!, id.ToString("D") + StratExtension)))
             {
                 continue;
             }
@@ -1195,7 +1204,7 @@ public sealed class StratStore
             List<HistoryEntry> entries;
             try
             {
-                entries = ParseHistory(File.ReadAllLines(log));
+                entries = ParseHistory(FolderText.ReadLines(_folder, log));
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
@@ -1225,7 +1234,7 @@ public sealed class StratStore
         }
     }
 
-    private static string? MoveIfRelocated(Guid id, string? oldPath, string? newPath)
+    private string? MoveIfRelocated(Guid id, string? oldPath, string? newPath)
     {
         if (oldPath is null || newPath is null || string.Equals(oldPath, newPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -1236,7 +1245,6 @@ public sealed class StratStore
         try
         {
             string newFolder = Path.GetDirectoryName(newPath)!;
-            Directory.CreateDirectory(newFolder);
 
             // Best-effort and first: a set-aside copy left behind is still on disk, and must never stop the log.
             foreach (string kept in SetAsideBeside(oldPath))
@@ -1244,9 +1252,9 @@ public sealed class StratStore
                 try
                 {
                     string target = Path.Combine(newFolder, Path.GetFileName(kept));
-                    if (!File.Exists(target))
+                    if (!_folder!.FileExists(target))
                     {
-                        File.Move(kept, target);
+                        _folder.Move(kept, target, false);
                     }
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -1256,12 +1264,12 @@ public sealed class StratStore
             }
 
             string oldLog = HistoryPathBeside(oldPath);
-            if (File.Exists(oldLog))
+            if (_folder!.FileExists(oldLog))
             {
-                File.Move(oldLog, HistoryPathBeside(newPath));
+                _folder.Move(oldLog, HistoryPathBeside(newPath), false);
             }
 
-            File.Delete(oldPath);
+            _folder.Delete(oldPath);
             return null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -1273,7 +1281,7 @@ public sealed class StratStore
     private bool AppendHistory(StratDocument committed, HistoryEntry entry)
     {
         string line = JsonSerializer.Serialize(entry, StratHistoryJsonContext.Default.HistoryEntry);
-        if (_root is null)
+        if (_folder is null)
         {
             lock (_gate)
             {
@@ -1288,35 +1296,17 @@ public sealed class StratStore
             return true;
         }
 
-        string historyPath = HistoryPathBeside(StratPath(committed));
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(historyPath)!);
-
-            // Opened for append and never rewritten. A log whose last line was torn by a crash gets a
-            // newline first, so the torn line stays alone and is skipped rather than swallowing this one.
-            using FileStream stream = new(historyPath, FileMode.Append, FileAccess.Write, FileShare.Read);
-            byte[] bytes = Encoding.UTF8.GetBytes((EndsTorn(historyPath, stream.Position) ? "\n" : "") + line + "\n");
-            stream.Write(bytes);
-            stream.Flush(true);
+            // The line is on the disk before this returns, and a last line a crash tore gets a newline of
+            // its own first, so the torn record stays alone and is skipped rather than joined to this one.
+            _folder.Append(HistoryPathBeside(StratPath(committed)), line);
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {
             return false;
         }
-    }
-
-    private static bool EndsTorn(string path, long length)
-    {
-        if (length == 0)
-        {
-            return false;
-        }
-
-        using FileStream reader = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        reader.Seek(-1, SeekOrigin.End);
-        return reader.ReadByte() != '\n';
     }
 
     private bool WriteStrat(StratDocument document, string? path)
@@ -1335,7 +1325,7 @@ public sealed class StratStore
 
         try
         {
-            AtomicFile.WriteAllText(path, json);
+            FolderText.Write(_folder!, path, json);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -1357,7 +1347,7 @@ public sealed class StratStore
         lock (_gate)
         {
             path = _paths.GetValueOrDefault(id);
-            if (_root is null)
+            if (_folder is null)
             {
                 return _memoryStrats.GetValueOrDefault(id);
             }
@@ -1370,7 +1360,7 @@ public sealed class StratStore
 
         try
         {
-            return File.Exists(path) ? File.ReadAllText(path) : null;
+            return FolderText.Read(_folder, path);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -1391,7 +1381,7 @@ public sealed class StratStore
 
         try
         {
-            return File.Exists(path) ? File.ReadAllText(path) : null;
+            return FolderText.Read(_folder!, path);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -1413,7 +1403,7 @@ public sealed class StratStore
 
         try
         {
-            AtomicFile.WriteAllText(path, json);
+            FolderText.Write(_folder!, path, json);
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -1422,8 +1412,16 @@ public sealed class StratStore
         }
     }
 
-    private string StratPath(StratDocument document) =>
-        Path.Combine(FolderFor(_root!, document.Owner, document.Map), document.Id.ToString("D") + StratExtension);
+    private static string StratPath(StratDocument document) =>
+        Path.Combine(FolderIn(document.Owner, document.Map), document.Id.ToString("D") + StratExtension);
+
+    // The same folder as FolderFor, relative to the store: the owner and the map have both been through
+    // FolderProblem, so neither can leave it.
+    private static string FolderIn(StratOwner owner, string map) => Path.Combine(owner.FolderName, map.ToLowerInvariant());
+
+    // A path inside the store as the world outside it sees the file; null in memory.
+    private string? Absolute(string? relativePath) =>
+        relativePath is null || _folder is null ? null : Path.Combine(_folder.Path, relativePath);
 
     private static string HistoryPathBeside(string stratPath) =>
         stratPath[..^StratExtension.Length] + HistoryExtension;
@@ -1499,25 +1497,25 @@ public sealed class StratStore
     private List<string> EnumerateFiles(string pattern)
     {
         List<string> files = [];
-        if (_root is null || !Directory.Exists(_root))
+        if (_folder is null)
         {
             return files;
         }
 
         try
         {
-            foreach (string ownerDir in Directory.EnumerateDirectories(_root))
+            foreach (string ownerDir in _folder.EnumerateDirectories(""))
             {
                 if (StratOwner.FromFolderName(Path.GetFileName(ownerDir)) is null)
                 {
                     continue;
                 }
 
-                foreach (string mapDir in Directory.EnumerateDirectories(ownerDir))
+                foreach (string mapDir in _folder.EnumerateDirectories(ownerDir))
                 {
                     if (!Path.GetFileName(mapDir).StartsWith('.'))
                     {
-                        files.AddRange(Directory.EnumerateFiles(mapDir, pattern));
+                        files.AddRange(_folder.EnumerateFiles(mapDir, pattern));
                     }
                 }
             }
@@ -1542,7 +1540,7 @@ public sealed class StratStore
             StratDocument? document;
             try
             {
-                document = Parse(File.ReadAllText(path));
+                document = FolderText.Read(_folder!, path) is { } json ? Parse(json) : null;
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
@@ -1565,8 +1563,7 @@ public sealed class StratStore
 
     private void LoadIndex()
     {
-        string? indexPath = IndexPath;
-        if (indexPath is null)
+        if (_folder is null)
         {
             return;
         }
@@ -1574,9 +1571,9 @@ public sealed class StratStore
         StratIndexFile? file = null;
         try
         {
-            if (File.Exists(indexPath))
+            if (FolderText.Read(_folder, IndexFileName) is { } json)
             {
-                file = JsonSerializer.Deserialize(File.ReadAllText(indexPath), StratJsonContext.Default.StratIndexFile);
+                file = JsonSerializer.Deserialize(json, StratJsonContext.Default.StratIndexFile);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
@@ -1631,11 +1628,12 @@ public sealed class StratStore
 
     // index.json is written at shutdown only, so a killed process leaves rows behind their files. A commit
     // writes its file milliseconds after stamping modifiedUtc; a file much newer than that was written since.
-    private static bool WrittenAfter(string stratPath, StratIndexEntry row)
+    private bool WrittenAfter(string stratPath, StratIndexEntry row)
     {
         try
         {
-            return File.GetLastWriteTimeUtc(stratPath) > row.ModifiedUtc.ToUniversalTime() + RowSlack;
+            // A file that is not there answers no time at all, which is never after the row.
+            return (_folder!.LastWriteTimeUtc(stratPath) ?? DateTime.MinValue) > row.ModifiedUtc.ToUniversalTime() + RowSlack;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -1646,17 +1644,21 @@ public sealed class StratStore
     // A commit writes the log before the strat file, so a log newer than its strat is the only sign of a
     // crash between the two. Two stats per strat keep startup to index.json plus the listing; only a log that
     // is newer is read. A crash inside the timestamp resolution is still caught when the strat is opened.
-    private static bool LogIsAhead(string stratPath, int revision)
+    private bool LogIsAhead(string stratPath, int revision)
     {
         try
         {
             string log = HistoryPathBeside(stratPath);
-            if (!File.Exists(log) || File.GetLastWriteTimeUtc(log) <= File.GetLastWriteTimeUtc(stratPath))
+
+            // No log at all answers no time, which is the same as no crash. The comparison stays an
+            // or-equal: only a log strictly newer than its strat is a commit that did not finish.
+            if (_folder!.LastWriteTimeUtc(log) is not { } logAt
+                || logAt <= (_folder.LastWriteTimeUtc(stratPath) ?? DateTime.MinValue))
             {
                 return false;
             }
 
-            List<HistoryEntry> entries = ParseHistory(File.ReadLines(log));
+            List<HistoryEntry> entries = ParseHistory(FolderText.ReadLines(_folder, log));
             return entries.Count > 0 && entries[^1].Revision > revision;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

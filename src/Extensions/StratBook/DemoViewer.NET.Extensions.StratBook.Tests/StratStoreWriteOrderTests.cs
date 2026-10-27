@@ -28,7 +28,7 @@ public class StratStoreWriteOrderTests
 
     // The folder the app hands the store, not a test double, so the order pinned here is the host's own
     // ExtensionFolder. The store takes its path today and takes the folder itself after the migration.
-    private static StratStore Store(IExtensionFolder strats) => new(strats.Path);
+    private static StratStore Store(IExtensionFolder strats) => new(strats);
 
     private static IExtensionFolder Strats(string root) => PackStores.Folder(root, StratBookStores.Strats);
 

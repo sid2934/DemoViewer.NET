@@ -375,7 +375,7 @@ public class StratBookModuleTests
             string root = TempRoot();
             try
             {
-                StratStore store = new(root);
+                StratStore store = new(PackStores.At(root));
                 StratBookTabViewModel vm = OpenNew(store);
                 Guid id = vm.Session.Document!.Id;
                 vm.Editor.Name = "committed on deactivate";

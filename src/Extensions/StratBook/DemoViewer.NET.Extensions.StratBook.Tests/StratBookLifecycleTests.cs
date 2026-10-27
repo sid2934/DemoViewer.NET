@@ -248,7 +248,7 @@ public class StratBookLifecycleTests
             try
             {
                 string indexPath = Path.Combine(root, "index.json");
-                StratStore store = new(root);
+                StratStore store = new(PackStores.At(root));
                 StratBookTabViewModel vm = new(store);
                 StratBookModule module = new(() => vm);
                 StratBookPackInstances instances = new() { StratBook = module };

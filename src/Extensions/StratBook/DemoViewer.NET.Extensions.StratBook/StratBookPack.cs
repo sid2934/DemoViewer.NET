@@ -491,7 +491,7 @@ public sealed class StratBookPack : IExtension
         // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps
         // strats in memory for the session. The tab VM is a container singleton resolved lazily on first
         // activation; its books are Team Identity's teams plus me.
-        services.AddSingleton(sp => new StratStore(StoresOf(sp).Open(StratBookStores.Strats)?.Path, Host(sp).Post));
+        services.AddSingleton(sp => new StratStore(StoresOf(sp).Open(StratBookStores.Strats), Host(sp).Post));
         // Callout Aliases: one resolver builder over the store's tables and the map's
         // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
         // a nav place.

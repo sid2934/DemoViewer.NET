@@ -49,7 +49,7 @@ public class StratLogPositionTests
     /// </summary>
     private static List<StratDocument> WriteLog(string root, int[] revisions)
     {
-        StratStore store = new(root, utcNow: SteppingClock(Past));
+        StratStore store = new(PackStores.At(root), utcNow: SteppingClock(Past));
         StratDocument created = Minimal();
         store.Save(created, [], "created");
         string log = LogFile(root, created);
@@ -101,7 +101,7 @@ public class StratLogPositionTests
             WriteStrat(root, states[^1]);
             string before = File.ReadAllText(StratFile(root, states[^1]));
 
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument loaded = store.TryLoad(states[^1].Id)!;
             using (Assert.Multiple())
             {
@@ -128,7 +128,7 @@ public class StratLogPositionTests
             List<StratDocument> states = WriteLog(root, shape);
             WriteStrat(root, states[^3]);
 
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument loaded = store.TryLoad(states[^1].Id)!;
             using (Assert.Multiple())
             {
@@ -155,7 +155,7 @@ public class StratLogPositionTests
             List<StratDocument> states = WriteLog(root, NotAtTail);
             WriteStrat(root, states[9]);
 
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument loaded = store.TryLoad(states[^1].Id)!;
             using (Assert.Multiple())
             {
@@ -182,7 +182,7 @@ public class StratLogPositionTests
             WriteStrat(root, stray);
             string before = File.ReadAllText(StratFile(root, stray));
 
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             store.TryLoad(stray.Id);
             using (Assert.Multiple())
             {
@@ -208,7 +208,7 @@ public class StratLogPositionTests
             working.Notes = "uncommitted";
             WriteStrat(root, StratStore.WithPending(working, true));
 
-            StratStore store = new(root, utcNow: SteppingClock(Past.AddHours(1)));
+            StratStore store = new(PackStores.At(root), utcNow: SteppingClock(Past.AddHours(1)));
             bool unique = shape.Count(r => r == shape[^1]) == 1;
             using StratSession session = Session(store);
             session.Open(working.Id);
@@ -256,7 +256,7 @@ public class StratLogPositionTests
             working.Notes = "on the first 9";
             WriteStrat(root, StratStore.WithPending(working, true));
 
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             StratDocument loaded = store.TryLoad(working.Id)!;
             string[] kept = SetAsideFiles(root, working);
             using (Assert.Multiple())
@@ -280,7 +280,7 @@ public class StratLogPositionTests
         string root = TempRoot();
         try
         {
-            StratStore store = new(root, utcNow: SteppingClock(Past));
+            StratStore store = new(PackStores.At(root), utcNow: SteppingClock(Past));
             StratDocument document = Minimal();
             store.Save(document, [], "created");
 
@@ -295,7 +295,7 @@ public class StratLogPositionTests
             working.Steps[0].AtSeconds = 100;
             WriteStrat(root, StratStore.WithPending(working, true));
 
-            StratStore restarted = new(root);
+            StratStore restarted = new(PackStores.At(root));
             StratDocument loaded = restarted.TryLoad(document.Id)!;
             string[] kept = SetAsideFiles(root, document);
             using (Assert.Multiple())
@@ -322,7 +322,7 @@ public class StratLogPositionTests
         {
             List<StratDocument> states = WriteLog(root, OwnerShape);
             WriteStrat(root, states[^1]);
-            StratStore store = new(root);
+            StratStore store = new(PackStores.At(root));
             IReadOnlyList<StratHistoryRow> rows = StratHistoryPane.Rows(store.History(states[^1].Id));
 
             using (Assert.Multiple())

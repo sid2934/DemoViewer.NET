@@ -96,7 +96,7 @@ public class StratBookStoresTests
     private static void WriteOneItemPerStore(string configRoot, string cacheRoot)
     {
         // strats/: real API.
-        new StratStore(Path.Combine(configRoot, "strats")).Create(StratOwner.Me(), "de_dust2", "T", "default", "test");
+        new StratStore(PackStores.Folder(configRoot, StratBookStores.Strats)).Create(StratOwner.Me(), "de_dust2", "T", "default", "test");
 
         // tags/: the store's own path, written directly rather than through a live TagSession.
         TagStore tags = new(PackStores.Folder(configRoot, StratBookStores.Tags));
