@@ -21,7 +21,8 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Goldens;
 ///     </para>
 ///     <para>
 ///         Three suites discharge this obligation, once per reader of the corpus:
-///         <c>SceneGoldenTests</c> for the synthetics, <c>LevelGoldenTests</c> for the nuke goldens, and
+///         <c>SceneGoldenTests</c> for the synthetics and the radar-backed frames it judges,
+///         <c>LevelGoldenTests</c> for the nuke goldens, and
 ///         <c>GoldenAttributionTests</c> for every entry <c>dv2d golden</c> judges. Each must guard on
 ///         <see cref="InkPixels" />: an empty mask makes every assertion under it vacuous.
 ///     </para>

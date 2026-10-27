@@ -19,9 +19,11 @@ namespace DemoViewer.NET.Playback2D.Cli.Tests;
 ///     See <see cref="GlyphAttribution" /> for the mask and what it licenses.
 ///     <para>
 ///         <c>SceneGoldenTests</c> and <c>LevelGoldenTests</c> discharge the same obligation for the
-///         synthetics and the nuke goldens. This suite covers the entries that need the tool's own
-///         flags on top: the four radar-backed Mirage/Inferno frames, <c>nuke-single-upper</c>, and the
-///         1080p <c>full-scene-budget</c>.
+///         entries they judge: the synthetics, the nuke level pair, the four radar-backed
+///         Mirage/Inferno frames and the 1080p <c>full-scene-budget</c>. This suite is the only
+///         attribution for the rest, <c>annotated-shapes-mirage-b</c>, the two <c>zones-*</c> entries
+///         and <c>result-card-nuke</c> among them, and the only check that the set the gate judges is
+///         attributed at all.
 ///     </para>
 ///     <para>
 ///         <b>
