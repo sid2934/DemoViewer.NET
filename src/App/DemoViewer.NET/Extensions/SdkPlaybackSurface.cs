@@ -212,8 +212,12 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         ArgumentNullException.ThrowIfNull(layer);
         string filed = ExtensionLayerIds.Compose(_guard.Scope.Id, id);
         string name = string.IsNullOrWhiteSpace(displayName) ? _guard.Scope.Name : displayName;
+        // The fallback answers a factory that threw; the coalesce one that returned null. GuardedSceneLayer
+        // refuses null, and that refusal would throw out here, outside the guard, on every rebuild.
         ISceneLayer Build() =>
-            new GuardedSceneLayer(filed, _guard.Run<ISceneLayer>("scene layer factory", layer, EmptySceneLayer.Instance), _guard);
+            new GuardedSceneLayer(filed,
+                _guard.Run<ISceneLayer?>("scene layer factory", layer, EmptySceneLayer.Instance) ?? EmptySceneLayer.Instance,
+                _guard);
         return Own(_surface.AddLayer(filed, Build, name, enabled));
     }
 

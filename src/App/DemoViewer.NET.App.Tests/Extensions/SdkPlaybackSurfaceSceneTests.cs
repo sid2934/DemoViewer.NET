@@ -171,6 +171,27 @@ public class SdkPlaybackSurfaceSceneTests
         vm.Dispose();
     }
 
+    /// <summary>
+    ///     A factory that returns null rather than throwing. The guard's fallback cannot answer for it,
+    ///     since nothing was thrown, so the coalesce has to: without it the null reaches
+    ///     <c>GuardedSceneLayer</c>, which refuses it outside the guard on every rebuild.
+    /// </summary>
+    [Test]
+    public async Task ANullReturningLayerFactory_BuildsALayerThatDrawsNothing_AndFilesNoFault()
+    {
+        (Playback2DTabViewModel vm, Playback2DSurface inner) = Surface();
+        FaultRig rig = new();
+        using SdkPlaybackSurface surface = new(inner, rig.Guard);
+        using IDisposable _ = surface.AddLayer("x", () => null!);
+
+        ISceneLayer built = inner.Layers.Single().Value();
+
+        await Assert.That(built.Id).IsEqualTo("ext.pack.fake.x");
+        await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsEqualTo(0)
+            .Because("returning null is not a throw, so there is no fault to report");
+        vm.Dispose();
+    }
+
 
     /// <summary>
     ///     The user's row and the layer's own flag are two different flags. Assigning the row onto the
