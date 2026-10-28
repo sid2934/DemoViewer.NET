@@ -125,6 +125,14 @@ public sealed class DemoErrorReportSnapshot
     /// </summary>
     public List<string> ExcludedRulesets { get; set; } = [];
 
+    /// <summary>
+    ///     True when a composition actually ran in the reporting session, so an empty
+    ///     <see cref="ExcludedRulesets" /> means "nothing was dropped". False means nothing composed and the
+    ///     list says nothing at all. Without this an empty list reads as a clean bill of health, which is the
+    ///     one answer it cannot honestly give.
+    /// </summary>
+    public bool ExcludedRulesetsKnown { get; set; }
+
     /// <summary>Parse health as the parser reported it, where the demo is open.</summary>
     public string? ParseHealth { get; set; }
 

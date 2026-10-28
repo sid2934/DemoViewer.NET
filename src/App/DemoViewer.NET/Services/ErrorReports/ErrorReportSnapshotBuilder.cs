@@ -10,6 +10,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.ViewModels.Diagnostics;
 using SkiaSharp;
 
 #endregion
@@ -168,10 +169,14 @@ public static class ErrorReportSnapshotBuilder
         ];
 
         // Named rather than counted: an excluded ruleset contributes nothing and reads exactly like rules that
-        // ran and matched nothing, which is the most likely thing behind an "analysis error" report.
-        rows.Add(Row("excluded rulesets", snapshot.ExcludedRulesets.Count == 0
-            ? "none"
-            : string.Join(", ", snapshot.ExcludedRulesets)));
+        // ran and matched nothing, which is the most likely thing behind an "analysis error" report. The
+        // unknown case is spelled out, because an empty list that means "we never looked" would send a
+        // developer hunting elsewhere.
+        rows.Add(Row("excluded rulesets", !snapshot.ExcludedRulesetsKnown
+            ? "(unknown: nothing composed in this session)"
+            : snapshot.ExcludedRulesets.Count == 0
+                ? "none"
+                : string.Join(", ", snapshot.ExcludedRulesets)));
         foreach ((string id, string hash) in snapshot.HighlightHashes.OrderBy(k => k.Key, StringComparer.Ordinal))
         {
             rows.Add(Row("highlight hash · " + id, hash));
@@ -258,6 +263,15 @@ public static class ErrorReportSnapshotBuilder
         {
             // A set that does not compose has no fingerprint, which is itself worth seeing in the report.
             snapshot.CurrentConfigFingerprint = "(does not compose)";
+        }
+
+        // The real list comes from a composed BuildResult, which this cannot build: composing the graph is
+        // seconds of work and this runs on a button press. RulesetExclusionReport is the single funnel every
+        // DemoAnalysis.Build call site already goes through, so it remembers the last set for us.
+        if (RulesetExclusionReport.LastExcluded is { } excluded)
+        {
+            snapshot.ExcludedRulesetsKnown = true;
+            snapshot.ExcludedRulesets.AddRange(excluded);
         }
 
         foreach (RulesetDoc doc in docs)

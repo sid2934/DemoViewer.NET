@@ -37,6 +37,12 @@ internal static class RulesetExclusionReport
     public static void Report(ILogger logger, BuildResult build)
     {
         IReadOnlyList<ExcludedRuleset> excluded = build.ExcludedRulesets;
+
+        // Also remembered for the error-report snapshot, which cannot compose a BuildResult of its own:
+        // building the graph is seconds of work and this runs on a button press. Null until something
+        // composes, so a snapshot can tell "nothing was excluded" from "nothing has been built yet".
+        LastExcluded = [.. excluded.Select(Describe)];
+
         if (excluded.Count == 0)
         {
             return;
@@ -47,6 +53,12 @@ internal static class RulesetExclusionReport
             AppLog.RulesetExcluded(logger, Name(ruleset), Summarize(ruleset.Diagnostics));
         }
     }
+
+    /// <summary>
+    ///     What the most recent composition in this process excluded, or null while nothing has composed.
+    ///     An empty list means a build ran and dropped nothing, which is a different claim.
+    /// </summary>
+    internal static IReadOnlyList<string>? LastExcluded { get; private set; }
 
     /// <summary>The ruleset, its source file when it has one, and its diagnostics, on one line.</summary>
     public static string Describe(ExcludedRuleset ruleset) =>

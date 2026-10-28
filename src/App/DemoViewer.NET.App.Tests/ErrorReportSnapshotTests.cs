@@ -111,6 +111,31 @@ public class ErrorReportSnapshotTests
         }
     }
 
+    /// <summary>
+    ///     An empty exclusion list must never read as "nothing was excluded" when nothing composed. The field
+    ///     shipped declared, rendered and never assigned, so every report asserted a clean bill of health on
+    ///     the one signal most likely to explain it.
+    /// </summary>
+    [Test]
+    public async Task ExcludedRulesets_SayUnknownUntilSomethingHasComposed()
+    {
+        DemoErrorReportSnapshot snapshot =
+            ErrorReportSnapshotBuilder.Build("/demos/excl.dem", Record(), null, null, null, Now);
+
+        string rendered = ErrorReportSnapshotBuilder.Groups(snapshot)
+            .First(g => g.Title == "Rules").Rows
+            .First(r => r.Key == "excluded rulesets").Value;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(snapshot.ExcludedRulesetsKnown).IsFalse()
+                .Because("no MergedRulesBuild was supplied, so nothing composed");
+            await Assert.That(rendered).Contains("unknown");
+            await Assert.That(rendered).DoesNotContain("none")
+                .Because("\"none\" is a claim the snapshot has not earned the right to make");
+        }
+    }
+
     [Test]
     public async Task TheTextRendering_LeadsWithTheUsersNotes()
     {
