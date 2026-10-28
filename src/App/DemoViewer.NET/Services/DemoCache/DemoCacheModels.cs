@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
+using DemoViewer.NET.Services.ErrorReports;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Extensions.Sdk;
@@ -375,6 +376,13 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     // record Match Overview re-reads on every property touch (the round index, the grenade rows) stay in
     // their own sidecars; only their stamps are here.
 
+    /// <summary>
+    ///     The user's own report of what the analysis got wrong on this demo, or null while they have written
+    ///     none. USER-AUTHORED, like the match-time override: no tier fill may clear it, and the merge below
+    ///     carries it onto a row this record joins.
+    /// </summary>
+    public DemoErrorReport? ErrorReport { get; set; }
+
     /// <summary>Per-pack payloads keyed by pack id. Opaque here; typed through <see cref="IPackPayloads" />.</summary>
     public Dictionary<string, JsonElement> Packs { get; set; } = new(StringComparer.Ordinal);
 
@@ -457,6 +465,7 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         }
 
         RoundFacts ??= other.RoundFacts;
+        ErrorReport ??= other.ErrorReport;
         if (other.MatchMeta is { MatchTimeSource: MatchTimeSource.UserOverride } chosen && MatchMeta?.MatchTimeSource != MatchTimeSource.UserOverride)
         {
             MatchMeta ??= chosen;

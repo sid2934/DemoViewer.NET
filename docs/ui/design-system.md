@@ -1716,6 +1716,78 @@ model. `UiCapture` variants: `stats-components`, `stats-components-edge`, `stats
 - **The four drawn controls set their own `AutomationProperties.Name`**, because they paint glyphs
   rather than hosting a `TextBlock` a screen reader could find.
 
+### ErrorReportView: the Report Analysis Errors window body (2026-10-28)
+`Views/ErrorReport/ErrorReportView.axaml` + `.axaml.cs`. A `UserControl` holding the whole window body,
+the `SettingsWindow`/`SettingsView` shape: `ErrorReportWindow` is a thin `Window` that hosts it, so the
+same body serves the desktop window and any single-view host. ViewLocator resolves it by name from
+`ViewModels.ErrorReport.ErrorReportViewModel`.
+
+**Recommended window metrics:** `Width 680 Height 720`, `MinWidth 460 MinHeight 600`. Those are not
+decoration: at 460x600 with the diagnostics expanded the content measures 533 of 564 available pixels,
+and below that the diagnostics start to overlap the footer (measured; see the DockPanel note).
+
+- **Layout = a `DockPanel`, and the dock ORDER is the priority order.** Footer docked `Bottom` first,
+  then the identity header `Top`, then the diagnostics `Bottom`, then the editor as the fill child.
+  A `Grid` with a star editor row does the opposite under pressure: the star row wins, the `Auto` rows
+  are squeezed and the expanded diagnostics were drawn straight over the editor's own label. Avalonia's
+  `DockPanel` does **not** clamp a docked child to the remaining space, so the diagnostics
+  `ScrollViewer` carries `MaxHeight="240"` and the window carries a `MinHeight` that fits it. It DOES
+  clamp the arranged height, but a `Border` does not clip, so the section's content painted over the
+  footer anyway: the section carries `ClipToBounds="True"`.
+  `ExpandingDiagnostics_StaysClearOfTheFooter` measures the **ScrollViewer's** arranged bottom against the
+  footer's top at 680x720 and 460x600, because the Border's own bounds are clamped and always "fit".
+  Verified to fail at 440x470.
+- **Four sections, in priority order.** Identity header (file name `TextCardHeader` 17px, map
+  `TextBright`, path mono `TextMid` wrapped to 2 lines with an ellipsis and a full-path tooltip; a
+  right-hand "SAVED REPORT" block on `IsExistingReport`). Then the editor. Then the diagnostics
+  disclosure. Then the footer.
+- **The disclosure is a `ToggleButton`, not an `Expander`.** `IsDiagnosticsExpanded` is a plain two-way
+  binding on `IsChecked`, and "Copy diagnostics" sits BESIDE it in the same band rather than nested
+  inside an `Expander`'s own toggle, so copying works while the section is collapsed and no button
+  fights the toggle for the click. The caret is a `PathIcon` rotated 90 degrees by a
+  `:checked` selector.
+- **Diagnostics rows reuse `KvpRow` but NOT `KeyValueTable`.** The SDK control's value column is `Auto`
+  with no wrapping and horizontal scrolling disabled, and every realistic value here is a 64-char
+  sha256, a user-home path or a config fingerprint, which it clips at about 600px. The local template is
+  the same visual language (mono both columns, the DiagnosticsTabView key/value grammar) with a fixed
+  156px key gutter and a wrapping value. The gutter is fixed rather than `Auto` because each row is its
+  own `ItemsControl` item, so an `Auto` column sizes per row and the keys stop lining up.
+- **Clipboard in the code-behind**, the `HeaderSectionView.OnCopySteamIdClick` shape: the clipboard
+  needs the visual tree, and the try/catch swallows the permission-gated hosts.
+- **Submit For Review is disabled on purpose** and carries `ToolTip.ShowOnDisabled="True"`. A disabled
+  control suppresses its tooltip by default, and the tooltip is the only place the reason is written.
+  Pinned by `SubmitForReview_IsDisabled_AndStillShowsItsReason`, which opens it through the real pointer
+  path: `ShowOnDisabled` is checked there and nowhere else, so setting `IsOpen` would prove nothing.
+
+**Tokens, measured in Dark / Light / High Contrast / E-Girl.** Surfaces are `PanelBg` (header card and
+diagnostics container) over the window's `ShellBg`; the editor is a Fluent input. Labels, keys, paths and the
+disclosure are `TextMid` (4.66:1 Dark, 6.65 Light, 16.52 High Contrast, 6.32 E-Girl); values
+`TextEntityFieldVal` (7.07 / 8.06 / 18.76 / 11.11); group headings `TextBright` (7.86 / 8.92 / 21.00 /
+14.24); the file name `TextCardHeader` (12.62 / 12.29 / 21.00 / 16.44). Typed notes are Fluent's own
+foreground (18.8 to 21). The one surface under AA is the **placeholder**, for the control-level reason in
+finding 2 below. Nothing here uses `TextDim`, which is 1.99:1 on `PanelBg`.
+
+**Two findings worth carrying to the next view:**
+1. **A pseudo-class setter binds at `StyleTrigger` priority, which outranks a plain class setter.** A
+   `ToggleButton.disclosure` style setting `Foreground` loses to FluentTheme's own `:checked` rule, which
+   paints `ToggleButtonForegroundChecked`: white, measured **1.14:1** on `PanelBg` under Light. An
+   expanded section whose heading had vanished. Every state has to be re-stated with its own
+   pseudo-class selector. The same trap applies to `:pointerover` and `:focus` on an input.
+2. **Avalonia 12 draws `PlaceholderText` at a fixed 0.5 opacity**, so no palette token reaches AA
+   through it: `TextMid` measured 2.02:1 Dark, `TextValue` 3.45 Dark / 2.78 Light / 5.24 High Contrast /
+   4.30 E-Girl. `PlaceholderForeground` is bound to `TextValue` because it is both the best the control
+   allows and the only way the placeholder re-themes at all, but it is **the one named AA exception on
+   this window**, and the prompt is therefore repeated as a real hint line beside the YOUR NOTES label.
+3. **The editor was briefly taken off Fluent's input brushes, and that was wrong.** Tokenizing it put
+   `BorderAccent` on `PanelBg`, which measures **1.32:1** Dark / 1.42 Light: with the fill at 1.03
+   against `ShellBg`, the box lost the only edge it had, under the 3:1 floor WCAG 1.4.11 sets for a UI
+   component's boundary. `AccentInteractive` focus was 2.77:1 and `SelectionBrush`/`SelectionForeground`
+   computed to 1.65:1 in Light. **No border token in the palette is designed to be a 3:1 edge** (the app's
+   border ramp is deliberately sub-3:1 hairline), so the fix was reverting to Fluent's input chrome,
+   which measures 7.18 Dark / 5.29 Light / 7.37 High Contrast / 7.32 E-Girl. The window keeps exactly one
+   token on the control, `PlaceholderForeground`. **Rule: an input keeps Fluent's chrome** (the existing
+   `.field` contract); tokenizing an input is a contrast regression, not a theming win.
+
 ### Other Controls/ (not full shared-design components, but shared)
 `CommandPalette` (Ctrl+P overlay), `OutputPanel` (bottom drawer), `StatusStrip` (bottom status).
 `ParseLinkChip` (source-link chip) and `OpenExternal.cs` (VS Code / browser launch helper, desktop only,
@@ -2260,6 +2332,7 @@ feature stays user-toggleable in Settings. `●` default-visible, `○` default-
 | **Processing queue** chip/flyout | Chrome | ○ | ● | ● | `chrome.processingQueue`. **Desktop only** (ANDs `!IsBrowser()`, background work needs a filesystem). Managing the background parse/analyse queue (pause/resume, per-item remove, status) is a power-user+ concern; **opening a demo never requires it** (foreground is always awaitable). The status chip appears only while the queue has activity or is paused (idle+empty adds no strip clutter). See [Processing-queue chip + flyout](#processing-queue-surface). |
 | Reels **Generate reel** | (ungated) | ● | ● | ● | Marquee action, visible to all; guarded by the reel dialog + platform check + the single-CS2 interlock (CSVG design notes, §8/§9). Real: Win/Linux; dry-run: macOS; absent: WASM. |
 | Reels **background scan** | setting | ○ | ○ | ○ | Opt-in for **all** categories (≈30 min churn on 200 demos), a Settings default, not a category default. Desktop only. |
+| **Report Analysis Errors** window + its two entry buttons | Chrome | ● | ● | ● | No per-category hiding: a consumer who sees a wrong kill count is the person a report is most worth having from, and the window asks for prose, not for a mental model of the rule engine. The diagnostics section is collapsed by default for every category, so the payload is disclosed rather than imposed. Gated only on there being a demo to report on: `CanReportErrors` on `MatchOverviewTabViewModel` (the demo the PAGE is painting, which in a cached render is not the one the shell has open) and on `StatsTabViewModel` (always the OPEN demo). Both also require a wired `ErrorReportOpener`, so a host that offers nowhere to send the user shows no button. Storage is the demo cache, so on the browser head the entry points are absent with the cache. |
 | **Visual Walkthrough** (first-run tour) | Overlay | ● | ● | ○ | `chrome.tutorial` (proposed). **Consumer-scoped content for everyone**, auto-shown **once** after first-time setup for Consumer/Power (skippable; re-runnable from Settings). Default-OFF auto-show for **Developer**: devs already know the app; never nag them (they can launch it from Settings). Not a per-tab feature; the overlay + `SpotlightScrim` are always present, the *auto-trigger default* is what this row gates. |
 
 Groups: `parserDeepDive` = { Parse Chain, Parser hex }; `graphDebug` = { Debugger toggle, Output
@@ -2415,6 +2488,31 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 ---
 
 ## 6. Decisions log + open questions
+
+### Decisions (Report Analysis Errors, 2026-10-28)
+1. **The hero button gets its own `Auto` column in the identity row, not a chip in the action row.**
+   The action row is a `WrapPanel` that reflows at narrow widths, and a chip added there can wrap onto a
+   second line and grow the band, which `MatchOverviewLandingTests` measures to the pixel. The identity
+   row's height is pinned by the identity block's `MinHeight="92"`, so a top-aligned 26px button cannot
+   move it in any mode or load state (measured: the band is 221.0px with and without it, at 820 and 1400,
+   opening and every cached tier). The score plate keeps its own column and its wording is untouched.
+   - **The row's gaps are Margins, not `ColumnSpacing`.** A `Grid`'s `ColumnSpacing` applies to a
+     zero-width column too, so with the button hidden the score plate sat 20px short of flush right. A
+     collapsed control is not measured, so a `Margin` on the child costs nothing.
+     `ReportButton_DoesNotChangeTheHeroBandsHeight` asserts the slack is 0 and was verified to fail with
+     `ColumnSpacing="20"` restored.
+   - Both height gates now wire `ErrorReportOpener` so they measure a page that actually HAS the button;
+     without that the gate passed vacuously over a collapsed control.
+2. **Stats puts it after a `Rectangle.divider.strong`, not as a third export button.** Reporting an
+   error is not an export, and a third same-weight button in that group says it is. The rule plus an
+   icon-only `.icon-btn` reads as a separate kind of action and does not change the toolbar's height. The
+   rule binds the SAME `CanReportErrors` as the button: otherwise it dangles after JSON with no demo
+   open, which is the toolbar's normal resting state.
+3. **Both icons are `ui/bug` through the catalogue at `Foreground="{DynamicResource TextMid}"`**, not
+   `.icon-btn`'s default `TextFrameInfo`. That default measures 3.48:1 on `CardBg` under Dark, which
+   clears the 3:1 non-text floor by a hair. This is the sole entry point to the feature in each view, so
+   it is worth the brighter token: 4.26 Dark / 7.37 Light / 15.57 High Contrast / 6.14 E-Girl.
+4. **No per-category hiding.** Recorded in the visibility matrix above with the reasoning.
 
 ### Decisions (Strat start and trigger clock, feature/strat-book-start-block, 2026-10-02)
 - **A Start row, not a step 0.** A step needs a time, a verb and a who that mean nothing for where tokens begin; the
@@ -3148,6 +3246,8 @@ The single-render window defaults to **640×360**: pass `--size` for taller vari
 | `library-landing` | 900×640 | **real** `LibraryTabView` + real VM, no folders → the landing hero (2 seeded recents, one missing/dimmed) | Clean hero: `LIBRARY`+`Add folder` toolbar only, centered card with title / tagline / `.primary` Open Demo / `RECENT` (mirage bright, nuke dimmed = missing) / `+ Add a folder` / drop hint. Clear primary CTA + readable map·date. |
 | `library-populated` | 900×640 (+700×520) | same VM with folders + 3 demo entries | Folder browser + the persistent right-docked `Open Demo…`/`Recent ▾` actions strip. Actions strip does NOT clip at 700px (the *filter* toolbar's pre-existing clip is toolbar-reflow territory, D18). |
 | `library-dropover` | 900×640 | the landing with `IsDragOver=true` forced | The full-surface drop overlay: `ShellBg`@0.82 scrim + `AccentInteractive` frame + "⤓ Drop a .dem file to open". (A real drag can't be synthesized headlessly: the variant forces the VM flag; see D19.) |
+| `error-report`, `error-report-expanded`, `error-report-new` | 680×720 | **real** `ErrorReportView` + the `ErrorReportViewModel` stub seeded with the awkward values (64-char sha256, user-home path, config fingerprint): a saved report collapsed, the same expanded over the real diagnostic groups, and a fresh one showing the placeholder | Read in Dark, Light, High Contrast and E-Girl. Every text surface clears AA except the placeholder (a control-level 0.5 opacity, documented); the lowest ratio otherwise is 4.66:1 (`TextMid` keys and labels on `PanelBg`, Dark). Three defects were found by reading pixels rather than the render: Fluent's `:checked` ToggleButton foreground (white, 1.14:1 on `PanelBg` under Light), the fixed 0.5 placeholder opacity, and a tokenized input border at 1.32:1 that was reverted. Also render `error-report-expanded --size 460x600` for the recommended window minimum: at 440x470 the diagnostics overlap the footer, which is what the `MinHeight` recommendation exists to prevent. |
+| `stats-toolbar` | 1200×200 | the real `StatsTabView` toolbar band with no evaluation behind it: the band the Report Analysis Errors button has to sit in without growing it | Icon-only `.icon-btn` after a `Rectangle.divider.strong`, clear of the two export buttons; band height unchanged. Bug glyph measures 4.59:1 Dark / 6.31 Light / 15.57 High Contrast / 6.22 E-Girl on `PanelHeaderBg`. |
 | `settings` | 660×1500 | **real** `SettingsView` + real `SettingsViewModel`/`FeatureGate` (temp-dir svc, 2 seeded overrides); the feature-toggle list | grouped **TABS & SUB-FEATURES** (indented children) + divider + **GLOBAL CHROME**; scope chips (Tab/Sub/Chrome), toggles right-aligned; overridden rows (Stats off, Hex pane on) show the amber dot + `↺`; required rows (Library, Frame list) show the "required" chip + locked toggle; "N hidden for Power-User" + Reset all read clearly. |
 | `workbench` (**new**) | 1200×680 | **real** `RuleWorkbenchView` + real `RuleWorkbenchTabViewModel` (shipped file selected → editor content + read-only; one seeded diagnostic) | Exercises all 3 workbench de-inline tokens: `AccentCaution` muted-gold "🔒 shipped (read-only)", `AccentErrorSoft` soft-red diagnostic location, `BorderTranslucent` pane outlines. Also confirms the **code-defined** `WorkbenchYamlHighlighting` colours render (Section magenta / Literal teal / Facet blue), validating D31. AvaloniaEdit **does** settle headlessly here (same as `RuleWorkbenchModuleTests`). |
 | `framelist` (**new**) | 460×340 | **real** `HarvestFrameListControl` (Parser frame list) + mock `HarvestFrameRowViewModel` rows over a `MainViewModel` (7 varied frame types; one breakpoint-set, one selected) | Exercises the new tokens: `FrameRowSelectedBg` (selected row), `FrameMsgBadgeBg` (×N badges), `TextFrameType` (NAME col), plus the reused header/label/dim tokens + per-type accent pills + the red-dim breakpoint dot. **BEFORE/AFTER byte-for-byte identical** (D32). |

@@ -1,6 +1,8 @@
 #region
 
 using System.Globalization;
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
@@ -271,6 +273,9 @@ public class MatchOverviewLandingTests
         await HeadlessSession.RunOnUi(async () =>
         {
             MatchOverviewTabViewModel vm = new();
+            // Wired, so the hero's report button is actually REALIZED in every state this measures. The
+            // gate needs an opener, and a bare `new()` would hide the button and measure a page without it.
+            vm.ErrorReportOpener = _ => { };
             MatchOverviewTabView view = new()
             {
                 DataContext = vm
@@ -340,6 +345,7 @@ public class MatchOverviewLandingTests
         await HeadlessSession.RunOnUi(async () =>
         {
             MatchOverviewTabViewModel vm = new();
+            vm.ErrorReportOpener = _ => { };
             MatchOverviewTabView view = new()
             {
                 DataContext = vm
@@ -405,6 +411,211 @@ public class MatchOverviewLandingTests
                     .Because("the point of the state is that it carries content while loading");
                 await Assert.That(seeded).IsEqualTo(live)
                     .Because("seeding an opening demo must fill reserved slots, never grow the page");
+            }
+        });
+    }
+
+    /// <summary>
+    ///     The hero band's copy-path button. It is gated on there being a real path to copy: the browser host
+    ///     has none and its subject key is a bare file name, which is not something to hand a user as a path.
+    /// </summary>
+    [Test]
+    public async Task CopyPathButton_IsOfferedOnlyWhenTheDemoHasALocalPath()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            MatchOverviewTabViewModel vm = new();
+            MatchOverviewTabView view = new()
+            {
+                DataContext = vm
+            };
+            Window window = new()
+            {
+                Width = 1400,
+                Height = 700,
+                Content = view
+            };
+            window.Show();
+
+            Button Copy() => view.GetVisualDescendants().OfType<Button>()
+                .First(b => b.Content as string == "Copy path");
+
+            vm.BeginOpening("live.dem", "Mirage", "Server", "/demos/live.dem", "/demos/live.dem");
+            Pump();
+            bool liveVisible = Copy().IsVisible;
+
+            vm.SetCachedRecord(Record(DemoCacheTier.Parse, path: "/demos/cached.dem"));
+            Pump();
+            string cachedPath = vm.FilePath;
+            bool cachedVisible = Copy().IsVisible;
+
+            // Browser host: the shell has no local path, so the key degrades to the file name.
+            vm.BeginOpening("hosted.dem", "Nuke", "Server", "hosted.dem");
+            Pump();
+            bool hostedVisible = Copy().IsVisible;
+
+            vm.Clear();
+            Pump();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(liveVisible).IsTrue();
+                await Assert.That(cachedVisible).IsTrue();
+                await Assert.That(cachedPath).IsEqualTo("/demos/cached.dem")
+                    .Because("the cached render copies the record's own path, not a name");
+                await Assert.That(hostedVisible).IsFalse()
+                    .Because("there is no path to copy, so the affordance must not be offered");
+                await Assert.That(vm.FilePath).IsEmpty()
+                    .Because("closing the demo drops the path with every other per-demo value");
+            }
+        });
+    }
+
+    /// <summary>
+    ///     THE constraint the report button was added under: it must not change the hero band's measured
+    ///     content height, in any mode or load state. The other gates here prove the page does not jump
+    ///     BETWEEN states with the button present, which is a different property; this one measures the
+    ///     band with and without it. The band is found by its own reserved MinHeight rather than by index.
+    /// </summary>
+    [Test]
+    [Arguments(1400)]
+    [Arguments(820)]
+    public async Task ReportButton_DoesNotChangeTheHeroBandsHeight(int windowWidth)
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            MatchOverviewTabViewModel vm = new();
+            MatchOverviewTabView view = new()
+            {
+                DataContext = vm
+            };
+            Window window = new()
+            {
+                Width = windowWidth,
+                Height = 700,
+                Content = view
+            };
+            window.Show();
+
+            Border Band() => view.GetVisualDescendants().OfType<Border>().First(b => b.MinHeight == 168);
+
+            // The failed mock's long server name, so the identity block is the widest it gets and the
+            // narrow layout is actually under pressure from the button's column.
+            vm.BeginOpening("corrupt_round12_de_ancient.dem", "Ancient",
+                "FACEIT.com register to play here", "/demos/a.dem", "/demos/a.dem");
+            Pump();
+            double openingWithout = Band().Bounds.Height;
+            double slackWhenHidden = ScorePlateSlack(view);
+
+            vm.ErrorReportOpener = _ => { };
+            Pump();
+            double openingWith = Band().Bounds.Height;
+
+            List<(string State, double Without, double With)> rows = [];
+            rows.Add(("opening", openingWithout, openingWith));
+
+            foreach (DemoCacheTier tier in new[]
+                     {
+                         DemoCacheTier.Header, DemoCacheTier.Parse, DemoCacheTier.Analysis
+                     })
+            {
+                vm.ErrorReportOpener = null;
+                vm.SetCachedRecord(Record(tier,
+                    tier == DemoCacheTier.Analysis ? DemoAnalysisState.Indexed : DemoAnalysisState.Pending));
+                Pump();
+                double without = Band().Bounds.Height;
+
+                vm.ErrorReportOpener = _ => { };
+                Pump();
+                rows.Add((tier.ToString(), without, Band().Bounds.Height));
+            }
+
+            using (Assert.Multiple())
+            {
+                foreach ((string state, double without, double with) in rows)
+                {
+                    Console.WriteLine(FormattableString.Invariant(
+                        $"[mo-report w={windowWidth}] {state}: without={without:F1} with={with:F1}"));
+                    await Assert.That(with).IsEqualTo(without)
+                        .Because($"the {state} band must measure the same whether the report button is shown");
+                }
+
+                await Assert.That(slackWhenHidden).IsEqualTo(0).Within(0.5)
+                    .Because("a hidden button must take no WIDTH either: the button's column carries its "
+                             + "gap as a Margin, because a Grid's ColumnSpacing applies to a zero-width "
+                             + "column too and would leave the plate 20px short of flush right");
+            }
+        });
+    }
+
+    // Space left between the score plate's right edge and the identity row's own right edge. The plate is
+    // the row's MinWidth=270 cell; with the report button hidden there must be none.
+    private static double ScorePlateSlack(MatchOverviewTabView view)
+    {
+        StackPanel plate = view.GetVisualDescendants().OfType<StackPanel>().First(p => p.MinWidth == 270);
+        Control row = (Control)plate.Parent!;
+        double right = plate.TranslatePoint(default, row)!.Value.X + plate.Bounds.Width;
+        return row.Bounds.Width - right;
+    }
+
+    /// <summary>
+    ///     The hero's Report Analysis Errors button. It must be present in BOTH renders: a cached preview is
+    ///     exactly when a user is looking at analysis they did not just watch run, which is when they notice
+    ///     it is wrong. It is also the one affordance here that is NOT a demo action, so it is checked for
+    ///     presence rather than for an enabled state.
+    /// </summary>
+    [Test]
+    public async Task ReportButton_IsPresent_InTheLiveAndCachedRenders()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            MatchOverviewTabViewModel vm = new();
+            MatchOverviewTabView view = new()
+            {
+                DataContext = vm
+            };
+            Window window = new()
+            {
+                Width = 1400,
+                Height = 700,
+                Content = view
+            };
+            window.Show();
+
+            Button Report() => view.GetVisualDescendants().OfType<Button>()
+                .First(b => AutomationProperties.GetName(b) == "Report Analysis Errors");
+
+            // No opener wired: the shell has not given the page anywhere to send the user.
+            vm.BeginOpening("live.dem", "Mirage", "Server", "/demos/live.dem", "/demos/live.dem");
+            Pump();
+            bool unwired = Report().IsVisible;
+
+            vm.ErrorReportOpener = _ => { };
+            Pump();
+            bool live = Report().IsVisible;
+
+            vm.SetCachedRecord(Record(DemoCacheTier.Analysis, DemoAnalysisState.Indexed, path: "/demos/cached.dem"));
+            Pump();
+            bool cached = Report().IsVisible;
+
+            string? opened = null;
+            vm.ErrorReportOpener = key => opened = key;
+            vm.OpenErrorReportCommand.Execute(null);
+
+            vm.Clear();
+            Pump();
+            bool cleared = Report().IsVisible;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(unwired).IsFalse()
+                    .Because("with nowhere to send the user the button must not be offered");
+                await Assert.That(live).IsTrue();
+                await Assert.That(cached).IsTrue()
+                    .Because("a cached preview is where a wrong analysis is most often spotted");
+                await Assert.That(opened).IsEqualTo("/demos/cached.dem")
+                    .Because("the report is about the demo the PAGE is painting, not the one the shell has open");
+                await Assert.That(cleared).IsFalse();
             }
         });
     }

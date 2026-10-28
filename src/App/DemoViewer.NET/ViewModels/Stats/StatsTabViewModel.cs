@@ -41,6 +41,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
     private readonly Func<string?, string?> _collisionResolver;
     private readonly Func<string?> _demoPathAccessor;
+    private Action<string>? _errorReportOpener;
 
     // Optional analyzer options seam (frame window / stride / FOV). null → analyzer defaults over
     // the whole demo (the product path). Tests inject a frame window so the LOS replay covers a
@@ -383,6 +384,23 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     public bool CanComputeVisibility => HasStats && _collisionTrisPath is not null;
 
     /// <summary>
+    ///     Opens the error report for a demo, given its path. Null where the shell has not wired one, which
+    ///     hides the toolbar's report button.
+    /// </summary>
+    public Action<string>? ErrorReportOpener
+    {
+        get => _errorReportOpener;
+        set
+        {
+            _errorReportOpener = value;
+            OnPropertyChanged(nameof(CanReportErrors));
+        }
+    }
+
+    /// <summary>Gates the toolbar's "Report Analysis Errors" button: this page always reports the OPEN demo.</summary>
+    public bool CanReportErrors => _errorReportOpener is not null && _demoPathAccessor() is { Length: > 0 };
+
+    /// <summary>
     ///     True when this run produced no line-of-sight data, so every column the catalogue marks
     ///     <see cref="ColumnMeta.RequiresVisibility" /> reads "no data" instead of the projector's 0.
     ///     <para>
@@ -546,6 +564,16 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasBoardLegend));
     }
 
+    /// <summary>Opens the error report for the open demo.</summary>
+    [RelayCommand]
+    private void OpenErrorReport()
+    {
+        if (_demoPathAccessor() is { Length: > 0 } path)
+        {
+            _errorReportOpener?.Invoke(path);
+        }
+    }
+
     /// <summary>Selects a category chip.</summary>
     [RelayCommand]
     private void SelectCategory(CategoryChip chip) => SelectedCategory = chip.Group;
@@ -662,6 +690,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     partial void OnHasStatsChanged(bool value)
     {
         OnPropertyChanged(nameof(CanComputeVisibility));
+        OnPropertyChanged(nameof(CanReportErrors));
 
         // Update() rebuilds the rows BEFORE it knows whether there were any, so the layout flags are
         // first announced while this is still false. Without re-announcing here the table stays hidden

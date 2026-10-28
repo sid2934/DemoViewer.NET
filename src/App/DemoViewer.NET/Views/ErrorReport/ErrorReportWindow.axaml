@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:er="using:DemoViewer.NET.ViewModels.ErrorReport"
+        x:Class="DemoViewer.NET.Views.ErrorReport.ErrorReportWindow"
+        x:DataType="er:ErrorReportViewModel"
+        Title="Report Analysis Errors"
+        Width="680" Height="720"
+        MinWidth="460" MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource ShellBg}">
+
+    <!-- ViewLocator resolves Views.ErrorReport.ErrorReportView from the view-model's own type name, so the
+         window is only the frame and the body renders the same wherever it is hosted. -->
+    <ContentControl Content="{Binding}" />
+</Window>

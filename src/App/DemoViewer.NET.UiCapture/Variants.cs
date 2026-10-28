@@ -52,6 +52,7 @@ using DemoViewer.NET.ViewModels.Commands;
 using DemoViewer.NET.ViewModels.Common;
 using DemoViewer.NET.ViewModels.DemoProcessing;
 using DemoViewer.NET.ViewModels.Diagnostics;
+using DemoViewer.NET.ViewModels.ErrorReport;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.LiveSync;
@@ -59,6 +60,7 @@ using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.Settings;
+using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.Tutorial;
@@ -66,6 +68,7 @@ using DemoViewer.NET.ViewModels.Update;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.Analysis;
 using DemoViewer.NET.Views.DemoProcessing;
+using DemoViewer.NET.Views.ErrorReport;
 using DemoViewer.NET.Views.Highlights;
 using DemoViewer.NET.Views.Library;
 using DemoViewer.NET.Views.LiveSync;
@@ -73,6 +76,7 @@ using DemoViewer.NET.Views.MatchOverview;
 using DemoViewer.NET.Views.PlayerOverview;
 using DemoViewer.NET.Views.RuleWorkbench;
 using DemoViewer.NET.Views.Settings;
+using DemoViewer.NET.Views.Stats;
 using DemoViewer.NET.Views.Diagnostics;
 using DemoViewer.NET.Views.Setup;
 using DemoViewer.NET.Views.Tutorial;
@@ -291,6 +295,16 @@ public static partial class Variants
             ["match-overview-cached-nosplit"] = () => MatchOverviewCached(DemoCacheTier.Parse, teamSplit: false),
             ["match-overview-cached-failed"] = () =>
                 MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed),
+            // Report Analysis Errors. The window BODY (ErrorReportWindow is a thin host), at the three
+            // states that lay out differently: a saved report collapsed, the same expanded over the real
+            // diagnostic groups, and a fresh one whose empty editor shows its placeholder. Render around
+            // --size 680x620 (the window's own size) and 440x560 for the minimum.
+            ["error-report"] = () => ErrorReportBody(false, false),
+            ["error-report-expanded"] = () => ErrorReportBody(true, false),
+            ["error-report-new"] = () => ErrorReportBody(false, true),
+            // The Stats toolbar with no evaluation behind it: the band is what the report button has to sit
+            // in without growing, and it renders identically loaded or not.
+            ["stats-toolbar"] = StatsToolbar,
             // Player Overview: nobody open (no Me account set), and a Me account whose demos have no player stats
             // while background processing is off.
             ["player-overview-empty"] = () => PlayerOverview(false),
@@ -4235,13 +4249,21 @@ public static partial class Variants
         // Real (no-op) actions so the captures show every affordance in its true state. Each gate also
         // requires a wired delegate, so a bare `new()` renders them permanently absent and hides a gating
         // regression. computeFullStats in particular drives the highlight card's "index them" action.
-        MatchOverviewTabViewModel vm = new(() => { }, () => { }, _ => { }, _ => { });
+        MatchOverviewTabViewModel vm = new(() => { }, () => { }, _ => { }, _ => { })
+        {
+            ErrorReportOpener = _ => { }
+        };
+        string fileName = mock == MatchOverviewMock.Failed
+            ? "corrupt_round12_de_ancient.dem"
+            : "match730_pug_de_mirage_2024.dem";
         vm.BeginOpening(
-            mock == MatchOverviewMock.Failed ? "corrupt_round12_de_ancient.dem" : "match730_pug_de_mirage_2024.dem",
+            fileName,
             mock == MatchOverviewMock.Failed ? "Ancient" : "Mirage",
             mock == MatchOverviewMock.Failed ? "FACEIT.com register to play here" : "Valve Counter-Strike 2 Server",
             // The capture drives one demo at a time, so the file name is a sufficient subject key.
-            mock == MatchOverviewMock.Failed ? "corrupt_round12_de_ancient.dem" : "match730_pug_de_mirage_2024.dem");
+            fileName,
+            // A path, so the identity block captures the copy affordance the cached render also shows.
+            "/Users/you/Documents/demos/" + fileName);
 
         if (mock == MatchOverviewMock.Failed)
         {
@@ -4316,7 +4338,10 @@ public static partial class Variants
         // require a wired action, so a bare `new()` would render them permanently absent and hide a
         // regression in the gating.
         MatchOverviewTabViewModel vm = new(
-            () => { }, () => { }, _ => { }, _ => { }, () => { });
+            () => { }, () => { }, _ => { }, _ => { }, () => { })
+        {
+            ErrorReportOpener = _ => { }
+        };
 
         DemoCacheRecord r = new()
         {
@@ -5419,5 +5444,60 @@ public static partial class Variants
         Padding = new Thickness(14, 10),
         Content = new StatsGalleryView()
     }, 780, 760);
+
+    /// <summary>
+    ///     The Report Analysis Errors window body. The stub view-model seeds its own awkward values (a
+    ///     sha256, a user-home path, a fingerprint); only the two-way members are set here, so the capture
+    ///     survives the real view-model dropping in.
+    /// </summary>
+    private static Panel ErrorReportBody(bool expanded, bool fresh)
+    {
+        ErrorReportViewModel vm = new()
+        {
+            IsDiagnosticsExpanded = expanded
+        };
+
+        if (fresh)
+        {
+            vm.Notes = string.Empty;
+            vm.IsExistingReport = false;
+            vm.CreatedText = string.Empty;
+            vm.LastSavedText = string.Empty;
+        }
+
+        return new Panel
+        {
+            Background = Tok("ShellBg"),
+            Children =
+            {
+                new ErrorReportView
+                {
+                    DataContext = vm
+                }
+            }
+        };
+    }
+
+    /// <summary>The real Stats tab with no evaluation: the toolbar band the report button lives in.</summary>
+    private static Panel StatsToolbar()
+    {
+        StatsTabViewModel vm = new(null, () => "/demos/faceit_2025-06-14_dust2.dem")
+        {
+            // The gate needs a wired opener, so a bare `new()` would render the button permanently absent.
+            ErrorReportOpener = _ => { }
+        };
+
+        return new Panel
+        {
+            Background = Tok("ShellBg"),
+            Children =
+            {
+                new StatsTabView
+                {
+                    DataContext = vm
+                }
+            }
+        };
+    }
 
 }

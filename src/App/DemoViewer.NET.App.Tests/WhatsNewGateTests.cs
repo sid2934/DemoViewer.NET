@@ -6,6 +6,7 @@ using DemoViewer.NET.Services.Update;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
+using DemoViewer.NET.ViewModels.ErrorReport;
 using DemoViewer.NET.ViewModels.Update;
 
 #endregion
@@ -198,6 +199,7 @@ public class WhatsNewGateTests
     {
         public List<WhatsNewViewModel> WhatsNews { get; } = [];
         public List<UpdateNoticeViewModel> UpdateNotices { get; } = [];
+        public List<ErrorReportViewModel> ErrorReports { get; } = [];
 
         public void OpenParseChainInspector(object dataContext)
         {
@@ -206,6 +208,8 @@ public class WhatsNewGateTests
         public void OpenSettings(SettingsViewModel viewModel)
         {
         }
+
+        public void ShowErrorReport(ErrorReportViewModel viewModel) => ErrorReports.Add(viewModel);
 
         public void ShowFirstRunWizard(FirstRunWizardViewModel viewModel)
         {

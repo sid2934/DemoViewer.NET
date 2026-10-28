@@ -1,10 +1,12 @@
 #region
 
 using Avalonia.Controls;
+using DemoViewer.NET.ViewModels.ErrorReport;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Update;
 using DemoViewer.NET.Views;
+using DemoViewer.NET.Views.ErrorReport;
 using DemoViewer.NET.Views.Settings;
 using DemoViewer.NET.Views.Setup;
 using DemoViewer.NET.Views.Update;
@@ -29,6 +31,14 @@ public interface IWindowService
     ///     of <paramref name="viewModel" />'s disposal (it is a fresh VM per open).
     /// </summary>
     void OpenSettings(SettingsViewModel viewModel);
+
+    /// <summary>
+    ///     Shows the "Report Analysis Errors" window for <paramref name="viewModel" />: a non-modal
+    ///     <see cref="ErrorReportWindow" /> on desktop, owned by the main window. One window at a time, so a
+    ///     second open re-targets the live one rather than leaving two reports for two demos on screen with
+    ///     nothing to tell them apart. No-op on WASM, which has no cache to store a report in.
+    /// </summary>
+    void ShowErrorReport(ErrorReportViewModel viewModel);
 
     /// <summary>
     ///     Shows the first-run setup wizard for <paramref name="viewModel" />: a MODAL
@@ -65,6 +75,7 @@ public interface IWindowService
 /// </summary>
 public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowService
 {
+    private ErrorReportWindow? _errorReportWindow;
     private ParseChainWindow? _parseChainWindow;
     private SettingsWindow? _settingsWindow;
     private UpdateNoticeWindow? _updateNoticeWindow;
@@ -195,6 +206,50 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
     }
 
     /// <summary>
+    ///     Shows the error-report window, single re-used window (the parse-chain pattern). A second open
+    ///     REPLACES the data context rather than re-activating as the others do: the window is about one
+    ///     demo, and re-activating it would show the user the previous demo's report under a command they
+    ///     invoked from another one.
+    /// </summary>
+    public void ShowErrorReport(ErrorReportViewModel viewModel)
+    {
+        ArgumentNullException.ThrowIfNull(viewModel);
+
+        if (_errorReportWindow is { } live)
+        {
+            if (live.DataContext is ErrorReportViewModel previous)
+            {
+                previous.CloseRequested -= OnErrorReportCloseRequested;
+            }
+
+            live.DataContext = viewModel;
+            viewModel.CloseRequested += OnErrorReportCloseRequested;
+            live.Activate();
+            return;
+        }
+
+        _errorReportWindow = new ErrorReportWindow
+        {
+            DataContext = viewModel
+        };
+
+        viewModel.CloseRequested += OnErrorReportCloseRequested;
+        _errorReportWindow.Closed += (_, _) =>
+        {
+            if (_errorReportWindow?.DataContext is ErrorReportViewModel current)
+            {
+                current.CloseRequested -= OnErrorReportCloseRequested;
+            }
+
+            _errorReportWindow = null;
+        };
+
+        ShowOwned(_errorReportWindow);
+    }
+
+    private void OnErrorReportCloseRequested(object? sender, EventArgs e) => _errorReportWindow?.Close();
+
+    /// <summary>
     ///     Shows the first-run wizard as a MODAL dialog owned by the main window, so the user completes
     ///     setup before returning to the app. The window closes on the wizard's Completed event.
     /// </summary>
@@ -309,6 +364,13 @@ public sealed class BrowserWindowService : IWindowService
         // No shell wired (should not happen in the real host): nothing to surface it on. The wizard VM is
         // not IDisposable, so there is nothing to release.
         OnShowFirstRun?.Invoke(viewModel);
+    }
+
+    /// <summary>No-op: the browser host has no demo cache, so a report would have nowhere to be stored.</summary>
+    public void ShowErrorReport(ErrorReportViewModel viewModel)
+    {
+        // Intentionally empty; the two entry points are gated on a cache being present, so this is
+        // unreachable in the real host. The no-op keeps the interface total rather than throwing.
     }
 
     /// <summary>No-op: the browser head has no installed build, so updates never surface there.</summary>
