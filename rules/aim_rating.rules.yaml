@@ -192,12 +192,14 @@ stats:
     sum: enrich.hurt.capped_damage
     on: damage_dealt
     match: { enemy: true }
+    while: round.number > 0
     per: match
 
   enemy_head_damage:
     sum: enrich.hurt.capped_damage
     on: damage_dealt
     match: { enemy: true, bullet: true, hitgroup: 1 }
+    while: round.number > 0
     per: match
 
   # ── Tier 2: the shot enrichments (movement, first bullet, spray residuals) ─────────────────
