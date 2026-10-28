@@ -12,11 +12,11 @@
 # Produces artifacts/publish/DemoViewer.NET-<RID>/.
 #
 # Beyond `dotnet publish`, the bundle needs two asset families the SDK doesn't handle the same way:
-#   1. cs2-assets/baked/<map>/   — pre-baked radar/floor/collision bundles (gitignored dev
-#      cache). MapAssetLoader + CollisionAssetLocator walk up from the exe dir, and the
-#      FIRST probe is <exeDir>/cs2-assets/baked/<map>/, so copying the cache next to the
-#      binary ships 2D Playback radar art + the 3D visibility engine's collision.tris.
-#      The SDK knows nothing about these — this script copies them explicitly.
+#   1. assets/ at the repo root: pre-baked radar/floor/collision bundles, COMMITTED, so they ship
+#      from any checkout including CI, where the gitignored cs2-assets/ dev cache is absent. Copied
+#      to <exeDir>/assets/, which MapAssetLoader and CollisionAssetLocator probe first, shipping 2D
+#      Playback radar art and the 3D visibility engine's collision.tris. The SDK knows nothing about
+#      these, so step 1 below copies them explicitly. This script never reads cs2-assets/.
 #   2. CSVG native assets — Cs2VideoGenerator.Core's NativeAssetProvider probes
 #      <exeDir>/runtimes/<rid>/native/{<real>,<mock>} then <exeDir>. These are ordinary NuGet
 #      native runtime assets (runtimes/<rid>/native/* in the pack), so a RID-targeted
