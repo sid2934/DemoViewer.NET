@@ -6,16 +6,16 @@
 # images (and `git diff --stat`) before committing them. A golden that rewrites itself silently is a
 # test that no longer tests.
 #
-# Usage: scripts/update-playback2d-goldens.sh [-c Release|Debug] [--synthetic-only]
+# Usage: scripts/update-playback2d-goldens.sh [-c Release|Debug] [--scene-only]
 set -eu
 
 CONFIG=Release
-SYNTHETIC_ONLY=0
+SCENE_ONLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -c) CONFIG="$2"; shift 2 ;;
-    --synthetic-only) SYNTHETIC_ONLY=1; shift ;;
-    *) echo "usage: $0 [-c CONFIG] [--synthetic-only]" >&2; exit 2 ;;
+    --scene-only) SCENE_ONLY=1; shift ;;
+    *) echo "usage: $0 [-c CONFIG] [--scene-only]" >&2; exit 2 ;;
   esac
 done
 
@@ -36,12 +36,12 @@ export PB2D_GOLDEN_UPDATE=1
 #    of the committed fixtures over the committed assets/ bundles. No demo, no Avalonia, so this half
 #    always runs. It pins the PRODUCTION layer stack through HeadlessSceneRenderer, the same path
 #    `dv2d golden verify` uses, over the same PNGs, so the two readers of those files cannot disagree.
-#    --synthetic-only does NOT narrow this step; it stops the script after it.
+#    --scene-only stops the script after this step. It does not narrow the step.
 echo "[goldens] scene corpus (direct execution)"
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG" \
   -- --treenode-filter "/*/*/SceneGoldenTests/*"
 
-if [ "$SYNTHETIC_ONLY" = "1" ]; then
+if [ "$SCENE_ONLY" = "1" ]; then
   exit 0
 fi
 
