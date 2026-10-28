@@ -245,9 +245,11 @@ done
 # contains none of them.
 if [ "$TIER" = "full" ] && [ "$LIST_ONLY" -eq 0 ] && [ "$BUDGET" != only ]; then
   for entry in "${SELECTED[@]}"; do
-    if [ "${entry%%|*}" = "app" ]; then
-      "$ROOT/scripts/check-realdemo-lane.sh" "$CONFIG" || BROKEN=$(( BROKEN + 1 ))
-    fi
+    case "${entry%%|*}" in
+      app|ext)
+        "$ROOT/scripts/check-realdemo-lane.sh" "$CONFIG" "${entry%%|*}" || BROKEN=$(( BROKEN + 1 ))
+        ;;
+    esac
   done
 fi
 
