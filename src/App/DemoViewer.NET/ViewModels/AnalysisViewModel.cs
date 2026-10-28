@@ -805,11 +805,11 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             (BuildResult build, RuleConfigLoadResult loadedRules, OpenRunPlan? plan) = BuildFromConfig(demo, visibility, path, clock, stale);
             if (MergedRules() is { } merged)
             {
-                merged.ReportExclusions(build);
+                merged.ReportExclusions(build, path);
             }
             else
             {
-                RulesetExclusionReport.Report(DiagLog, build);
+                RulesetExclusionReport.Report(DiagLog, build, path);
             }
 
             // Diagnostics tab retention. The scanner is otherwise a discarded local

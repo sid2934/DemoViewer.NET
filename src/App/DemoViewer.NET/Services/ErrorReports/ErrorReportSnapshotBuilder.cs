@@ -59,7 +59,7 @@ public static class ErrorReportSnapshotBuilder
 
         AddDemo(snapshot, record);
         AddCacheState(snapshot, record);
-        AddRules(snapshot, rules, record);
+        AddRules(snapshot, rules, record, demoPath);
         AddParseHealth(snapshot, demoPath, openDemo, openDemoPath);
         AddVersions(snapshot);
         AddPacks(snapshot);
@@ -234,7 +234,8 @@ public static class ErrorReportSnapshotBuilder
         }
     }
 
-    private static void AddRules(DemoErrorReportSnapshot snapshot, MergedRulesBuild? rules, DemoCacheRecord? record)
+    private static void AddRules(DemoErrorReportSnapshot snapshot, MergedRulesBuild? rules, DemoCacheRecord? record,
+        string demoPath)
     {
         if (rules is null)
         {
@@ -268,7 +269,7 @@ public static class ErrorReportSnapshotBuilder
         // The real list comes from a composed BuildResult, which this cannot build: composing the graph is
         // seconds of work and this runs on a button press. RulesetExclusionReport is the single funnel every
         // DemoAnalysis.Build call site already goes through, so it remembers the last set for us.
-        if (RulesetExclusionReport.LastExcluded is { } excluded)
+        if (RulesetExclusionReport.ExcludedFor(demoPath) is { } excluded)
         {
             snapshot.ExcludedRulesetsKnown = true;
             snapshot.ExcludedRulesets.AddRange(excluded);

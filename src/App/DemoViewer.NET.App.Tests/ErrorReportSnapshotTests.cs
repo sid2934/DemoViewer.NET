@@ -136,6 +136,27 @@ public class ErrorReportSnapshotTests
         }
     }
 
+    /// <summary>
+    ///     The exclusion set is keyed by demo. A process composes many, and handing demo A's exclusions to a
+    ///     report about demo B is the same cross-demo attribution the snapshot refuses for parse health.
+    /// </summary>
+    [Test]
+    public async Task ExcludedRulesets_AreNotTakenFromAnotherDemosComposition()
+    {
+        DemoCacheRecord record = Record();
+        DemoErrorReportSnapshot mine =
+            ErrorReportSnapshotBuilder.Build(record.Path, record, null, null, null, Now);
+        DemoErrorReportSnapshot other =
+            ErrorReportSnapshotBuilder.Build("/demos/a_different_demo.dem", null, null, null, null, Now);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(mine.ExcludedRulesets).IsEmpty();
+            await Assert.That(other.ExcludedRulesetsKnown).IsFalse()
+                .Because("no composition named that demo, so it has no exclusion list of its own");
+        }
+    }
+
     [Test]
     public async Task TheTextRendering_LeadsWithTheUsersNotes()
     {

@@ -505,6 +505,8 @@ public sealed class MergedRulesBuild
         }
 
         BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs, collectors);
+        // No path here (this cut is keyed by the ParsedDemo), so the exclusions are logged but not offered
+        // to a report. A wrong attribution is worse than none.
         ReportExclusions(build);
         DecodeSites.Enter(2);
         (AnalysisOptions options, CollectorObserver? observer) = collectors.Declare(new AnalysisOptions { CaptureSnapshots = false });
@@ -692,9 +694,9 @@ public sealed class MergedRulesBuild
     ///     Logs every ruleset <paramref name="build" /> excluded, and reports each one an extension contributed
     ///     through its <see cref="GuardOf" />. A user's same-id override is the user's file, never the extension's.
     /// </summary>
-    internal void ReportExclusions(BuildResult build)
+    internal void ReportExclusions(BuildResult build, string? subject = null)
     {
-        RulesetExclusionReport.Report(Log, build);
+        RulesetExclusionReport.Report(Log, build, subject);
         if (GuardOf is not { } guardOf || build.ExcludedRulesets.Count == 0)
         {
             return;

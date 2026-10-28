@@ -34,14 +34,16 @@ internal static class RulesetExclusionReport
     ///     document composed.
     /// </summary>
     [SuppressMessage("Performance", "CA1873:Avoid potentially expensive logging")]
-    public static void Report(ILogger logger, BuildResult build)
+    public static void Report(ILogger logger, BuildResult build, string? subject = null)
     {
         IReadOnlyList<ExcludedRuleset> excluded = build.ExcludedRulesets;
 
         // Also remembered for the error-report snapshot, which cannot compose a BuildResult of its own:
-        // building the graph is seconds of work and this runs on a button press. Null until something
-        // composes, so a snapshot can tell "nothing was excluded" from "nothing has been built yet".
-        LastExcluded = [.. excluded.Select(Describe)];
+        // building the graph is seconds of work and this runs on a button press. KEYED BY DEMO, because a
+        // process composes many and the snapshot must never hand one demo's exclusions to another's report,
+        // the same rule parse health follows. A site that cannot name its demo stores null and the snapshot
+        // reads the set as unknown.
+        LastExcluded = subject is { Length: > 0 } ? (subject, [.. excluded.Select(Describe)]) : null;
 
         if (excluded.Count == 0)
         {
@@ -58,7 +60,14 @@ internal static class RulesetExclusionReport
     ///     What the most recent composition in this process excluded, or null while nothing has composed.
     ///     An empty list means a build ran and dropped nothing, which is a different claim.
     /// </summary>
-    internal static IReadOnlyList<string>? LastExcluded { get; private set; }
+    internal static (string Subject, IReadOnlyList<string> Descriptions)? LastExcluded { get; private set; }
+
+    /// <summary>What the last composition OF <paramref name="subject" /> excluded, or null when none ran.</summary>
+    /// <param name="subject">The demo whose exclusions the caller wants.</param>
+    internal static IReadOnlyList<string>? ExcludedFor(string subject) =>
+        LastExcluded is { } last && string.Equals(last.Subject, subject, StringComparison.OrdinalIgnoreCase)
+            ? last.Descriptions
+            : null;
 
     /// <summary>The ruleset, its source file when it has one, and its diagnostics, on one line.</summary>
     public static string Describe(ExcludedRuleset ruleset) =>
