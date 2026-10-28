@@ -36,14 +36,17 @@ The separator in `DEMO_SOURCES` is `;` and not the platform path separator, whic
 would split a `file://` URI in half. Anything after the source name in an HTTP entry prefixes every
 path that source probes, so `https://host/SourceName/TestingDemos` partitions a test corpus off from
 the rest of a source shared with other content. An entry whose scheme is neither a path, `file://`
-nor `http(s)://` fails the run at startup rather than being skipped: whoever configured it meant
-those tests to run.
+nor `http(s)://` fails the run rather than being skipped: whoever configured it meant those tests
+to run. The failure lands at the first corpus access in the process, not at startup, and an
+unsupported scheme raises `NotSupportedException` rather than the configuration type.
 
 An HTTP entry is `https://` unless the host is loopback, and its token comes from
 `DEMO_SOURCES_TOKEN`, never from the URI. A URI carrying user info or a query string is refused, and
-construction errors report only scheme, host and path. All of that is because a source's description
-is printed into skip messages verbatim, and a URI also reaches proxy logs. The token needs no more
-than read and download on the one source.
+an error reports a decomposed URI's scheme, host and path only, or nothing at all when the entry
+could not be parsed. All of that is because a source's description is printed into skip messages
+verbatim, the message is cached by the static corpus and so reprinted for every corpus test in the
+run, and a URI also reaches proxy logs. The token needs no more than read and download on the one
+source.
 
 An HTTP source probes two paths per demo and never lists a directory: `<prefix>/<dir>/<file>` then
 `<prefix>/<file>`, the same pair a directory source tries. A listing could report a present demo as
@@ -51,9 +54,18 @@ absent when an index is stale, which is the one thing a source may never do. So 
 sit on the instance under the manifest's own names.
 
 A credential or configuration problem FAILS the run instead of skipping it. Only a 404 on both
-candidates counts as "this source does not hold it", and a source that answers anything else, or
-that cannot be reached at all, stops the run and says why. A green lane full of skips is the outcome
-this layer exists to prevent.
+candidates counts as "this source does not hold it". Anything else, including an unreachable host
+and a transfer that dies mid-body, is that source being unusable rather than the demo being absent.
+
+Sources are still tried in order after one is found unusable, because aborting there would hide a
+later source that holds the demo. The failure is raised after the last source, and only when none
+of them served it. So a dead credential on the first of two sources is a loud no-op when the second
+one works, and fails the run when it does not. A green lane full of skips is the outcome this layer
+exists to prevent.
+
+A caller holding its own fallback, such as `TrySetDemo(...) ?? DemoPathFolderDemo(...)`, reaches
+that fallback when a demo is merely absent, not when a configured source is unusable. That is the
+same rule as a `DEMO_CORPUS` that is set but wrong.
 
 `DEMO_CORPUS_CACHE` defaults to a per-user cache directory rather than anywhere under the repo, so
 every checkout on a machine shares one copy and no write path of the layer points into `demos/`. A

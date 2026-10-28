@@ -53,9 +53,11 @@ public sealed class DirectoryDemoSource : IDemoSource
         int scheme = trimmed.IndexOf("://", StringComparison.Ordinal);
         if (scheme > 0 && !trimmed.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
         {
+            // The SCHEME only, never the entry: an entry like s3://bucket/x?token=... would put a
+            // credential into a message that is printed for every corpus test in the run.
             throw new NotSupportedException(
-                $"demo source '{trimmed}' uses an unsupported scheme. Only a directory path or a " +
-                "file:// URI is implemented; a cloud provider is a separate IDemoSource.");
+                $"a demo source entry uses the unsupported scheme '{trimmed[..scheme]}'. Only a " +
+                "directory path, a file:// URI or an http(s) FileBrowser instance is implemented.");
         }
 
         return new DirectoryDemoSource(trimmed);

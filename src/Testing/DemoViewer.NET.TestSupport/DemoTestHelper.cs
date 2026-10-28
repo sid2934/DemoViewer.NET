@@ -566,7 +566,9 @@ public static class DemoTestHelper
 
     /// <summary>
     ///     <see cref="RequireSetDemo" /> that reports instead of skipping, for callers with a
-    ///     fallback. A misconfigured root and corrupt bytes still throw.
+    ///     fallback. A misconfigured root and corrupt bytes still throw, and so does a configured
+    ///     source that cannot serve anything once no source has served the demo. A caller's
+    ///     fallback is reached when the demo is merely absent, not when the configuration is wrong.
     /// </summary>
     public static string? TrySetDemo(string set, int which, out string? problem)
     {

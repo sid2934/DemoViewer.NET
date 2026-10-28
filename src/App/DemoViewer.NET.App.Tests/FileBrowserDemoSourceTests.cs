@@ -29,9 +29,15 @@ public class FileBrowserDemoSourceTests
     {
         public List<string> Requests { get; } = [];
 
+        /// <summary>One entry per request, as "scheme parameter" or "none".</summary>
+        public List<string> Authorizations { get; } = [];
+
         protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(request.RequestUri!.PathAndQuery);
+            Authorizations.Add(request.Headers.Authorization is { } a
+                ? $"{a.Scheme} {a.Parameter}"
+                : "none");
             return respond(request);
         }
 
@@ -64,6 +70,19 @@ public class FileBrowserDemoSourceTests
     private static string TempFile() =>
         Path.Combine(Path.GetTempPath(), $"dv-fb-{Guid.NewGuid():N}.dem");
 
+    /// <summary>A one-demo manifest for <c>subject.dem</c> with no directory hint.</summary>
+    private static CorpusManifest ManifestOf(byte[] bytes) =>
+        CorpusManifest.Parse(
+            $$"""
+              { "demos": [ { "name": "subject", "file": "subject.dem", "bytes": {{bytes.Length}},
+                             "sha256": "{{Convert.ToHexStringLower(SHA256.HashData(bytes))}}",
+                             "sets": ["s"] } ] }
+              """);
+
+    /// <summary>Constructs a source and discards it, so a ctor-rejection case reads as a call.</summary>
+    private static FileBrowserDemoSource Build(string token) =>
+        new FileBrowserDemoSource(_instance, token, new StubHandler(_ => Status(HttpStatusCode.NotFound)));
+
     // ── Download ──────────────────────────────────────────────────────────────
 
     [Test]
@@ -83,6 +102,9 @@ public class FileBrowserDemoSourceTests
                 await Assert.That(handler.Requests.Count).IsEqualTo(1);
                 await Assert.That(handler.Requests[0]).Contains("source=Demos");
                 await Assert.That(handler.Requests[0]).Contains(Uri.EscapeDataString("/benchmarks/subject.dem"));
+                // Without this the whole suite stays green with the Authorization line deleted,
+                // while every request to a real instance 401s.
+                await Assert.That(handler.Authorizations[0]).IsEqualTo("Bearer tok");
             }
         }
         finally
@@ -184,19 +206,36 @@ public class FileBrowserDemoSourceTests
 
         DemoCorpusConfigurationException thrown = Assert.Throws<DemoCorpusConfigurationException>(
             () => source.TryCopyTo(Demo([1], null), TempFile()));
-        await Assert.That(thrown.Message).Contains("HTML page");
+        using (Assert.Multiple())
+        {
+            await Assert.That(thrown.Message).Contains("text/html");
+            await Assert.That(thrown.Message).Contains("application/octet-stream");
+        }
     }
 
     [Test]
-    public void AShortBody_IsATransportFailure_NotAnIntegrityOne()
+    public async Task AShortBody_IsATransportFailure_NotAnIntegrityOne()
     {
         byte[] body = [1, 2, 3];
         StubHandler handler = new(_ => Bytes(body, body.Length + 64));
         using FileBrowserDemoSource source = new(_instance, "tok", handler);
-
-        // Returning true here would reach Verify and report the manifest's bytes as wrong, which
-        // fails the whole run for what is only a dropped socket.
-        Assert.Throws<IOException>(() => source.TryCopyTo(Demo(body, null), TempFile()));
+        string dest = TempFile();
+        try
+        {
+            // Returning true here would reach Verify and report the manifest's bytes as wrong,
+            // which fails the whole run for what is only a dropped socket.
+            DemoCorpusConfigurationException thrown = Assert.Throws<DemoCorpusConfigurationException>(
+                () => source.TryCopyTo(Demo(body, null), dest));
+            using (Assert.Multiple())
+            {
+                await Assert.That(thrown.Message).Contains("of a declared");
+                await Assert.That(thrown).IsNotTypeOf<DemoCorpusIntegrityException>();
+            }
+        }
+        finally
+        {
+            File.Delete(dest);
+        }
     }
 
     // ── The layer above must not swallow it ───────────────────────────────────
@@ -213,9 +252,19 @@ public class FileBrowserDemoSourceTests
                              "sha256": "{{Convert.ToHexStringLower(SHA256.HashData(body))}}",
                              "sets": ["s"] } ] }
               """);
-        DemoCorpus corpus = new(manifest, [], Path.Combine(Path.GetTempPath(), $"dv-fb-{Guid.NewGuid():N}"), [source]);
-
-        Assert.Throws<DemoCorpusConfigurationException>(() => corpus.TryResolve("subject.dem", out _));
+        string cacheRoot = Path.Combine(Path.GetTempPath(), $"dv-fb-{Guid.NewGuid():N}");
+        DemoCorpus corpus = new(manifest, [], cacheRoot, [source]);
+        try
+        {
+            Assert.Throws<DemoCorpusConfigurationException>(() => corpus.TryResolve("subject.dem", out _));
+        }
+        finally
+        {
+            if (Directory.Exists(cacheRoot))
+            {
+                Directory.Delete(cacheRoot, true);
+            }
+        }
     }
 
     // ── Configuration ─────────────────────────────────────────────────────────
@@ -297,8 +346,7 @@ public class FileBrowserDemoSourceTests
     public async Task AMistypedPrefix_Fails_AndCarriesTheInstancesOwnMessage()
     {
         // Measured against the live instance: a download under a bad prefix answers 404, and the
-        // items probe for that prefix answers 500. Both are reproduced here, because a status
-        // allowlist is exactly what got this wrong the first time.
+        // items probe for that prefix answers 500. No status allowlist can tell those apart.
         StubHandler handler = new(request =>
             request.RequestUri!.AbsolutePath.Contains("/items", StringComparison.Ordinal)
                 ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
@@ -347,6 +395,7 @@ public class FileBrowserDemoSourceTests
             await Assert.That(thrown.Message).Contains(DemoTestHelper.DemoSourcesTokenEnvVar);
         }
     }
+
     [Test]
     public async Task ACredentialInTheUri_IsRefused_AndNeverEchoedBack()
     {
@@ -362,6 +411,7 @@ public class FileBrowserDemoSourceTests
             DemoCorpusConfigurationException userInfo = Assert.Throws<DemoCorpusConfigurationException>(
                 () => DemoSources.FromSpecifier("https://user:sup3rs3cr3t@demos.example.net/Demos", "tok"));
             await Assert.That(userInfo.Message).DoesNotContain("sup3rs3cr3t");
+            await Assert.That(userInfo.Message).Contains(DemoTestHelper.DemoSourcesTokenEnvVar);
         }
     }
 
@@ -415,6 +465,201 @@ public class FileBrowserDemoSourceTests
             await Assert.That(source.Description).Contains("demos.example.net");
             await Assert.That(source.Description).Contains("Demos");
             await Assert.That(source.Description).DoesNotContain("super-secret-token");
+        }
+    }
+
+    [Test]
+    public async Task TheDefaultTransport_DoesNotFollowRedirects()
+    {
+        // Every other test injects a handler, so the production transport settings are not
+        // otherwise executed by this suite at all.
+        using HttpMessageHandler handler = FileBrowserDemoSource.CreateDefaultHandler();
+        await Assert.That(((SocketsHttpHandler)handler).AllowAutoRedirect).IsFalse();
+    }
+
+    [Test]
+    public async Task TheSourceProbe_RunsOncePerSource_NotOncePerDemo()
+    {
+        StubHandler handler = new(request =>
+            request.RequestUri!.AbsolutePath.Contains("/items", StringComparison.Ordinal)
+                ? new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"folders\":[]}", Encoding.UTF8, "application/json"),
+                }
+                : Status(HttpStatusCode.NotFound));
+        using FileBrowserDemoSource source = new(_instance, "tok", handler);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(source.TryCopyTo(Demo([1], null), TempFile())).IsFalse();
+            await Assert.That(handler.Requests.Count).IsEqualTo(2);
+            // One more probe, not one more probe plus another source check.
+            await Assert.That(source.TryCopyTo(Demo([2], null), TempFile())).IsFalse();
+            await Assert.That(handler.Requests.Count).IsEqualTo(3);
+        }
+    }
+
+    [Test]
+    public async Task ATransferThatOutlastsItsDeadline_IsAConfigurationFailure()
+    {
+        byte[] body = new byte[4 << 20];
+        StubHandler handler = new(_ => Bytes(body));
+        using FileBrowserDemoSource source = new(
+            _instance, "tok", handler, TimeSpan.Zero);
+        string dest = TempFile();
+        try
+        {
+            DemoCorpusConfigurationException thrown = Assert.Throws<DemoCorpusConfigurationException>(
+                () => source.TryCopyTo(Demo(body, null), dest));
+            await Assert.That(thrown.Message).Contains("exceeded");
+        }
+        finally
+        {
+            File.Delete(dest);
+        }
+    }
+
+    [Test]
+    public async Task ABodyWithNoContentLength_IsCheckedAgainstTheManifest_NotLeftToVerify()
+    {
+        // A chunked response that dies early has no declared length to compare against. Left
+        // unchecked it reaches Verify and the manifest gets blamed for a dropped socket.
+        byte[] truncated = [1, 2, 3];
+        StreamContent content = new(new MemoryStream(truncated));
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        content.Headers.ContentLength = null;
+        StubHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        using FileBrowserDemoSource source = new(_instance, "tok", handler);
+        string dest = TempFile();
+        try
+        {
+            DemoCorpusConfigurationException thrown = Assert.Throws<DemoCorpusConfigurationException>(
+                () => source.TryCopyTo(Demo([1, 2, 3, 4, 5, 6], null), dest));
+            await Assert.That(thrown.Message).Contains("no Content-Length");
+        }
+        finally
+        {
+            File.Delete(dest);
+        }
+    }
+
+    [Test]
+    public async Task AJsonErrorBodyOnA200_IsRefused_RatherThanWrittenOutAsADemo()
+    {
+        // A gateway or portal answering 200 with a JSON error body is the same class of thing as a
+        // bot challenge. Denying only text/html would write this out and blame the manifest.
+        StubHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "{\"status\":403,\"message\":\"forbidden\"}", Encoding.UTF8, "application/json"),
+        });
+        using FileBrowserDemoSource source = new(_instance, "tok", handler);
+
+        DemoCorpusConfigurationException thrown = Assert.Throws<DemoCorpusConfigurationException>(
+            () => source.TryCopyTo(Demo([1], null), TempFile()));
+        await Assert.That(thrown.Message).Contains("application/json");
+    }
+
+    [Test]
+    public async Task AnUnparsableEntry_IsNotEchoed_BecauseItMayCarryACredential()
+    {
+        // Each of these fails Uri.TryCreate, so it reaches the branch that has no sanitized form
+        // to report. The message is cached by the static corpus and reprinted for every corpus
+        // test in the run, so an echo here would land in a CI log.
+        string[] withSecrets =
+        [
+            "https://user:sup3rs3cr3t@demos.example.net:notaport/Demos",
+            "https://user:sup3rs3cr3t@dem os.example.net/Demos",
+            "https://user:sup3rs3cr3t@demos.example.net:99999/Demos",
+            "https://demos.example.net:99999/Demos?auth=sup3rs3cr3t",
+        ];
+        using (Assert.Multiple())
+        {
+            foreach (string entry in withSecrets)
+            {
+                DemoCorpusConfigurationException thrown = Assert.Throws<DemoCorpusConfigurationException>(
+                    () => DemoSources.FromSpecifier(entry, "tok"));
+                await Assert.That(thrown.Message).DoesNotContain("sup3rs3cr3t");
+            }
+
+            // The unsupported-scheme path is on the same dispatch and reports the scheme only.
+            NotSupportedException scheme = Assert.Throws<NotSupportedException>(
+                () => DemoSources.FromSpecifier("s3://bucket/demos?token=sup3rs3cr3t", "tok"));
+            await Assert.That(scheme.Message).DoesNotContain("sup3rs3cr3t");
+            await Assert.That(scheme.Message).Contains("s3");
+        }
+    }
+
+    [Test]
+    public async Task ATokenWithAStrayLineBreak_IsTrimmed_OrNamedIfItStillCannotBeAHeader()
+    {
+        using (Assert.Multiple())
+        {
+            // A secret mounted from a file arrives with a trailing newline.
+            using FileBrowserDemoSource trimmed = new(
+                _instance, "tok\n", new StubHandler(_ => Status(HttpStatusCode.NotFound)));
+            await Assert.That(trimmed.Description).Contains("demos.example.net");
+
+            DemoCorpusConfigurationException thrown = Assert.Throws<DemoCorpusConfigurationException>(
+                () => Build("to k"));
+            await Assert.That(thrown.Message).Contains(DemoTestHelper.DemoSourcesTokenEnvVar);
+        }
+    }
+
+    [Test]
+    public async Task AnUnusableFirstSource_DoesNotHideASecondThatHoldsIt()
+    {
+        // Sources are tried in order. Aborting on the first unusable one would mean a laptop off
+        // VPN never asks the local share that holds every demo.
+        byte[] body = [8, 8, 8];
+        StubHandler dead = new(_ => Status(HttpStatusCode.Unauthorized));
+        using FileBrowserDemoSource refusing = new(_instance, "tok", dead);
+        string root = Path.Combine(Path.GetTempPath(), $"dv-fb-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            await File.WriteAllBytesAsync(Path.Combine(root, "subject.dem"), body);
+            CorpusManifest manifest = ManifestOf(body);
+            string cacheRoot = Path.Combine(root, "cache");
+            DemoCorpus corpus = new(manifest, [], cacheRoot, [refusing, new DirectoryDemoSource(root)]);
+
+            string? resolved = corpus.TryResolve("subject.dem", out string? problem);
+            using (Assert.Multiple())
+            {
+                await Assert.That(resolved).IsNotNull();
+                await Assert.That(problem).IsNull();
+                await Assert.That(await File.ReadAllBytesAsync(resolved!)).IsEquivalentTo(body);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task AnUnusableSource_StillFailsTheRun_WhenNoOtherSourceHeldIt()
+    {
+        // The other half of the rule: a dead credential must not end as a green skip once every
+        // source has been asked.
+        byte[] body = [9];
+        StubHandler dead = new(_ => Status(HttpStatusCode.Unauthorized));
+        using FileBrowserDemoSource refusing = new(_instance, "tok", dead);
+        string root = Path.Combine(Path.GetTempPath(), $"dv-fb-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            DemoCorpus corpus = new(
+                ManifestOf(body), [], Path.Combine(root, "cache"),
+                [refusing, new DirectoryDemoSource(root)]);
+
+            DemoCorpusConfigurationException thrown = Assert.Throws<DemoCorpusConfigurationException>(
+                () => corpus.TryResolve("subject.dem", out _));
+            await Assert.That(thrown.Message).Contains(DemoTestHelper.DemoSourcesTokenEnvVar);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
         }
     }
 }

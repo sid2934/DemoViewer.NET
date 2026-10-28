@@ -33,8 +33,14 @@ public static class DemoSources
 
         if (!Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? instance))
         {
+            // Not echoed. An unparsable entry has no sanitized form to report, and the raw text is
+            // where a credential would be: an entry like https://user:secret@host:notaport/X fails
+            // here, and this message is cached by the static Lazy that built the corpus, so it
+            // would be reprinted for every corpus test in the run and into the CI log.
             throw new DemoCorpusConfigurationException(
-                $"demo source '{trimmed}' is not a valid absolute URI.");
+                $"an http(s) entry in {DemoTestHelper.DemoSourcesEnvVar} is not a valid absolute "
+                + "URI. An HTTP entry is https://host/SourceName, optionally with a directory "
+                + "inside it. The entry is not quoted here in case it carries a credential.");
         }
 
         return new FileBrowserDemoSource(instance, token ?? string.Empty);

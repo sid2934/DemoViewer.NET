@@ -30,6 +30,12 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
     /// <summary>Headers only. The body is bounded separately, see <see cref="_transferTimeout" />.</summary>
     private static readonly TimeSpan _headerTimeout = TimeSpan.FromMinutes(2);
 
+    /// <summary>What a demo download may answer with. Measured: the instance sends octet-stream.</summary>
+    private static readonly string[] _binaryBody = ["application/octet-stream"];
+
+    /// <summary>What the source probe may answer with.</summary>
+    private static readonly string[] _jsonBody = ["application/json"];
+
     private readonly Uri _authority;
     private readonly string _sourceName;
 
@@ -69,14 +75,16 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
         ArgumentNullException.ThrowIfNull(instance);
         if (!instance.IsAbsoluteUri)
         {
+            // Not echoed: a relative URI cannot be decomposed, so there is no sanitized form to
+            // report and the raw text may carry a credential.
             throw new DemoCorpusConfigurationException(
-                $"demo source '{instance.OriginalString}' must be an absolute URI of the form "
-                + "https://host/SourceName.");
+                $"a {DemoTestHelper.DemoSourcesEnvVar} entry is not an absolute URI. An HTTP entry "
+                + "is https://host/SourceName, optionally with a directory inside it.");
         }
 
         // Everything below reports the SANITIZED form. A credential someone put in the URI would
         // otherwise reach a skip message through these very errors. Scheme, host, port and path
-        // only: GetLeftPart(UriPartial.Path) keeps user info, which a test caught the hard way.
+        // only: GetLeftPart keeps user info, for both UriPartial.Path and UriPartial.Authority.
         string shown = instance.GetComponents(
             UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped);
         if (instance.UserInfo.Length > 0 || instance.Query.Length > 0)
@@ -108,29 +116,52 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
                 $"demo source '{shown}' needs an API token. Set {DemoTestHelper.DemoSourcesTokenEnvVar}.");
         }
 
+        // A token read from a mounted secret file arrives with a trailing newline, which
+        // AuthenticationHeaderValue rejects as a FormatException naming neither the variable nor
+        // the source. Trim first, then refuse what is left if it still cannot be a header value.
+        string trimmedToken = token.Trim();
+        if (trimmedToken.Any(char.IsControl) || trimmedToken.Any(c => c == ' '))
+        {
+            throw new DemoCorpusConfigurationException(
+                $"{DemoTestHelper.DemoSourcesTokenEnvVar} contains whitespace or control characters "
+                + "inside the value, so it cannot be sent as a header. Check for a stray line break.");
+        }
+
         _sourceName = Uri.UnescapeDataString(segments[0]);
         _prefix = segments.Length > 1
             ? "/" + string.Join('/', segments.Skip(1).Select(Uri.UnescapeDataString))
             : string.Empty;
-        _authority = new Uri(instance.GetLeftPart(UriPartial.Authority), UriKind.Absolute);
+        // Components, not GetLeftPart: that keeps user info, so the sanitization would depend on
+        // the guard above still running first.
+        _authority = new Uri(
+            instance.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped),
+            UriKind.Absolute);
         _transferTimeout = transferTimeout ?? TimeSpan.FromMinutes(30);
-        // Redirects off: a 3xx from this API is always a misconfiguration (a login bounce, a
-        // scheme bounce), and following one decides for itself where the bearer header goes.
-        _client = new HttpClient(handler ?? new SocketsHttpHandler { AllowAutoRedirect = false }, handler is null)
+        _client = new HttpClient(handler ?? CreateDefaultHandler(), handler is null)
         {
             Timeout = _headerTimeout,
         };
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", trimmedToken);
         _sourceProblem = new Lazy<string?>(SourceProblem, LazyThreadSafetyMode.ExecutionAndPublication);
     }
+
+    /// <summary>
+    ///     The transport this source uses when no handler is injected.
+    ///     <para>
+    ///         Redirects are OFF. A 3xx from this API is always a misconfiguration, a login bounce
+    ///         or a scheme bounce, and following one would decide for itself where the bearer
+    ///         header goes. Public so a test can assert that, which injecting a handler cannot.
+    ///     </para>
+    /// </summary>
+    public static HttpMessageHandler CreateDefaultHandler() =>
+        new SocketsHttpHandler { AllowAutoRedirect = false };
 
     /// <inheritdoc />
     /// <remarks>
     ///     Host, source and prefix: the prefix is where this source actually looked, so a skip
     ///     message without it would not say enough to diagnose one. The token must never appear.
     /// </remarks>
-    public string Description =>
-        $"{_authority.GetLeftPart(UriPartial.Authority)} source '{_sourceName}{_prefix}'";
+    public string Description => $"{_authority} source '{_sourceName}{_prefix}'";
 
     /// <inheritdoc />
     public bool TryCopyTo(CorpusDemo demo, string destination)
@@ -146,8 +177,8 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
                 continue;
             }
 
-            Guard(response, path);
-            Download(response, destination);
+            Guard(response, path, _binaryBody);
+            Download(response, destination, demo);
             return true;
         }
 
@@ -193,7 +224,6 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             // Reaching here means the cache missed, so the run genuinely needed the network.
-            // Recording it as an ordinary miss would skip tests the configuration says to run.
             throw new DemoCorpusConfigurationException(
                 $"{Description} is unreachable: {ex.GetType().Name}: {ex.Message}");
         }
@@ -205,9 +235,9 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
     ///     <para>
     ///         Any status but 200 means unusable, and the instance's own message is carried back
     ///         rather than interpreted. Measured against the live instance: a wrong source name
-    ///         answers 403 and a mistyped prefix answers 500, so a status allowlist would have
-    ///         mapped both onto the wrong diagnosis. 401 still routes to <see cref="Guard" />,
-    ///         which is the one case where naming the token is the right advice.
+    ///         answers 403 and a mistyped prefix answers 500, so no status allowlist can tell the
+    ///         two apart. 401 still routes to <see cref="Guard" />, which is the one case where
+    ///         naming the token is the right advice.
     ///     </para>
     /// </summary>
     private string? SourceProblem()
@@ -221,7 +251,8 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
         using HttpResponseMessage response = Send(uri);
         if (response.StatusCode == HttpStatusCode.Unauthorized || response.IsSuccessStatusCode)
         {
-            Guard(response, $"source '{_sourceName}{_prefix}'");
+            // "the source probe", not the source name: Description already carries it.
+            Guard(response, "the source probe", _jsonBody);
             return null;
         }
 
@@ -241,11 +272,13 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
         {
             using Stream body = response.Content.ReadAsStream();
             byte[] buffer = new byte[512];
-            int read = body.ReadAtLeast(buffer, buffer.Length, false);
+            // One read, not ReadAtLeast: this is a diagnostic, and a body whose terminator never
+            // arrives would otherwise block here with nothing bounding it.
+            int read = body.Read(buffer, 0, buffer.Length);
             string text = System.Text.Encoding.UTF8.GetString(buffer, 0, read).Trim();
             return text.Length == 0 ? string.Empty : $", saying: {text}";
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or HttpRequestException)
         {
             return string.Empty;
         }
@@ -255,16 +288,20 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
     ///     Turns anything that is not a usable response into a configuration failure. A 200 with an
     ///     HTML body is the instance's SPA fallback or a bot challenge, never demo bytes.
     /// </summary>
-    private void Guard(HttpResponseMessage response, string what)
+    private void Guard(HttpResponseMessage response, string what, string[] acceptable)
     {
         if (response.IsSuccessStatusCode)
         {
             string? media = response.Content.Headers.ContentType?.MediaType;
-            if (string.Equals(media, "text/html", StringComparison.OrdinalIgnoreCase))
+            // An allowlist, not a denylist. A gateway or SSO portal answering 200 with a JSON or
+            // text error body is the same class of thing as the bot challenge this started with,
+            // and denying only text/html would write that body out as a demo.
+            if (media is not null && !acceptable.Contains(media, StringComparer.OrdinalIgnoreCase))
             {
                 throw new DemoCorpusConfigurationException(
-                    $"{Description} answered {what} with an HTML page, not demo bytes. The request was "
-                    + "served by the web UI or intercepted by a bot challenge.");
+                    $"{Description} answered {what} with content type '{media}' rather than "
+                    + $"{string.Join(" or ", acceptable)}. The request was served by something other "
+                    + "than the API: a web UI, a bot challenge or a portal.");
             }
 
             return;
@@ -289,36 +326,78 @@ public sealed class FileBrowserDemoSource : IDemoSource, IDisposable
             $"{Description} answered {(int)response.StatusCode} for {what}.{hint}");
     }
 
-    private void Download(HttpResponseMessage response, string destination)
+    /// <summary>
+    ///     Streams the body to <paramref name="destination" />, or throws
+    ///     <see cref="DemoCorpusConfigurationException" />.
+    ///     <para>
+    ///         <b>Every transport failure is configuration, never integrity.</b> Returning true on a
+    ///         truncated file would reach <c>Verify</c> and be reported as the manifest's bytes
+    ///         being wrong, which blames the corpus for a dropped socket. Throwing the
+    ///         configuration type instead keeps it a per-source failure that
+    ///         <see cref="DemoCorpus" /> records and retries past, and that fails the run only when
+    ///         no source served the demo.
+    ///     </para>
+    /// </summary>
+    private void Download(HttpResponseMessage response, string destination, CorpusDemo demo)
     {
         long declared = response.Content.Headers.ContentLength ?? -1;
-        using Stream body = response.Content.ReadAsStream();
-        using FileStream file = new(destination, FileMode.Create, FileAccess.Write, FileShare.None);
-
-        // HttpClient.Timeout stops applying once the headers land under ResponseHeadersRead, so the
-        // body needs its own bound. Checked between reads: a socket wedged inside one read still
-        // waits on TCP.
-        DateTime deadline = DateTime.UtcNow + _transferTimeout;
-        byte[] buffer = new byte[1 << 20];
         long written = 0;
-        int read;
-        while ((read = body.Read(buffer, 0, buffer.Length)) > 0)
+        try
         {
-            file.Write(buffer, 0, read);
-            written += read;
-            if (DateTime.UtcNow > deadline)
+            using Stream body = response.Content.ReadAsStream();
+            using FileStream file = new(destination, FileMode.Create, FileAccess.Write, FileShare.None);
+
+            // HttpClient.Timeout stops applying once the headers land under ResponseHeadersRead, so
+            // the body needs its own bound. Checked between reads: a socket wedged inside one read
+            // still waits on TCP.
+            DateTime deadline = DateTime.UtcNow + _transferTimeout;
+            byte[] buffer = new byte[1 << 20];
+            int read;
+            while ((read = body.Read(buffer, 0, buffer.Length)) > 0)
             {
-                throw new IOException(
-                    $"{Description} transfer exceeded {_transferTimeout} after {written} bytes.");
+                file.Write(buffer, 0, read);
+                written += read;
+                if (DateTime.UtcNow > deadline)
+                {
+                    throw new DemoCorpusConfigurationException(
+                        $"{Description} transfer exceeded {_transferTimeout} after {written} bytes.");
+                }
             }
         }
-
-        // Not an integrity problem: a truncated transfer returned true would reach Verify and be
-        // reported as the manifest's bytes being wrong, which fails the run for a dropped socket.
-        if (declared >= 0 && written != declared)
+        catch (Exception ex) when (ex is IOException or HttpRequestException)
         {
-            throw new IOException(
-                $"{Description} sent {written} bytes of a declared {declared}.");
+            throw new DemoCorpusConfigurationException(
+                $"{Description} transfer failed after {written} bytes: {ex.GetType().Name}: {ex.Message}");
+        }
+
+        // A declared length that MATCHES but differs from the manifest is left alone: the instance
+        // holds a different file under this name, which is integrity and Verify's to report.
+        if (declared >= 0)
+        {
+            if (written != declared)
+            {
+                throw new DemoCorpusConfigurationException(
+                    $"{Description} sent {written} bytes of a declared {declared}.");
+            }
+
+            if (written == 0)
+            {
+                throw new DemoCorpusConfigurationException(
+                    $"{Description} sent an empty body with a 200. The API did not serve the demo.");
+            }
+
+            return;
+        }
+
+        // No Content-Length, so truncation cannot be told from a wrong file by the transport alone.
+        // Checking the manifest here keeps a dropped chunked socket from reaching Verify and being
+        // reported as the corpus being wrong.
+        if (written != demo.Bytes)
+        {
+            throw new DemoCorpusConfigurationException(
+                $"{Description} sent {written} bytes with no Content-Length, and the manifest says "
+                + $"{demo.Bytes}. Truncation cannot be ruled out, so this is not reported as a "
+                + "corpus mismatch.");
         }
     }
 }

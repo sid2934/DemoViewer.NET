@@ -33,6 +33,14 @@ public interface IDemoSource
     ///         and moves resolution on to the next source. Throws when the source holds it and the
     ///         copy failed, which the layer records against this source by name.
     ///     </para>
+    ///     <para>
+    ///         <b>A third outcome:</b> throw <see cref="DemoCorpusConfigurationException" /> when
+    ///         this source cannot serve ANY demo, as against not holding this one. A dead
+    ///         credential, an unreachable host or a source name that does not exist all belong
+    ///         here. The layer records it, carries on to the next source, and fails the run after
+    ///         the loop if nothing served the demo. Returning false for those would make a whole
+    ///         corpus look absent and skip the suite behind a green lane.
+    ///     </para>
     /// </summary>
     bool TryCopyTo(CorpusDemo demo, string destination);
 }
