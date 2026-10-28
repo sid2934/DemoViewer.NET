@@ -115,6 +115,13 @@ public sealed class ExtensionFaults
     }
 
     /// <summary>
+    ///     Test seam (InternalsVisibleTo): puts <see cref="Current" /> back to what it was, null included.
+    ///     Production installs once and never clears it, so a test that installs one has to undo it or every
+    ///     later test in the process files its ids under that instance's scopes.
+    /// </summary>
+    internal static void RestoreCurrent(ExtensionFaults? previous) => Current = previous;
+
+    /// <summary>
     ///     Hands this instance the switch it turns extensions off with. An extension that already failed to
     ///     start is suspended on it at once, before anything reads the gate.
     /// </summary>

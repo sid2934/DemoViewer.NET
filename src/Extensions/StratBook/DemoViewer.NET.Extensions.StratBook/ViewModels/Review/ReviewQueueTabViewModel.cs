@@ -720,7 +720,11 @@ public enum ReviewTextField
 ///     that differs from it only by the trimming the queue does, so a trailing space being typed is
 ///     not eaten.
 /// </summary>
-public sealed partial class ReviewRowViewModel : ExtensionViewModel
+/// <remarks>
+///     <c>ObservableObject</c>, not <c>ExtensionViewModel</c>: the tab's own <c>ItemTemplate</c> draws these
+///     rows, so the marker would only offer the host's locator a view that does not exist.
+/// </remarks>
+public sealed partial class ReviewRowViewModel : ObservableObject
 {
     private readonly ReviewQueueTabViewModel _owner;
 

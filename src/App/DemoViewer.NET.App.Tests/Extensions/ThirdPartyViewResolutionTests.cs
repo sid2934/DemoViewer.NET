@@ -40,7 +40,13 @@ public class ThirdPartyViewResolutionTests
                 .Select(a => a.Name!)
                 .Where(n => n.StartsWith("DemoViewer.NET", StringComparison.Ordinal))
         ];
-        string[] allowed = ["DemoViewer.NET.Extensions.Sdk", "DemoViewer.NET.Extensions.Sdk.Ui", "DemoViewer.NET.Modules.Abstractions"];
+        // Published packages only (scripts/sdk-packages.sh). Playback2D.Scene carries the scene, tool and
+        // timeline contracts that SceneView's own public signatures name.
+        string[] allowed =
+        [
+            "DemoViewer.NET.Extensions.Sdk", "DemoViewer.NET.Extensions.Sdk.Ui", "DemoViewer.NET.Modules.Abstractions",
+            "DemoViewer.NET.Playback2D.Scene"
+        ];
         Type[] ownTypes =
         [
             .. fake.GetExportedTypes().Where(t => typeof(IExtension).IsAssignableFrom(t)

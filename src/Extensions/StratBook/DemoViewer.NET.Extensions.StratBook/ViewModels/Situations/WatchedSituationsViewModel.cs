@@ -182,7 +182,11 @@ public sealed partial class WatchedSituationsViewModel : ExtensionViewModel, IDi
 }
 
 /// <summary>One saved query on the list: its name, its query line, its badge and the three actions.</summary>
-public sealed partial class WatchedSituationRowViewModel : ExtensionViewModel
+/// <remarks>
+///     <c>ObservableObject</c>, not <c>ExtensionViewModel</c>: the list's own <c>ItemTemplate</c> draws these
+///     rows, so the marker would only offer the host's locator a view that does not exist.
+/// </remarks>
+public sealed partial class WatchedSituationRowViewModel : ObservableObject
 {
     private readonly WatchedSituationsViewModel _owner;
 

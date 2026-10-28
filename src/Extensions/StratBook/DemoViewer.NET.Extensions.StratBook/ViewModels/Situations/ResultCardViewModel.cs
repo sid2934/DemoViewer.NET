@@ -22,7 +22,11 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 ///         <see cref="ApplyFacts" /> and <see cref="ApplyThumbnail" />.
 ///     </para>
 /// </summary>
-public sealed partial class ResultCardViewModel : ExtensionViewModel
+/// <remarks>
+///     <c>ObservableObject</c>, not <c>ExtensionViewModel</c>: the card grid's own <c>ItemTemplate</c> draws
+///     these, so the marker would only offer the host's locator a view that does not exist.
+/// </remarks>
+public sealed partial class ResultCardViewModel : ObservableObject
 {
     /// <summary>What a fact reads when the demo has no Round Facts rows.</summary>
     public const string NoData = "no data";
