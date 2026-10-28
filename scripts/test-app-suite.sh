@@ -154,7 +154,7 @@ echo "[batch-runner] partition audit OK: ran $TOTAL_RUN >= $EXPECTED listed"
 # what the RealDemo guard is for, and this is the path CI's App lane takes, so it has to be here
 # and not only in scripts/test.sh. Self-disarms unless a corpus or source is configured.
 if [ "$TIER" = "full" ]; then
-  "$ROOT/scripts/check-realdemo-lane.sh" "$CONFIG" || TOTAL_FAILED=$((TOTAL_FAILED + 1))
+  "$ROOT/scripts/check-realdemo-lane.sh" "$CONFIG" app || TOTAL_FAILED=$((TOTAL_FAILED + 1))
 fi
 
 [ $TOTAL_FAILED -eq 0 ] || exit 1
