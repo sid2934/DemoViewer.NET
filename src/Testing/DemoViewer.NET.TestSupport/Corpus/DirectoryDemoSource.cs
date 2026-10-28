@@ -3,8 +3,8 @@ namespace DemoViewer.NET.TestSupport.Corpus;
 /// <summary>
 ///     A directory tree reachable through the filesystem. That covers a local folder, a mounted
 ///     network share and a UNC path, which is the shape the repo already uses for the
-///     <c>cs2-assets/</c> cache staged off <c>//192.168.1.7/Games</c>: configure a path, copy bytes
-///     down, keep the copy local and gitignored.
+///     <c>cs2-assets/</c> cache staged off a NAS share: configure a path, copy bytes down, keep the
+///     copy local and gitignored.
 ///     <para>
 ///         Two candidate paths per demo, probed with <see cref="File.Exists" /> and nothing else:
 ///         <c>&lt;root&gt;/&lt;dir&gt;/&lt;file&gt;</c> then <c>&lt;root&gt;/&lt;file&gt;</c>. The

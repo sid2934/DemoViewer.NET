@@ -10,8 +10,8 @@ namespace DemoViewer.NET.TestSupport.Corpus;
 ///         so the contract keeps hashing out of the implementation's reach.
 ///     </para>
 ///     <para>
-///         <b>A source is never listed.</b> It is probed for one named file at a time. The mount at
-///         <c>//192.168.1.7/Games</c> has previously appeared EMPTY at the wrong moment, so
+///         <b>A source is never listed.</b> It is probed for one named file at a time. The NAS
+///         share this repo stages assets from has previously appeared EMPTY at the wrong moment, so
 ///         "source unavailable" must never be readable as "source empty": no caller can observe a
 ///         zero-length listing and conclude a demo is gone.
 ///     </para>
