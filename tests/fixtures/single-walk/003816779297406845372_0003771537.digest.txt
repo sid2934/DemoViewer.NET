@@ -16,7 +16,7 @@ open/cache/demos/{key}.json.gz#Locations b1af0025a9b595978faeaf0c7937642240934aa
 open/cache/demos/{key}.json.gz#Map c1c048568e0abe6f8a80d140ff62dffdda1b64c72b1f00389809ddf7a53016ed
 open/cache/demos/{key}.json.gz#MatchMeta 298ca4a1ee96f3e7d9024eee54ec4c41f9c8c66f5057e997fb7c77d5bad690b3
 open/cache/demos/{key}.json.gz#ModifiedTicks fc530e4b226a7e00eec81c5b1602d98ccca8185fa0b3362f54b3524b3e221825
-open/cache/demos/{key}.json.gz#PackStamps cdf8fe3666bf41cc696159fdef82032d7857c0dd9aaa3b7ddeebd390d4200a42
+open/cache/demos/{key}.json.gz#PackStamps f35e111dedd9bf92846bfd88006151beb37975822b56b23eb5d1b2cfa6f5900a
 open/cache/demos/{key}.json.gz#Packs 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
 open/cache/demos/{key}.json.gz#Parse b1d1cacdbbf55c24b4f3fb656c8ce2ed1e81fa6928de07c6e3c241decc81f86a
 open/cache/demos/{key}.json.gz#Path ec63b59820ed099f3e059ce833ca964f1072a036b66f1e4c39b4ed7d81342c02
@@ -58,7 +58,7 @@ open/cache/demos/{key}.player_kills.facts.player_event.json.gz#schema 6b86b273ff
 open/cache/demos/{key}.player_kills.facts.player_event.json.gz#values 09f7d0878bb097ecf25762160ec251038fecbf0d7bafa060c4e5d47aaa8c3180
 open/cache/demos/{key}.player_match.facts.player_match.json.gz#clocks 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
 open/cache/demos/{key}.player_match.facts.player_match.json.gz#dimensions 210c9bec6c3471a188eb2ae1f48e9ed18a09ba94843bdb642a83e55c88b14e79
-open/cache/demos/{key}.player_match.facts.player_match.json.gz#fingerprint 6104d79e12cbdac65e9d4c6051301e11544b63f5d98f8d419f8d4db71fcce3c3
+open/cache/demos/{key}.player_match.facts.player_match.json.gz#fingerprint df259e3f6e71cd401ed41874ae702268fbc65793d73dc41902b8ebb021ff2ae0
 open/cache/demos/{key}.player_match.facts.player_match.json.gz#format 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 open/cache/demos/{key}.player_match.facts.player_match.json.gz#grain df7c1245080ff42442c8be26af4a3c0642a317d6833c3287cab1aec2b6d62ac0
 open/cache/demos/{key}.player_match.facts.player_match.json.gz#output df7c1245080ff42442c8be26af4a3c0642a317d6833c3287cab1aec2b6d62ac0
@@ -157,7 +157,7 @@ open/cache/extension-data/net.demoviewer.pack.stratbook/files/team-index.json#me
 open/cache/extension-data/net.demoviewer.pack.stratbook/files/team-index.json#schemaVersion d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35
 open/cache/extension-data/net.demoviewer.pack.stratbook/files/team-index.json#unaffiliated 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945
 open/cache/index.json#ContentKeyMigrationVersion 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
-open/cache/index.json#Entries b9f14d419e4c67981e1a3ddbfa899a371f840fb19e0028c7d997aa220c99b45a
+open/cache/index.json#Entries 3fb0745f31c2a502afcb2a3b19d5393ca8f7474cb514fec952b61e0bf693d42e
 open/cache/index.json#LegacyMigrationVersion 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 open/cache/index.json#Version e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683
 open/library.json#Cache f468c1a75c0f5e91a6ac47754d07684fef691146ecc529a65e30a7988328b9be
@@ -197,7 +197,7 @@ sweep/cache/demos/{key}.json.gz#Locations b1af0025a9b595978faeaf0c7937642240934a
 sweep/cache/demos/{key}.json.gz#Map c1c048568e0abe6f8a80d140ff62dffdda1b64c72b1f00389809ddf7a53016ed
 sweep/cache/demos/{key}.json.gz#MatchMeta 298ca4a1ee96f3e7d9024eee54ec4c41f9c8c66f5057e997fb7c77d5bad690b3
 sweep/cache/demos/{key}.json.gz#ModifiedTicks fc530e4b226a7e00eec81c5b1602d98ccca8185fa0b3362f54b3524b3e221825
-sweep/cache/demos/{key}.json.gz#PackStamps 071bba9bd993942bfae1948d4e271822b4794b6bcb6b374cda56b33731f774e6
+sweep/cache/demos/{key}.json.gz#PackStamps e34180fb50693a7846dcc0bcee3ffd2f0bd3d654da0a73f22ea9b6fdea95fce5
 sweep/cache/demos/{key}.json.gz#Packs 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
 sweep/cache/demos/{key}.json.gz#Parse b1d1cacdbbf55c24b4f3fb656c8ce2ed1e81fa6928de07c6e3c241decc81f86a
 sweep/cache/demos/{key}.json.gz#Path ec63b59820ed099f3e059ce833ca964f1072a036b66f1e4c39b4ed7d81342c02
@@ -239,7 +239,7 @@ sweep/cache/demos/{key}.player_kills.facts.player_event.json.gz#schema 6b86b273f
 sweep/cache/demos/{key}.player_kills.facts.player_event.json.gz#values 09f7d0878bb097ecf25762160ec251038fecbf0d7bafa060c4e5d47aaa8c3180
 sweep/cache/demos/{key}.player_match.facts.player_match.json.gz#clocks 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
 sweep/cache/demos/{key}.player_match.facts.player_match.json.gz#dimensions 210c9bec6c3471a188eb2ae1f48e9ed18a09ba94843bdb642a83e55c88b14e79
-sweep/cache/demos/{key}.player_match.facts.player_match.json.gz#fingerprint 6104d79e12cbdac65e9d4c6051301e11544b63f5d98f8d419f8d4db71fcce3c3
+sweep/cache/demos/{key}.player_match.facts.player_match.json.gz#fingerprint df259e3f6e71cd401ed41874ae702268fbc65793d73dc41902b8ebb021ff2ae0
 sweep/cache/demos/{key}.player_match.facts.player_match.json.gz#format 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 sweep/cache/demos/{key}.player_match.facts.player_match.json.gz#grain df7c1245080ff42442c8be26af4a3c0642a317d6833c3287cab1aec2b6d62ac0
 sweep/cache/demos/{key}.player_match.facts.player_match.json.gz#output df7c1245080ff42442c8be26af4a3c0642a317d6833c3287cab1aec2b6d62ac0
@@ -338,7 +338,7 @@ sweep/cache/extension-data/net.demoviewer.pack.stratbook/files/team-index.json#m
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/files/team-index.json#schemaVersion d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/files/team-index.json#unaffiliated 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945
 sweep/cache/index.json#ContentKeyMigrationVersion 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
-sweep/cache/index.json#Entries 3fd7c61e41d8f2a59bd7fbf5df1ce5ac80611a5f1737ed5b5f1c1a8da4b878fb
+sweep/cache/index.json#Entries 168ca75eac19b4cc72a19c35b39aeda0c39d37d2ff8ebd2cef460523aac8ed4f
 sweep/cache/index.json#LegacyMigrationVersion 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 sweep/cache/index.json#Version e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683
 sweep/library.json#Cache f468c1a75c0f5e91a6ac47754d07684fef691146ecc529a65e30a7988328b9be
