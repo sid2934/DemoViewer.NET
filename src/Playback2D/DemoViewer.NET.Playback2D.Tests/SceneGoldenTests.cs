@@ -59,6 +59,8 @@ public class SceneGoldenTests
     [Arguments("duel-mirage-b")]
     [Arguments("bomb-planted-inferno")]
     [Arguments("annotated-mirage-b")]
+    [Arguments("zones-nuke")]
+    [Arguments("zones-nuke-overlay")]
     [Arguments("full-scene-budget")]
     public async Task CorpusEntry_MatchesCommittedGolden(string name)
     {
@@ -135,6 +137,8 @@ public class SceneGoldenTests
     [Arguments("duel-mirage-b")]
     [Arguments("bomb-planted-inferno")]
     [Arguments("annotated-mirage-b")]
+    [Arguments("zones-nuke")]
+    [Arguments("zones-nuke-overlay")]
     [Arguments("full-scene-budget")]
     public async Task EveryPixelOverTheStrictCeiling_LiesUnderGlyphInk(string name)
     {
