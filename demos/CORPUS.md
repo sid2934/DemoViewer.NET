@@ -14,17 +14,57 @@ Keep this current when the corpus changes.
 | `AnalysisBench --suite` | every `.dem` in `<repo-root>/demos/benchmarks/`. It finds the repo root itself and does not honour `DEMO_CORPUS` |
 | `[Category("RealDemo")]` tests | `DemoTestHelper`: `DEMO_PATH` (a `.dem`, or a folder of them), then the reference demo `003816248937665266002_0544286934.dem` if present, then `TestData/`, then `<corpus-root>/benchmarks/`, then `<corpus-root>/` |
 
-`<corpus-root>` is `DEMO_CORPUS` when that is set, else `<repo-root>/demos`. A `DEMO_CORPUS` that is
-set but is not a directory resolves to NOTHING and never falls back, so a misconfigured run skips
-loudly instead of reporting as though it had the corpus.
+## Configuration
 
-A demo the manifest names but the corpus root does not hold can be fetched. `DEMO_SOURCES` is a
-`;`-separated list of directories or `file://` URIs, tried in order; `DEMO_CORPUS_CACHE` is where a
-fetched copy lands, a per-user directory by default so every checkout on a machine shares one copy
-and no write path of that layer points into `demos/`. Unset `DEMO_SOURCES` means no fetching, which
-is the default and what this repo did before the layer existed. The manifest is
-`corpus.manifest.json`, embedded in `DemoViewer.NET.TestSupport` and keyed by SHA-256 of each file's
-bytes: it is the machine-readable half of this file, and the two have to be edited together.
+Every variable is optional. With none of them set, resolution looks only inside the repo and never
+reaches a network, which is what this repo did before the fetch layer existed.
+
+| variable | what it does |
+|---|---|
+| `DEMO_PATH` | A `.dem` to use, or a folder to pick one from. Wins over everything else. |
+| `DEMO_PATH_PICK` | Which file to take when `DEMO_PATH` is a folder. |
+| `DEMO_CORPUS` | The corpus root, replacing `<repo-root>/demos`. |
+| `DEMO_SOURCES` | `;`-separated places to fetch an absent manifest demo from, tried in order. A directory, a `file://` URI, or a FileBrowser instance as `https://host/SourceName`. Unset means no fetching. |
+| `DEMO_SOURCES_TOKEN` | The API token for the `https://` entries in `DEMO_SOURCES`, sent as a bearer header. |
+| `DEMO_CORPUS_CACHE` | Where a fetched copy lands. Defaults to a per-user cache directory. |
+
+`<corpus-root>` is `DEMO_CORPUS` when set, else `<repo-root>/demos`. A `DEMO_CORPUS` that is set but
+is not a directory resolves to NOTHING and never falls back, so a misconfigured run skips loudly
+instead of reporting as though it had the corpus.
+
+The separator in `DEMO_SOURCES` is `;` and not the platform path separator, which is `:` on Unix and
+would split a `file://` URI in half. Anything after the source name in an HTTP entry prefixes every
+path that source probes, so `https://host/SourceName/TestingDemos` partitions a test corpus off from
+the rest of a source shared with other content. An entry whose scheme is neither a path, `file://`
+nor `http(s)://` fails the run at startup rather than being skipped: whoever configured it meant
+those tests to run.
+
+An HTTP entry is `https://` unless the host is loopback, and its token comes from
+`DEMO_SOURCES_TOKEN`, never from the URI. A URI carrying user info or a query string is refused, and
+construction errors report only scheme, host and path. All of that is because a source's description
+is printed into skip messages verbatim, and a URI also reaches proxy logs. The token needs no more
+than read and download on the one source.
+
+An HTTP source probes two paths per demo and never lists a directory: `<prefix>/<dir>/<file>` then
+`<prefix>/<file>`, the same pair a directory source tries. A listing could report a present demo as
+absent when an index is stale, which is the one thing a source may never do. So the demos have to
+sit on the instance under the manifest's own names.
+
+A credential or configuration problem FAILS the run instead of skipping it. Only a 404 on both
+candidates counts as "this source does not hold it", and a source that answers anything else, or
+that cannot be reached at all, stops the run and says why. A green lane full of skips is the outcome
+this layer exists to prevent.
+
+`DEMO_CORPUS_CACHE` defaults to a per-user cache directory rather than anywhere under the repo, so
+every checkout on a machine shares one copy and no write path of the layer points into `demos/`. A
+cached demo lives at `<cache-root>/<sha256>/<file>`, so the cache is content addressed and two demos
+cannot collide. The cache is checked before any source, which is why a warm machine never refetches.
+Nothing evicts: reclaiming space is `rm -rf` on the cache root by hand.
+
+The manifest is `corpus.manifest.json`, embedded in `DemoViewer.NET.TestSupport` and keyed by SHA-256
+of each file's bytes. It is the machine-readable half of this file, and the two have to be edited
+together. A fetched demo is checked against it on length and then hash, and a mismatch fails the run
+rather than being cached.
 
 A folder `DEMO_PATH` (the Steam replays directory, read in place) resolves to ONE demo for the whole
 run: `DEMO_PATH_PICK=<filename>` when set, else the reference demo when the folder holds it, else the

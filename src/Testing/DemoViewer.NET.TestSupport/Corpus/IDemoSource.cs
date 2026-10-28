@@ -2,7 +2,7 @@ namespace DemoViewer.NET.TestSupport.Corpus;
 
 /// <summary>
 ///     Somewhere a corpus demo's bytes can be copied from: a local directory, a mounted network
-///     share, a UNC path, and later a cloud bucket.
+///     share, a UNC path, or a FileBrowser instance over HTTP.
 ///     <para>
 ///         <b>A source only copies bytes. It never decides identity.</b> The layer names the
 ///         destination, hashes what arrives, compares it against the manifest and moves the result

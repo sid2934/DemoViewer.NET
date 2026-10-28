@@ -73,15 +73,28 @@ public static class DemoTestHelper
     public const string CorpusRootEnvVar = "DEMO_CORPUS";
 
     /// <summary>
-    ///     Ordered, <c>';'</c>-separated list of directories or <c>file://</c> URIs to fetch absent
-    ///     manifest demos from. Unset means no fetching, which is the default and is exactly the
-    ///     repo's behaviour before the layer existed.
+    ///     Ordered, <c>';'</c>-separated list of places to fetch absent manifest demos from: a
+    ///     directory, a <c>file://</c> URI, or a FileBrowser instance as
+    ///     <c>https://host/SourceName</c>, optionally with a directory inside it as
+    ///     <c>https://host/SourceName/Sub/Dir</c>. Unset means no fetching, which is the default
+    ///     and is exactly the repo's behaviour before the layer existed.
     ///     <para>
     ///         The separator is <c>';'</c> and not <see cref="Path.PathSeparator" />, which is
     ///         <c>':'</c> on Unix and would split a <c>file://</c> URI in half.
     ///     </para>
+    ///     <para>
+    ///         An <c>https://</c> entry needs <see cref="DemoSourcesTokenEnvVar" />. The token goes
+    ///         there and never into the URI: a source's description is printed into skip messages.
+    ///     </para>
     /// </summary>
     public const string DemoSourcesEnvVar = "DEMO_SOURCES";
+
+    /// <summary>
+    ///     API token for the <c>http(s)://</c> entries in <see cref="DemoSourcesEnvVar" />, sent as
+    ///     a bearer header. One token covers every HTTP entry, which is enough while there is one
+    ///     instance; a second instance needing its own credential is what would make this a map.
+    /// </summary>
+    public const string DemoSourcesTokenEnvVar = "DEMO_SOURCES_TOKEN";
 
     /// <summary>
     ///     Where fetched demos are cached. Defaults to a per-user directory rather than anywhere
@@ -759,10 +772,11 @@ public static class DemoTestHelper
             return [];
         }
 
+        string? token = Environment.GetEnvironmentVariable(DemoSourcesTokenEnvVar);
         return
         [
             .. configured.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(DirectoryDemoSource.FromSpecifier)
+                .Select(specifier => DemoSources.FromSpecifier(specifier, token))
         ];
     }
 

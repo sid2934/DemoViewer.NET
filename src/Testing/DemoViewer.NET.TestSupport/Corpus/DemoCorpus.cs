@@ -242,7 +242,8 @@ public sealed class DemoCorpus
             return new Resolution(null,
                 $"demo '{demo.Name}' ({fileName}, {Mb(demo.Bytes)}) is not present and no demo source " +
                 $"is configured. Set {DemoTestHelper.CorpusRootEnvVar} to a corpus root, or " +
-                $"{DemoTestHelper.DemoSourcesEnvVar} to a ';'-separated list of directories to fetch from.");
+                $"{DemoTestHelper.DemoSourcesEnvVar} to a ';'-separated list of directories, file:// " +
+                $"URIs or https://host/SourceName instances to fetch from.");
         }
 
         return Fetch(demo, cached);
@@ -293,6 +294,14 @@ public sealed class DemoCorpus
             }
             catch (DemoCorpusIntegrityException)
             {
+                Discard(partial);
+                throw;
+            }
+            catch (DemoCorpusConfigurationException)
+            {
+                // A source that is misconfigured, unreachable or refusing the credential holds no
+                // demo and never will. Recorded as an ordinary miss it would skip every corpus test
+                // with a green lane, which is the outcome this layer exists to avoid.
                 Discard(partial);
                 throw;
             }
