@@ -41,9 +41,15 @@ internal static class RulesetExclusionReport
         // Also remembered for the error-report snapshot, which cannot compose a BuildResult of its own:
         // building the graph is seconds of work and this runs on a button press. KEYED BY DEMO, because a
         // process composes many and the snapshot must never hand one demo's exclusions to another's report,
-        // the same rule parse health follows. A site that cannot name its demo stores null and the snapshot
-        // reads the set as unknown.
-        LastExcluded = subject is { Length: > 0 } ? (subject, [.. excluded.Select(Describe)]) : null;
+        // the same rule parse health follows.
+        //
+        // A site with no demo to name LEAVES THE SLOT ALONE rather than clearing it. Clearing would let a
+        // bare-run cut, which happens routinely after an analysis, throw away the very set the reported demo
+        // just produced. Offering nothing and destroying what is there are different things.
+        if (subject is { Length: > 0 })
+        {
+            LastExcluded = (subject, [.. excluded.Select(Describe)]);
+        }
 
         if (excluded.Count == 0)
         {
@@ -62,12 +68,24 @@ internal static class RulesetExclusionReport
     /// </summary>
     internal static (string Subject, IReadOnlyList<string> Descriptions)? LastExcluded { get; private set; }
 
-    /// <summary>What the last composition OF <paramref name="subject" /> excluded, or null when none ran.</summary>
-    /// <param name="subject">The demo whose exclusions the caller wants.</param>
-    internal static IReadOnlyList<string>? ExcludedFor(string subject) =>
-        LastExcluded is { } last && string.Equals(last.Subject, subject, StringComparison.OrdinalIgnoreCase)
+    /// <summary>
+    ///     What the last composition of this demo excluded, or null when none ran for it. Matched against
+    ///     EVERY path the demo is known by, not just the one the caller holds: the cache carries several
+    ///     locations for one demo, so a report filed through a second path would otherwise read as unknown.
+    /// </summary>
+    /// <param name="paths">Every path the demo is known by; the first match wins.</param>
+    internal static IReadOnlyList<string>? ExcludedFor(IEnumerable<string> paths)
+    {
+        if (LastExcluded is not { } last)
+        {
+            return null;
+        }
+
+        return paths.Any(p => p is { Length: > 0 }
+                              && string.Equals(last.Subject, p, StringComparison.OrdinalIgnoreCase))
             ? last.Descriptions
             : null;
+    }
 
     /// <summary>The ruleset, its source file when it has one, and its diagnostics, on one line.</summary>
     public static string Describe(ExcludedRuleset ruleset) =>

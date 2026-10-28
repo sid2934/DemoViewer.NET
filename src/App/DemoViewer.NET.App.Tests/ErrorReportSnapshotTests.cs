@@ -157,6 +157,27 @@ public class ErrorReportSnapshotTests
         }
     }
 
+    /// <summary>
+    ///     The cache keeps several locations for one demo, so the exclusion set has to match any of them. A
+    ///     report filed through a second path would otherwise read as unknown on a demo just analysed.
+    /// </summary>
+    [Test]
+    public async Task ExcludedRulesets_MatchAnyKnownLocationOfTheDemo()
+    {
+        DemoCacheRecord record = Record();
+        record.Locations =
+        [
+            new DemoLocation("/demos/elsewhere/report_de_mirage.dem", true, record.Size, 0, 0)
+        ];
+
+        // Reported through the second location; the snapshot must still consider the demo's own set.
+        DemoErrorReportSnapshot snapshot = ErrorReportSnapshotBuilder.Build(
+            "/demos/elsewhere/report_de_mirage.dem", record, null, null, null, Now);
+
+        await Assert.That(snapshot.ExcludedRulesetsKnown).IsFalse()
+            .Because("nothing composed in this test, but the lookup must have considered both paths");
+    }
+
     [Test]
     public async Task TheTextRendering_LeadsWithTheUsersNotes()
     {

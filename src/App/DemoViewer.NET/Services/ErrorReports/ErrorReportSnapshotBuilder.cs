@@ -269,7 +269,14 @@ public static class ErrorReportSnapshotBuilder
         // The real list comes from a composed BuildResult, which this cannot build: composing the graph is
         // seconds of work and this runs on a button press. RulesetExclusionReport is the single funnel every
         // DemoAnalysis.Build call site already goes through, so it remembers the last set for us.
-        if (RulesetExclusionReport.ExcludedFor(demoPath) is { } excluded)
+        // Every path this demo is known by, so a report filed through a second location still matches.
+        List<string> known = [demoPath];
+        if (record is not null)
+        {
+            known.AddRange(record.Locations.Select(l => l.Path));
+        }
+
+        if (RulesetExclusionReport.ExcludedFor(known) is { } excluded)
         {
             snapshot.ExcludedRulesetsKnown = true;
             snapshot.ExcludedRulesets.AddRange(excluded);
