@@ -730,7 +730,11 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
 }
 
 /// <summary>One rail slot: which side and slot, whether it is on the map, where, and whether it is armed.</summary>
-public sealed partial class QueryRailSlotViewModel : ExtensionViewModel
+/// <remarks>
+///     <c>ObservableObject</c>, not <c>ExtensionViewModel</c>: the rail's own <c>ItemTemplate</c> draws these
+///     slots, so the marker would only offer the host's locator a view that does not exist.
+/// </remarks>
+public sealed partial class QueryRailSlotViewModel : ObservableObject
 {
     private readonly QueryCanvasViewModel _owner;
 

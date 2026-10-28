@@ -805,7 +805,11 @@ public sealed class TagMatrixRowViewModel(string display, IReadOnlyList<TagMatri
 }
 
 /// <summary>One count of the Matrix and the refs behind it; a click sends those clips to the Review Queue.</summary>
-public sealed partial class TagMatrixCellViewModel : ExtensionViewModel
+/// <remarks>
+///     <c>ObservableObject</c>, not <c>ExtensionViewModel</c>: the Matrix row's own <c>ItemTemplate</c> draws
+///     these cells, so the marker would only offer the host's locator a view that does not exist.
+/// </remarks>
+public sealed partial class TagMatrixCellViewModel : ObservableObject
 {
     private readonly TagMatrixTabViewModel _owner;
 

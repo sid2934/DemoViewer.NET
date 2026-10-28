@@ -24,46 +24,27 @@ namespace SdkOnlyHost;
 /// </summary>
 public class PackViewsThroughTheSdkTests
 {
+    /// <summary>
+    ///     The marked view models today. A floor rather than an exact figure: a new view model is covered by
+    ///     the rule the moment it ships, while a drop means one lost the marker, and with it the naming rule.
+    /// </summary>
+    private const int MarkedViewModelsToday = 13;
+
     private static readonly Assembly _pack = typeof(StratBookPack).Assembly;
 
     /// <summary>
-    ///     The marked view models the pack renders from its own markup, so no host looks a view up for one:
-    ///     each is bound through a <c>DataTemplate</c> or an inlined <c>DataContext</c> of the pack's own, and
-    ///     <c>StratRecordCountCell</c> only ever has its properties bound. Named rather than derived, because
-    ///     nothing in the assembly tells the two cases apart; the staleness test below re-derives every row,
-    ///     so a type that grows a view leaves the list.
-    /// </summary>
-    private static readonly string[] _renderedByThePacksOwnMarkup =
-    [
-        "DemoViewer.NET.Extensions.StratBook.ViewModels.Review.ReviewRowViewModel",
-        "DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger.TagMatrixCellViewModel",
-        "DemoViewer.NET.Extensions.StratBook.ViewModels.Situations.QueryRailSlotViewModel",
-        "DemoViewer.NET.Extensions.StratBook.ViewModels.Situations.ResultCardViewModel",
-        "DemoViewer.NET.Extensions.StratBook.ViewModels.Situations.WatchedSituationRowViewModel",
-        "DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratHistoryPanelViewModel",
-        "DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratRecordCountCell",
-        "DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratRecordPanelViewModel",
-        "DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratRoleViewPanelViewModel"
-    ];
-
-    /// <summary>
-    ///     Every marked view model a host has to resolve, resolved. The marker is the opt-in: carrying it is
-    ///     what makes the host's template match the view model at all, so a marked type the rule cannot place
-    ///     is one the host will draw as text.
+    ///     Every marked view model resolves, with no exceptions. The marker is the opt-in: carrying it is what
+    ///     makes the host's template match the view model at all, so a marked type the rule cannot place is one
+    ///     the host will draw as text. A view model with no view the rule can place does not carry it.
     /// </summary>
     [Test]
-    public async Task NamingRule_FindsAConstructibleView_ForEveryMarkedViewModelAHostResolves()
+    public async Task NamingRule_FindsAConstructibleView_ForEveryMarkedViewModel()
     {
         List<string> unresolved = [];
         List<string> resolved = [];
 
         foreach (Type viewModel in MarkedViewModels())
         {
-            if (_renderedByThePacksOwnMarkup.Contains(viewModel.FullName, StringComparer.Ordinal))
-            {
-                continue;
-            }
-
             string name = ViewNameFor(viewModel);
             Type? view = _pack.GetType(name, throwOnError: false);
 
@@ -94,48 +75,9 @@ public class PackViewsThroughTheSdkTests
         unresolved.ForEach(Console.WriteLine);
         await Assert.That(unresolved).IsEmpty();
 
-        // A rule that placed nothing would pass every assertion above.
+        // A marker nothing carries would satisfy every assertion above.
         resolved.ForEach(Console.WriteLine);
-        await Assert.That(resolved.Count).IsGreaterThan(0);
-    }
-
-    /// <summary>
-    ///     The exempt list, checked against the assembly rather than trusted. A name that no longer resolves,
-    ///     no longer carries the marker or has since grown a view is a row to delete, and deleting it is what
-    ///     puts the type back under the rule.
-    /// </summary>
-    [Test]
-    public async Task TheMarkupRenderedViewModels_StillCarryTheMarkerAndStillHaveNoView()
-    {
-        List<string> stale = [];
-
-        foreach (string name in _renderedByThePacksOwnMarkup)
-        {
-            Type? viewModel = _pack.GetType(name, throwOnError: false);
-
-            if (viewModel is null)
-            {
-                stale.Add($"{name} is not in the pack any more: drop the row");
-                continue;
-            }
-
-            if (!typeof(IExtensionViewModel).IsAssignableFrom(viewModel))
-            {
-                stale.Add($"{name} no longer carries IExtensionViewModel: drop the row");
-                continue;
-            }
-
-            Type? view = _pack.GetType(ViewNameFor(viewModel), throwOnError: false);
-            if (view is not null && typeof(Control).IsAssignableFrom(view))
-            {
-                stale.Add($"{name} now resolves to {view.FullName}: drop the row so the rule covers it");
-            }
-        }
-
-        stale.ForEach(Console.WriteLine);
-        await Assert.That(stale).IsEmpty();
-        await Assert.That(_renderedByThePacksOwnMarkup.Distinct(StringComparer.Ordinal).Count())
-            .IsEqualTo(_renderedByThePacksOwnMarkup.Length);
+        await Assert.That(resolved.Count).IsGreaterThanOrEqualTo(MarkedViewModelsToday);
     }
 
     /// <summary>

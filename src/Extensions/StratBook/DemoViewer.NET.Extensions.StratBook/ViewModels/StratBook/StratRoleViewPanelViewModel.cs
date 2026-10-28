@@ -28,7 +28,11 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 ///         not read from the runtime here, the Highlights precedent the tab itself follows.
 ///     </para>
 /// </summary>
-public sealed partial class StratRoleViewPanelViewModel : ExtensionViewModel
+/// <remarks>
+///     <c>ObservableObject</c>, not <c>ExtensionViewModel</c>: <c>StratBookTabView</c> draws this panel inline
+///     from its own markup, so the marker would only offer the host's locator a view that does not exist.
+/// </remarks>
+public sealed partial class StratRoleViewPanelViewModel : ObservableObject
 {
     private readonly Func<string, string, string?> _print;
 

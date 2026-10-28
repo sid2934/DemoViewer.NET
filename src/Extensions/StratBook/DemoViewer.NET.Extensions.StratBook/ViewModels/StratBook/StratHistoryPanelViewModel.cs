@@ -30,7 +30,11 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 ///         column exists; this panel adds no cost of its own beyond one more scan.
 ///     </para>
 /// </summary>
-public sealed partial class StratHistoryPanelViewModel : ExtensionViewModel, IDisposable
+/// <remarks>
+///     <c>ObservableObject</c>, not <c>ExtensionViewModel</c>: <c>StratBookTabView</c> draws this panel inline
+///     from its own markup, so the marker would only offer the host's locator a view that does not exist.
+/// </remarks>
+public sealed partial class StratHistoryPanelViewModel : ObservableObject, IDisposable
 {
     private static readonly TimeSpan _defaultDebounce = TimeSpan.FromMilliseconds(150);
 

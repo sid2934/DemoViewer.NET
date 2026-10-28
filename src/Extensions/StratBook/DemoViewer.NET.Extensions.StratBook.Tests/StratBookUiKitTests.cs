@@ -32,7 +32,10 @@ public class StratBookUiKitTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(viewModels.Length).IsGreaterThanOrEqualTo(20);
+            // The marker is only on the view models with a view the naming rule can place; the row and panel
+            // view models the pack's own markup draws are plain observables, so this floor sits well under
+            // the pack's view-model count.
+            await Assert.That(viewModels.Length).IsGreaterThanOrEqualTo(13);
             await Assert.That(viewModels.All(t => t.IsSubclassOf(typeof(ExtensionViewModel)))).IsTrue();
             await Assert.That(Pack.GetReferencedAssemblies().Select(a => a.Name!)).Contains("DemoViewer.NET.Extensions.Sdk.Ui");
         }

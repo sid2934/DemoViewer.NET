@@ -35,7 +35,11 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 ///         this strat's evidence.
 ///     </para>
 /// </summary>
-public sealed partial class StratRecordPanelViewModel : ExtensionViewModel, IDisposable
+/// <remarks>
+///     <c>ObservableObject</c>, not <c>ExtensionViewModel</c>: <c>StratBookTabView</c> draws this panel inline
+///     from its own markup, so the marker would only offer the host's locator a view that does not exist.
+/// </remarks>
+public sealed partial class StratRecordPanelViewModel : ObservableObject, IDisposable
 {
     private static readonly TimeSpan _defaultDebounce = TimeSpan.FromMilliseconds(150);
 
@@ -369,7 +373,11 @@ public sealed class StratRecordFailureRow(string failure, int count, StratRecord
 }
 
 /// <summary>One clickable number: the runs behind it, and the command a button binds to send them to Review.</summary>
-public sealed partial class StratRecordCountCell : ExtensionViewModel
+/// <remarks>
+///     <c>ObservableObject</c>, not <c>ExtensionViewModel</c>: only this cell's properties are ever bound, so
+///     the marker would only offer the host's locator a view that does not exist.
+/// </remarks>
+public sealed partial class StratRecordCountCell : ObservableObject
 {
     private readonly StratRecordPanelViewModel? _owner;
 
