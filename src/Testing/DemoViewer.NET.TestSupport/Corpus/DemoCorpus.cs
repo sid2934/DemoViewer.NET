@@ -78,9 +78,13 @@ public sealed class DemoCorpus
 
     /// <summary>
     ///     The local path for <paramref name="fileName" />, or null with
-    ///     <paramref name="problem" /> explaining what was tried. Throws
-    ///     <see cref="DemoCorpusIntegrityException" /> when a fetched demo's bytes are not the
-    ///     manifest's: wrong bytes are a failure, not a skip.
+    ///     <paramref name="problem" /> explaining what was tried.
+    ///     <para>
+    ///         Throws <see cref="DemoCorpusIntegrityException" /> when a fetched demo's bytes are
+    ///         not the manifest's, and <see cref="DemoCorpusConfigurationException" /> when a
+    ///         configured source cannot serve anything and no other source held the demo. Both are
+    ///         failures rather than skips: a skip is green, and nobody reads a green lane.
+    ///     </para>
     /// </summary>
     public string? TryResolve(string fileName, out string? problem)
     {
@@ -242,7 +246,8 @@ public sealed class DemoCorpus
             return new Resolution(null,
                 $"demo '{demo.Name}' ({fileName}, {Mb(demo.Bytes)}) is not present and no demo source " +
                 $"is configured. Set {DemoTestHelper.CorpusRootEnvVar} to a corpus root, or " +
-                $"{DemoTestHelper.DemoSourcesEnvVar} to a ';'-separated list of directories to fetch from.");
+                $"{DemoTestHelper.DemoSourcesEnvVar} to a ';'-separated list of directories, file:// " +
+                $"URIs or https://host/SourceName instances to fetch from.");
         }
 
         return Fetch(demo, cached);
@@ -262,6 +267,7 @@ public sealed class DemoCorpus
         Directory.CreateDirectory(Path.GetDirectoryName(cached)!);
 
         List<string> tried = [];
+        List<DemoCorpusConfigurationException> unusable = [];
         foreach (IDemoSource source in _sources)
         {
             // Unique per attempt, and in the destination directory, so the move is same-volume and
@@ -296,11 +302,37 @@ public sealed class DemoCorpus
                 Discard(partial);
                 throw;
             }
+            catch (DemoCorpusConfigurationException ex)
+            {
+                // Held, not rethrown here. Sources are tried in order, and aborting on the first
+                // unusable one would hide a later source that holds the demo. It is rethrown after
+                // the loop when nothing served it, which is what keeps a dead credential from
+                // reading as an ordinary miss and skipping the suite behind a green lane.
+                Discard(partial);
+                unusable.Add(ex);
+                tried.Add($"{source.Description}: {ex.Message}");
+                continue;
+            }
             catch (Exception ex)
             {
                 Discard(partial);
                 tried.Add($"{source.Description}: {ex.GetType().Name}: {ex.Message}");
             }
+        }
+
+        // Nothing served it and at least one source cannot serve anything. That is configuration,
+        // not an absent demo, so it fails the run rather than skipping it.
+        if (unusable.Count == 1)
+        {
+            throw unusable[0];
+        }
+
+        if (unusable.Count > 1)
+        {
+            throw new DemoCorpusConfigurationException(
+                $"demo '{demo.Name}' ({demo.File}): {unusable.Count} of {_sources.Count} configured "
+                + "sources are unusable, and no other source held it. "
+                + string.Join(" ", unusable.Select(e => e.Message)));
         }
 
         return new Resolution(null,
