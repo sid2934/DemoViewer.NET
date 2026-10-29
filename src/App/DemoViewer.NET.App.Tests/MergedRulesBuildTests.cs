@@ -35,10 +35,10 @@ public class MergedRulesBuildTests
     ///     stamped with. A value that moves re-scans every demo's highlights, so only a deliberate edit to a
     ///     shipped highlight may change it.
     /// </summary>
-    public const string ShippedFingerprint64 = "b54450c95ee039d26958d9a6da7c757303e87306a182d2b46065471c4309fed7";
+    public const string ShippedFingerprint64 = "7dbab2696176a7d3b259cc81e05fc26cf802981a6571469b00c2ae3836744948";
 
     /// <inheritdoc cref="ShippedFingerprint64" />
-    public const string ShippedFingerprint128 = "0f8078d804fae1a14a584fa4f98a9ed84581ddb255d036798b6929507f7fb346";
+    public const string ShippedFingerprint128 = "8153d4023ed2679925d4f244722b642df34cbe153fb183ab6d9b12a56b38203a";
 
     private const string RoundFacts = "round_facts";
     private const string Gated = "fixture_gated";
