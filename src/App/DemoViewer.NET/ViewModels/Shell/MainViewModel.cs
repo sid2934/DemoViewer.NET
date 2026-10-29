@@ -1782,7 +1782,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         EntityTab.SeekCts?.Cancel();
         _perfTimer?.Stop();
-        _library.Save();
         _library.Dispose();
         ExtensionTabs.Deactivate(SelectedTab);
         if (_extensionFaults is not null)
