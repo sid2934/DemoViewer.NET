@@ -316,6 +316,10 @@ public class App : Application
                 Action[] flushes =
                 [
                     () => services.GetService<ReviewQueue>()?.Flush(TimeSpan.FromSeconds(5)),
+
+                    // The library's metadata cache is checkpointed every 12 demos, and nothing disposes the
+                    // shell on the way out, so the tail of a backlog reaches disk here or not at all.
+                    () => services.GetService<DemoLibraryService>()?.Save(),
                     () =>
                     {
                         // Every pack's lifecycle, unconditionally: whether OnEnabledAsync ran at startup is

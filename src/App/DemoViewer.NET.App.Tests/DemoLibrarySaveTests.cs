@@ -72,8 +72,8 @@ public class DemoLibrarySaveTests
 
     /// <summary>
     ///     A tier-2 result that no checkpoint covered is persisted when the service closes. One enriched demo
-    ///     is short of the every-12 save, and <c>IndexTier2Core</c> does not drain a backlog, so nothing before
-    ///     <c>Dispose</c> can have written the row: <c>File.Exists</c> proves that rather than assuming it.
+    ///     is short of the every-12 save and <c>IndexTier2Core</c> drains no backlog, so nothing before
+    ///     <c>Dispose</c> can have written the row.
     /// </summary>
     [Test]
     public async Task AnEnrichedRowShortOfACheckpoint_IsPersistedWhenTheServiceCloses()
@@ -109,9 +109,8 @@ public class DemoLibrarySaveTests
     /// <summary>
     ///     THE write-ordering guard. Two saves overlap in the app: the scan's light-lane save and the one the
     ///     tier-2 parse triggers. The first save here holds the gate with the empty cache it snapshotted while
-    ///     a tier-2 row lands, and the second must not be able to read the cache until it is done. Without the
-    ///     gate the second wrote the row and the first then replaced the file with its own older snapshot,
-    ///     which is how a completed index silently became a demo re-parsed on every launch.
+    ///     a tier-2 row lands, and the second must not be able to read the cache until that write is done, or
+    ///     the older snapshot replaces the row on disk.
     /// </summary>
     [Test]
     public async Task AnOlderSnapshot_CannotOverwriteTheRowAParseJustWrote()

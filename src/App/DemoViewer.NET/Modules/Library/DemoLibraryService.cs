@@ -2788,24 +2788,23 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // tier-2 parse in the heavy one, so an older one written last drops the row that parse just wrote.
         lock (_saveGate)
         {
-            byte[] bytes;
-
-            // Serialized under the cache lock, not just snapshotted under it: the rows are live objects that
-            // UpsertCache mutates field by field, and a half-written score is a state nothing can recompute.
-            lock (_cacheLock)
-            {
-                bytes = JsonSerializer.SerializeToUtf8Bytes(new DemoLibraryData
-                {
-                    SchemaVersion = DemoLibraryCacheEntry.CurrentSchema,
-                    Folders = [.. _folderSnapshot],
-                    Cache = _cache.Values.ToList()
-                }, _jsonOptions);
-            }
-
-            BeforeSaveWrite?.Invoke();
-
             try
             {
+                byte[] bytes;
+
+                // Serialized under the cache lock, not just snapshotted under it: the rows are live objects
+                // UpsertCache mutates field by field, so serializing outside it can persist a torn row.
+                lock (_cacheLock)
+                {
+                    bytes = JsonSerializer.SerializeToUtf8Bytes(new DemoLibraryData
+                    {
+                        SchemaVersion = DemoLibraryCacheEntry.CurrentSchema,
+                        Folders = [.. _folderSnapshot],
+                        Cache = _cache.Values.ToList()
+                    }, _jsonOptions);
+                }
+
+                BeforeSaveWrite?.Invoke();
                 AtomicFile.WriteAllBytes(_dataPath, bytes);
             }
             catch
