@@ -381,6 +381,7 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     ///     none. USER-AUTHORED, like the match-time override: no tier fill may clear it, and the merge below
     ///     carries it onto a row this record joins.
     /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DemoErrorReport? ErrorReport { get; set; }
 
     /// <summary>Per-pack payloads keyed by pack id. Opaque here; typed through <see cref="IPackPayloads" />.</summary>
