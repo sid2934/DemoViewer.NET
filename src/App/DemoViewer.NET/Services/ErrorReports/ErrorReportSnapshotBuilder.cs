@@ -59,7 +59,8 @@ public static class ErrorReportSnapshotBuilder
 
         AddDemo(snapshot, record);
         AddCacheState(snapshot, record);
-        AddRules(snapshot, rules, record, demoPath);
+        AddExclusions(snapshot, record, demoPath);
+        AddRules(snapshot, rules, record);
         AddParseHealth(snapshot, demoPath, openDemo, openDemoPath);
         AddVersions(snapshot);
         AddPacks(snapshot);
@@ -234,8 +235,32 @@ public static class ErrorReportSnapshotBuilder
         }
     }
 
-    private static void AddRules(DemoErrorReportSnapshot snapshot, MergedRulesBuild? rules, DemoCacheRecord? record,
-        string demoPath)
+    // Independent of the merged rule set on purpose. The exclusions come from whichever composition ran for
+    // this demo, and the site that composes without a MergedRulesBuild records them too; gating this on one
+    // being resolvable would report "unknown" over a set that is sitting right there.
+    private static void AddExclusions(DemoErrorReportSnapshot snapshot, DemoCacheRecord? record, string demoPath)
+    {
+        try
+        {
+            // Every path this demo is known by, so a report filed through a second location still matches.
+            List<string> known = [demoPath];
+            if (record is not null)
+            {
+                known.AddRange(record.Locations.Select(l => l.Path));
+            }
+
+            if (RulesetExclusionReport.ExcludedFor(known) is { } excluded)
+            {
+                snapshot.ExcludedRulesetsKnown = true;
+                snapshot.ExcludedRulesets.AddRange(excluded);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private static void AddRules(DemoErrorReportSnapshot snapshot, MergedRulesBuild? rules, DemoCacheRecord? record)
     {
         if (rules is null)
         {
@@ -264,22 +289,6 @@ public static class ErrorReportSnapshotBuilder
         {
             // A set that does not compose has no fingerprint, which is itself worth seeing in the report.
             snapshot.CurrentConfigFingerprint = "(does not compose)";
-        }
-
-        // The real list comes from a composed BuildResult, which this cannot build: composing the graph is
-        // seconds of work and this runs on a button press. RulesetExclusionReport is the single funnel every
-        // DemoAnalysis.Build call site already goes through, so it remembers the last set for us.
-        // Every path this demo is known by, so a report filed through a second location still matches.
-        List<string> known = [demoPath];
-        if (record is not null)
-        {
-            known.AddRange(record.Locations.Select(l => l.Path));
-        }
-
-        if (RulesetExclusionReport.ExcludedFor(known) is { } excluded)
-        {
-            snapshot.ExcludedRulesetsKnown = true;
-            snapshot.ExcludedRulesets.AddRange(excluded);
         }
 
         foreach (RulesetDoc doc in docs)

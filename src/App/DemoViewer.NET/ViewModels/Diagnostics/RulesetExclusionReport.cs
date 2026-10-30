@@ -37,19 +37,7 @@ internal static class RulesetExclusionReport
     public static void Report(ILogger logger, BuildResult build, string? subject = null)
     {
         IReadOnlyList<ExcludedRuleset> excluded = build.ExcludedRulesets;
-
-        // Also remembered for the error-report snapshot, which cannot compose a BuildResult of its own:
-        // building the graph is seconds of work and this runs on a button press. KEYED BY DEMO, because a
-        // process composes many and the snapshot must never hand one demo's exclusions to another's report,
-        // the same rule parse health follows.
-        //
-        // A site with no demo to name LEAVES THE SLOT ALONE rather than clearing it. Clearing would let a
-        // bare-run cut, which happens routinely after an analysis, throw away the very set the reported demo
-        // just produced. Offering nothing and destroying what is there are different things.
-        if (subject is { Length: > 0 })
-        {
-            LastExcluded = (subject, [.. excluded.Select(Describe)]);
-        }
+        Remember(subject, [.. excluded.Select(Describe)]);
 
         if (excluded.Count == 0)
         {
@@ -62,11 +50,35 @@ internal static class RulesetExclusionReport
         }
     }
 
+    // What the most recent composition excluded, and WHICH demo it composed. One reference, written by the
+    // background analysis threads and read on the UI thread when the report window opens: a value tuple here
+    // is three fields wide, so a reader could pair one demo's subject with another's list, which is the
+    // misattribution the subject key exists to prevent.
+    private sealed record ExclusionSlot(string Subject, IReadOnlyList<string> Descriptions);
+
+    private static ExclusionSlot? _lastExcluded;
+
     /// <summary>
-    ///     What the most recent composition in this process excluded, or null while nothing has composed.
-    ///     An empty list means a build ran and dropped nothing, which is a different claim.
+    ///     Records what a composition of <paramref name="subject" /> excluded, for the error-report snapshot
+    ///     to read. The snapshot cannot compose a BuildResult of its own: building the graph is seconds of
+    ///     work and it runs on a button press.
+    ///     <para>
+    ///         KEYED BY DEMO, because a process composes many and one demo's exclusions must never reach
+    ///         another's report, the same rule parse health follows. A caller with no demo to name LEAVES THE
+    ///         SLOT ALONE rather than clearing it: clearing would let a bare-run cut, which happens routinely
+    ///         after an analysis, throw away the very set the reported demo just produced. Offering nothing
+    ///         and destroying what is there are different things.
+    ///     </para>
     /// </summary>
-    internal static (string Subject, IReadOnlyList<string> Descriptions)? LastExcluded { get; private set; }
+    /// <param name="subject">The demo the composition was for, or null/empty from a site that has none.</param>
+    /// <param name="descriptions">One line per excluded ruleset; empty when the build dropped nothing.</param>
+    internal static void Remember(string? subject, IReadOnlyList<string> descriptions)
+    {
+        if (subject is { Length: > 0 })
+        {
+            Volatile.Write(ref _lastExcluded, new ExclusionSlot(subject, descriptions));
+        }
+    }
 
     /// <summary>
     ///     What the last composition of this demo excluded, or null when none ran for it. Matched against
@@ -76,7 +88,7 @@ internal static class RulesetExclusionReport
     /// <param name="paths">Every path the demo is known by; the first match wins.</param>
     internal static IReadOnlyList<string>? ExcludedFor(IEnumerable<string> paths)
     {
-        if (LastExcluded is not { } last)
+        if (Volatile.Read(ref _lastExcluded) is not { } last)
         {
             return null;
         }
@@ -86,6 +98,9 @@ internal static class RulesetExclusionReport
             ? last.Descriptions
             : null;
     }
+
+    /// <summary>Drops the remembered set, so a test can assert the "nothing composed" case.</summary>
+    internal static void ForgetForTest() => Volatile.Write(ref _lastExcluded, null);
 
     /// <summary>The ruleset, its source file when it has one, and its diagnostics, on one line.</summary>
     public static string Describe(ExcludedRuleset ruleset) =>
