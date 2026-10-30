@@ -206,10 +206,11 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
     }
 
     /// <summary>
-    ///     Shows the error-report window, single re-used window (the parse-chain pattern). A second open
-    ///     REPLACES the data context rather than re-activating as the others do: the window is about one
-    ///     demo, and re-activating it would show the user the previous demo's report under a command they
-    ///     invoked from another one.
+    ///     Shows the error-report window, single re-used window (the parse-chain pattern). A second open on
+    ///     ANOTHER demo replaces the data context rather than re-activating as the others do: the window is
+    ///     about one demo, and re-activating it would show the user the previous demo's report under a
+    ///     command they invoked from a different one. A second open on the SAME demo re-activates, because
+    ///     the live view-model holds notes the user has typed and not yet saved.
     /// </summary>
     public void ShowErrorReport(ErrorReportViewModel viewModel)
     {
@@ -217,6 +218,13 @@ public sealed class DesktopWindowService(Func<Window?> ownerLookup) : IWindowSer
 
         if (_errorReportWindow is { } live)
         {
+            if (live.DataContext is ErrorReportViewModel open
+                && string.Equals(open.DemoPath, viewModel.DemoPath, StringComparison.OrdinalIgnoreCase))
+            {
+                live.Activate();
+                return;
+            }
+
             if (live.DataContext is ErrorReportViewModel previous)
             {
                 previous.CloseRequested -= OnErrorReportCloseRequested;

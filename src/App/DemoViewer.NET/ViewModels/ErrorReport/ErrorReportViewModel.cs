@@ -148,6 +148,12 @@ public sealed partial class ErrorReportViewModel : ViewModelBase
     /// </summary>
     public string CopyDiagnosticsText => ErrorReportSnapshotBuilder.ToText(_snapshot, Notes);
 
+    /// <summary>
+    ///     The demo this report is about. The window host compares it before replacing a live window's data
+    ///     context, since a second open on the SAME demo must keep the notes the user is part-way through.
+    /// </summary>
+    public string DemoPath => _demoPath;
+
     /// <summary>Raised when the view-model wants its window closed.</summary>
     public event EventHandler? CloseRequested;
 
@@ -171,6 +177,14 @@ public sealed partial class ErrorReportViewModel : ViewModelBase
             DemoErrorReportStore.Save(_cache, _demoPath, Notes, _snapshot, now);
             IsExistingReport = true;
             LastSavedText = "Last saved " + Local(now.ToUniversalTime().Ticks);
+
+            // An empty CreatedText means there was no stored report, so this save is when it was created.
+            // Without this the identity block shows the "SAVED REPORT" eyebrow over a blank date.
+            if (CreatedText.Length == 0)
+            {
+                CreatedText = "Created " + Local(now.ToUniversalTime().Ticks);
+            }
+
             StatusText = "Saved.";
         }
         catch (Exception ex)

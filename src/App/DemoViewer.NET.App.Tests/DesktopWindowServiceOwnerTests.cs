@@ -3,7 +3,9 @@
 using Avalonia.Controls;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Update;
+using DemoViewer.NET.ViewModels.ErrorReport;
 using DemoViewer.NET.ViewModels.Update;
+using DemoViewer.NET.Views.ErrorReport;
 using DemoViewer.NET.Views.Update;
 
 #endregion
@@ -92,6 +94,68 @@ public class DesktopWindowServiceOwnerTests
             _opened[0].Close();
             owner.Close();
         });
+    }
+
+    /// <summary>
+    ///     The error-report window is re-used rather than stacked, and the rule for what happens on a second
+    ///     open turns on WHICH demo: another demo is another report, so the window re-targets, but the same
+    ///     demo must keep the live view-model, which may hold notes the user has typed and not yet saved.
+    ///     Pressing the accelerator twice silently discarding them is the failure this pins.
+    /// </summary>
+    [Test]
+    public async Task ReopeningTheErrorReport_KeepsUnsavedNotesOnTheSameDemo_AndRetargetsOnAnother()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            _errorReports.Clear();
+            TrackErrorReportWindows();
+
+            Window owner = new();
+            owner.Show();
+            DesktopWindowService service = new(() => owner);
+
+            ErrorReportViewModel first = ReportVm("/demos/same.dem");
+            service.ShowErrorReport(first);
+            first.Notes = "half-written, never saved";
+
+            service.ShowErrorReport(ReportVm("/demos/same.dem"));
+            ErrorReportViewModel afterSame = (ErrorReportViewModel)_errorReports[0].DataContext!;
+
+            service.ShowErrorReport(ReportVm("/demos/another.dem"));
+            ErrorReportViewModel afterOther = (ErrorReportViewModel)_errorReports[0].DataContext!;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(_errorReports).Count().IsEqualTo(1)
+                    .Because("one window, re-used, not a second report on screen with nothing to tell them "
+                             + "apart");
+                await Assert.That(afterSame).IsSameReferenceAs(first);
+                await Assert.That(afterSame.Notes).IsEqualTo("half-written, never saved");
+                await Assert.That(afterOther.DemoPath).IsEqualTo("/demos/another.dem");
+            }
+
+            _errorReports[0].Close();
+            owner.Close();
+        });
+    }
+
+    private static ErrorReportViewModel ReportVm(string demoPath) =>
+        new(demoPath, null, null, () => (null, null));
+
+    private static readonly List<ErrorReportWindow> _errorReports = [];
+    private static bool _errorTrackingInstalled;
+
+    private static void TrackErrorReportWindows()
+    {
+        if (_errorTrackingInstalled)
+        {
+            return;
+        }
+
+        _errorTrackingInstalled = true;
+        Window.WindowOpenedEvent.AddClassHandler(
+            typeof(ErrorReportWindow),
+            (sender, _) => _errorReports.Add((ErrorReportWindow)sender!));
     }
 
     /// <summary>Returns no notes, so opening the window never touches the network.</summary>
