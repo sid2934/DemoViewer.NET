@@ -147,6 +147,108 @@ public class ErrorReportStoreTests
     }
 
     /// <summary>
+    ///     A refused write has to be distinguishable from a completed one. The window holds the only copy of
+    ///     what the user typed, so a caller that cannot tell the difference reports "Saved." over notes that
+    ///     were never written.
+    /// </summary>
+    [Test]
+    public async Task SavingOverANewerReport_ReportsTheRefusal()
+    {
+        DemoCacheStore store = new(null);
+        string demo = Path.Combine(Dir, "refused.dem");
+        DemoCacheRecord record = Record(demo, "sha-refused");
+        record.ErrorReport = new DemoErrorReport
+        {
+            Schema = DemoErrorReport.CurrentSchema + 1,
+            Notes = "written by a newer build",
+            CreatedUtcTicks = First.Ticks,
+            UpdatedUtcTicks = First.Ticks
+        };
+        store.Upsert(record);
+
+        bool wrote = DemoErrorReportStore.Save(store, demo, "mine", Snapshot(demo), Later);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(wrote).IsFalse().Because("the caller must be able to say it did not save");
+            await Assert.That(store.TryLoadRecord(demo, false)!.ErrorReport!.Notes)
+                .IsEqualTo("written by a newer build")
+                .Because("and the newer report is still untouched");
+        }
+    }
+
+    /// <summary>
+    ///     A save this app CAN make still reports true, so the refusal above is a real signal rather than a
+    ///     constant.
+    /// </summary>
+    [Test]
+    public async Task AnOrdinarySave_ReportsThatItWrote()
+    {
+        DemoCacheStore store = new(null);
+        string demo = Path.Combine(Dir, "wrote.dem");
+        store.Upsert(Record(demo, "sha-wrote"));
+
+        await Assert.That(DemoErrorReportStore.Save(store, demo, "ok", Snapshot(demo), First)).IsTrue();
+    }
+
+    /// <summary>
+    ///     Members a newer app wrote on the report itself have to survive a round trip, or the schema gate
+    ///     protects the payload from being overwritten while every tier fill quietly truncates it.
+    /// </summary>
+    [Test]
+    public async Task ANewerAppsReportMembers_SurviveATierFill()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-error-report-unknown-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            string demo = Path.Combine(root, "unknown.dem");
+            DemoCacheStore store = new(root);
+            store.Upsert(Record(demo, "sha-unknown"));
+            DemoErrorReportStore.Save(store, demo, "the score is wrong", Snapshot(demo), First);
+
+            // Stand in for a newer build: a member this one has no property for.
+            string sidecar = Directory.EnumerateFiles(root, "*.json.gz", SearchOption.AllDirectories)
+                .First(f => !f.EndsWith("index.json.gz", StringComparison.Ordinal));
+            string json = Decompress(sidecar);
+            json = json.Replace("\"Notes\":", "\"Severity\":\"high\",\"Notes\":", StringComparison.Ordinal);
+            Compress(sidecar, json);
+
+            // Any write at all: this is the path that used to truncate.
+            new DemoCacheStore(root).UpdateExisting(demo, r => r.Map = "de_nuke");
+
+            await Assert.That(Decompress(sidecar)).Contains("\"Severity\"")
+                .Because("JsonExtensionData is what keeps a newer app's report intact through our writes");
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    private static string Decompress(string path)
+    {
+        using FileStream file = File.OpenRead(path);
+        using System.IO.Compression.GZipStream gz = new(file, System.IO.Compression.CompressionMode.Decompress);
+        using StreamReader reader = new(gz);
+        return reader.ReadToEnd();
+    }
+
+    private static void Compress(string path, string text)
+    {
+        using FileStream file = File.Create(path);
+        using System.IO.Compression.GZipStream gz = new(file, System.IO.Compression.CompressionMode.Compress);
+        using StreamWriter writer = new(gz);
+        writer.Write(text);
+    }
+
+    /// <summary>
     ///     The report is the one thing on the record a pass did not produce, so every pass that writes the
     ///     record has to leave it alone. Covers both shapes production uses: a field write through
     ///     <see cref="DemoCacheStore.UpdateExisting" />, and the reprojection sites that load a record and

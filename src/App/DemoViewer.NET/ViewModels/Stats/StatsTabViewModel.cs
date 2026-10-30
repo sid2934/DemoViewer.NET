@@ -401,6 +401,13 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     public bool CanReportErrors => _errorReportOpener is not null && _demoPathAccessor() is { Length: > 0 };
 
     /// <summary>
+    ///     The shell calls this when the open demo changes. The gate reads a Func the view cannot observe,
+    ///     and HasStats does not move for a demo whose analysis failed, which is the case a user most wants
+    ///     to report.
+    /// </summary>
+    public void NotifyDemoChanged() => OnPropertyChanged(nameof(CanReportErrors));
+
+    /// <summary>
     ///     True when this run produced no line-of-sight data, so every column the catalogue marks
     ///     <see cref="ColumnMeta.RequiresVisibility" /> reads "no data" instead of the projector's 0.
     ///     <para>

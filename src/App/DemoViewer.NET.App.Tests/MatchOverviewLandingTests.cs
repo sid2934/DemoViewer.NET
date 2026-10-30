@@ -273,9 +273,11 @@ public class MatchOverviewLandingTests
         await HeadlessSession.RunOnUi(async () =>
         {
             MatchOverviewTabViewModel vm = new();
-            // Wired, so the hero's report button is actually REALIZED in every state this measures. The
-            // gate needs an opener, and a bare `new()` would hide the button and measure a page without it.
+            // Wired, so the hero's report button is actually REALIZED in every state this measures. The gate
+            // needs an opener AND a path, and a bare `new()` would hide the button and measure a page
+            // without it.
             vm.ErrorReportOpener = _ => { };
+            vm.FilePath = "/demos/height.dem";
             MatchOverviewTabView view = new()
             {
                 DataContext = vm
@@ -345,7 +347,9 @@ public class MatchOverviewLandingTests
         await HeadlessSession.RunOnUi(async () =>
         {
             MatchOverviewTabViewModel vm = new();
+            // Opener and path both, or the gate hides the button and this measures a page without it.
             vm.ErrorReportOpener = _ => { };
+            vm.FilePath = "/demos/height.dem";
             MatchOverviewTabView view = new()
             {
                 DataContext = vm

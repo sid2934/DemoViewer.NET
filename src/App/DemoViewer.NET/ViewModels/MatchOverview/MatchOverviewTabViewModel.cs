@@ -694,7 +694,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     Gates the hero's "Report Analysis Errors" button. The report is about the demo this page is
     ///     PAINTING, which in a cached render is not the demo the shell has open.
     /// </summary>
-    public bool CanReportErrors => ErrorReportOpener is not null && SubjectKey is not null;
+    public bool CanReportErrors => ErrorReportOpener is not null && HasFilePath;
 
     /// <summary>The hero button's text: the time the page shows, else the prompt to set one.</summary>
     public string MatchDateButtonText => MatchDateText.Length == 0 ? "Set match date"
@@ -821,7 +821,11 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
     partial void OnLiveDemoNameChanged(string? value) => OnPropertyChanged(nameof(CanReturnToLive));
 
-    partial void OnFilePathChanged(string value) => OnPropertyChanged(nameof(HasFilePath));
+    partial void OnFilePathChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasFilePath));
+        OnPropertyChanged(nameof(CanReportErrors));
+    }
 
     /// <summary>
     ///     Step 1: called the instant an open begins, BEFORE the parse: shows the file name and whatever cheap
@@ -1763,9 +1767,11 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     [RelayCommand]
     private void OpenErrorReport()
     {
-        if (SubjectKey is { } key)
+        // FilePath, not SubjectKey. The key degrades to a bare file name, which UpdateExisting would
+        // resolve against the working directory and write a cache row nothing later joins.
+        if (HasFilePath)
         {
-            ErrorReportOpener?.Invoke(key);
+            ErrorReportOpener?.Invoke(FilePath);
         }
     }
 

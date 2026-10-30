@@ -174,7 +174,15 @@ public sealed partial class ErrorReportViewModel : ViewModelBase
         {
             DateTime now = _now();
             Recapture(_cache.TryLoadRecord(_demoPath, false));
-            DemoErrorReportStore.Save(_cache, _demoPath, Notes, _snapshot, now);
+            if (!DemoErrorReportStore.Save(_cache, _demoPath, Notes, _snapshot, now))
+            {
+                // Refused, not failed: a newer build owns this demo's report. The notes stay on screen,
+                // because this window is holding the only copy of them.
+                StatusText = "Not saved: a newer version of the app wrote this demo's report, and "
+                             + "overwriting it is not this build's call. Copy your notes before closing.";
+                return;
+            }
+
             IsExistingReport = true;
             LastSavedText = "Last saved " + Local(now.ToUniversalTime().Ticks);
 

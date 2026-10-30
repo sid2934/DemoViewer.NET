@@ -43,6 +43,10 @@ public sealed class DemoErrorReport
 
     /// <summary>The diagnostic snapshot taken at the last save.</summary>
     public DemoErrorReportSnapshot Snapshot { get; set; } = new();
+
+    /// <summary>Members a newer app wrote that this one does not know, kept so a round-trip never drops them.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? UnknownMembers { get; set; }
 }
 
 /// <summary>
@@ -176,4 +180,8 @@ public sealed class DemoErrorReportRuleset
 
     /// <summary>Whether it was enabled for the run.</summary>
     public bool Enabled { get; set; }
+
+    /// <summary>Members a newer app wrote that this one does not know, kept so a round-trip never drops them.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? UnknownMembers { get; set; }
 }

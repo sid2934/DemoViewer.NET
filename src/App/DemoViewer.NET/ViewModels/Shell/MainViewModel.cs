@@ -2022,9 +2022,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void OpenErrorReport()
     {
+        // No cross-fallback either way. Off Match Overview the subject may be a preview the user browsed
+        // minutes ago, and on it the open demo is a different one; reporting the wrong demo is worse than
+        // the accelerator doing nothing.
         string? target = SelectedTab?.TabId == "builtin.matchoverview"
-            ? MatchOverviewTab.SubjectKey ?? _loadedDemoPath
-            : _loadedDemoPath ?? MatchOverviewTab.SubjectKey;
+            ? MatchOverviewTab.HasFilePath ? MatchOverviewTab.FilePath : null
+            : _loadedDemoPath;
         if (target is { Length: > 0 } path)
         {
             OpenErrorReportFor(path);
@@ -3875,6 +3878,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _teamNamesTask = null;
         _allFrames = null;
         _loadedDemoPath = null;
+        StatsTab.NotifyDemoChanged();
         _players = null;
         _playersByUserId = null;
         _nameByUserId = new Dictionary<int, string>();
@@ -4315,6 +4319,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _demoBytes = rawBytes;
             // Retain the full path for the Diagnostics Session card; null on browser hosts.
             _loadedDemoPath = localPath ?? fileName;
+            StatsTab.NotifyDemoChanged();
 
             // Zero-copy parse of rawBytes through the open item: frames slice into the buffer, so it must stay
             // held. During a reel render the parse throws ReelInProgressException, handled below.

@@ -50,12 +50,17 @@ public static class DemoErrorReportStore
     /// <param name="notes">What the user wrote.</param>
     /// <param name="snapshot">The diagnostic snapshot taken for this save.</param>
     /// <param name="nowUtc">The save time.</param>
-    public static void Save(DemoCacheStore store, string path, string notes, DemoErrorReportSnapshot snapshot,
+    /// <returns>
+    ///     False when the demo already carries a report at a newer schema, which this app will not overwrite.
+    ///     The caller still holds the only copy of the notes, so it has to say so rather than report a save.
+    /// </returns>
+    public static bool Save(DemoCacheStore store, string path, string notes, DemoErrorReportSnapshot snapshot,
         DateTime nowUtc)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(snapshot);
         long ticks = nowUtc.ToUniversalTime().Ticks;
+        bool written = false;
         store.UpdateExisting(path, r =>
         {
             if (r.ErrorReport is { } existing && existing.Schema > DemoErrorReport.CurrentSchema)
@@ -73,7 +78,10 @@ public static class DemoErrorReportStore
                 SubmittedUtcTicks = r.ErrorReport?.SubmittedUtcTicks,
                 Snapshot = snapshot
             };
+            written = true;
         });
+
+        return written;
     }
 
     /// <summary>Drops the demo's report.</summary>
