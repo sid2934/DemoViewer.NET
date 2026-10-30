@@ -72,12 +72,24 @@ public class ExtensionJobsTests
         using Rig rig = new();
         ExtensionJobs jobs = rig.JobsFor("dev.example.one");
         List<JobStatus> told = [];
+        // Paused so the handler is registered before the job can end. Unpaused, the job usually ends
+        // first and both notifications come from the add accessor, which exercises nothing about the
+        // post End itself makes.
+        rig.Queue.Pause();
         IJobHandle handle = jobs.Enqueue(new JobRequest("work", _ => Task.CompletedTask));
         handle.Completed += r => told.Add(r.Status);
+        rig.Queue.Resume();
+
         JobResult result = await handle.Completion;
 
         await Assert.That(told).IsEmpty().Because("nothing runs until the UI thread drains the post");
+
+        // End publishes the result before it posts the notification, and IJobHandle.Completed promises
+        // only that the post happens, not that it beats Completion's continuation.
+        await WaitForAsync(() => rig.Posts.Count > 0, "the end to post its notification");
         rig.Posts.Drain();
+
+        // No wait here: adding a handler after the end posts on this thread.
         handle.Completed += r => told.Add(r.Status);
         rig.Posts.Drain();
 
