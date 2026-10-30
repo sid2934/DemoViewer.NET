@@ -526,8 +526,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     ScanScope partial = Fold(settled);
                     ContentGroups shown = ResolveContentIdentities(partial.Files);
                     string[] stillListing = [.. listing.Values.Select(KnownRoot)];
-                    await PostAsync(() => Reconcile(shown.Primaries, shown.ShadowFolders, needMap, [], null, stillListing,
-                            null, null))
+                    await PostIfCurrentAsync(() => Reconcile(shown.Primaries, shown.ShadowFolders, needMap, [],
+                            null, stillListing, null, null), ct)
                         .ConfigureAwait(false);
                     RaiseChanged();
                 }
@@ -538,9 +538,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 clock.ElapsedMilliseconds);
 
             groups = ResolveContentIdentities(scope.Files);
-            ct.ThrowIfCancellationRequested();
-            await PostAsync(() => Reconcile(groups.Primaries, groups.ShadowFolders, needMap, needFull, scope, [],
-                    groups.Unresolved, deferred))
+            // Checked again on the post thread, where a newer scan's cancel runs: this listing was taken
+            // before that scan started, and reconciling it afterwards puts the files it pruned back.
+            await PostIfCurrentAsync(() => Reconcile(groups.Primaries, groups.ShadowFolders, needMap, needFull,
+                    scope, [], groups.Unresolved, deferred), ct)
                 .ConfigureAwait(false);
             RaiseChanged();
 
@@ -2845,8 +2846,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         return tcs.Task;
     }
 
-    // For work a scan leaves running after it returns. A newer scan cancels ct before it lists, and its own
-    // Reconcile must not be overwritten by this older listing. Checked on the post thread, where that cancel runs.
+    // A newer scan cancels ct before it lists, and its own Reconcile must not be overwritten by this older
+    // listing. Checked on the post thread, where that cancel runs: a scan continues on a pool thread after
+    // its first await, so a check on the calling thread can be stale by the time the post runs.
     private async Task PostIfCurrentAsync(Action action, CancellationToken ct)
     {
         bool stale = false;

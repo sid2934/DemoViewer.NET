@@ -241,6 +241,10 @@ jobs:
   playback2d-budget:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Reported, not blocking: nothing measured here can be made reliable on a shared runner by
+    # waiting harder, and the numbers are still printed and uploaded either way. The budget step
+    # swallows its own failures rather than the job doing it, so an empty selection or a broken
+    # runner still reddens this lane.
     env:
       # A hosted runner is not the baseline laptop. Gate at 2x so the lane catches real
       # regressions (an O(n) blow-up, a re-introduced per-frame allocation) without firing on runner
@@ -267,10 +271,19 @@ jobs:
       # One test at a time. A frame time measured while three other tests share the runner's two cores
       # is measuring the runner, and the extension classes this lane now reaches carry the same
       # unmeasured-without-the-flag status the ext lane below records.
+      # A budget that drifts is reported. A selection that matched nothing means this lane measured
+      # nothing at all, which scripts/test.sh already detects and which continue-on-error would
+      # otherwise swallow along with the drift, so that one case keeps failing the job.
       - name: Frame-time + allocation budgets, every project
         env:
           DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
-        run: bash scripts/test.sh -t full -b only -c Release
+        run: |
+          set -o pipefail
+          bash scripts/test.sh -t full -b only -c Release 2>&1 | tee budget.log || true
+          if grep -q 'the Budget selection matched nothing' budget.log; then
+            echo "::error::the Budget selection matched nothing: this lane measured nothing"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()

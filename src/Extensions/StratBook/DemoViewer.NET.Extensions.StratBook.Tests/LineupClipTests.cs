@@ -897,10 +897,12 @@ public class LineupClipTests
 
         List<DemoQueueItemSnapshot> items = processing.Snapshot().Where(i => i.Kind == QueueJobKind.DemoProcessing).ToList();
         await Assert.That(items.Count).IsEqualTo(2);
-        await Assert.That(items.All(i => i.State == DemoQueueItemState.Completed)).IsTrue();
+        await Assert.That(string.Join(",", items.Select(i => i.State))).IsEqualTo("Completed,Completed")
+            .Because("every batch ends on its own");
         await Assert.That(string.Join(",", renderer.Calls.Select(c => c.Demo))).IsEqualTo("/d/five.dem,/d/two.dem");
         await Assert.That(parses).IsEqualTo(2).Because("one read per demo serves all of its clips");
-        await Assert.That(renderer.Calls.All(c => c.Parsed is not null)).IsTrue();
+        await Assert.That(renderer.Calls.Count(c => c.Parsed is null)).IsEqualTo(0)
+            .Because("each batch renders from the queue's own read of that demo");
     }
 
     [Test]
@@ -1027,16 +1029,29 @@ public class LineupClipTests
 
     private sealed class FileRenderer : ILineupClipRenderer
     {
-        public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs)> Calls { get; } = [];
+        private readonly List<(string Demo, IReadOnlyList<LineupClipJob> Jobs)> _calls = [];
+
+        // Appended by whichever queue worker ran the batch and read from the test thread, so a read hands
+        // back a copy taken under the same lock the append holds.
+        public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs)> Calls
+        {
+            get
+            {
+                lock (_calls)
+                {
+                    return [.. _calls];
+                }
+            }
+        }
 
         public int Bytes { get; init; } = 100;
 
         public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
             CancellationToken ct)
         {
-            lock (Calls)
+            lock (_calls)
             {
-                Calls.Add((demoPath, jobs));
+                _calls.Add((demoPath, jobs));
             }
 
             foreach (LineupClipJob job in jobs)
@@ -1056,7 +1071,20 @@ public class LineupClipTests
 
     private sealed class FakeRenderer : ILineupClipRenderer
     {
-        public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs, ParsedDemo? Parsed)> Calls { get; } = [];
+        private readonly List<(string Demo, IReadOnlyList<LineupClipJob> Jobs, ParsedDemo? Parsed)> _calls = [];
+
+        // Appended by whichever queue worker ran the batch and read from the test thread, so a read hands
+        // back a copy taken under the same lock the append holds.
+        public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs, ParsedDemo? Parsed)> Calls
+        {
+            get
+            {
+                lock (_calls)
+                {
+                    return [.. _calls];
+                }
+            }
+        }
 
         public TaskCompletionSource? Hold { get; init; }
 
@@ -1065,9 +1093,9 @@ public class LineupClipTests
         public async Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
             CancellationToken ct)
         {
-            lock (Calls)
+            lock (_calls)
             {
-                Calls.Add((demoPath, jobs, demo));
+                _calls.Add((demoPath, jobs, demo));
             }
 
             if (Hold is not null)

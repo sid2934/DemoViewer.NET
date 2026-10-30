@@ -22,7 +22,12 @@ public class RecordPassRunnerTests
 {
     private static readonly Action<Action> _inline = a => a();
 
-    private static async Task WaitFor(Func<bool> cond, string what, int timeoutMs = 5000)
+    // A hang detector, not a timing claim: every wait here is over in-memory work that takes
+    // milliseconds. CI runs this suite as four concurrent batch processes, so a budget tight enough to
+    // measure anything only reports the runner's load.
+    private const int WaitBudgetMs = 30000;
+
+    private static async Task WaitFor(Func<bool> cond, string what, int timeoutMs = WaitBudgetMs)
     {
         DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (!cond())
@@ -189,7 +194,15 @@ public class RecordPassRunnerTests
         Recording pass = new("a", _ => true);
         using ManualResetEventSlim changed = new(false);
         using RecordPassRunner runner = new(() => [pass], store, queue);
-        runner.BeforeRemovedRunEnds = () => changed.Wait(TimeSpan.FromSeconds(10));
+        // Must not fail open: if this stops waiting, the removed run ends before the change lands and the
+        // gap the test exists to cover is never created, so the test would pass having proved nothing.
+        runner.BeforeRemovedRunEnds = () =>
+        {
+            if (!changed.Wait(TimeSpan.FromMilliseconds(WaitBudgetMs)))
+            {
+                throw new TimeoutException("timed out waiting for the change to land before the removed run ends");
+            }
+        };
 
         queue.Pause();
         store.Upsert(HostLibraryTests.Parsed("/d/one.dem"));

@@ -24,14 +24,44 @@ internal sealed class PostQueue
 {
     private readonly Queue<Action> _pending = new();
 
-    public int Count => _pending.Count;
+    public int Count
+    {
+        get
+        {
+            lock (_pending)
+            {
+                return _pending.Count;
+            }
+        }
+    }
 
-    public void Post(Action action) => _pending.Enqueue(action);
+    // Posted from whatever thread finished the work, drained from the test thread, so every touch of
+    // the queue is locked.
+    public void Post(Action action)
+    {
+        lock (_pending)
+        {
+            _pending.Enqueue(action);
+        }
+    }
 
+    /// <summary>Runs everything posted so far, and anything those actions post in turn.</summary>
     public void Drain()
     {
-        while (_pending.TryDequeue(out Action? action))
+        while (true)
         {
+            Action? action;
+
+            // Never held while the action runs: Post comes from whichever thread finished the work, and
+            // holding this across arbitrary work would block all of them.
+            lock (_pending)
+            {
+                if (!_pending.TryDequeue(out action))
+                {
+                    return;
+                }
+            }
+
             action();
         }
     }
