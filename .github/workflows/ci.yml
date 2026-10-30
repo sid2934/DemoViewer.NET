@@ -177,6 +177,15 @@ jobs:
       - name: Playback2D scene + pipeline tests (direct execution, no Avalonia)
         run: bash scripts/test.sh -t full -b skip -p playback2d -c Release
 
+      # The two zero-allocation gates, here rather than only in the reported-not-blocking budget lane.
+      # They count GC.GetAllocatedBytesForCurrentThread, so no other test's allocation reaches them and
+      # no DV2D_BUDGET_SCALE applies: zero is zero on any runner. They keep Category(Budget) as well, so
+      # `-b only` still runs them locally; the five seconds they cost here is the price of a real gate.
+      - name: Playback2D allocation gates (blocking)
+        run: >
+          dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
+          -- --treenode-filter "/*/*/BudgetTests/*AllocatesNothing"
+
       - name: Build dv2d
         run: dotnet build tools/DemoViewer.NET.Playback2D.Cli -c Release
 
@@ -245,6 +254,12 @@ jobs:
     # waiting harder: DV2D_BUDGET_SCALE below was widened twice chasing the same drift, and three of
     # this lane's assertions account for 4 of the 15 sporadic CI failures measured over 2026-10-19
     # to 10-30. A merge no longer waits on them; the numbers are still printed and uploaded.
+    #
+    # Not everything here drifts, so the non-drifting half is gated elsewhere: the zero-allocation
+    # gates also run blocking in playback2d-tests. The Strat Book heap toggle's leak bounds do NOT,
+    # deliberately. They read GC.GetTotalMemory, which is process-wide, so what an earlier test left
+    # retained lands in the reading; that assertion failed on a main push in 2026-10-21 precisely
+    # when ext-tests still ran it, and this lane's near-empty process is what it needs.
     continue-on-error: true
     env:
       # A hosted runner is not the baseline laptop. Gate at 2x so the lane catches real
