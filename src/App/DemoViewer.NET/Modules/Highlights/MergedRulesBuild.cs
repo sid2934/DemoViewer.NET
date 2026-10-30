@@ -9,6 +9,7 @@ using CS2DemoKit.Analysis.Config;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Catalog;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.RulesetsV2.Resolve;
@@ -44,6 +45,10 @@ public sealed class MergedRulesBuild
     // Collectors produce output only on the run whose options carried them, so they key the run too.
     private readonly ConditionalWeakTable<ParsedDemo, CachedRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
+
+    // Keyed like _fingerprints, but on the MERGED set rather than the core one: a stamped ruleset's
+    // exclusion silently empties a table, which is the loudest version of this.
+    private readonly Dictionary<int, (IReadOnlyList<RulesetDoc> Docs, IReadOnlyList<string> Lines)> _exclusions = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
 
     // Keyed by the doc instances it was composed from: a reload hands out new ones, and a gate change can drop a dependency.
@@ -282,6 +287,41 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
+    ///     What a composition of the rules IN FORCE drops, one line per ruleset, empty when it drops none.
+    ///     Composition only: a lowering failure needs a build against a real demo, which is seconds of work.
+    ///     <para>
+    ///         Deliberately NOT through <c>HighlightConfigFingerprint.Compute</c>, which refuses any
+    ///         composition that produced a diagnostic and so throws on precisely the input this answers for.
+    ///         That is also why a report cannot learn this from the cache record alone: the write that
+    ///         persists the stored set is downstream of that same throw.
+    ///     </para>
+    /// </summary>
+    /// <param name="tickRate">The tick rate to compose at.</param>
+    public IReadOnlyList<string> Exclusions(int tickRate)
+    {
+        IReadOnlyList<RulesetDoc> docs = Docs;
+        lock (_gate)
+        {
+            if (_exclusions.TryGetValue(tickRate, out (IReadOnlyList<RulesetDoc> Docs, IReadOnlyList<string> Lines) hit)
+                && ReferenceEquals(hit.Docs, docs))
+            {
+                return hit.Lines;
+            }
+        }
+
+        CatalogScopeAdapter adapter = CatalogScopeAdapter.From(CatalogResource.Load());
+        RulesetComposition.Result composed =
+            RulesetComposition.Compose(docs, adapter, tickRate, RulesHighlightHarvester.GotvProfileId);
+        IReadOnlyList<string> lines = [.. composed.Excluded.Select(RulesetExclusionReport.Describe)];
+        lock (_gate)
+        {
+            _exclusions[tickRate] = (docs, lines);
+        }
+
+        return lines;
+    }
+
+    /// <summary>
     ///     One ruleset's own identity, for the outputs stamped under it. Composes the ruleset with the rulesets
     ///     its <c>use:</c> reads and nothing else, so a broken highlight file never blocks it, and throws when
     ///     that does not compose or any of it is not enabled. The engine's fingerprint hashes highlight
@@ -505,8 +545,6 @@ public sealed class MergedRulesBuild
         }
 
         BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs, collectors);
-        // No path here (this cut is keyed by the ParsedDemo), so the exclusions are logged but not offered
-        // to a report. A wrong attribution is worse than none.
         ReportExclusions(build);
         DecodeSites.Enter(2);
         (AnalysisOptions options, CollectorObserver? observer) = collectors.Declare(new AnalysisOptions { CaptureSnapshots = false });
@@ -694,9 +732,9 @@ public sealed class MergedRulesBuild
     ///     Logs every ruleset <paramref name="build" /> excluded, and reports each one an extension contributed
     ///     through its <see cref="GuardOf" />. A user's same-id override is the user's file, never the extension's.
     /// </summary>
-    internal void ReportExclusions(BuildResult build, string? subject = null)
+    internal void ReportExclusions(BuildResult build)
     {
-        RulesetExclusionReport.Report(Log, build, subject);
+        RulesetExclusionReport.Report(Log, build);
         if (GuardOf is not { } guardOf || build.ExcludedRulesets.Count == 0)
         {
             return;

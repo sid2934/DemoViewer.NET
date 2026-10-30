@@ -7,6 +7,7 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
@@ -204,13 +205,14 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 
             processed = true;
 
+            AnalysisRun? bare = _processorOverride is null ? _harvester.RunBareAnalysis(parsed, path) : null;
             IReadOnlyList<HighlightFired>? harvested = _processorOverride is not null
                 ? _processorOverride(path, parsed)
-                : _harvester.RunBareAnalysis(parsed, path).Highlights;
+                : bare!.Highlights;
 
             if (harvested is not null)
             {
-                WriteHarvest(path, HarvestFacts.From(parsed), harvested);
+                WriteHarvest(path, HarvestFacts.From(parsed), harvested, Lines(bare));
             }
             else
             {
@@ -271,7 +273,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             }
             else
             {
-                WriteHarvest(path, HarvestFacts.From(pass), pass.Run.Highlights);
+                WriteHarvest(path, HarvestFacts.From(pass), pass.Run.Highlights, Lines(pass.Run));
             }
         }
         catch (Exception)
@@ -527,7 +529,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         {
             try
             {
-                WriteHarvest(path, HarvestFacts.From(parsed), run.Highlights);
+                WriteHarvest(path, HarvestFacts.From(parsed), run.Highlights, Lines(run));
                 RaiseProgress();
             }
             catch (Exception)
@@ -605,7 +607,13 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     ///         restate it. The Library owns it.
     ///     </para>
     /// </summary>
+    // Null when there is no run to read, which is the test-override path. Null records nothing rather than
+    // claiming a clean composition.
+    private static List<string>? Lines(AnalysisRun? run) =>
+        run is null ? null : RulesetExclusionReport.Lines(run.Build);
+
     private void WriteHarvest(string path, HarvestFacts parsed, IReadOnlyList<HighlightFired> events,
+        IReadOnlyList<string>? excluded,
         string? knownFingerprint = null,
         IReadOnlyDictionary<string, string>? knownHashes = null)
     {
@@ -625,6 +633,11 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             record.ProfileName = RulesHighlightHarvester.GotvProfileId;
             record.ConfigFingerprint = fingerprint;
             record.HighlightHashes = new Dictionary<string, string>(hashes);
+
+            // ALWAYS assigned, beside the fingerprint that describes the same composition. Leaving it be
+            // while rewriting the fingerprint would pair a new run's identity with an older run's set.
+            // Null claims nothing, which is the honest answer where the run is not in hand.
+            record.ExcludedRulesets = excluded is null ? null : [.. excluded];
             // The surfacing policy (Hidden drop + group supersession) lives in the packaged
             // HighlightSurfacing, one implementation, so a reel and this cache row can never
             // disagree about which firings are moments.

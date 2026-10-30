@@ -152,6 +152,19 @@ public sealed class DemoErrorReportSnapshot
     /// <summary>Runtime and OS rows, as the Diagnostics tab reports them.</summary>
     public Dictionary<string, string> Runtime { get; set; } = new(StringComparer.Ordinal);
 
+    /// <summary>
+    ///     What a composition of the rules IN FORCE drops, empty when it drops none, null when the rule set
+    ///     did not resolve. Composition only: a lowering failure needs a build against a demo, and that half
+    ///     is on <see cref="ExcludedRulesets" />.
+    ///     <para>
+    ///         This row exists because the stored pair cannot answer for itself. A composition exclusion in a
+    ///         non-stamped ruleset makes the highlights fingerprint throw, and the write that stores the set
+    ///         is downstream of that throw, so the record stays frozen at the last run that composed.
+    ///     </para>
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ExcludedRulesetsNow { get; set; }
+
     /// <summary>Environment variables, allowlist only. Never the whole environment.</summary>
     public Dictionary<string, string> Environment { get; set; } = new(StringComparer.Ordinal);
 

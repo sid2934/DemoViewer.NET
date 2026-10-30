@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -492,6 +493,68 @@ public class DemoCacheStoreTests
             await Assert.That(store.TryLoadRecord("/demos/wasm.dem")).IsNotNull();
             await Assert.That(new DemoCacheStore(null).TryGetIndex("/demos/wasm.dem")).IsNull()
                 .Because("nothing was persisted, so a fresh in-memory store knows nothing");
+        }
+    }
+
+    /// <summary>
+    ///     The two halves of how a nullable list has to behave on this record, each a defect this cache has
+    ///     already shipped once. The store's options are a bare <c>new JsonSerializerOptions()</c>, so
+    ///     DefaultIgnoreCondition is Never and an unannotated nullable writes <c>null</c> into every record
+    ///     and moves every oracle digest. And a member ABSENT from the JSON keeps its initializer, so an
+    ///     <c>= []</c> default would make every record written before the field claim a clean composition.
+    /// </summary>
+    [Test]
+    public async Task ExcludedRulesets_IsOmittedWhenNull_AndReadsBackNullWhenAbsent()
+    {
+        DemoCacheRecord none = Record("/demos/a.dem");
+        DemoCacheRecord empty = Record("/demos/b.dem");
+        empty.ExcludedRulesets = [];
+
+        JsonSerializerOptions bare = new();
+        string withNull = JsonSerializer.Serialize(none, bare);
+        string withEmpty = JsonSerializer.Serialize(empty, bare);
+        DemoCacheRecord? roundTripped = JsonSerializer.Deserialize<DemoCacheRecord>("{}", bare);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(withNull).DoesNotContain("ExcludedRulesets")
+                .Because("a null must not be written, or every record in every cache gains a dead member");
+            await Assert.That(withEmpty).Contains("\"ExcludedRulesets\":[]")
+                .Because("an empty list is information: it says a composition ran and dropped nothing");
+            await Assert.That(roundTripped!.ExcludedRulesets).IsNull()
+                .Because("absent means unknown, so the member must carry no initializer");
+        }
+    }
+
+    /// <summary>
+    ///     A row joining another takes the exclusion set TOGETHER with the fingerprint that describes the
+    ///     same composition. Taking one without the other pairs two different runs.
+    /// </summary>
+    [Test]
+    public async Task AJoiningRow_TakesTheExclusionSetWithItsFingerprint()
+    {
+        DemoCacheRecord joined = Record("/demos/joined.dem");
+        DemoCacheRecord source = Record("/demos/source.dem");
+        source.ConfigFingerprint = "fp-source";
+        source.ExcludedRulesets = ["ruleset 'x' was excluded: [RS201] nope"];
+        DemoCacheStore.StampAnalysis(source);
+
+        joined.FillMissingFrom(source);
+
+        DemoCacheRecord keepsItsOwn = Record("/demos/own.dem");
+        keepsItsOwn.ConfigFingerprint = "fp-own";
+        keepsItsOwn.ExcludedRulesets = null;
+        DemoCacheStore.StampAnalysis(keepsItsOwn);
+        keepsItsOwn.FillMissingFrom(source);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(joined.ExcludedRulesets).IsNotNull();
+            await Assert.That(joined.ConfigFingerprint).IsEqualTo("fp-source")
+                .Because("the set and the fingerprint have to arrive together");
+            await Assert.That(keepsItsOwn.ExcludedRulesets).IsNull()
+                .Because("a row that already has the tier keeps its own answer, null included");
+            await Assert.That(keepsItsOwn.ConfigFingerprint).IsEqualTo("fp-own");
         }
     }
 }

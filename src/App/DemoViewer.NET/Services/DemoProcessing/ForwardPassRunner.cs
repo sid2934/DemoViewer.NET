@@ -50,7 +50,7 @@ public sealed class ForwardPassRunner
             rules ? collectors : CollectorSet.Empty, ranks, null, cancellationToken);
         if (pass.Run is { } run)
         {
-            _rules.ReportExclusions(run.Build, path);
+            _rules.ReportExclusions(run.Build);
         }
 
         return pass;

@@ -26,6 +26,12 @@ namespace DemoViewer.NET.ViewModels.Diagnostics;
 ///         cannot be present on one surface and missing on another. Deliberately best-effort and
 ///         non-throwing: this is a diagnostic, and it must never be the reason an analysis run fails.
 ///     </para>
+///     <para>
+///         This type holds no state. The set a report shows comes from the demo's cache record, written
+///         beside the fingerprint of the same composition, plus a fresh compose of the rules in force. It
+///         used to come from one process-wide slot, which any later composition overwrote: during a library
+///         backfill that meant a report for the demo on screen read "nothing composed in this session".
+///     </para>
 /// </summary>
 internal static class RulesetExclusionReport
 {
@@ -34,11 +40,9 @@ internal static class RulesetExclusionReport
     ///     document composed.
     /// </summary>
     [SuppressMessage("Performance", "CA1873:Avoid potentially expensive logging")]
-    public static void Report(ILogger logger, BuildResult build, string? subject = null)
+    public static void Report(ILogger logger, BuildResult build)
     {
         IReadOnlyList<ExcludedRuleset> excluded = build.ExcludedRulesets;
-        Remember(subject, [.. excluded.Select(Describe)]);
-
         if (excluded.Count == 0)
         {
             return;
@@ -50,56 +54,26 @@ internal static class RulesetExclusionReport
         }
     }
 
-    // What the most recent composition excluded, and WHICH demo it composed. Written by background analysis
-    // threads and read on the UI thread, so subject and list must move together in ONE reference: read
-    // separately they can pair one demo's subject with another's list.
-    private sealed record ExclusionSlot(string Subject, IReadOnlyList<string> Descriptions);
-
-    private static ExclusionSlot? _lastExcluded;
-
     /// <summary>
-    ///     Records what a composition of <paramref name="subject" /> excluded, for the error-report snapshot
-    ///     to read. The snapshot cannot compose a BuildResult of its own: building the graph is seconds of
-    ///     work and it runs on a button press.
+    ///     The persisted form: one line per excluded ruleset, empty when the build dropped none. Kept here so
+    ///     this type stays the one place an exclusion is rendered.
     ///     <para>
-    ///         KEYED BY DEMO, because a process composes many and one demo's exclusions must never reach
-    ///         another's report, the same rule parse health follows. A caller with no demo to name LEAVES THE
-    ///         SLOT ALONE rather than clearing it: clearing would let a bare-run cut, which happens routinely
-    ///         after an analysis, throw away the very set the reported demo just produced. Offering nothing
-    ///         and destroying what is there are different things.
+    ///         Differs from <see cref="Describe" /> in one way: the source file is reduced to its NAME. These
+    ///         lines are stored on the cache record and copied into an error report, which is a payload built
+    ///         to leave the machine, and a user overlay's full path is their home directory. The log keeps the
+    ///         full path.
     ///     </para>
     /// </summary>
-    /// <param name="subject">The demo the composition was for, or null/empty from a site that has none.</param>
-    /// <param name="descriptions">One line per excluded ruleset; empty when the build dropped nothing.</param>
-    internal static void Remember(string? subject, IReadOnlyList<string> descriptions)
+    /// <param name="build">The composed build.</param>
+    internal static List<string> Lines(BuildResult build)
     {
-        if (subject is { Length: > 0 })
-        {
-            Volatile.Write(ref _lastExcluded, new ExclusionSlot(subject, descriptions));
-        }
+        ArgumentNullException.ThrowIfNull(build);
+        return
+        [
+            .. build.ExcludedRulesets.Select(r =>
+                $"ruleset '{ShortName(r)}' was excluded: {Summarize(r.Diagnostics)}")
+        ];
     }
-
-    /// <summary>
-    ///     What the last composition of this demo excluded, or null when none ran for it. Matched against
-    ///     EVERY path the demo is known by, not just the one the caller holds: the cache carries several
-    ///     locations for one demo, so a report filed through a second path would otherwise read as unknown.
-    /// </summary>
-    /// <param name="paths">Every path the demo is known by; the first match wins.</param>
-    internal static IReadOnlyList<string>? ExcludedFor(IEnumerable<string> paths)
-    {
-        if (Volatile.Read(ref _lastExcluded) is not { } last)
-        {
-            return null;
-        }
-
-        return paths.Any(p => p is { Length: > 0 }
-                              && string.Equals(last.Subject, p, StringComparison.OrdinalIgnoreCase))
-            ? last.Descriptions
-            : null;
-    }
-
-    /// <summary>Drops the remembered set, so a test can assert the "nothing composed" case.</summary>
-    internal static void ForgetForTest() => Volatile.Write(ref _lastExcluded, null);
 
     /// <summary>The ruleset, its source file when it has one, and its diagnostics, on one line.</summary>
     public static string Describe(ExcludedRuleset ruleset) =>
@@ -111,6 +85,12 @@ internal static class RulesetExclusionReport
         string.IsNullOrWhiteSpace(ruleset.SourceFile)
             ? ruleset.Id
             : $"{ruleset.Id}' ('{ruleset.SourceFile}";
+
+    // As Name, with the source reduced to a file name: see Lines.
+    private static string ShortName(ExcludedRuleset ruleset) =>
+        string.IsNullOrWhiteSpace(ruleset.SourceFile)
+            ? ruleset.Id
+            : $"{ruleset.Id}' ('{Path.GetFileName(ruleset.SourceFile)}";
 
     // Diagnostics carry a source position; include it, because "unresolvable reference" without a
     // line number is a search rather than a fix. Capped so a document that fails structural

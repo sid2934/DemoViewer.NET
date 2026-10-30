@@ -59,7 +59,7 @@ public static class ErrorReportSnapshotBuilder
 
         AddDemo(snapshot, record);
         AddCacheState(snapshot, record);
-        AddExclusions(snapshot, record, demoPath);
+        AddExclusions(snapshot, record);
         AddRules(snapshot, rules, record);
         AddParseHealth(snapshot, demoPath, openDemo, openDemoPath);
         AddVersions(snapshot);
@@ -181,19 +181,37 @@ public static class ErrorReportSnapshotBuilder
         // developer hunting elsewhere.
         if (!snapshot.ExcludedRulesetsKnown)
         {
-            rows.Add(Row("excluded rulesets", "(unknown: nothing composed in this session)"));
+            rows.Add(Row("excluded rulesets (cached run)", "(unknown: no composition recorded for this demo)"));
         }
         else if (snapshot.ExcludedRulesets.Count == 0)
         {
-            rows.Add(Row("excluded rulesets", "none"));
+            rows.Add(Row("excluded rulesets (cached run)", "none"));
         }
         else
         {
-            // One row each, under the one key. A Describe sentence carries its own commas, so joining them
-            // produced a line neither a reader nor a parser could split back apart.
+            // One row each. A Describe sentence carries its own commas, so joining them produced a line
+            // neither a reader nor a parser could split back apart.
             foreach (string excluded in snapshot.ExcludedRulesets)
             {
-                rows.Add(Row("excluded rulesets", excluded));
+                rows.Add(Row("excluded rulesets (cached run)", excluded));
+            }
+        }
+
+        // The second source, and the only one that answers while the rule set does not compose: the stored
+        // set is written downstream of the fingerprint, which throws on exactly that input.
+        if (snapshot.ExcludedRulesetsNow is not { } now)
+        {
+            rows.Add(Row("excluded rulesets (now)", "(unknown: the rule set did not resolve)"));
+        }
+        else if (now.Count == 0)
+        {
+            rows.Add(Row("excluded rulesets (now)", "none"));
+        }
+        else
+        {
+            foreach (string excluded in now)
+            {
+                rows.Add(Row("excluded rulesets (now)", excluded));
             }
         }
         foreach ((string id, string hash) in snapshot.HighlightHashes.OrderBy(k => k.Key, StringComparer.Ordinal))
@@ -253,29 +271,18 @@ public static class ErrorReportSnapshotBuilder
         }
     }
 
-    // Independent of the merged rule set on purpose. The exclusions come from whichever composition ran for
-    // this demo, and the site that composes without a MergedRulesBuild records them too; gating this on one
-    // being resolvable would report "unknown" over a set that is sitting right there.
-    private static void AddExclusions(DemoErrorReportSnapshot snapshot, DemoCacheRecord? record, string demoPath)
+    // From the record, which is the demo's identity: the composition that produced the cached render the
+    // user is looking at. This used to read a process-wide slot that any later composition overwrote, so a
+    // report filed during a library backfill said nothing composed in this session.
+    private static void AddExclusions(DemoErrorReportSnapshot snapshot, DemoCacheRecord? record)
     {
-        try
+        if (record?.ExcludedRulesets is not { } stored)
         {
-            // Every path this demo is known by, so a report filed through a second location still matches.
-            List<string> known = [demoPath];
-            if (record is not null)
-            {
-                known.AddRange(record.Locations.Select(l => l.Path));
-            }
+            return;
+        }
 
-            if (RulesetExclusionReport.ExcludedFor(known) is { } excluded)
-            {
-                snapshot.ExcludedRulesetsKnown = true;
-                snapshot.ExcludedRulesets.AddRange(excluded);
-            }
-        }
-        catch (Exception)
-        {
-        }
+        snapshot.ExcludedRulesetsKnown = true;
+        snapshot.ExcludedRulesets.AddRange(stored);
     }
 
     private static void AddRules(DemoErrorReportSnapshot snapshot, MergedRulesBuild? rules, DemoCacheRecord? record)
@@ -302,6 +309,17 @@ public static class ErrorReportSnapshotBuilder
         // Outside the try: a set that fails to compose still HAS a profile, and reporting "(none)" for one
         // that has one sent a reader looking for a profile problem.
         snapshot.CurrentProfileName = RulesHighlightHarvester.GotvProfileId;
+
+        // Its own try: a compose failure costs this one row, and the row is the one that names the file a
+        // broken rule set is in. The fingerprint row's "(does not compose)" is the sibling signal.
+        try
+        {
+            snapshot.ExcludedRulesetsNow = [.. rules.Exclusions(tickRate ?? 64)];
+        }
+        catch (Exception)
+        {
+        }
+
         if (tickRate is { } rate)
         {
             try

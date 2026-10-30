@@ -154,28 +154,29 @@ public class ErrorReportSnapshotTests
     }
 
     // The one row the three-state semantics are read off.
-    private static string ExclusionRow(DemoErrorReportSnapshot snapshot) =>
+    private static string ExclusionRow(DemoErrorReportSnapshot snapshot, string key = "excluded rulesets (cached run)") =>
         ErrorReportSnapshotBuilder.Groups(snapshot)
             .First(g => g.Title == "Rules").Rows
-            .First(r => r.Key == "excluded rulesets").Value;
+            .First(r => r.Key == key).Value;
 
     /// <summary>
-    ///     An empty exclusion list must never read as "nothing was excluded" when nothing composed. The field
-    ///     shipped declared, rendered and never assigned, so every report asserted a clean bill of health on
-    ///     the one signal most likely to explain it.
+    ///     An absent set must never read as "nothing was excluded". The member is null on a record written
+    ///     before the field, on a legacy import, and on a demo with no analysis tier, and each of those knows
+    ///     nothing rather than knowing the composition was clean.
     /// </summary>
     [Test]
-    public async Task ExcludedRulesets_SayUnknownUntilSomethingHasComposed()
+    public async Task ExcludedRulesets_SayUnknownUntilACompositionIsRecordedForThisDemo()
     {
-        RulesetExclusionReport.ForgetForTest();
+        DemoCacheRecord record = Record();
+        record.ExcludedRulesets = null;
 
         DemoErrorReportSnapshot snapshot =
-            ErrorReportSnapshotBuilder.Build("/demos/excl.dem", Record(), null, null, null, Now);
+            ErrorReportSnapshotBuilder.Build(record.Path, record, null, null, null, Now);
 
         using (Assert.Multiple())
         {
             await Assert.That(snapshot.ExcludedRulesetsKnown).IsFalse()
-                .Because("nothing has composed, so the list is not a statement about anything");
+                .Because("no composition is recorded, so the list is not a statement about anything");
             await Assert.That(ExclusionRow(snapshot)).Contains("unknown");
             await Assert.That(ExclusionRow(snapshot)).DoesNotContain("none")
                 .Because("\"none\" is a claim the snapshot has not earned the right to make");
@@ -183,16 +184,15 @@ public class ErrorReportSnapshotTests
     }
 
     /// <summary>
-    ///     The other side of the same field, and the one that was broken: a composition of this demo that
-    ///     dropped nothing is the only thing entitled to read as "none". Without the known flag being
-    ///     ASSIGNED, this case and the one above are indistinguishable.
+    ///     The other side of the same field: a recorded composition that dropped nothing is the only thing
+    ///     entitled to read as "none". This is also the read-side gate on the member having no initializer,
+    ///     since one would make every legacy record claim this.
     /// </summary>
     [Test]
-    public async Task ExcludedRulesets_ReadAsNoneOnlyAfterACompositionOfThisDemoDroppedNothing()
+    public async Task ExcludedRulesets_ReadAsNoneOnlyWhenARecordedCompositionDroppedNothing()
     {
         DemoCacheRecord record = Record();
-        RulesetExclusionReport.ForgetForTest();
-        RulesetExclusionReport.Remember(record.Path, []);
+        record.ExcludedRulesets = [];
 
         DemoErrorReportSnapshot snapshot =
             ErrorReportSnapshotBuilder.Build(record.Path, record, null, null, null, Now);
@@ -205,14 +205,12 @@ public class ErrorReportSnapshotTests
         }
     }
 
-    /// <summary>What a composition of this demo actually dropped reaches the report by name.</summary>
+    /// <summary>What the recorded composition dropped reaches the report by name.</summary>
     [Test]
     public async Task ExcludedRulesets_AreCarriedByName()
     {
         DemoCacheRecord record = Record();
-        RulesetExclusionReport.ForgetForTest();
-        RulesetExclusionReport.Remember(record.Path,
-            ["ruleset 'community.entry-trades' was excluded: [RS201] unresolvable column"]);
+        record.ExcludedRulesets = ["ruleset 'community.entry-trades' was excluded: [RS201] unresolvable column"];
 
         DemoErrorReportSnapshot snapshot =
             ErrorReportSnapshotBuilder.Build(record.Path, record, null, null, null, Now);
@@ -226,77 +224,52 @@ public class ErrorReportSnapshotTests
     }
 
     /// <summary>
-    ///     The exclusion set is keyed by demo. A process composes many, and handing demo A's exclusions to a
-    ///     report about demo B is the same cross-demo attribution the snapshot refuses for parse health.
+    ///     The review finding this redesign answers, end to end. The set rides the demo's own record, so a
+    ///     composition of any other demo cannot reach this report however many run in between. Under the old
+    ///     process-wide slot a library backfill made this read "nothing composed in this session", which the
+    ///     type's own comment called the single most likely cause of an analysis-error report.
     /// </summary>
     [Test]
-    public async Task ExcludedRulesets_AreNotTakenFromAnotherDemosComposition()
+    public async Task ExcludedRulesets_SurviveOtherDemosComposing()
     {
-        RulesetExclusionReport.ForgetForTest();
-        RulesetExclusionReport.Remember("/demos/some_other_demo.dem",
-            ["ruleset 'community.utility-value' was excluded: [RS201] unresolvable column"]);
+        DemoCacheRecord reported = Record();
+        reported.ExcludedRulesets = ["ruleset 'community.entry-trades' was excluded: [RS201] unresolvable column"];
+
+        // Three other demos, each with its own set, as a backfill would produce.
+        foreach (string other in new[] { "/demos/b.dem", "/demos/c.dem", "/demos/d.dem" })
+        {
+            DemoCacheRecord record = Record();
+            record.Path = other;
+            record.ExcludedRulesets = ["ruleset 'community.utility-value' was excluded: [RS201] unresolvable column"];
+            ErrorReportSnapshotBuilder.Build(other, record, null, null, null, Now);
+        }
 
         DemoErrorReportSnapshot snapshot =
-            ErrorReportSnapshotBuilder.Build("/demos/the_reported_demo.dem", null, null, null, null, Now);
+            ErrorReportSnapshotBuilder.Build(reported.Path, reported, null, null, null, Now);
 
         using (Assert.Multiple())
         {
-            await Assert.That(snapshot.ExcludedRulesetsKnown).IsFalse()
-                .Because("no composition named this demo, so it has no exclusion list of its own");
-            await Assert.That(snapshot.ExcludedRulesets).IsEmpty();
+            await Assert.That(snapshot.ExcludedRulesetsKnown).IsTrue()
+                .Because("the set is on the demo's record, so nothing else composing can erase it");
+            await Assert.That(ExclusionRow(snapshot)).Contains("community.entry-trades");
             await Assert.That(ExclusionRow(snapshot)).DoesNotContain("community.utility-value");
         }
     }
 
     /// <summary>
-    ///     The cache keeps several locations for one demo, so the exclusion set has to match any of them. A
-    ///     report filed through a second path would otherwise read as unknown on a demo just analysed.
+    ///     With no rule set in hand the "(now)" row says so rather than claiming none. It is the half that
+    ///     answers while the rules do not compose, which is when the stored set is frozen.
     /// </summary>
     [Test]
-    public async Task ExcludedRulesets_MatchAnyKnownLocationOfTheDemo()
+    public async Task TheCurrentExclusionRow_SaysUnknownWithNoRuleSet()
     {
-        DemoCacheRecord record = Record();
-        record.Locations =
-        [
-            new DemoLocation("/demos/elsewhere/report_de_mirage.dem", true, record.Size, 0, 0)
-        ];
-
-        // Composed under the path the pipeline held; reported through the second location.
-        RulesetExclusionReport.ForgetForTest();
-        RulesetExclusionReport.Remember(record.Locations[0].Path,
-            ["ruleset 'community.clutch' was excluded: [RS201] unresolvable column"]);
-
-        DemoErrorReportSnapshot snapshot = ErrorReportSnapshotBuilder.Build(
-            record.Path, record, null, null, null, Now);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(snapshot.ExcludedRulesetsKnown).IsTrue()
-                .Because("the lookup matches every path the record lists, not only the one it was asked for");
-            await Assert.That(ExclusionRow(snapshot)).Contains("community.clutch");
-        }
-    }
-
-    /// <summary>
-    ///     A bare cut composes with no demo to name, and one runs routinely right after an analysis. It must
-    ///     leave the slot alone: clearing it would throw away the set the reported demo just produced.
-    /// </summary>
-    [Test]
-    public async Task ABareCutWithNoDemoToName_DoesNotThrowAwayTheReportedDemosExclusions()
-    {
-        DemoCacheRecord record = Record();
-        RulesetExclusionReport.ForgetForTest();
-        RulesetExclusionReport.Remember(record.Path,
-            ["ruleset 'community.entry-trades' was excluded: [RS201] unresolvable column"]);
-        RulesetExclusionReport.Remember(null, []);
-
         DemoErrorReportSnapshot snapshot =
-            ErrorReportSnapshotBuilder.Build(record.Path, record, null, null, null, Now);
+            ErrorReportSnapshotBuilder.Build(Record().Path, Record(), null, null, null, Now);
 
         using (Assert.Multiple())
         {
-            await Assert.That(snapshot.ExcludedRulesetsKnown).IsTrue();
-            await Assert.That(ExclusionRow(snapshot)).Contains("community.entry-trades");
+            await Assert.That(snapshot.ExcludedRulesetsNow).IsNull();
+            await Assert.That(ExclusionRow(snapshot, "excluded rulesets (now)")).Contains("unknown");
         }
     }
 
