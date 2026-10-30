@@ -22,7 +22,10 @@ public class RecordPassRunnerTests
 {
     private static readonly Action<Action> _inline = a => a();
 
-    private static async Task WaitFor(Func<bool> cond, string what, int timeoutMs = 5000)
+    // A hang detector, not a timing claim: every wait here is over in-memory work that takes
+    // milliseconds. CI runs this suite as four concurrent batch processes, so a budget tight enough to
+    // measure anything only reports the runner's load.
+    private static async Task WaitFor(Func<bool> cond, string what, int timeoutMs = 30000)
     {
         DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (!cond())
