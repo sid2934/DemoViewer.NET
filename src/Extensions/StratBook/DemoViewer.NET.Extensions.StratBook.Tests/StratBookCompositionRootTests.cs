@@ -84,7 +84,7 @@ public class StratBookCompositionRootTests
 
     // The highlights stamp on every indexed demo, as the shipped rules have always produced it. The Strat
     // Book's state must not move it: a moved value re-scans every demo's highlights.
-    private const string ShippedFingerprint64 = "b54450c95ee039d26958d9a6da7c757303e87306a182d2b46065471c4309fed7";
+    private const string ShippedFingerprint64 = "7dbab2696176a7d3b259cc81e05fc26cf802981a6571469b00c2ae3836744948";
 
     [Test]
     [Arguments(true)]

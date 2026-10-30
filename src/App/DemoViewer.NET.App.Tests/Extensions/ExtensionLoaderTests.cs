@@ -28,7 +28,7 @@ public class ExtensionLoaderTests
     private const string FakeId = "net.demoviewer.pack.fake";
     // At least what the REAL Strat Book manifest requires: the load cases below stage the shipped pack,
     // so a contract below its requiresHost turns every one of them into a compatibility refusal.
-    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("2.1.0"), null, SemVersion.Parse("0.14.0"));
+    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("2.1.0"), null, SemVersion.Parse("0.14.1"));
     private static readonly ITrustPolicy TrustAll = new AllTrust();
 
     // ── Discover ─────────────────────────────────────────────────────────────────────────────────

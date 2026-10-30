@@ -1,11 +1,10 @@
 namespace DemoViewer.NET.TestSupport.Corpus;
 
 /// <summary>
-///     The one implemented <see cref="IDemoSource" />: a directory tree reachable through the
-///     filesystem. That covers a local folder, a mounted network share and a UNC path, which is the
-///     shape the repo already uses for the <c>cs2-assets/</c> cache staged off
-///     <c>//192.168.1.7/Games</c>: configure a path, copy bytes down, keep the copy local and
-///     gitignored.
+///     A directory tree reachable through the filesystem. That covers a local folder, a mounted
+///     network share and a UNC path, which is the shape the repo already uses for the
+///     <c>cs2-assets/</c> cache staged off a NAS share: configure a path, copy bytes down, keep the
+///     copy local and gitignored.
 ///     <para>
 ///         Two candidate paths per demo, probed with <see cref="File.Exists" /> and nothing else:
 ///         <c>&lt;root&gt;/&lt;dir&gt;/&lt;file&gt;</c> then <c>&lt;root&gt;/&lt;file&gt;</c>. The
@@ -54,9 +53,11 @@ public sealed class DirectoryDemoSource : IDemoSource
         int scheme = trimmed.IndexOf("://", StringComparison.Ordinal);
         if (scheme > 0 && !trimmed.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
         {
+            // The SCHEME only, never the entry: an entry like s3://bucket/x?token=... would put a
+            // credential into a message that is printed for every corpus test in the run.
             throw new NotSupportedException(
-                $"demo source '{trimmed}' uses an unsupported scheme. Only a directory path or a " +
-                "file:// URI is implemented; a cloud provider is a separate IDemoSource.");
+                $"a demo source entry uses the unsupported scheme '{trimmed[..scheme]}'. Only a " +
+                "directory path, a file:// URI or an http(s) FileBrowser instance is implemented.");
         }
 
         return new DirectoryDemoSource(trimmed);

@@ -92,8 +92,8 @@
             0.14.0 is 0.14.0-beta0001 re-stamped: the tag diff is version.json alone, and the
             embedded ShippedRules are byte-identical to rules/, so that bump had nothing to extract.
         -->
-        <PackageVersion Include="CS2DemoKit.Parser" Version="0.14.0"/>
-        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.14.0"/>
+        <PackageVersion Include="CS2DemoKit.Parser" Version="0.14.1"/>
+        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.14.1"/>
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2"/>
         <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor
              CS2OpenDev.Protos states as policy. Grpc.Tools is gone: the parser no longer runs

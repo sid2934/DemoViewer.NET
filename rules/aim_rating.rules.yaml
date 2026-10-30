@@ -176,14 +176,21 @@ stats:
   # carries no bullet identity to collapse the instances by, and because collapsing them any other
   # way (by tick, say) would silently drop genuine double hits. This is also the definition
   # player_stats' ShotsHitFoe uses, so the two boards agree with each other.
+  # Acc% divides this by bullet_shots, which is round.active-gated above, so leaving it ungated
+  # counts a pre-match hit against shots that were never counted. Gated to match the denominator
+  # rather than to F10's round.number > 0: loosening bullet_shots instead would admit post-round
+  # shots on every demo.
   enemy_hits:
     count: damage_dealt
     match: { enemy: true, bullet: true }
+    while: round.active
     per: match
 
+  # HSAcc% divides this by enemy_hits, so it moves with it or the ratio splits.
   enemy_head_hits:
     count: damage_dealt
     match: { enemy: true, bullet: true, hitgroup: 1 }   # hitgroup 1 is the head
+    while: round.active
     per: match
 
   # Capped at the victim's remaining health, matching player_stats' TotalEnemyDmg, so overkill on
@@ -192,12 +199,14 @@ stats:
     sum: enrich.hurt.capped_damage
     on: damage_dealt
     match: { enemy: true }
+    while: round.number > 0
     per: match
 
   enemy_head_damage:
     sum: enrich.hurt.capped_damage
     on: damage_dealt
     match: { enemy: true, bullet: true, hitgroup: 1 }
+    while: round.number > 0
     per: match
 
   # ── Tier 2: the shot enrichments (movement, first bullet, spray residuals) ─────────────────

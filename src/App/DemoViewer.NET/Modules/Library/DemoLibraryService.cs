@@ -54,6 +54,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     private readonly Dictionary<string, DemoLibraryCacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _cacheLock = new();
+    private readonly object _saveGate = new();
     private readonly string? _dataPath; // library.json, or null on WASM
 
     // The unified demo cache, dual-written alongside library.json during the transition. Null → legacy only.
@@ -301,7 +302,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
     }
 
-    /// <summary>Cancels any in-flight scan and releases the cancellation source.</summary>
+    /// <summary>Cancels any in-flight scan, persists the cache, and releases the cancellation source.</summary>
     public void Dispose()
     {
         // The coordinator owns the CapacityAvailable subscription now: nothing queue-side to detach here.
@@ -309,6 +310,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         _scanCts?.Cancel();
         _scanCts?.Dispose();
         _scanCts = null;
+
+        // The every-12-demos checkpoint leaves up to 11 enriched rows in memory only, and a backlog that is
+        // still owed work never reaches ClearTier2Backlog's drain save.
+        Save();
     }
 
     /// <summary>Raised (on the post thread) whenever a scan finishes a phase, so the VM can refresh filters.</summary>
@@ -2779,26 +2784,38 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return;
         }
 
-        DemoLibraryData data;
-        lock (_cacheLock)
+        // Snapshots land in the order they were taken. A scan's save runs in the light lane beside the
+        // tier-2 parse in the heavy one, so an older one written last drops the row that parse just wrote.
+        lock (_saveGate)
         {
-            data = new DemoLibraryData
+            try
             {
-                SchemaVersion = DemoLibraryCacheEntry.CurrentSchema,
-                Folders = [.. _folderSnapshot],
-                Cache = _cache.Values.ToList()
-            };
-        }
+                byte[] bytes;
 
-        try
-        {
-            AtomicFile.WriteAllText(_dataPath, JsonSerializer.Serialize(data, _jsonOptions));
-        }
-        catch
-        {
-            // best-effort
+                // Serialized under the cache lock, not just snapshotted under it: the rows are live objects
+                // UpsertCache mutates field by field, so serializing outside it can persist a torn row.
+                lock (_cacheLock)
+                {
+                    bytes = JsonSerializer.SerializeToUtf8Bytes(new DemoLibraryData
+                    {
+                        SchemaVersion = DemoLibraryCacheEntry.CurrentSchema,
+                        Folders = [.. _folderSnapshot],
+                        Cache = _cache.Values.ToList()
+                    }, _jsonOptions);
+                }
+
+                BeforeSaveWrite?.Invoke();
+                AtomicFile.WriteAllBytes(_dataPath, bytes);
+            }
+            catch
+            {
+                // best-effort
+            }
         }
     }
+
+    /// <summary>Runs inside the save gate, after the snapshot and before the write. Test seam.</summary>
+    internal Action? BeforeSaveWrite { get; set; }
 
     private Task PostAsync(Action action)
     {

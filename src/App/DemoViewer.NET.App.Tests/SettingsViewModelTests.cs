@@ -1175,7 +1175,7 @@ public class SettingsViewModelTests
         string dir = NewTempDir();
         try
         {
-            ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0"));
+            ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.1"));
             PackCompatibilityTests.ManifestPack pack = new("net.demoviewer.pack.future",
                 FakeManifests.For("net.demoviewer.pack.future", "Future Book", "1.2.0", "^2.0", "*"));
             PackStatus status = PackStatus.Evaluate(pack, host);

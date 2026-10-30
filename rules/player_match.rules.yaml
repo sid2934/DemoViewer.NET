@@ -54,11 +54,13 @@ stats:
   TotalEnemyKills:
     count: kill
     match: { enemy: true }
+    while: round.number > 0
     per: match
 
   TeamKills:
     count: kill
     match: { teamkill: true }
+    while: round.number > 0
     per: match
 
   total_deaths:
@@ -70,11 +72,13 @@ stats:
     count: assist
     match: { enemy: true }
     where: "event.AssistedFlash == false"
+    while: round.number > 0
     per: match
 
   total_headshot_kills:
     count: kill
     match: { headshot: true }
+    while: round.number > 0
     per: match
 
   total_flash_assists:
@@ -158,6 +162,7 @@ stats:
     sum: enrich.hurt.capped_damage
     on: damage_dealt
     match: { enemy: true }
+    while: round.number > 0
     per: match
 
   TeamDmg:
@@ -172,14 +177,19 @@ stats:
     where: "event.Attacker == event.UserId"
     per: match
 
+  # The facet's Acc% is HitFoe over Shots, and kast's shots_fired carries while: round.active, so
+  # these move with it. Must stay word for word with player_stats' copies or the facet and the
+  # Stats tab divide by two different sums, which is the split that broke HSDmg% in F10.
   ShotsHitFoe:
     count: damage_dealt
     match: { enemy: true, bullet: true }
+    while: round.active
     per: match
 
   ShotsHitFriend:
     count: damage_dealt
     match: { teamdamage: true }
+    while: round.active
     per: match
 
   HealthWhileDamagingSum:
@@ -318,15 +328,20 @@ stats:
     per: match
 
   # ── Copies of aim_rating: the hit rates, counter-strafing and spray ──
+  # HSAcc% is this over ShotsHitFoe on the facet and enemy_head_hits over enemy_hits on the Stats
+  # tab, so all four move together. Gating only the denominators left the facet reading high on
+  # every player with a pre-match hit.
   enemy_head_hits:
     count: damage_dealt
     match: { enemy: true, bullet: true, hitgroup: 1 }
+    while: round.active
     per: match
 
   enemy_head_damage:
     sum: enrich.hurt.capped_damage
     on: damage_dealt
     match: { enemy: true, bullet: true, hitgroup: 1 }
+    while: round.number > 0
     per: match
 
   cs_attempts:

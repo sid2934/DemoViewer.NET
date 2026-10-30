@@ -134,7 +134,7 @@ public class FeaturePacksTests
     {
         // At least the real Strat Book manifest's requiresHost: this case needs the shipped pack to be the
         // compatible one, so a contract below it makes both packs incompatible and proves nothing.
-        ExtensionHostInfo host = new(SemVersion.Parse("2.1.0"), null, SemVersion.Parse("0.14.0"));
+        ExtensionHostInfo host = new(SemVersion.Parse("2.1.0"), null, SemVersion.Parse("0.14.1"));
         IncompatibleFakePack incompatible = new();
         StratBookPack stratBook = new();
 
@@ -169,7 +169,7 @@ public class FeaturePacksTests
     [Test]
     public async Task TheDerivedViews_AgreeInEitherReadOrder_AndFreezeOnFirstRead()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.1"));
         IncompatibleFakePack incompatible = new();
         PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
 
@@ -198,7 +198,7 @@ public class FeaturePacksTests
     [Test]
     public async Task AStatus_IsBundled_UnlessTheLoaderSaysOtherwise()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.1"));
         PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
         PackStatus evaluated = PackStatus.Evaluate(fine, host);
         LoadOutcome refused = new("/extensions/net.demoviewer.pack.fine/1.1.0", FakeManifests.For(fine.Id, "Fine", "1.1.0"), LoadFailure.Untrusted, "unsigned");
@@ -223,7 +223,7 @@ public class FeaturePacksTests
     [Test]
     public async Task ConfiguringFromStatuses_KeepsTheSourcesTheLoaderAssigned()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.1"));
         PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
         PackStatus staged = PackStatus.Evaluate(fine, host) with { Source = new PackSource.Staged("/extensions/x/1.2.0") };
 
