@@ -241,6 +241,11 @@ jobs:
   playback2d-budget:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Reported, not blocking. Wall-clock budgets on a shared runner cannot be made reliable by
+    # waiting harder: DV2D_BUDGET_SCALE below was widened twice chasing the same drift, and three of
+    # this lane's assertions account for 4 of the 15 sporadic CI failures measured over 2026-10-19
+    # to 10-30. A merge no longer waits on them; the numbers are still printed and uploaded.
+    continue-on-error: true
     env:
       # A hosted runner is not the baseline laptop. Gate at 2x so the lane catches real
       # regressions (an O(n) blow-up, a re-introduced per-frame allocation) without firing on runner
