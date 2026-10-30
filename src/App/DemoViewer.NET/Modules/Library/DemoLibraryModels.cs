@@ -360,6 +360,21 @@ public sealed class DemoLibraryCacheEntry
     /// <summary>Current cache schema; adding a metadata field that changes meaning should bump this.</summary>
     public const int CurrentSchema = 1;
 
+    /// <summary>
+    ///     This row as it stands, for a snapshot that outlives the cache lock. Every other member is a value
+    ///     type or a string, so MemberwiseClone copies them completely.
+    /// </summary>
+    internal DemoLibraryCacheEntry Copy()
+    {
+        DemoLibraryCacheEntry copy = (DemoLibraryCacheEntry)MemberwiseClone();
+
+        // Copied, unlike DemoCacheIndexEntry.Copy which shares its lists. No writer mutates a Players list
+        // in place today; this costs microseconds and means one that starts to cannot change a list the
+        // serializer is already walking.
+        copy.Players = Players is null ? null : [.. Players];
+        return copy;
+    }
+
     public string Path { get; set; } = "";
     public long Size { get; set; }
     public long ModifiedTicks { get; set; }

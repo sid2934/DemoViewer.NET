@@ -26,6 +26,12 @@ namespace DemoViewer.NET.ViewModels.Diagnostics;
 ///         cannot be present on one surface and missing on another. Deliberately best-effort and
 ///         non-throwing: this is a diagnostic, and it must never be the reason an analysis run fails.
 ///     </para>
+///     <para>
+///         This type holds no state. The set a report shows comes from the demo's cache record, written
+///         beside the fingerprint of the same composition, plus a fresh compose of the rules in force. It
+///         used to come from one process-wide slot, which any later composition overwrote: during a library
+///         backfill that meant a report for the demo on screen read "nothing composed in this session".
+///     </para>
 /// </summary>
 internal static class RulesetExclusionReport
 {
@@ -48,6 +54,27 @@ internal static class RulesetExclusionReport
         }
     }
 
+    /// <summary>
+    ///     The persisted form: one line per excluded ruleset, empty when the build dropped none. Kept here so
+    ///     this type stays the one place an exclusion is rendered.
+    ///     <para>
+    ///         Differs from <see cref="Describe" /> in one way: the source file is reduced to its NAME. These
+    ///         lines are stored on the cache record and copied into an error report, which is a payload built
+    ///         to leave the machine, and a user overlay's full path is their home directory. The log keeps the
+    ///         full path.
+    ///     </para>
+    /// </summary>
+    /// <param name="build">The composed build.</param>
+    internal static List<string> Lines(BuildResult build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        return
+        [
+            .. build.ExcludedRulesets.Select(r =>
+                $"ruleset '{ShortName(r)}' was excluded: {Summarize(r.Diagnostics)}")
+        ];
+    }
+
     /// <summary>The ruleset, its source file when it has one, and its diagnostics, on one line.</summary>
     public static string Describe(ExcludedRuleset ruleset) =>
         $"ruleset '{Name(ruleset)}' was excluded: {Summarize(ruleset.Diagnostics)}";
@@ -58,6 +85,12 @@ internal static class RulesetExclusionReport
         string.IsNullOrWhiteSpace(ruleset.SourceFile)
             ? ruleset.Id
             : $"{ruleset.Id}' ('{ruleset.SourceFile}";
+
+    // As Name, with the source reduced to a file name: see Lines.
+    private static string ShortName(ExcludedRuleset ruleset) =>
+        string.IsNullOrWhiteSpace(ruleset.SourceFile)
+            ? ruleset.Id
+            : $"{ruleset.Id}' ('{Path.GetFileName(ruleset.SourceFile)}";
 
     // Diagnostics carry a source position; include it, because "unresolvable reference" without a
     // line number is a search rather than a fix. Capped so a document that fails structural

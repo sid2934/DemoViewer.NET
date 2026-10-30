@@ -116,6 +116,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     private const double TwoColumnBreakpoint = 1000;
 
     private readonly Action<string>? _computeFullStats;
+    private Action<string>? _errorReportOpener;
     private readonly Func<string, string, string, int, int, bool>? _isClipStaged;
 
     private readonly Func<bool>? _isVerifyPresent;
@@ -197,6 +198,11 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     // ── Identity (shown ASAP) ──
     [ObservableProperty]
     private string _fileName = string.Empty;
+
+    // The demo's full local path, for the hero band's copy button. Deliberately NOT SubjectKey: that key is
+    // opaque and degrades to a bare file name on the browser host, which is not a path to hand a user.
+    [ObservableProperty]
+    private string _filePath = string.Empty;
 
     /// <summary>
     ///     True once the analysis stage has filled the rounds / score / scoreboard. Drives the view's
@@ -431,6 +437,21 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     /// </summary>
     public Action<ulong, string?>? PlayerOverviewOpener { get; set; }
 
+    /// <summary>
+    ///     Opens the error report for a demo, given its subject key. Null where the shell has not wired one,
+    ///     which hides the hero's report button. A property rather than a constructor argument because the
+    ///     shell sets it once and every existing caller of the constructor predates it.
+    /// </summary>
+    public Action<string>? ErrorReportOpener
+    {
+        get => _errorReportOpener;
+        set
+        {
+            _errorReportOpener = value;
+            OnPropertyChanged(nameof(CanReportErrors));
+        }
+    }
+
     // ── Subject identity ──────────────────────────────────────────────────────
     //
     // THE INVARIANT THIS PAGE IS BUILT ON: it never paints data belonging to a demo other than its current
@@ -452,6 +473,12 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     <see cref="BeginOpening" /> (live) and compared by every other fill entry point.
     /// </summary>
     public string? SubjectKey { get; private set; }
+
+    /// <summary>
+    ///     True when <see cref="FilePath" /> is a real path rather than a bare name, which is the browser
+    ///     host's case. Gates the copy affordance.
+    /// </summary>
+    public bool HasFilePath => Path.GetDirectoryName(FilePath) is { Length: > 0 };
 
     /// <summary>True in a cached render: drives the hero band's cached affordances.</summary>
     public bool IsCached => Mode == OverviewMode.Cached;
@@ -663,6 +690,12 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     /// <summary>Gates the hero's "Set match date" button.</summary>
     public bool CanSetMatchDate => _setMatchTime is not null && SubjectKey is not null;
 
+    /// <summary>
+    ///     Gates the hero's "Report Analysis Errors" button. The report is about the demo this page is
+    ///     PAINTING, which in a cached render is not the demo the shell has open.
+    /// </summary>
+    public bool CanReportErrors => ErrorReportOpener is not null && HasFilePath;
+
     /// <summary>The hero button's text: the time the page shows, else the prompt to set one.</summary>
     public string MatchDateButtonText => MatchDateText.Length == 0 ? "Set match date"
         : IsMatchDateApproximate ? $"~ {MatchDateText}" : MatchDateText;
@@ -788,6 +821,12 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
     partial void OnLiveDemoNameChanged(string? value) => OnPropertyChanged(nameof(CanReturnToLive));
 
+    partial void OnFilePathChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasFilePath));
+        OnPropertyChanged(nameof(CanReportErrors));
+    }
+
     /// <summary>
     ///     Step 1: called the instant an open begins, BEFORE the parse: shows the file name and whatever cheap
     ///     header info is already known (map / server may be empty and fill in later), and puts the page into
@@ -801,7 +840,9 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     Identity of the demo being opened: the local path where there is one, else the file name. Becomes
     ///     this page's <see cref="SubjectKey" />; every subsequent fill must present it or be dropped.
     /// </param>
-    public void BeginOpening(string fileName, string? mapDisplay, string? serverName, string? subjectKey)
+    /// <param name="filePath">The demo's full local path, or null where there is none (browser host).</param>
+    public void BeginOpening(string fileName, string? mapDisplay, string? serverName, string? subjectKey,
+        string? filePath = null)
     {
         ResetValues();
         Mode = OverviewMode.Live;
@@ -816,6 +857,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
         HasContent = true;
         FileName = fileName;
+        FilePath = filePath ?? string.Empty;
         MapDisplay = mapDisplay ?? string.Empty;
         ServerName = serverName ?? string.Empty;
         IsLoading = true;
@@ -1356,6 +1398,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         SetMatchTime(record.MatchMeta);
         HasContent = true;
         FileName = Path.GetFileName(record.Path);
+        FilePath = record.Path;
         MapDisplay = string.IsNullOrEmpty(record.Map) ? string.Empty : DemoEntry.PrettifyMap(record.Map);
         ServerName = record.Server ?? string.Empty;
         StatusText = string.Empty;
@@ -1644,6 +1687,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         SubjectKey = null;
         HasContent = false;
         FileName = string.Empty;
+        FilePath = string.Empty;
         MapDisplay = string.Empty;
         ServerName = string.Empty;
         StatusText = string.Empty;
@@ -1717,6 +1761,17 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         if (SubjectKey is { } key)
         {
             _setMatchTime?.Invoke(key, null);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenErrorReport()
+    {
+        // FilePath, not SubjectKey. The key degrades to a bare file name, which UpdateExisting would
+        // resolve against the working directory and write a cache row nothing later joins.
+        if (HasFilePath)
+        {
+            ErrorReportOpener?.Invoke(FilePath);
         }
     }
 
@@ -1849,6 +1904,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         OnPropertyChanged(nameof(CanExploreStats));
         OnPropertyChanged(nameof(CanExplorePlayback));
         OnPropertyChanged(nameof(CanSetMatchDate));
+        OnPropertyChanged(nameof(CanReportErrors));
     }
 
     private OverviewStatRow BuildStatRow(MetricRow row) =>

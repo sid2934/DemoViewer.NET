@@ -430,6 +430,7 @@ public static class Playback2DKeymap
         (Key.W, KeyModifiers.Control),
         (Key.OemComma, KeyModifiers.Control),
         (Key.B, KeyModifiers.Control),
+        (Key.R, KeyModifiers.Control | KeyModifiers.Shift),
         (Key.D1, KeyModifiers.Control),
         (Key.D2, KeyModifiers.Control),
         (Key.D3, KeyModifiers.Control),

@@ -8,6 +8,7 @@ open/cache/demos/{key}.json.gz#CtScore 3fdba35f04dc8c462986c992bcf87554625711307
 open/cache/demos/{key}.json.gz#CtSideWins 7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451
 open/cache/demos/{key}.json.gz#DemoVersion 74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b
 open/cache/demos/{key}.json.gz#DurationSeconds fc2be433eb998981480ff427f5c25b0c3fe4f5cf4d834be7710af4d7d92d7213
+open/cache/demos/{key}.json.gz#ExcludedRulesets 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945
 open/cache/demos/{key}.json.gz#FacetPlayers e8ded1fefb1b799f9e0b0c0600783b3a14a2c6b84cab09b39e1fe14b3abdaacf
 open/cache/demos/{key}.json.gz#Header dc2e7ac0c6ace67635f9a84b0b9003a01151ce0832d69c4c80320786545c80a1
 open/cache/demos/{key}.json.gz#HighlightHashes c28ec9fe3f1c3fc66fd6428c6ba8bdc91725b8289633cb6d6d2c5820f96d8303
@@ -189,6 +190,7 @@ sweep/cache/demos/{key}.json.gz#CtScore 3fdba35f04dc8c462986c992bcf8755462571130
 sweep/cache/demos/{key}.json.gz#CtSideWins 7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451
 sweep/cache/demos/{key}.json.gz#DemoVersion 74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b
 sweep/cache/demos/{key}.json.gz#DurationSeconds fc2be433eb998981480ff427f5c25b0c3fe4f5cf4d834be7710af4d7d92d7213
+sweep/cache/demos/{key}.json.gz#ExcludedRulesets 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945
 sweep/cache/demos/{key}.json.gz#FacetPlayers e8ded1fefb1b799f9e0b0c0600783b3a14a2c6b84cab09b39e1fe14b3abdaacf
 sweep/cache/demos/{key}.json.gz#Header dc2e7ac0c6ace67635f9a84b0b9003a01151ce0832d69c4c80320786545c80a1
 sweep/cache/demos/{key}.json.gz#HighlightHashes c28ec9fe3f1c3fc66fd6428c6ba8bdc91725b8289633cb6d6d2c5820f96d8303

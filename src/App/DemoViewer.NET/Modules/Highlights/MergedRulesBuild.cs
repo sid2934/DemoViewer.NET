@@ -9,6 +9,7 @@ using CS2DemoKit.Analysis.Config;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Output;
+using CS2DemoKit.Analysis.Catalog;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.RulesetsV2.Resolve;
@@ -44,6 +45,10 @@ public sealed class MergedRulesBuild
     // Collectors produce output only on the run whose options carried them, so they key the run too.
     private readonly ConditionalWeakTable<ParsedDemo, CachedRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
+
+    // Keyed like _fingerprints, but on the MERGED set rather than the core one: a stamped ruleset's
+    // exclusion silently empties a table, which is the loudest version of this.
+    private readonly Dictionary<int, (IReadOnlyList<RulesetDoc> Docs, IReadOnlyList<string> Lines)> _exclusions = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
 
     // Keyed by the doc instances it was composed from: a reload hands out new ones, and a gate change can drop a dependency.
@@ -279,6 +284,41 @@ public sealed class MergedRulesBuild
         }
 
         return result;
+    }
+
+    /// <summary>
+    ///     What a composition of the rules IN FORCE drops, one line per ruleset, empty when it drops none.
+    ///     Composition only: a lowering failure needs a build against a real demo, which is seconds of work.
+    ///     <para>
+    ///         Deliberately NOT through <c>HighlightConfigFingerprint.Compute</c>, which refuses any
+    ///         composition that produced a diagnostic and so throws on precisely the input this answers for.
+    ///         That is also why a report cannot learn this from the cache record alone: the write that
+    ///         persists the stored set is downstream of that same throw.
+    ///     </para>
+    /// </summary>
+    /// <param name="tickRate">The tick rate to compose at.</param>
+    public IReadOnlyList<string> Exclusions(int tickRate)
+    {
+        IReadOnlyList<RulesetDoc> docs = Docs;
+        lock (_gate)
+        {
+            if (_exclusions.TryGetValue(tickRate, out (IReadOnlyList<RulesetDoc> Docs, IReadOnlyList<string> Lines) hit)
+                && ReferenceEquals(hit.Docs, docs))
+            {
+                return hit.Lines;
+            }
+        }
+
+        CatalogScopeAdapter adapter = CatalogScopeAdapter.From(CatalogResource.Load());
+        RulesetComposition.Result composed =
+            RulesetComposition.Compose(docs, adapter, tickRate, RulesHighlightHarvester.GotvProfileId);
+        IReadOnlyList<string> lines = [.. composed.Excluded.Select(RulesetExclusionReport.Describe)];
+        lock (_gate)
+        {
+            _exclusions[tickRate] = (docs, lines);
+        }
+
+        return lines;
     }
 
     /// <summary>
