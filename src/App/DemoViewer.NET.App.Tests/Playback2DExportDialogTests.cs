@@ -872,15 +872,17 @@ public class Playback2DExportFfmpegDownloadTests
 ///     <c>IsVisible</c> binding latched its first read. On a cold start that read is "no demo loaded", and
 ///     the export entry point stayed invisible however many demos were opened afterwards.
 /// </summary>
+[NotInParallel]
 public class Playback2DExportVisibilityTests
 {
     // OnActivated posts through the annotation controller, so activation belongs on the UI thread. Off it,
-    // Dispatcher.Post throws as soon as no other test's session happens to be holding one open.
+    // Dispatcher.Post throws as soon as no other test's session happens to be holding one open. The view
+    // model is disposed because OnActivated leaves an annotation attach running in the shared session.
     [Test]
     public async Task WhenADemoArrivesUnderAnActiveTab_CanExportIsRaised() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            Playback2DTabViewModel vm = new();
+            using Playback2DTabViewModel vm = new();
             Playback2DFakeContext ctx = new()
             {
                 HasDemo = false,
@@ -910,7 +912,7 @@ public class Playback2DExportVisibilityTests
     public async Task AGateFlip_RaisesItToo() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            Playback2DTabViewModel vm = new();
+            using Playback2DTabViewModel vm = new();
             FakeModuleFeatureGate gate = new();
             Playback2DFakeContext ctx = new()
             {

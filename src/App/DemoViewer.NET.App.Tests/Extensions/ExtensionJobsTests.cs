@@ -52,7 +52,9 @@ public class ExtensionJobsTests
         }
     }
 
-    private static async Task WaitForAsync(Func<bool> condition, string what, int timeoutMs = 5000)
+    // A hang detector, not a timing claim. CI runs this suite as four concurrent batch processes, so a
+    // budget tight enough to measure anything only reports the runner's load.
+    private static async Task WaitForAsync(Func<bool> condition, string what, int timeoutMs = 30000)
     {
         DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (!condition())

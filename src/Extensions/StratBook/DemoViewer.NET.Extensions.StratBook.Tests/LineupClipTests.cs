@@ -1029,16 +1029,29 @@ public class LineupClipTests
 
     private sealed class FileRenderer : ILineupClipRenderer
     {
-        public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs)> Calls { get; } = [];
+        private readonly List<(string Demo, IReadOnlyList<LineupClipJob> Jobs)> _calls = [];
+
+        // Appended by whichever queue worker ran the batch and read from the test thread, so a read hands
+        // back a copy taken under the same lock the append holds.
+        public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs)> Calls
+        {
+            get
+            {
+                lock (_calls)
+                {
+                    return [.. _calls];
+                }
+            }
+        }
 
         public int Bytes { get; init; } = 100;
 
         public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
             CancellationToken ct)
         {
-            lock (Calls)
+            lock (_calls)
             {
-                Calls.Add((demoPath, jobs));
+                _calls.Add((demoPath, jobs));
             }
 
             foreach (LineupClipJob job in jobs)

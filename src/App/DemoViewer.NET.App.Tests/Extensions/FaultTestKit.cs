@@ -52,7 +52,8 @@ internal sealed class PostQueue
         {
             Action? action;
 
-            // Never held while the action runs: a posted action that posts again would deadlock.
+            // Never held while the action runs: Post comes from whichever thread finished the work, and
+            // holding this across arbitrary work would block all of them.
             lock (_pending)
             {
                 if (!_pending.TryDequeue(out action))

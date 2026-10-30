@@ -2846,8 +2846,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         return tcs.Task;
     }
 
-    // For work a scan leaves running after it returns. A newer scan cancels ct before it lists, and its own
-    // Reconcile must not be overwritten by this older listing. Checked on the post thread, where that cancel runs.
+    // A newer scan cancels ct before it lists, and its own Reconcile must not be overwritten by this older
+    // listing. Checked on the post thread, where that cancel runs: a scan continues on a pool thread after
+    // its first await, so a check on the calling thread can be stale by the time the post runs.
     private async Task PostIfCurrentAsync(Action action, CancellationToken ct)
     {
         bool stale = false;
