@@ -146,6 +146,85 @@ public class ErrorReportStoreTests
             .Because("the report follows the demo's content key, which is what makes it survive a move");
     }
 
+    /// <summary>
+    ///     The report is the one thing on the record a pass did not produce, so every pass that writes the
+    ///     record has to leave it alone. Covers both shapes production uses: a field write through
+    ///     <see cref="DemoCacheStore.UpdateExisting" />, and the reprojection sites that load a record and
+    ///     Upsert it back. Upsert only merges through <c>FillMissingFrom</c> when a path JOINS another row,
+    ///     so a same-key Upsert of a record that had not been loaded first would drop the report outright.
+    /// </summary>
+    [Test]
+    public async Task NoTierFill_ClearsTheUsersReport()
+    {
+        DemoCacheStore store = new(null);
+        string demo = Path.Combine(Dir, "tierfill.dem");
+        store.Upsert(Record(demo, "sha-tierfill"));
+        DemoErrorReportStore.Save(store, demo, "deaths read zero for every player", Snapshot(demo), First);
+
+        store.UpdateExisting(demo, r =>
+        {
+            r.AnalysisState = DemoAnalysisState.Indexed;
+            r.ConfigFingerprint = "fp-tierfill";
+            DemoCacheStore.StampAnalysis(r);
+        });
+
+        string? afterUpdate = DemoErrorReportStore.TryLoad(store, demo)?.Notes;
+
+        // The reprojection shape: RoundFactsEvaluator.ReprojectRow and RoundFactsSource.TryGet both load the
+        // record and hand that same instance back to Upsert.
+        store.Upsert(store.TryLoadRecord(demo)!);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(afterUpdate).IsEqualTo("deaths read zero for every player")
+                .Because("filling the analysis tier must not cost the user their words");
+            await Assert.That(DemoErrorReportStore.TryLoad(store, demo)?.Notes)
+                .IsEqualTo("deaths read zero for every player")
+                .Because("a reprojected row keeps the report, which is why those sites load before they write");
+        }
+    }
+
+    /// <summary>
+    ///     The same save against a real cache root rather than the in-memory store, read back through a
+    ///     second store over the same directory: this is the only gate on the report actually surviving
+    ///     serialisation to the sidecar and back.
+    /// </summary>
+    [Test]
+    public async Task ASavedReport_RoundTripsThroughTheSidecarOnDisk()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-error-report-disk-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            string demo = Path.Combine(root, "ondisk.dem");
+            DemoCacheStore store = new(root);
+            store.Upsert(Record(demo, "sha-ondisk"));
+            DemoErrorReportStore.Save(store, demo, "round 18 never closes", Snapshot(demo), First);
+
+            DemoErrorReport? read = DemoErrorReportStore.TryLoad(new DemoCacheStore(root), demo);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(read).IsNotNull();
+                await Assert.That(read!.Notes).IsEqualTo("round 18 never closes");
+                await Assert.That(read.CreatedUtcTicks).IsEqualTo(First.Ticks);
+                await Assert.That(read.UpdatedUtcTicks).IsEqualTo(First.Ticks);
+                await Assert.That(read.Snapshot?.DemoPath).IsEqualTo(demo)
+                    .Because("the snapshot is the half that makes a report reproducible");
+            }
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
     [Test]
     public async Task DeletingAReport_LeavesTheRestOfTheRecordAlone()
     {

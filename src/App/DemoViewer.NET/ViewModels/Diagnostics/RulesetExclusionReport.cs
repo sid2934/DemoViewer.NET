@@ -50,10 +50,9 @@ internal static class RulesetExclusionReport
         }
     }
 
-    // What the most recent composition excluded, and WHICH demo it composed. One reference, written by the
-    // background analysis threads and read on the UI thread when the report window opens: a value tuple here
-    // is three fields wide, so a reader could pair one demo's subject with another's list, which is the
-    // misattribution the subject key exists to prevent.
+    // What the most recent composition excluded, and WHICH demo it composed. Written by background analysis
+    // threads and read on the UI thread, so subject and list must move together in ONE reference: read
+    // separately they can pair one demo's subject with another's list.
     private sealed record ExclusionSlot(string Subject, IReadOnlyList<string> Descriptions);
 
     private static ExclusionSlot? _lastExcluded;

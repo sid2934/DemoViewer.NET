@@ -178,8 +178,7 @@ public sealed partial class ErrorReportViewModel : ViewModelBase
             IsExistingReport = true;
             LastSavedText = "Last saved " + Local(now.ToUniversalTime().Ticks);
 
-            // An empty CreatedText means there was no stored report, so this save is when it was created.
-            // Without this the identity block shows the "SAVED REPORT" eyebrow over a blank date.
+            // An empty CreatedText means there was no stored report, so this save is its creation.
             if (CreatedText.Length == 0)
             {
                 CreatedText = "Created " + Local(now.ToUniversalTime().Ticks);
