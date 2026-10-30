@@ -874,63 +874,67 @@ public class Playback2DExportFfmpegDownloadTests
 /// </summary>
 public class Playback2DExportVisibilityTests
 {
+    // OnActivated posts through the annotation controller, so activation belongs on the UI thread. Off it,
+    // Dispatcher.Post throws as soon as no other test's session happens to be holding one open.
     [Test]
-    public async Task WhenADemoArrivesUnderAnActiveTab_CanExportIsRaised()
-    {
-        Playback2DTabViewModel vm = new();
-        Playback2DFakeContext ctx = new()
+    public async Task WhenADemoArrivesUnderAnActiveTab_CanExportIsRaised() =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            HasDemo = false,
-            Gate = new FakeModuleFeatureGate()
-        };
-        vm.OnActivated(ctx);
+            Playback2DTabViewModel vm = new();
+            Playback2DFakeContext ctx = new()
+            {
+                HasDemo = false,
+                Gate = new FakeModuleFeatureGate()
+            };
+            vm.OnActivated(ctx);
 
-        List<string> raised = [];
-        PropertyChangedEventHandler handler = (_, e) => raised.Add(e.PropertyName ?? string.Empty);
-        vm.PropertyChanged += handler;
+            List<string> raised = [];
+            PropertyChangedEventHandler handler = (_, e) => raised.Add(e.PropertyName ?? string.Empty);
+            vm.PropertyChanged += handler;
 
-        try
-        {
-            ctx.HasDemo = true;
-            ctx.RaiseDemoReset();
-        }
-        finally
-        {
-            vm.PropertyChanged -= handler;
-        }
+            try
+            {
+                ctx.HasDemo = true;
+                ctx.RaiseDemoReset();
+            }
+            finally
+            {
+                vm.PropertyChanged -= handler;
+            }
 
-        await Assert.That(raised).Contains(nameof(Playback2DTabViewModel.CanExport))
-            .Because("a demo loading is exactly when the affordance has to appear");
-    }
+            await Assert.That(raised).Contains(nameof(Playback2DTabViewModel.CanExport))
+                .Because("a demo loading is exactly when the affordance has to appear");
+        });
 
     [Test]
-    public async Task AGateFlip_RaisesItToo()
-    {
-        Playback2DTabViewModel vm = new();
-        FakeModuleFeatureGate gate = new();
-        Playback2DFakeContext ctx = new()
+    public async Task AGateFlip_RaisesItToo() =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            Gate = gate
-        };
-        vm.OnActivated(ctx);
+            Playback2DTabViewModel vm = new();
+            FakeModuleFeatureGate gate = new();
+            Playback2DFakeContext ctx = new()
+            {
+                Gate = gate
+            };
+            vm.OnActivated(ctx);
 
-        List<string> raised = [];
-        PropertyChangedEventHandler handler = (_, e) => raised.Add(e.PropertyName ?? string.Empty);
-        vm.PropertyChanged += handler;
+            List<string> raised = [];
+            PropertyChangedEventHandler handler = (_, e) => raised.Add(e.PropertyName ?? string.Empty);
+            vm.PropertyChanged += handler;
 
-        try
-        {
-            // Live, like every other gate on this tab: turning the feature off in Settings has to take the
-            // button away without rebuilding the tab.
-            gate.SetEnabled("playback2d.export", false);
-        }
-        finally
-        {
-            vm.PropertyChanged -= handler;
-        }
+            try
+            {
+                // Live, like every other gate on this tab: turning the feature off in Settings has to take the
+                // button away without rebuilding the tab.
+                gate.SetEnabled("playback2d.export", false);
+            }
+            finally
+            {
+                vm.PropertyChanged -= handler;
+            }
 
-        await Assert.That(raised).Contains(nameof(Playback2DTabViewModel.CanExport));
-    }
+            await Assert.That(raised).Contains(nameof(Playback2DTabViewModel.CanExport));
+        });
 }
 
 /// <summary>
