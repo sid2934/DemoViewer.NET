@@ -898,7 +898,7 @@ public class LineupClipTests
         List<DemoQueueItemSnapshot> items = processing.Snapshot().Where(i => i.Kind == QueueJobKind.DemoProcessing).ToList();
         await Assert.That(items.Count).IsEqualTo(2);
         await Assert.That(string.Join(",", items.Select(i => i.State))).IsEqualTo("Completed,Completed")
-            .Because("every batch ends on its own; a Cancelled or Running one names itself here");
+            .Because("every batch ends on its own");
         await Assert.That(string.Join(",", renderer.Calls.Select(c => c.Demo))).IsEqualTo("/d/five.dem,/d/two.dem");
         await Assert.That(parses).IsEqualTo(2).Because("one read per demo serves all of its clips");
         await Assert.That(renderer.Calls.Count(c => c.Parsed is null)).IsEqualTo(0)
