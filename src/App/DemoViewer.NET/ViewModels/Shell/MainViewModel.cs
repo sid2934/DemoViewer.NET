@@ -51,6 +51,7 @@ using DemoViewer.NET.ViewModels.Common;
 using DemoViewer.NET.ViewModels.DemoProcessing;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.EntityTracking;
+using DemoViewer.NET.ViewModels.ErrorReport;
 using DemoViewer.NET.ViewModels.Highlights;
 using DemoViewer.NET.ViewModels.Idle;
 using DemoViewer.NET.ViewModels.Library;
@@ -690,6 +691,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 action => Dispatcher.UIThread.Post(action));
             StatsTab.PlayerOverviewOpener = (steamId64, name) => OpenPlayerOverview(steamId64, name);
             MatchOverviewTab.PlayerOverviewOpener = StatsTab.PlayerOverviewOpener;
+        }
+
+        // Both report buttons. Set only where a window service and a cache exist, which is what gates the
+        // two buttons: the browser host has neither, and a report there would have nowhere to be stored.
+        if (_windowService is not null && _demoCache is not null)
+        {
+            StatsTab.ErrorReportOpener = OpenErrorReportFor;
+            MatchOverviewTab.ErrorReportOpener = OpenErrorReportFor;
         }
 
         // 3.3b + 3.5a forwarder: re-raise ParserTab scalar property changes on the
@@ -1985,6 +1994,46 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MatchOverviewTab.SeedFromCache(subjectKey, record, Facet(localPath));
     }
 
+    /// <summary>
+    ///     Opens the "Report Analysis Errors" window for one demo. Both buttons and the accelerator land
+    ///     here, each having already decided WHICH demo: the Match Overview page reports its own subject,
+    ///     which in a cached render is not the demo the shell has open.
+    /// </summary>
+    private void OpenErrorReportFor(string demoPath)
+    {
+        if (_windowService is null || _demoCache is null || demoPath.Length == 0)
+        {
+            return;
+        }
+
+        ErrorReportViewModel vm = new(
+            demoPath,
+            _demoCache,
+            App.Services?.GetService<MergedRulesBuild>(),
+            () => (((ModuleContext as ICurrentDemoSource)?.CurrentDemo, _loadedDemoPath)));
+        _windowService.ShowErrorReport(vm);
+    }
+
+    /// <summary>
+    ///     Ctrl+Shift+R. Reports the demo the user is LOOKING at: Match Overview's subject while that tab is
+    ///     selected, since it can be a cached preview of a demo the shell never opened, and the open demo
+    ///     everywhere else.
+    /// </summary>
+    [RelayCommand]
+    private void OpenErrorReport()
+    {
+        // No cross-fallback either way. Off Match Overview the subject may be a preview the user browsed
+        // minutes ago, and on it the open demo is a different one; reporting the wrong demo is worse than
+        // the accelerator doing nothing.
+        string? target = SelectedTab?.TabId == "builtin.matchoverview"
+            ? MatchOverviewTab.HasFilePath ? MatchOverviewTab.FilePath : null
+            : _loadedDemoPath;
+        if (target is { Length: > 0 } path)
+        {
+            OpenErrorReportFor(path);
+        }
+    }
+
     // The hero's "Set match date": the override store writes the record, whose change repaints the page.
     private void SetMatchTime(string path, DateTime? utc)
     {
@@ -2116,7 +2165,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         // Replay the same pushes the load funnel made, in the same order, against the same key. Re-deriving
         // beats stashing: a stash taken mid-load would be a snapshot of a page that was still filling in.
-        MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path);
+        MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path, path);
         MatchOverviewTab.IsSampleClip = IsTourSample(path);
         MatchOverviewTab.SetSummary(path, parsed);
         MatchOverviewTab.SetParseHealth(path, parsed.Health, parsed.Warnings); // damaged-demo banner
@@ -2911,7 +2960,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IsLoading = true;
         StatusText = $"Auto-loading {Path.GetFileName(path)}…";
         // Match Overview parity with the interactive funnel: show the landing immediately (CLI/debug auto-load).
-        MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path);
+        MatchOverviewTab.BeginOpening(Path.GetFileName(path), null, null, path, path);
         MatchOverviewTab.IsSampleClip = IsTourSample(path);
         MatchOverviewTab.SetStage(path, "Parsing demo…", 0.15);
         bool superseded = false;
@@ -3829,6 +3878,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _teamNamesTask = null;
         _allFrames = null;
         _loadedDemoPath = null;
+        StatsTab.NotifyDemoChanged();
         _players = null;
         _playersByUserId = null;
         _nameByUserId = new Dictionary<int, string>();
@@ -4243,7 +4293,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // it the same way. Late continuations from a PREVIOUS open present that open's key and are dropped.
         string subjectKey = localPath ?? fileName;
 
-        MatchOverviewTab.BeginOpening(fileName, quickMap, quickServer, subjectKey);
+        MatchOverviewTab.BeginOpening(fileName, quickMap, quickServer, subjectKey, localPath);
         // Everything this demo is already known to be, painted before the parse starts. A demo that has been
         // indexed (most of the library) shows its rosters, score and highlights immediately and keeps them on
         // screen while the pipeline re-derives them, instead of watching a skeleton rebuild facts that were
@@ -4269,6 +4319,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _demoBytes = rawBytes;
             // Retain the full path for the Diagnostics Session card; null on browser hosts.
             _loadedDemoPath = localPath ?? fileName;
+            StatsTab.NotifyDemoChanged();
 
             // Zero-copy parse of rawBytes through the open item: frames slice into the buffer, so it must stay
             // held. During a reel render the parse throws ReelInProgressException, handled below.

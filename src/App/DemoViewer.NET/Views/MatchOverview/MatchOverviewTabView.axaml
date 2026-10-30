@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:DemoViewer.NET.ViewModels.MatchOverview"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="760"
              x:Class="DemoViewer.NET.Views.MatchOverview.MatchOverviewTabView"
              x:DataType="vm:MatchOverviewTabViewModel">
@@ -265,8 +266,11 @@
                 <Border Classes="card" Padding="22 18" MinHeight="168">
                     <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
 
-                        <!-- Identity (left) | score plate (right). -->
-                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="20">
+                        <!-- Identity (left) | score plate (right) | report button (corner).
+                             The gaps are MARGINS, not ColumnSpacing: spacing applies to a zero-width
+                             column too, so a hidden report button would leave 20px of dead air and stop
+                             the score plate sitting flush right. -->
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="0">
 
                             <!-- MinHeight reserves the identity block so a demo whose map name has not been
                                  read yet (the cheap header read can miss) does not shrink the band and then
@@ -282,9 +286,25 @@
                                            IsVisible="{Binding ServerName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                                            Foreground="{DynamicResource TextMid}"
                                            FontSize="12.5" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding FileName}"
-                                           Foreground="{DynamicResource TextDim}"
-                                           Classes="mono" FontSize="11.5" TextWrapping="Wrap" />
+                                <!-- A WrapPanel so a long name reflows the button onto the next line instead
+                                     of clipping it: the responsive-strip rule, same as the action row below.
+                                     A Grid does neither job, measuring an Auto column with infinite width (so
+                                     the name stops wrapping) and parking a star column's button at the far
+                                     edge of the identity block. MinHeight=0 keeps the row one line tall, so
+                                     the band's reserved height does not move. -->
+                                <WrapPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding FileName}"
+                                               Foreground="{DynamicResource TextDim}"
+                                               Classes="mono" FontSize="11.5" TextWrapping="Wrap"
+                                               VerticalAlignment="Center" />
+                                    <Button Classes="ghost chip" Content="Copy path"
+                                            IsVisible="{Binding HasFilePath}"
+                                            Click="OnCopyFilePathClick"
+                                            MinHeight="0" Padding="6 0" Margin="8 0 0 0"
+                                            VerticalAlignment="Center"
+                                            AutomationProperties.Name="Copy demo file path"
+                                            ToolTip.Tip="{Binding FilePath}" />
+                                </WrapPanel>
                             </StackPanel>
 
                             <!--
@@ -297,7 +317,7 @@
                                 Do not shorten these labels back to bare side names.
                             -->
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14"
-                                        VerticalAlignment="Center" MinWidth="270"
+                                        VerticalAlignment="Center" MinWidth="270" Margin="20 0 0 0"
                                         HorizontalAlignment="Right">
                                 <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -322,6 +342,20 @@
                                     </StackPanel>
                                 </StackPanel>
                             </StackPanel>
+
+                            <!-- Its own column, not the action row below: that row is a WrapPanel that
+                                 reflows, and a chip there can wrap onto a second line and grow the band.
+                                 Top-aligned under the identity block's MinHeight=92, so the band measures
+                                 the same whether it is shown or hidden. -->
+                            <Button Grid.Column="2" Classes="icon-btn"
+                                    IsVisible="{Binding CanReportErrors}"
+                                    Command="{Binding OpenErrorReportCommand}"
+                                    VerticalAlignment="Top" Padding="6 5" Margin="14 0 0 0"
+                                    Foreground="{DynamicResource TextMid}"
+                                    AutomationProperties.Name="Report Analysis Errors"
+                                    ToolTip.Tip="Report Analysis Errors">
+                                <ui:GameIcon Key="ui/bug" IconHeight="15" />
+                            </Button>
                         </Grid>
 
                         <Rectangle Grid.Row="1" Classes="divider" Height="1" HorizontalAlignment="Stretch" />

@@ -1,6 +1,9 @@
 #region
 
 using Avalonia.Controls;
+// SetTextAsync moved onto ClipboardExtensions in Avalonia 12; IClipboard no longer declares it.
+using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using DemoViewer.NET.ViewModels.MatchOverview;
 
 #endregion
@@ -23,5 +26,24 @@ public partial class MatchOverviewTabView : UserControl
                 vm.SetViewportWidth(e.NewSize.Width);
             }
         };
+    }
+
+    // The clipboard needs the visual tree, so the copy lives here rather than on the view-model.
+    private async void OnCopyFilePathClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MatchOverviewTabViewModel { FilePath.Length: > 0 } vm
+            || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
+        {
+            return;
+        }
+
+        try
+        {
+            await clipboard.SetTextAsync(vm.FilePath);
+        }
+        catch (Exception)
+        {
+            // Clipboard writes are permission- or gesture-gated on some hosts.
+        }
     }
 }

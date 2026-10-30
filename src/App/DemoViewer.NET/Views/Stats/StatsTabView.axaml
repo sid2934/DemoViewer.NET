@@ -7,6 +7,7 @@
              xmlns:output="using:CS2DemoKit.Analysis.Output"
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              controls:TutorialAnchor.Target="StatsContent"
              mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="700"
              x:Class="DemoViewer.NET.Views.Stats.StatsTabView"
@@ -112,6 +113,22 @@
                                 IsEnabled="{Binding HasStats}"
                                 Classes="statsexport"
                                 ToolTip.Tip="Export every stats table as JSON to a folder" />
+
+                        <!-- Reporting an error is not an export, so a rule separates it from the pair
+                             above. It hides with the button, or it dangles after JSON with no demo open. -->
+                        <Rectangle Classes="divider strong" Width="1" Height="18"
+                                   IsVisible="{Binding CanReportErrors}"
+                                   VerticalAlignment="Center" Margin="2 0" />
+                        <Button Classes="icon-btn"
+                                IsVisible="{Binding CanReportErrors}"
+                                Command="{Binding OpenErrorReportCommand}"
+                                Padding="7 5" CornerRadius="6"
+                                Foreground="{DynamicResource TextMid}"
+                                VerticalAlignment="Center"
+                                AutomationProperties.Name="Report Analysis Errors"
+                                ToolTip.Tip="Report Analysis Errors">
+                            <ui:GameIcon Key="ui/bug" IconHeight="15" />
+                        </Button>
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">

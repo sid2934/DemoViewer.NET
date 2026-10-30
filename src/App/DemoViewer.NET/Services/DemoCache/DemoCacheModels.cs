@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
+using DemoViewer.NET.Services.ErrorReports;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Extensions.Sdk;
@@ -339,6 +340,20 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     /// <summary>Per-highlight-definition hashes, for finer-grained staleness than the combined fingerprint.</summary>
     public Dictionary<string, string> HighlightHashes { get; set; } = new();
 
+    /// <summary>
+    ///     What the composition behind this tier dropped, one line per ruleset, and EMPTY when it dropped
+    ///     none. Null means no composition has been recorded for this demo: a record written before the
+    ///     field, or a legacy import. Written in the same mutate as <see cref="ConfigFingerprint" />, which
+    ///     describes the same composition.
+    ///     <para>
+    ///         <b>No initializer, deliberately.</b> The serializer leaves one in place for a member absent
+    ///         from the JSON, so an empty list by default would make every record written before this field
+    ///         read as "nothing was dropped", which is the one answer a report must never invent.
+    ///     </para>
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ExcludedRulesets { get; set; }
+
     // ── Round facts ──────────────────────────────────────────────────────────
 
     /// <summary>
@@ -374,6 +389,14 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     // row, so a staleness pass opens no sidecar and no payload. Payloads that are too large to ride a
     // record Match Overview re-reads on every property touch (the round index, the grenade rows) stay in
     // their own sidecars; only their stamps are here.
+
+    /// <summary>
+    ///     The user's own report of what the analysis got wrong on this demo, or null while they have written
+    ///     none. USER-AUTHORED, like the match-time override: no tier fill may clear it, and the merge below
+    ///     carries it onto a row this record joins.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DemoErrorReport? ErrorReport { get; set; }
 
     /// <summary>Per-pack payloads keyed by pack id. Opaque here; typed through <see cref="IPackPayloads" />.</summary>
     public Dictionary<string, JsonElement> Packs { get; set; } = new(StringComparer.Ordinal);
@@ -454,9 +477,14 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
             ProfileName = other.ProfileName;
             ConfigFingerprint = other.ConfigFingerprint;
             HighlightHashes = other.HighlightHashes;
+
+            // Inside the tier block, not a ??= outside it: the set and the fingerprint describe one
+            // composition and a joining row that took one without the other pairs two different runs.
+            ExcludedRulesets = other.ExcludedRulesets;
         }
 
         RoundFacts ??= other.RoundFacts;
+        ErrorReport ??= other.ErrorReport;
         if (other.MatchMeta is { MatchTimeSource: MatchTimeSource.UserOverride } chosen && MatchMeta?.MatchTimeSource != MatchTimeSource.UserOverride)
         {
             MatchMeta ??= chosen;

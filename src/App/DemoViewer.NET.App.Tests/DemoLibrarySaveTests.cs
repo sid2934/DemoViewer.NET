@@ -20,9 +20,9 @@ public class DemoLibrarySaveTests
     private static readonly Action<Action> _inline = a => a();
 
     /// <summary>A parse with no frames: tier 2 records it as computed with no score, which is the honest answer.</summary>
-    private static ParsedDemo ScorelessDemo() => SyntheticParsedDemo.Create(
+    private static ParsedDemo ScorelessDemo(string map = "de_test") => SyntheticParsedDemo.Create(
         [], [], new Dictionary<int, PlayerInfo>(), null,
-        "de_test", 6400, 1f / 64, "test",
+        map, 6400, 1f / 64, "test",
         "test", "csgo", 0, 0, 0,
         "valve_demo_2", "", "", DemoProfile.Unknown);
 
@@ -99,6 +99,94 @@ public class DemoLibrarySaveTests
                 await Assert.That(rows is [{ ScoreComputed: true, FullyIndexed: true }]).IsTrue()
                     .Because("the row the parse wrote has to be on disk, or the next launch re-parses the demo");
             }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    /// <summary>
+    ///     The cache lock must be free while the snapshot serialises. Serialising under it blocks every
+    ///     writer and every reader for the whole serialize, which measured 5.2 ms against 0.27 ms for the
+    ///     copy at 2000 rows, with the serializer's allocation inside the lock too.
+    ///     <para>
+    ///         <c>IndexTier2Core</c> direct, and one demo only: the every-12 checkpoint and
+    ///         <c>ClearTier2Backlog</c> both call <c>Save</c>, which would block on the gate this save holds
+    ///         and look exactly like the failure being hunted.
+    ///     </para>
+    /// </summary>
+    [Test]
+    public async Task TheCacheLock_IsFreeWhileTheSnapshotSerialises()
+    {
+        string dir = TempRoot();
+        try
+        {
+            string path = WriteDemo(dir, "a.dem");
+            string dataPath = Path.Combine(dir, "library.json");
+
+            using DemoLibraryService svc = new(_inline, dataPath);
+            Func<DemoLibraryData, byte[]> real = svc.SerializeSnapshot;
+            bool mutatedWhileSerialising = false;
+            svc.SerializeSnapshot = data =>
+            {
+                svc.SerializeSnapshot = real;
+
+                // Needs the cache lock. If the serialize still held it this blocks until the timeout.
+                Task write = Task.Run(() => svc.IndexTier2Core(Entry(path), ScorelessDemo()));
+                mutatedWhileSerialising = write.Wait(TimeSpan.FromSeconds(1));
+                return real(data);
+            };
+
+            svc.Save();
+
+            await Assert.That(mutatedWhileSerialising).IsTrue()
+                .Because("a writer must not wait on the cache lock for the duration of a serialize");
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    /// <summary>
+    ///     And the snapshot must be COPIES. A row mutated after the snapshot was taken must not reach the
+    ///     file this save is writing: the rows are live objects whose fields move one at a time, so a
+    ///     reference snapshot persists a half-written one.
+    /// </summary>
+    [Test]
+    public async Task ARowMutatedWhileSerialising_DoesNotReachThisSavesFile()
+    {
+        string dir = TempRoot();
+        try
+        {
+            string path = WriteDemo(dir, "a.dem");
+            string dataPath = Path.Combine(dir, "library.json");
+
+            using DemoLibraryService svc = new(_inline, dataPath);
+
+            // A row in the snapshot, persisted, so the mutation below is a CHANGE to a row already taken.
+            svc.IndexTier2Core(Entry(path), ScorelessDemo());
+            svc.Save();
+            await Assert.That(ReadRows(dataPath) is [{ Map: "de_test" }]).IsTrue()
+                .Because("the snapshot this test mutates has to start from a known row");
+
+            Func<DemoLibraryData, byte[]> real = svc.SerializeSnapshot;
+            svc.SerializeSnapshot = data =>
+            {
+                svc.SerializeSnapshot = real;
+
+                // The same demo again, different map: this rewrites the LIVE row's fields, which is the row
+                // the snapshot would be aliasing.
+                Task write = Task.Run(() => svc.IndexTier2Core(Entry(path), ScorelessDemo("de_mutated")));
+                write.Wait(TimeSpan.FromSeconds(1));
+                return real(data);
+            };
+
+            svc.Save();
+
+            await Assert.That(ReadRows(dataPath) is [{ Map: "de_test" }]).IsTrue()
+                .Because("this save's file is the snapshot it took, not the cache as it later became");
         }
         finally
         {

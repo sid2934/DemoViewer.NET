@@ -25,6 +25,7 @@
         <KeyBinding Gesture="Ctrl+W" Command="{Binding CloseDemoCommand}" />
         <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding OpenSettingsCommand}" />
         <KeyBinding Gesture="Ctrl+B" Command="{Binding BookmarkCurrentFrameCommand}" />
+        <KeyBinding Gesture="Ctrl+Shift+R" Command="{Binding OpenErrorReportCommand}" />
         <KeyBinding Gesture="Ctrl+D1" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="1" />
         <KeyBinding Gesture="Ctrl+D2" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="2" />
         <KeyBinding Gesture="Ctrl+D3" Command="{Binding SelectTabByOrdinalCommand}" CommandParameter="3" />
