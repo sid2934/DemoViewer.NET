@@ -24,7 +24,17 @@ public static class DemoErrorReportStore
     public static DemoErrorReport? TryLoad(DemoCacheStore store, string path)
     {
         ArgumentNullException.ThrowIfNull(store);
-        if (store.TryLoadRecord(path, false)?.ErrorReport is not { } report)
+        return FromRecord(store.TryLoadRecord(path, false));
+    }
+
+    /// <summary>
+    ///     The same read off a record the caller already loaded. Each load decompresses and deserialises the
+    ///     sidecar, and the window needs the record anyway for its snapshot.
+    /// </summary>
+    /// <param name="record">The demo's cache record, or null when it has none.</param>
+    public static DemoErrorReport? FromRecord(DemoCacheRecord? record)
+    {
+        if (record?.ErrorReport is not { } report)
         {
             return null;
         }

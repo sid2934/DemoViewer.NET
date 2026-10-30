@@ -91,9 +91,8 @@ public sealed partial class ErrorReportViewModel : ViewModelBase
             : null;
         MapDisplay = record?.Map is { Length: > 0 } map ? DemoEntry.PrettifyMap(map) : "";
 
-        DemoErrorReport? stored = _cache is not null && _demoPath.Length > 0
-            ? DemoErrorReportStore.TryLoad(_cache, _demoPath)
-            : null;
+        // Off the record already in hand: TryLoad would decompress and deserialise the sidecar a second time.
+        DemoErrorReport? stored = DemoErrorReportStore.FromRecord(record);
         IsExistingReport = stored is not null;
         Notes = stored?.Notes ?? "";
         CreatedText = stored is { CreatedUtcTicks: > 0 } c ? "Created " + Local(c.CreatedUtcTicks) : "";

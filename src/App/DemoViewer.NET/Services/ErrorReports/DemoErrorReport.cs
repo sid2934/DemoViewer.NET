@@ -181,6 +181,12 @@ public sealed class DemoErrorReportRuleset
     /// <summary>Whether it was enabled for the run.</summary>
     public bool Enabled { get; set; }
 
+    /// <summary>
+    ///     True when another doc with the same id won, so this one contributed nothing. A same-id override is
+    ///     the supported way to replace a shipped ruleset, and the loser carries no identity of its own.
+    /// </summary>
+    public bool Shadowed { get; set; }
+
     /// <summary>Members a newer app wrote that this one does not know, kept so a round-trip never drops them.</summary>
     [JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? UnknownMembers { get; set; }

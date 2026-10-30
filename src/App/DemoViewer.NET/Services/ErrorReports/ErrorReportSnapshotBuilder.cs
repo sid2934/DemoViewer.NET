@@ -165,19 +165,37 @@ public static class ErrorReportSnapshotBuilder
         [
             Row("profile (cached run)", snapshot.CachedProfileName ?? "(none)"),
             Row("fingerprint (cached run)", snapshot.CachedConfigFingerprint ?? "(none)"),
-            Row("profile (now)", snapshot.CurrentProfileName ?? "(none)"),
             Row("fingerprint (now)", snapshot.CurrentConfigFingerprint ?? "(none)")
         ];
+
+        // The app resolves one profile id, so the two profile rows are equal whenever both are known and the
+        // "now" row is noise. It earns a row only once they can disagree.
+        if (!string.Equals(snapshot.CachedProfileName, snapshot.CurrentProfileName, StringComparison.Ordinal))
+        {
+            rows.Add(Row("profile (now)", snapshot.CurrentProfileName ?? "(none)"));
+        }
 
         // Named rather than counted: an excluded ruleset contributes nothing and reads exactly like rules that
         // ran and matched nothing, which is the most likely thing behind an "analysis error" report. The
         // unknown case is spelled out, because an empty list that means "we never looked" would send a
         // developer hunting elsewhere.
-        rows.Add(Row("excluded rulesets", !snapshot.ExcludedRulesetsKnown
-            ? "(unknown: nothing composed in this session)"
-            : snapshot.ExcludedRulesets.Count == 0
-                ? "none"
-                : string.Join(", ", snapshot.ExcludedRulesets)));
+        if (!snapshot.ExcludedRulesetsKnown)
+        {
+            rows.Add(Row("excluded rulesets", "(unknown: nothing composed in this session)"));
+        }
+        else if (snapshot.ExcludedRulesets.Count == 0)
+        {
+            rows.Add(Row("excluded rulesets", "none"));
+        }
+        else
+        {
+            // One row each, under the one key. A Describe sentence carries its own commas, so joining them
+            // produced a line neither a reader nor a parser could split back apart.
+            foreach (string excluded in snapshot.ExcludedRulesets)
+            {
+                rows.Add(Row("excluded rulesets", excluded));
+            }
+        }
         foreach ((string id, string hash) in snapshot.HighlightHashes.OrderBy(k => k.Key, StringComparer.Ordinal))
         {
             rows.Add(Row("highlight hash · " + id, hash));
@@ -267,9 +285,10 @@ public static class ErrorReportSnapshotBuilder
             return;
         }
 
-        // The tick rate the identities are computed at. A ruleset's identity is per tick rate, so a snapshot
-        // taken at the wrong one would name hashes this demo's outputs were never stamped with.
-        int tickRate = record is { TickRate: > 0 } ? record.TickRate : 64;
+        // A ruleset's identity is per tick rate, so one computed at a rate this demo never ran at would name
+        // hashes its outputs were never stamped with. With no cached tick rate there is no honest rate to
+        // use, so the rulesets are listed without identities rather than with invented ones.
+        int? tickRate = record is { TickRate: > 0 } ? record.TickRate : null;
         IReadOnlyList<RulesetDoc> docs;
         try
         {
@@ -280,27 +299,43 @@ public static class ErrorReportSnapshotBuilder
             return;
         }
 
-        try
+        // Outside the try: a set that fails to compose still HAS a profile, and reporting "(none)" for one
+        // that has one sent a reader looking for a profile problem.
+        snapshot.CurrentProfileName = RulesHighlightHarvester.GotvProfileId;
+        if (tickRate is { } rate)
         {
-            snapshot.CurrentConfigFingerprint = rules.Fingerprint(tickRate).Fingerprint;
-            snapshot.CurrentProfileName = RulesHighlightHarvester.GotvProfileId;
+            try
+            {
+                snapshot.CurrentConfigFingerprint = rules.Fingerprint(rate).Fingerprint;
+            }
+            catch (Exception)
+            {
+                // A set that does not compose has no fingerprint, which is itself worth seeing in the report.
+                snapshot.CurrentConfigFingerprint = "(does not compose)";
+            }
         }
-        catch (Exception)
+        else
         {
-            // A set that does not compose has no fingerprint, which is itself worth seeing in the report.
-            snapshot.CurrentConfigFingerprint = "(does not compose)";
+            snapshot.CurrentConfigFingerprint = "(no cached tick rate to compute one at)";
         }
 
         foreach (RulesetDoc doc in docs)
         {
+            // Docs can legitimately hold a shipped doc and a user override under one id. RulesetIdentity
+            // resolves the id back to whichever one wins, so asking per doc would stamp the loser with the
+            // winner's hash and tell a reader the shipped file produced the override's identity.
+            bool shadowed = !ReferenceEquals(Winner(rules, doc.Id), doc);
             string? hash = null;
-            try
+            if (tickRate is { } identityRate && !shadowed)
             {
-                hash = rules.RulesetIdentity(doc.Id, tickRate);
-            }
-            catch (Exception)
-            {
-                // Throws when the ruleset is disabled or its closure does not compose; both show as no hash.
+                try
+                {
+                    hash = rules.RulesetIdentity(doc.Id, identityRate);
+                }
+                catch (Exception)
+                {
+                    // Throws when the ruleset is disabled or its closure does not compose; both show as no hash.
+                }
             }
 
             snapshot.Rulesets.Add(new DemoErrorReportRuleset
@@ -310,8 +345,54 @@ public static class ErrorReportSnapshotBuilder
                 Origin = OriginOf(doc),
                 Hash = hash,
                 CatalogVersion = doc.CatalogVersion,
-                Enabled = doc.Enabled
+                Enabled = doc.Enabled,
+                Shadowed = shadowed
             });
+        }
+
+        AddGatedOffRulesets(snapshot, rules);
+    }
+
+    // A stamped ruleset switched off by its feature gate is dropped from Docs entirely, so the report showed
+    // nothing at all for it: indistinguishable from never being installed. An `enabled: false` in a yaml file
+    // does appear, so the two ways to switch a ruleset off reported differently, and the silent one is the
+    // one the Settings UI makes easy.
+    private static void AddGatedOffRulesets(DemoErrorReportSnapshot snapshot, MergedRulesBuild rules)
+    {
+        try
+        {
+            HashSet<string> listed = new(snapshot.Rulesets.Select(r => r.Id), StringComparer.Ordinal);
+            foreach (StampedRuleset stamped in rules.StampedRulesets)
+            {
+                if (listed.Contains(stamped.RulesetId) || stamped.Enabled())
+                {
+                    continue;
+                }
+
+                snapshot.Rulesets.Add(new DemoErrorReportRuleset
+                {
+                    Id = stamped.RulesetId,
+                    Name = stamped.Owner,
+                    Enabled = false
+                });
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // The doc this id resolves to, or null when none is enabled. Null leaves every same-id doc unshadowed,
+    // which is the honest answer when none of them won.
+    private static RulesetDoc? Winner(MergedRulesBuild rules, string id)
+    {
+        try
+        {
+            return rules.EnabledDoc(id);
+        }
+        catch (Exception)
+        {
+            return null;
         }
     }
 
